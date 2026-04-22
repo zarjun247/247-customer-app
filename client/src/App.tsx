@@ -5,14 +5,33 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Onboarding from "./pages/Onboarding";
+import Catalog from "./pages/Catalog";
+import Cart from "./pages/Cart";
+import Orders from "./pages/Orders";
+import OrderDetail from "./pages/OrderDetail";
+import RxUpload from "./pages/RxUpload";
+import Profile from "./pages/Profile";
+import Invoices from "./pages/Invoices";
+import RefillReminders from "./pages/RefillReminders";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
+      <Route path="/onboarding" component={Onboarding} />
+      <Route path="/catalog" component={Catalog} />
+      <Route path="/cart" component={Cart} />
+      <Route path="/orders" component={Orders} />
+      <Route path="/orders/:id" component={OrderDetail} />
+      <Route path="/rx-upload" component={RxUpload} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/invoices" component={Invoices} />
+      <Route path="/refills" component={RefillReminders} />
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -27,7 +46,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider
-        defaultTheme="light"
+        defaultTheme="dark"
         // switchable
       >
         <TooltipProvider>

@@ -1,0 +1,25 @@
+# 24/7 Customer App — TODO
+
+- [x] Global design system: dark theme, Inter font, teal accent, CSS variables
+- [x] Database schema: buildings, stores, products, batches, orders, prescriptions, cart, refill_reminders, whatsapp_sessions
+- [x] Seed data: sample buildings, stores, products with stock
+- [x] Auth flow: OTP phone login page
+- [x] Onboarding: building and flat selection after first login
+- [x] User profile page with building/flat info
+- [x] Product catalog page (node-filtered, real-time stock)
+- [x] Product search (name, generic, brand)
+- [x] Cart page with item management
+- [x] Checkout with SLA window display and inventory soft-lock
+- [x] Rx upload: image capture, secure S3 storage
+- [x] Rx status tracker (Pending OCR, Pharmacist Reviewing, Approved, Rejected)
+- [x] Order lifecycle tracking (Pharmacist Reviewing, Picking, Out for Delivery, Delivered)
+- [x] Reorder from past orders (one-tap)
+- [x] Refill reminders engine (chronic medication detection)
+- [x] Invoices page (per-order invoice download link)
+- [x] WhatsApp bot webhook: search flow
+- [x] WhatsApp bot webhook: reorder flow
+- [x] WhatsApp bot webhook: Rx upload flow
+- [x] WhatsApp bot webhook: order status flow
+- [x] WhatsApp bot webhook: refill prompt flow
+- [x] Vitest coverage: 19 tests (auth, state machine, FEFO, expiry, soft-lock, refill, WhatsApp)
+- [x] Final checkpoint and delivery
