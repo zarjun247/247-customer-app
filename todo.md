@@ -52,3 +52,22 @@
 - [x] Integrate real store locations (Hiranandani, Powai, Chandivali, Kanjurmarg) with lat/lng
 - [x] Add product category filters to catalogue (Medicines, Devices, Nutrition, General, Baby, Wellness)
 - [x] Admin image approval queue (imageApprovalStatus field in products schema, enrichment pipeline built)
+
+## System Grounding (v4 — Production Upgrade)
+- [x] Audit and document all demo data currently in DB (buildings, stores, products)
+- [x] Remove all demo buildings (Bangalore/fake data) — none found, buildings are Mumbai-area
+- [x] Remove all demo stores (fake coordinates, placeholder names) — stores already have real Mumbai coords
+- [x] Remove all sample product seed data — confirmed all 4,159 products are real Medivision data
+- [x] Remove all fake/placeholder coordinates — stores already have real lat/lng
+- [x] Add serviceRadius (meters) column to stores table
+- [x] Add lat, lng columns to buildings table
+- [x] Add assignedStoreId FK to buildings table (primaryStoreId + fallbackStoreId)
+- [x] Generate and apply Drizzle migration for schema changes (migration 0004 applied)
+- [x] Implement building-first routing engine (3-pass: primary → geo nearest → stock filter) in server/routing.ts
+- [x] Integrate Google Maps Distance Matrix API for real ETA (5-min picking buffer, fallback to slaMins)
+- [x] Expose routing as tRPC procedure: routing.resolve + catalog.store upgraded with etaMins, displayLabel, resolutionPath
+- [x] Wire ETA into catalog.store response
+- [x] Remove ALL remaining customer-facing "node" / "pharmacy node" language (Profile, Cart, Home, Onboarding, AppLayout)
+- [x] Replace with "24/7 Pharmacy", "Serving pharmacy", "Local 24/7 store", "Fulfilled by 24/7"
+- [x] Write routing engine unit tests (Haversine, 3-pass resolution, ETA fallback covered in pharmacy.test.ts)
+- [x] Produce routing logic documentation (ROUTING.md)

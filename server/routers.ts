@@ -16,6 +16,7 @@ import {
 } from "./db";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
+import { resolveStore, formatRoutingAuditEntry } from "./routing";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const authRouter = router({
@@ -99,9 +100,46 @@ const catalogRouter = router({
     .query(async ({ input }) => getSkuById(input.skuId)),
   store: protectedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.user.id);
-    if (!user?.assignedStoreId) return null;
-    return getStoreById(user.assignedStoreId);
+    if (!user?.buildingId) return null;
+    // Use the routing engine for authoritative store + ETA resolution
+    const result = await resolveStore({
+      buildingId: user.buildingId,
+      mapsApiKey: ENV.googleMapsApiKey || undefined,
+    });
+    if (!result) {
+      // Fallback: return raw store if routing fails
+      if (user.assignedStoreId) return getStoreById(user.assignedStoreId);
+      return null;
+    }
+    // Log routing resolution for auditability
+    console.info(formatRoutingAuditEntry({ buildingId: user.buildingId }, result));
+    const store = await getStoreById(result.storeId);
+    return store ? { ...store, etaMins: result.etaMins, displayLabel: result.displayLabel, resolutionPath: result.resolutionPath } : null;
   }),
+});
+
+// ─── Routing Router ───────────────────────────────────────────────────────────
+const routingRouter = router({
+  resolve: protectedProcedure
+    .input(z.object({
+      requiredSkuIds: z.array(z.number()).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user?.buildingId) return null;
+      const result = await resolveStore({
+        buildingId: user.buildingId,
+        requiredSkuIds: input.requiredSkuIds,
+        mapsApiKey: ENV.googleMapsApiKey || undefined,
+      });
+      if (result) {
+        console.info(formatRoutingAuditEntry(
+          { buildingId: user.buildingId, requiredSkuIds: input.requiredSkuIds },
+          result
+        ));
+      }
+      return result;
+    }),
 });
 
 // ─── Cart Router ──────────────────────────────────────────────────────────────
@@ -371,6 +409,7 @@ export const appRouter = router({
   auth: authRouter,
   user: userRouter,
   catalog: catalogRouter,
+  routing: routingRouter,
   cart: cartRouter,
   orders: orderRouter,
   prescriptions: prescriptionRouter,

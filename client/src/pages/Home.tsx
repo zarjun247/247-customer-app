@@ -67,7 +67,7 @@ export default function Home() {
             <div>
               <p className="text-sm font-medium text-foreground">Committed SLA windows</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Delivery time is calculated from live node capacity, not estimated.
+                Delivery time is calculated from live pharmacy capacity, not estimated.
               </p>
             </div>
           </div>

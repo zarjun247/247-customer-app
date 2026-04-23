@@ -65,7 +65,7 @@ export default function Cart() {
             <h1 className="text-base font-semibold text-foreground">Order Review</h1>
             {totalItems > 0 && (
               <p className="text-xs text-muted-foreground">
-                {totalItems} {totalItems === 1 ? "item" : "items"} · {store?.name ?? "Your node"}
+                {totalItems} {totalItems === 1 ? "item" : "items"} · {store?.name ?? "Your pharmacy"}
               </p>
             )}
           </div>

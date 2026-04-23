@@ -29,7 +29,7 @@ interface NodeMapProps {
 }
 
 /**
- * NodeMap — Infrastructural pharmacy node + rider tracking map.
+ * NodeMap — Infrastructural pharmacy location + rider tracking map.
  * Intentionally minimal: dark-styled, no controls clutter, data-only markers.
  */
 export function NodeMap({
@@ -54,7 +54,7 @@ export function NodeMap({
     if (!mapRef.current || !window.google) return;
     clearMarkers();
 
-    // Pharmacy node markers
+    // Pharmacy location markers
     nodes.forEach(node => {
       const el = document.createElement("div");
       el.style.cssText = `

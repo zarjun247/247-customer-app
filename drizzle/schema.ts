@@ -36,8 +36,10 @@ export const buildings = mysqlTable("buildings", {
   address: text("address"),
   pincode: varchar("pincode", { length: 10 }),
   city: varchar("city", { length: 100 }),
-  primaryStoreId: int("primaryStoreId"),
-  fallbackStoreId: int("fallbackStoreId"),
+  lat: decimal("lat", { precision: 10, scale: 8 }),
+  lng: decimal("lng", { precision: 11, scale: 8 }),
+  primaryStoreId: int("primaryStoreId"),   // assigned serving pharmacy
+  fallbackStoreId: int("fallbackStoreId"), // pincode-level fallback
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -53,6 +55,7 @@ export const stores = mysqlTable("stores", {
   slaMins: int("slaMins").default(20).notNull(),
   lat: decimal("lat", { precision: 10, scale: 8 }),
   lng: decimal("lng", { precision: 11, scale: 8 }),
+  serviceRadius: int("serviceRadius").default(2000).notNull(), // metres — buildings within this radius are served
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

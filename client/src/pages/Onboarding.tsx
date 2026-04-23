@@ -111,7 +111,7 @@ export default function Onboarding() {
             />
           </div>
 
-          {/* ── Node assignment preview ──────────────────────────────────── */}
+          {/* ── Pharmacy assignment preview ──────────────────────────────────── */}
           {selectedBuildingData && (
             <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-lg bg-primary/8 border border-primary/20">
               <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
