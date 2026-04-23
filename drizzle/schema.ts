@@ -51,6 +51,8 @@ export const stores = mysqlTable("stores", {
   phone: varchar("phone", { length: 20 }),
   isActive: boolean("isActive").default(true).notNull(),
   slaMins: int("slaMins").default(20).notNull(),
+  lat: decimal("lat", { precision: 10, scale: 8 }),
+  lng: decimal("lng", { precision: 11, scale: 8 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -66,9 +68,15 @@ export const products = mysqlTable("products", {
   schedule: mysqlEnum("schedule", ["OTC", "H", "H1", "X"]).default("OTC").notNull(),
   requiresPrescription: boolean("requiresPrescription").default(false).notNull(),
   isChronicMedication: boolean("isChronicMedication").default(false).notNull(),
+  category: mysqlEnum("category", ["medicine", "devices", "baby", "nutrition", "fmcg", "wellness"]).default("medicine").notNull(),
+  companyName: varchar("companyName", { length: 200 }),
+  companyCode: varchar("companyCode", { length: 20 }),
   hsnCode: varchar("hsnCode", { length: 20 }),
   barcode: varchar("barcode", { length: 100 }),
   imageUrl: text("imageUrl"),
+  imageApprovalStatus: mysqlEnum("imageApprovalStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  imageApprovedAt: timestamp("imageApprovedAt"),
+  imageApprovedBy: int("imageApprovedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

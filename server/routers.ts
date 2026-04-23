@@ -83,11 +83,16 @@ const userRouter = router({
 // ─── Catalog Router ───────────────────────────────────────────────────────────
 const catalogRouter = router({
   list: protectedProcedure
-    .input(z.object({ search: z.string().optional() }))
+    .input(z.object({
+      search: z.string().optional(),
+      category: z.string().optional(),
+      limit: z.number().min(1).max(100).default(60),
+      offset: z.number().min(0).default(0),
+    }))
     .query(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
       if (!user?.assignedStoreId) return [];
-      return getCatalog(user.assignedStoreId, input.search);
+      return getCatalog(user.assignedStoreId, input.search, input.category, input.limit, input.offset);
     }),
   sku: protectedProcedure
     .input(z.object({ skuId: z.number() }))

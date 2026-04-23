@@ -79,7 +79,7 @@ export default function Cart() {
             </div>
             <p className="text-sm font-medium text-foreground mb-1">No items in your order</p>
             <p className="text-xs text-muted-foreground mb-6 max-w-[200px]">
-              Add medicines from your assigned pharmacy node's catalogue.
+              Add medicines from your local 24/7 pharmacy to get started.
             </p>
             <button
               onClick={() => navigate("/catalog")}

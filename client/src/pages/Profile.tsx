@@ -63,7 +63,7 @@ export default function Profile() {
               </div>
             </div>
             <div>
-              <p className="section-label mb-0.5">Pharmacy Node</p>
+              <p className="section-label mb-0.5">Serving Pharmacy</p>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
                 <p className="text-sm text-foreground font-medium">

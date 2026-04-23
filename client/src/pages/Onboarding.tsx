@@ -42,7 +42,7 @@ export default function Onboarding() {
             Establish your delivery address
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Your building and flat determine your assigned pharmacy node and committed delivery window. This cannot be changed after onboarding without contacting support.
+            Your building and flat determine your serving pharmacy and committed delivery window. This cannot be changed after onboarding without contacting support.
           </p>
         </div>
 
@@ -116,7 +116,7 @@ export default function Onboarding() {
             <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-lg bg-primary/8 border border-primary/20">
               <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
               <p className="text-xs text-foreground">
-                Assigned to <span className="font-medium">{selectedBuildingData.name}</span> pharmacy node.
+                Served by <span className="font-medium">{selectedBuildingData.name}</span> local pharmacy.
                 {flatNumber && ` Delivery to Flat ${flatNumber}.`}
               </p>
             </div>

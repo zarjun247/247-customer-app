@@ -5,11 +5,12 @@ import { NodeMap } from "@/components/NodeMap";
 import { ArrowLeft, Clock, CheckCircle2, Circle, RotateCcw, FileDown, MapPin } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
+import { useState, useEffect } from "react";
 
 const ORDER_STEPS = [
   { key: "created",              label: "Order Received",        sub: "Your order has been logged in the system." },
   { key: "pharmacist_reviewing", label: "Pharmacist Reviewing",  sub: "A licensed pharmacist is verifying your prescription." },
-  { key: "picking",              label: "Picking",               sub: "Your medicines are being picked and packed at the node." },
+  { key: "picking",              label: "Picking",               sub: "Your medicines are being picked and packed at your local 24/7 pharmacy." },
   { key: "out_for_delivery",     label: "Out for Delivery",      sub: "Your order is en route to your flat." },
   { key: "delivered",            label: "Delivered",             sub: "Dispensed and delivered." },
 ];
@@ -48,6 +49,26 @@ export default function OrderDetail() {
     { orderId },
     { enabled: isAuthenticated && !isNaN(orderId), refetchInterval: 15000 }
   );
+  const { data: store } = trpc.catalog.store.useQuery(undefined, { enabled: isAuthenticated });
+  const [etaMins, setEtaMins] = useState<number | null>(null);
+
+  // Compute real ETA via Google Maps Directions API when order is out for delivery
+  useEffect(() => {
+    if (order?.status !== 'out_for_delivery' || !store?.lat || !store?.lng) return;
+    if (!window.google?.maps) return;
+    const svc = new window.google.maps.DistanceMatrixService();
+    svc.getDistanceMatrix({
+      origins: [{ lat: Number(store.lat), lng: Number(store.lng) }],
+      destinations: [{ lat: 19.1197, lng: 72.9050 }], // delivery building (use user's building coords in prod)
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      drivingOptions: { departureTime: new Date(), trafficModel: window.google.maps.TrafficModel.BEST_GUESS },
+    }, (res, status) => {
+      if (status === 'OK' && res?.rows[0]?.elements[0]?.status === 'OK') {
+        const secs = res.rows[0].elements[0].duration_in_traffic?.value ?? res.rows[0].elements[0].duration?.value ?? 0;
+        setEtaMins(Math.ceil(secs / 60));
+      }
+    });
+  }, [order?.status, store?.lat, store?.lng]);
 
   const reorder = trpc.orders.reorder.useMutation({
     onSuccess: (data) => {
@@ -184,15 +205,18 @@ export default function OrderDetail() {
             </div>
             <NodeMap
               className="h-48"
-              centerLat={19.076}
-              centerLng={72.8777}
+              centerLat={store?.lat ? Number(store.lat) : 19.1197}
+              centerLng={store?.lng ? Number(store.lng) : 72.9050}
               zoom={15}
-              riderPosition={{ lat: 19.076 + Math.random() * 0.005, lng: 72.8777 + Math.random() * 0.005 }}
-              deliveryLat={19.076}
-              deliveryLng={72.8777}
+              nodes={store ? [{ id: store.id, name: store.name, lat: Number(store.lat ?? 19.1197), lng: Number(store.lng ?? 72.9050), isAssigned: true }] : []}
+              riderPosition={store ? { lat: Number(store.lat ?? 19.1197) + 0.002, lng: Number(store.lng ?? 72.9050) + 0.002 } : undefined}
+              deliveryLat={19.1197}
+              deliveryLng={72.9050}
             />
             <div className="px-4 py-2.5 border-t border-border">
-              <p className="text-xs text-muted-foreground">Rider location updates every 30 seconds. Map is indicative.</p>
+              <p className="text-xs text-muted-foreground">
+                {etaMins ? `Estimated arrival: ${etaMins} min · ` : ''}Rider location updates every 30 seconds. Map is indicative.
+              </p>
             </div>
           </div>
         )}

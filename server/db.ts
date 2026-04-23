@@ -114,15 +114,29 @@ export async function getStoreById(id: number) {
 }
 
 // ─── Products / Catalog ───────────────────────────────────────────────────────
-export async function getCatalog(storeId: number, search?: string) {
+export async function getCatalog(
+  storeId: number,
+  search?: string,
+  category?: string,
+  limit = 60,
+  offset = 0
+) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(storeSkus.storeId, storeId), eq(storeSkus.isActive, true)];
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;
     conditions.push(
-      or(like(products.name, term), like(products.brand, term), like(products.genericName, term))!
+      or(
+        like(products.name, term),
+        like(products.brand, term),
+        like(products.genericName, term),
+        like(products.companyName, term)
+      )!
     );
+  }
+  if (category && category !== 'all') {
+    conditions.push(eq(products.category, category as any));
   }
   return db.select({
     skuId: storeSkus.id,
@@ -136,7 +150,10 @@ export async function getCatalog(storeId: number, search?: string) {
     schedule: products.schedule,
     requiresPrescription: products.requiresPrescription,
     isChronicMedication: products.isChronicMedication,
+    category: products.category,
+    companyName: products.companyName,
     imageUrl: products.imageUrl,
+    imageApprovalStatus: products.imageApprovalStatus,
     mrp: storeSkus.mrp,
     sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty,
@@ -145,7 +162,9 @@ export async function getCatalog(storeId: number, search?: string) {
   }).from(storeSkus)
     .innerJoin(products, eq(storeSkus.productId, products.id))
     .where(and(...conditions))
-    .orderBy(products.name);
+    .orderBy(products.name)
+    .limit(limit)
+    .offset(offset);
 }
 
 export async function getSkuById(skuId: number) {

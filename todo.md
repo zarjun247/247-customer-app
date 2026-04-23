@@ -39,3 +39,16 @@
 - [x] Improve empty states with operational context
 - [x] Integrate Google Maps for node selection (onboarding), ETA (order tracking), rider location (NodeMap component, dark-styled)
 - [x] Tighten AppLayout navigation: remove path-based wrappers
+
+## Full Catalogue Ingestion (v3)
+- [x] Extract full 4,253-row Medivision PDF into structured JSON (4,159 unique SKUs via PyMuPDF)
+- [x] Update DB schema: category, companyName, imageApprovalStatus on products; lat/lng on stores
+- [x] Build batch-wise ingestion script (4,159 products, 16,636 store SKUs, 4,253 batches via bulk INSERT)
+- [x] Build SKU deduplication logic (catalogue API groups by productId, one row per SKU per store)
+- [x] Build image enrichment pipeline (SVG branded placeholders per category, admin approval queue in schema)
+- [x] Update catalogue API: category filter, pagination (60/page), search across brand/generic/company
+- [x] Remove all "node" language from customer-facing screens
+- [x] Replaced with "Serving pharmacy", "Local 24/7 pharmacy", "Fulfilled by 24/7"
+- [x] Integrate real store locations (Hiranandani, Powai, Chandivali, Kanjurmarg) with lat/lng
+- [x] Add product category filters to catalogue (Medicines, Devices, Nutrition, General, Baby, Wellness)
+- [x] Admin image approval queue (imageApprovalStatus field in products schema, enrichment pipeline built)

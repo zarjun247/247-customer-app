@@ -41,7 +41,7 @@ export default function Home() {
           </h1>
 
           <p className="text-muted-foreground text-base leading-relaxed max-w-xs">
-            Medicines dispensed from a licensed pharmacy node assigned to your residential complex.
+            Medicines dispensed from a licensed local pharmacy assigned to your residential complex.
             Deterministic delivery. Pharmacist-gated prescriptions.
           </p>
         </div>
@@ -55,7 +55,7 @@ export default function Home() {
             <div>
               <p className="text-sm font-medium text-foreground">Building-first routing</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Your order is fulfilled from the pharmacy node assigned to your complex.
+                Your order is fulfilled from the 24/7 pharmacy serving your building.
               </p>
             </div>
           </div>

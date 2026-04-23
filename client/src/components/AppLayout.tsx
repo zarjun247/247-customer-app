@@ -46,7 +46,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             />
           </Link>
 
-          {/* Right side: node indicator + cart */}
+          {/* Right side: pharmacy indicator + cart */}
           <div className="flex items-center gap-4">
             {profile?.buildingName && (
               <div className="hidden sm:flex items-center gap-1.5">
@@ -70,7 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Mobile node indicator strip */}
+        {/* Mobile pharmacy indicator strip */}
         {profile?.buildingName && (
           <div className="sm:hidden border-t border-border/50 bg-card/60">
             <div className="max-w-lg mx-auto px-5 py-1.5 flex items-center gap-1.5">
@@ -82,7 +82,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 )}
               </span>
               <span className="ml-auto text-[10px] text-primary/70 font-medium tracking-wide uppercase">
-                Node Active
+                Pharmacy Active
               </span>
             </div>
           </div>
