@@ -200,3 +200,39 @@
 - [x] Add vitest: catalog.list returns ONBOARDING_REQUIRED for user with no assignedStoreId
 - [x] Add vitest: catalog.list returns items for user with valid assignedStoreId
 - [x] TypeScript clean + all tests passing (41/41)
+
+## Real Location Intelligence (v14)
+
+### Schema & Store Master
+- [ ] Add openingHours (JSON text), priority (int), isPrimary (bool) to stores table
+- [ ] Add addressLine1, addressLine2, landmark to buildings table
+- [ ] Add userLat, userLng, userAddress (free-text) to users table for non-building address mode
+- [ ] Generate and apply Drizzle migration
+- [ ] Seed 4 real Mumbai store locations with full data (Hiranandani, Powai, Chandivali, Kanjurmarg)
+- [ ] Seed real buildings with lat/lng and primaryStoreId mappings
+
+### Server: Location Intelligence
+- [ ] New tRPC procedure: location.geocode (address → lat/lng via Maps proxy)
+- [ ] New tRPC procedure: location.autocomplete (query → place suggestions via Maps proxy)
+- [ ] New tRPC procedure: location.checkServiceability (lat/lng → nearest store + serviceable bool)
+- [ ] Update resolveStore to respect serviceRadius (reject stores where distance > serviceRadius)
+- [ ] Update resolveStore to use real opening hours for "open now" computation
+- [ ] Update catalog.store to return openNow, openingHoursText, priority
+
+### Onboarding Flow
+- [ ] Replace building dropdown with Places Autocomplete address search
+- [ ] Add building selection as optional refinement after address search
+- [ ] Add serviceability check step: show assigned pharmacy or "not serviceable" message
+- [ ] Persist userLat, userLng, userAddress on user record
+- [ ] Block catalog entry if serviceability check fails
+
+### Frontend: Real Values
+- [ ] AppLayout: show "Open now" / "Closed" based on real opening hours
+- [ ] AppLayout: show real ETA from routing engine
+- [ ] Profile: show full pharmacy address, opening hours, open status
+- [ ] Catalog header: show pharmacy name + open status
+
+### Tests & Validation
+- [ ] Vitest: serviceability check returns correct store for Hiranandani coordinates
+- [ ] Vitest: serviceability check returns null for coordinates outside all service radii
+- [ ] TypeScript clean + all tests passing

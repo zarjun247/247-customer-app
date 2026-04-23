@@ -373,7 +373,34 @@ export default function Catalog() {
         {/* ── Sticky header ──────────────────────────────────────────────── */}
         <div className="sticky top-0 z-20" style={{ background: "#0A0A0B", borderBottom: "1px solid #1C1C1F" }}>
           <div className="px-4 pt-4 pb-3 space-y-3">
-            {/* Pharmacy + ETA */}
+            {/* Pharmacy + ETA banner */}
+            {store && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: (store as any).openNow ? "#00C896" : "#FF6B6B" }}
+                  />
+                  <span className="text-xs font-medium truncate" style={{ color: "#F0F0F2" }}>
+                    {store.name}
+                  </span>
+                  <span className="text-xs flex-shrink-0" style={{ color: (store as any).openNow ? "#00C896" : "#FF6B6B" }}>
+                    {(store as any).openNow ? "Open" : "Closed"}
+                  </span>
+                  {(store as any).openingHoursText && (
+                    <span className="text-xs flex-shrink-0" style={{ color: "#4B4B55" }}>
+                      · {(store as any).openingHoursText}
+                    </span>
+                  )}
+                </div>
+                {(store as any).etaMins && (
+                  <span className="text-xs flex-shrink-0 ml-2 px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(43,127,255,0.10)", color: "#2B7FFF" }}>
+                    ~{(store as any).etaMins} min
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Search */}
             <div className="relative">

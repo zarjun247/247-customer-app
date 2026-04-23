@@ -94,7 +94,7 @@ export default function Profile() {
               <div className="flex items-center gap-1.5">
                 <Building2 size={12} strokeWidth={1.75} style={{ color: "#6B6B75" }} />
                 <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
-                  {profile?.buildingName ?? (profile?.buildingId ? `Building ${profile.buildingId}` : "Not set")}
+                  {profile?.buildingName ?? ((profile as any)?.userAddress ? (profile as any).userAddress : (profile?.buildingId ? `Building ${profile.buildingId}` : "Not set"))}
                 </p>
               </div>
             </div>
@@ -151,10 +151,20 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: "rgba(0,200,150,0.10)", color: "#00C896" }}>
-                Open
-              </span>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: (store as any)?.openNow ? "rgba(0,200,150,0.10)" : "rgba(255,107,107,0.10)",
+                    color: (store as any)?.openNow ? "#00C896" : "#FF6B6B",
+                  }}>
+                  {(store as any)?.openNow ? "Open" : "Closed"}
+                </span>
+                {(store as any)?.openingHoursText && (
+                  <span className="text-[10px]" style={{ color: "#4B4B55" }}>
+                    {(store as any).openingHoursText}
+                  </span>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm" style={{ color: "#4B4B55" }}>

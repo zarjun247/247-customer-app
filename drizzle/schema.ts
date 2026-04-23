@@ -24,6 +24,10 @@ export const users = mysqlTable("users", {
   flatNumber: varchar("flatNumber", { length: 20 }),
   assignedStoreId: int("assignedStoreId"),
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
+  // Free-form address (when user types address instead of selecting a building)
+  userAddress: text("userAddress"),
+  userLat: decimal("userLat", { precision: 10, scale: 8 }),
+  userLng: decimal("userLng", { precision: 11, scale: 8 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -34,6 +38,8 @@ export const buildings = mysqlTable("buildings", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 200 }).notNull(),
   address: text("address"),
+  addressLine1: varchar("addressLine1", { length: 300 }),
+  landmark: varchar("landmark", { length: 200 }),
   pincode: varchar("pincode", { length: 10 }),
   city: varchar("city", { length: 100 }),
   lat: decimal("lat", { precision: 10, scale: 8 }),
@@ -55,7 +61,13 @@ export const stores = mysqlTable("stores", {
   slaMins: int("slaMins").default(20).notNull(),
   lat: decimal("lat", { precision: 10, scale: 8 }),
   lng: decimal("lng", { precision: 11, scale: 8 }),
-  serviceRadius: int("serviceRadius").default(2000).notNull(), // metres — buildings within this radius are served
+  serviceRadius: int("serviceRadius").default(3000).notNull(), // metres — addresses within this radius are served
+  // Opening hours: JSON array of { day: 0-6, open: "HH:MM", close: "HH:MM" } (0=Sunday)
+  openingHours: text("openingHours"),
+  // Priority for multi-store resolution (lower = higher priority)
+  priority: int("priority").default(10).notNull(),
+  // Whether this is a primary/flagship store
+  isPrimary: boolean("isPrimary").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

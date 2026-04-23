@@ -18,6 +18,7 @@ import {
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
+import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const authRouter = router({
@@ -62,31 +63,44 @@ const userRouter = router({
     .input(z.object({
       name: z.string().min(1),
       phone: z.string().optional(),
-      buildingId: z.number(),
-      flatNumber: z.string().min(1),
+      // Building-based onboarding
+      buildingId: z.number().optional(),
+      flatNumber: z.string().optional(),
+      // Address-based onboarding (when user types a free-form address)
+      userAddress: z.string().optional(),
+      userLat: z.number().optional(),
+      userLng: z.number().optional(),
+      // The serviceability check result — storeId resolved on frontend
+      assignedStoreId: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const building = await getBuildingById(input.buildingId);
-      if (!building) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Building not found" });
-      }
-      if (!building.primaryStoreId) {
+      // Validate: must have either buildingId or (userAddress + coordinates)
+      if (!input.buildingId && (!input.userAddress || !input.userLat || !input.userLng)) {
         throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No pharmacy is currently configured for this building. Please contact support.",
+          code: "BAD_REQUEST",
+          message: "Either a building selection or a valid address with coordinates is required.",
         });
       }
-      const assignedStoreId = building.primaryStoreId;
+      // If building-based, validate the building exists
+      if (input.buildingId) {
+        const building = await getBuildingById(input.buildingId);
+        if (!building) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Building not found" });
+        }
+      }
       await updateUserProfile(ctx.user.id, {
         name: input.name,
         phone: input.phone,
         buildingId: input.buildingId,
         flatNumber: input.flatNumber,
-        assignedStoreId,
+        userAddress: input.userAddress,
+        userLat: input.userLat !== undefined ? String(input.userLat) : undefined,
+        userLng: input.userLng !== undefined ? String(input.userLng) : undefined,
+        assignedStoreId: input.assignedStoreId,
         onboardingComplete: true,
       });
       await writeAuditLog(ctx.user.id, "onboarding_complete", "user", ctx.user.id, input);
-      return { success: true, assignedStoreId };
+      return { success: true, assignedStoreId: input.assignedStoreId };
     }),
   buildings: publicProcedure.query(() => getBuildings()),
 });
@@ -131,7 +145,6 @@ const catalogRouter = router({
     // Use the routing engine for authoritative store + ETA resolution
     const result = await resolveStore({
       buildingId: user.buildingId,
-      mapsApiKey: ENV.googleMapsApiKey || undefined,
     });
     if (!result) {
       // Fallback: return raw store if routing fails
@@ -141,7 +154,7 @@ const catalogRouter = router({
     // Log routing resolution for auditability
     console.info(formatRoutingAuditEntry({ buildingId: user.buildingId }, result));
     const store = await getStoreById(result.storeId);
-    return store ? { ...store, etaMins: result.etaMins, displayLabel: result.displayLabel, resolutionPath: result.resolutionPath } : null;
+    return store ? { ...store, etaMins: result.etaMins, slaMins: result.slaMins, openNow: result.openNow, openingHoursText: result.openingHoursText, displayLabel: result.displayLabel, resolutionPath: result.resolutionPath } : null;
   }),
 });
 
@@ -157,7 +170,6 @@ const routingRouter = router({
       const result = await resolveStore({
         buildingId: user.buildingId,
         requiredSkuIds: input.requiredSkuIds,
-        mapsApiKey: ENV.googleMapsApiKey || undefined,
       });
       if (result) {
         console.info(formatRoutingAuditEntry(
@@ -444,10 +456,59 @@ const whatsappRouter = router({
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
+// ─── Location Router ─────────────────────────────────────────────────────────
+const locationRouter = router({
+  /**
+   * Places Autocomplete — returns address suggestions as user types.
+   * Used in the onboarding address search field.
+   */
+  autocomplete: publicProcedure
+    .input(z.object({
+      query: z.string().min(1).max(200),
+      sessionToken: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return getPlaceAutocomplete(input.query, input.sessionToken);
+    }),
+
+  /**
+   * Geocode a place_id (from autocomplete) or a free-text address to lat/lng.
+   */
+  geocode: publicProcedure
+    .input(z.object({
+      placeId: z.string().optional(),
+      address: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      if (input.placeId) {
+        return geocodeAddress(input.placeId, true);
+      }
+      if (input.address) {
+        return geocodeAddress(input.address, false);
+      }
+      return null;
+    }),
+
+  /**
+   * Serviceability check — given lat/lng (and optional buildingId),
+   * returns the nearest eligible store and ETA, or serviceable=false.
+   */
+  checkServiceability: publicProcedure
+    .input(z.object({
+      lat: z.number(),
+      lng: z.number(),
+      buildingPrimaryStoreId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return checkServiceability(input.lat, input.lng, input.buildingPrimaryStoreId);
+    }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: authRouter,
   user: userRouter,
+  location: locationRouter,
   catalog: catalogRouter,
   routing: routingRouter,
   cart: cartRouter,

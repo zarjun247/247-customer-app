@@ -3,21 +3,27 @@
  *
  * Resolution order (deterministic, auditable):
  *   1. Building's assigned primary store (highest priority — pre-configured by ops)
- *   2. Nearest active store by Haversine distance (geo fallback)
+ *      Only used if the store is active AND the building is within its serviceRadius.
+ *   2. Nearest active store whose serviceRadius covers the building (geo fallback)
  *   3. Stock availability filter (ensures resolved store has stock for the session)
  *
  * ETA computation:
- *   - Google Maps Distance Matrix API (driving, best-guess traffic model)
- *   - Falls back to store.slaMins if Maps API is unavailable
+ *   - Google Maps Distance Matrix API via Manus proxy (driving, best-guess traffic)
+ *   - Falls back to store.slaMins + 5 min picking buffer if Maps API is unavailable
  *
- * Internal terminology uses "node" freely.
- * Customer-facing output uses "Serving pharmacy" / "Local 24/7 pharmacy".
+ * Opening hours:
+ *   - Stored as JSON in stores.openingHours (see server/location.ts for format)
+ *   - isStoreOpenNow() computes open status in IST
  */
-
-import axios from "axios";
 import { getDb } from "./db";
 import { buildings, stores, storeSkus } from "../drizzle/schema";
 import { eq, and, gt, sql } from "drizzle-orm";
+import {
+  haversineMetres,
+  getDrivingEtaMins,
+  isStoreOpenNow,
+  getTodayHoursText,
+} from "./location";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +35,8 @@ export interface RoutingResult {
   storeLng: number;
   etaMins: number;
   slaMins: number;
+  openNow: boolean;
+  openingHoursText: string;
   resolutionPath: "primary_assignment" | "geo_nearest" | "geo_nearest_with_stock";
   displayLabel: string; // customer-facing label
 }
@@ -37,58 +45,6 @@ export interface RoutingContext {
   buildingId: number;
   /** Optional: if provided, routing will verify the resolved store has stock for these SKUs */
   requiredSkuIds?: number[];
-  /** Google Maps API key — injected from env */
-  mapsApiKey?: string;
-}
-
-// ─── Haversine distance (metres) ─────────────────────────────────────────────
-
-function haversineMetres(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number
-): number {
-  const R = 6_371_000; // Earth radius in metres
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// ─── Google Maps Distance Matrix ETA ─────────────────────────────────────────
-
-async function getGoogleMapsEta(
-  originLat: number,
-  originLng: number,
-  destLat: number,
-  destLng: number,
-  apiKey: string
-): Promise<number | null> {
-  try {
-    const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
-    const res = await axios.get(url, {
-      params: {
-        origins: `${originLat},${originLng}`,
-        destinations: `${destLat},${destLng}`,
-        mode: "driving",
-        departure_time: "now",
-        traffic_model: "best_guess",
-        key: apiKey,
-      },
-      timeout: 4000,
-    });
-    const element = res.data?.rows?.[0]?.elements?.[0];
-    if (element?.status === "OK") {
-      const durationSecs =
-        element.duration_in_traffic?.value ?? element.duration?.value ?? null;
-      if (durationSecs) return Math.ceil(durationSecs / 60);
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 // ─── Core routing function ────────────────────────────────────────────────────
@@ -103,7 +59,6 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
     .from(buildings)
     .where(eq(buildings.id, ctx.buildingId))
     .limit(1);
-
   if (!building) return null;
 
   const buildingLat = building.lat ? Number(building.lat) : null;
@@ -114,28 +69,44 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
     .select()
     .from(stores)
     .where(eq(stores.isActive, true));
-
   if (allStores.length === 0) return null;
 
-  // ── Pass 1: Primary assignment ──────────────────────────────────────────────
-  let resolvedStore = allStores.find((s) => s.id === building.primaryStoreId) ?? null;
+  // Compute distances once
+  const withDistance =
+    buildingLat !== null && buildingLng !== null
+      ? allStores
+          .filter((s) => s.lat && s.lng)
+          .map((s) => ({
+            store: s,
+            distanceM: haversineMetres(
+              buildingLat, buildingLng,
+              Number(s.lat), Number(s.lng)
+            ),
+          }))
+          .sort((a, b) => a.distanceM - b.distanceM)
+      : [];
+
+  let resolvedStore: (typeof allStores)[0] | null = null;
   let resolutionPath: RoutingResult["resolutionPath"] = "primary_assignment";
 
-  // ── Pass 2: Geo nearest (if no primary assignment or primary is inactive) ───
-  if (!resolvedStore && buildingLat !== null && buildingLng !== null) {
-    const withDistance = allStores
-      .filter((s) => s.lat && s.lng)
-      .map((s) => ({
-        store: s,
-        distanceM: haversineMetres(
-          buildingLat, buildingLng,
-          Number(s.lat), Number(s.lng)
-        ),
-      }))
-      .sort((a, b) => a.distanceM - b.distanceM);
+  // ── Pass 1: Primary assignment (must be within serviceRadius) ───────────────
+  if (building.primaryStoreId) {
+    const primary = withDistance.find(
+      (w) => w.store.id === building.primaryStoreId
+    );
+    if (primary && primary.distanceM <= primary.store.serviceRadius) {
+      resolvedStore = primary.store;
+      resolutionPath = "primary_assignment";
+    }
+  }
 
-    if (withDistance.length > 0) {
-      resolvedStore = withDistance[0].store;
+  // ── Pass 2: Geo nearest within serviceRadius ────────────────────────────────
+  if (!resolvedStore) {
+    const nearest = withDistance.find(
+      (w) => w.distanceM <= w.store.serviceRadius
+    );
+    if (nearest) {
+      resolvedStore = nearest.store;
       resolutionPath = "geo_nearest";
     }
   }
@@ -144,29 +115,18 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
   if (resolvedStore && ctx.requiredSkuIds && ctx.requiredSkuIds.length > 0) {
     const hasStock = await checkStoreHasStock(resolvedStore.id, ctx.requiredSkuIds);
     if (!hasStock) {
-      // Try next nearest store that has stock
-      if (buildingLat !== null && buildingLng !== null) {
-        const candidates = allStores
-          .filter((s) => s.lat && s.lng && s.id !== resolvedStore!.id)
-          .map((s) => ({
-            store: s,
-            distanceM: haversineMetres(
-              buildingLat, buildingLng,
-              Number(s.lat), Number(s.lng)
-            ),
-          }))
-          .sort((a, b) => a.distanceM - b.distanceM);
-
-        for (const candidate of candidates) {
-          const candidateHasStock = await checkStoreHasStock(
-            candidate.store.id,
-            ctx.requiredSkuIds!
-          );
-          if (candidateHasStock) {
-            resolvedStore = candidate.store;
-            resolutionPath = "geo_nearest_with_stock";
-            break;
-          }
+      const candidates = withDistance.filter(
+        (w) => w.store.id !== resolvedStore!.id && w.distanceM <= w.store.serviceRadius
+      );
+      for (const candidate of candidates) {
+        const candidateHasStock = await checkStoreHasStock(
+          candidate.store.id,
+          ctx.requiredSkuIds!
+        );
+        if (candidateHasStock) {
+          resolvedStore = candidate.store;
+          resolutionPath = "geo_nearest_with_stock";
+          break;
         }
       }
     }
@@ -176,26 +136,18 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
 
   // ── ETA computation ─────────────────────────────────────────────────────────
   let etaMins = resolvedStore.slaMins;
-
-  if (
-    buildingLat !== null &&
-    buildingLng !== null &&
-    resolvedStore.lat &&
-    resolvedStore.lng &&
-    ctx.mapsApiKey
-  ) {
-    const mapsEta = await getGoogleMapsEta(
-      Number(resolvedStore.lat),
-      Number(resolvedStore.lng),
-      buildingLat,
-      buildingLng,
-      ctx.mapsApiKey
+  if (buildingLat !== null && buildingLng !== null && resolvedStore.lat && resolvedStore.lng) {
+    const mapsEta = await getDrivingEtaMins(
+      Number(resolvedStore.lat), Number(resolvedStore.lng),
+      buildingLat, buildingLng
     );
     if (mapsEta !== null) {
-      // Add a 5-minute picking buffer to raw driving time
-      etaMins = mapsEta + 5;
+      etaMins = mapsEta; // getDrivingEtaMins already adds 5-min picking buffer
     }
   }
+
+  const openNow = isStoreOpenNow(resolvedStore.openingHours ?? null);
+  const openingHoursText = getTodayHoursText(resolvedStore.openingHours ?? null);
 
   return {
     storeId: resolvedStore.id,
@@ -205,6 +157,8 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
     storeLng: Number(resolvedStore.lng ?? 0),
     etaMins,
     slaMins: resolvedStore.slaMins,
+    openNow,
+    openingHoursText,
     resolutionPath,
     displayLabel: "Serving from your local 24/7 pharmacy",
   };
@@ -218,8 +172,6 @@ async function checkStoreHasStock(
 ): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
-
-  // Check that all requested SKUs have available stock at this store
   const [result] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(storeSkus)
@@ -230,8 +182,6 @@ async function checkStoreHasStock(
         gt(sql`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`, 0)
       )
     );
-
-  // If the store has at least one of the required SKUs in stock, it's viable
   return (result?.count ?? 0) > 0;
 }
 
@@ -246,6 +196,6 @@ export function formatRoutingAuditEntry(
   }
   return (
     `[ROUTING] buildingId=${ctx.buildingId} → storeId=${result.storeId} ` +
-    `(${result.resolutionPath}) eta=${result.etaMins}min`
+    `(${result.resolutionPath}) eta=${result.etaMins}min openNow=${result.openNow}`
   );
 }

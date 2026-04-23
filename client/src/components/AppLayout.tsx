@@ -72,8 +72,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {contextLine}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#00C896" }} />
-                  <span className="text-[10px]" style={{ color: "#00C896" }}>Open now</span>
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }} />
+                  <span className="text-[10px]" style={{ color: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }}>
+                    {(store as any)?.openNow === false ? "Closed" : "Open now"}
+                  </span>
                   {etaText && (
                     <span className="text-[10px]" style={{ color: "#6B6B75" }}>· {etaText}</span>
                   )}
@@ -104,8 +106,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </span>
               )}
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#00C896" }} />
-                <span className="text-[10px] font-medium" style={{ color: "#00C896" }}>Open now</span>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }} />
+                <span className="text-[10px] font-medium" style={{ color: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }}>
+                  {(store as any)?.openNow === false ? "Closed" : "Open now"}
+                </span>
                 {etaText && (
                   <span className="text-[10px]" style={{ color: "#6B6B75" }}>· {etaText}</span>
                 )}

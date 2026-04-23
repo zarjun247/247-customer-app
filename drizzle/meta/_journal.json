@@ -43,6 +43,13 @@
       "when": 1776939653349,
       "tag": "0005_slow_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1776968660903,
+      "tag": "0006_certain_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

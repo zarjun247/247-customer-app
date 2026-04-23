@@ -67,7 +67,9 @@ export async function getUserById(id: number) {
 }
 
 export async function updateUserProfile(userId: number, data: {
-  name?: string; buildingId?: number; flatNumber?: string; assignedStoreId?: number; onboardingComplete?: boolean; phone?: string;
+  name?: string; buildingId?: number; flatNumber?: string; assignedStoreId?: number;
+  onboardingComplete?: boolean; phone?: string;
+  userAddress?: string; userLat?: string; userLng?: string;
 }) {
   const db = await getDb();
   if (!db) return;
