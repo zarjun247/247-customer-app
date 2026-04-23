@@ -143,3 +143,11 @@
 - [x] Rebuild RefillReminders: dark calm schedule, correct empty state copy
 - [x] Rebuild Profile/Account: dark identity card, serving pharmacy card, quick links, concise compliance
 - [x] TypeScript clean + 36 tests passing
+
+## Cinematic Splash Screen (v10)
+
+- [x] Inspect logo asset, main.tsx, App.tsx entry points
+- [x] Build SplashScreen component: matte black, logo reveal, blue slash glow trace, green 7 pulse, tagline fade, loading state cycle
+- [x] Add touch/pointer ripple and subtle tilt parallax on pointer move
+- [x] Wire splash into app entry with controlled dismiss after loading states complete
+- [x] TypeScript clean + 36 tests passing

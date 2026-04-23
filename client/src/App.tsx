@@ -2,8 +2,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import { useState, useCallback } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import SplashScreen from "./components/SplashScreen";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
@@ -16,8 +18,18 @@ import Profile from "./pages/Profile";
 import Invoices from "./pages/Invoices";
 import RefillReminders from "./pages/RefillReminders";
 
+// ── Show splash only once per session ────────────────────────────────────────
+const SPLASH_KEY = "247_splash_shown";
+function shouldShowSplash(): boolean {
+  try {
+    if (sessionStorage.getItem(SPLASH_KEY)) return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -37,20 +49,23 @@ function Router() {
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
+  const [showSplash, setShowSplash] = useState(() => shouldShowSplash());
+
+  const handleSplashComplete = useCallback(() => {
+    try { sessionStorage.setItem(SPLASH_KEY, "1"); } catch { /* ignore */ }
+    setShowSplash(false);
+  }, []);
+
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="dark"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
+          {/* Splash renders on top of everything, dismissed after sequence */}
+          {showSplash && (
+            <SplashScreen onComplete={handleSplashComplete} />
+          )}
           <Router />
         </TooltipProvider>
       </ThemeProvider>
