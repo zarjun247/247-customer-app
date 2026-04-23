@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 // ─── Logo URL ────────────────────────────────────────────────────────────────
-const LOGO_URL = "/manus-storage/247-logo_fa5fce53.jpg";
+const LOGO_URL = "/manus-storage/247-logo-v2_e9980880.jpg";
 
 // ─── Loading state sequence ───────────────────────────────────────────────────
 const LOADING_STATES = [

@@ -91,7 +91,19 @@ const catalogRouter = router({
       offset: z.number().min(0).default(0),
     }))
     .query(async ({ ctx, input }) => {
-      const user = await getUserById(ctx.user.id);
+      let user = await getUserById(ctx.user.id);
+      // Auto-assign default store for new users who haven't completed onboarding
+      // so they can browse the catalog while onboarding is pending
+      if (!user?.assignedStoreId) {
+        const allBuildings = await getBuildings();
+        const defaultBuilding = allBuildings[0];
+        if (defaultBuilding?.primaryStoreId) {
+          await updateUserProfile(ctx.user.id, {
+            assignedStoreId: defaultBuilding.primaryStoreId,
+          });
+          user = await getUserById(ctx.user.id);
+        }
+      }
       if (!user?.assignedStoreId) return [];
       return getCatalog(user.assignedStoreId, input.search, input.category, input.limit, input.offset);
     }),
@@ -100,7 +112,11 @@ const catalogRouter = router({
     .query(async ({ input }) => getSkuById(input.skuId)),
   store: protectedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.user.id);
-    if (!user?.buildingId) return null;
+    // For users without building assignment, return their assigned store directly
+    if (!user?.buildingId) {
+      if (user?.assignedStoreId) return getStoreById(user.assignedStoreId);
+      return null;
+    }
     // Use the routing engine for authoritative store + ETA resolution
     const result = await resolveStore({
       buildingId: user.buildingId,

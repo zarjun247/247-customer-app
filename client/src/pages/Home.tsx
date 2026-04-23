@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import AppLayout from "@/components/AppLayout";
 
-const LOGO_URL = "/manus-storage/247-logo_fa5fce53.jpg";
+const LOGO_URL = "/manus-storage/247-logo-v2_e9980880.jpg";
 
 // ─── Status label helpers ─────────────────────────────────────────────────────
 const STATUS_LABEL: Record<string, { label: string; color: string; dot: string }> = {

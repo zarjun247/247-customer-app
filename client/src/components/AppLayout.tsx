@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
-const LOGO_URL = "/manus-storage/247-logo_fa5fce53.jpg";
+const LOGO_URL = "/manus-storage/247-logo-v2_e9980880.jpg";
 
 const NAV_ITEMS = [
   { path: "/catalog",   icon: Home,          label: "Medications" },
@@ -51,9 +51,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     : storeName ?? buildingPart ?? null;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#0A0A0B" }}>
+    <div className="min-h-screen flex flex-col" style={{ background: "#0A0A0B", paddingTop: "env(safe-area-inset-top)" }}>
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40" style={{ background: "#0E0E10", borderBottom: "1px solid #2A2A2E" }}>
+      <header className="sticky top-0 z-40" style={{ background: "#0E0E10", borderBottom: "1px solid #2A2A2E", paddingTop: "env(safe-area-inset-top)", marginTop: "calc(-1 * env(safe-area-inset-top))" }}>
         <div className="max-w-lg mx-auto px-5 h-14 flex items-center justify-between">
           {/* Logo */}
           <Link href="/catalog" className="flex items-center gap-2.5 no-underline">
@@ -117,7 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ── Page content ────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-lg mx-auto w-full pb-20">
+      <main className="flex-1 max-w-lg mx-auto w-full" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}>
         {children}
 
         {/* ── Trust signal strip ──────────────────────────────────────── */}
@@ -137,7 +137,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* ── Bottom navigation ────────────────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-50"
-        style={{ background: "#0E0E10", borderTop: "1px solid #2A2A2E" }}>
+        style={{ background: "#0E0E10", borderTop: "1px solid #2A2A2E", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="max-w-lg mx-auto px-2 h-16 flex items-center justify-around">
           {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
             const active = location === path || location.startsWith(path + "/");

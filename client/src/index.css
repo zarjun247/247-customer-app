@@ -129,6 +129,17 @@ body {
   letter-spacing: -0.005em;
   background-color: #0A0A0B;
   color: #F0F0F2;
+  /* Prevent iOS rubber-band bounce from exposing white background */
+  overscroll-behavior: none;
+  /* Fill the full viewport including notch/home-bar areas */
+  min-height: 100dvh;
+}
+
+/* Ensure #root fills the full dynamic viewport */
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 h1, h2, h3, h4, h5, h6 {

@@ -151,3 +151,13 @@
 - [x] Add touch/pointer ripple and subtle tilt parallax on pointer move
 - [x] Wire splash into app entry with controlled dismiss after loading states complete
 - [x] TypeScript clean + 36 tests passing
+
+## Auth Flow, Catalog Bug Fix & Mobile Polish (v11)
+
+- [x] Diagnose new-user catalog bug: trace onboarding, building assignment, catalog query
+- [x] Fix catalog access: new users get default building/pharmacy assignment on first login
+- [x] Upload transparent logo and integrate into AppLayout, SplashScreen, auth screens
+- [x] Rebuild Login page: premium dark 24/7 theme, Google/Apple/email, loading/error states
+- [x] Build/refine Onboarding: building/location selection, pharmacy assignment, unlock catalog
+- [x] Mobile safe-area fixes: env(safe-area-inset), bottom nav overlap, Safari/Chrome mobile
+- [x] TypeScript clean + 36 tests passing
