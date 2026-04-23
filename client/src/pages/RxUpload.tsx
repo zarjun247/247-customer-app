@@ -34,7 +34,7 @@ const STATUS_CONFIG: Record<string, {
   rejected: {
     label: "Could not be verified",
     sub: "Your prescription could not be verified. Please contact your pharmacist.",
-    dotColor: "#EF4444",
+    dotColor: "#DC2626",
     bgColor: "#FEF2F2",
     textColor: "#DC2626",
   },

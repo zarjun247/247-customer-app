@@ -66,7 +66,7 @@ export default function Onboarding() {
             </label>
             {buildingsLoading ? (
               <div className="space-y-2">
-                {[1, 2, 3].map(i => <div key={i} className="skeleton h-14 rounded-lg" />)}
+                {[1, 2, 3].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}
               </div>
             ) : buildings && buildings.length > 0 ? (
               <div className="space-y-1.5">

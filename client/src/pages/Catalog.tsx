@@ -24,7 +24,7 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; bg: string; col
   baby:      { icon: Baby,          bg: "#FFF0F3", color: "#E11D48" },
   nutrition: { icon: Leaf,          bg: "#F0FDF4", color: "#16A34A" },
   fmcg:      { icon: ShoppingBag,   bg: "#FFFBEB", color: "#D97706" },
-  wellness:  { icon: Sparkles,      bg: "#FAF5FF", color: "#9333EA" },
+  wellness:  { icon: Sparkles,      bg: "#EFF6FF", color: "#1F6FEB" },
 };
 const DEFAULT_CONFIG = { icon: Pill, bg: "#EFF6FF", color: "#1F6FEB" };
 
@@ -88,7 +88,7 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
           <div className="absolute top-2 left-2">
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-md"
               style={{ background: "rgba(255,255,255,0.92)", border: "1px solid #E5E7EB" }}>
-              <ShieldCheck size={10} strokeWidth={2} style={{ color: "#D97706" }} />
+              <ShieldCheck size={10} strokeWidth={1.75} style={{ color: "#D97706" }} />
               <span className="text-[9px] font-semibold tracking-wide uppercase"
                 style={{ color: "#D97706" }}>
                 Prescription required

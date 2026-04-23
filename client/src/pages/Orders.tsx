@@ -11,7 +11,7 @@ const STATUS_HUMAN: Record<string, { label: string; bg: string; color: string; d
   picking:               { label: "Preparing",      bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
   out_for_delivery:      { label: "On the way",     bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
   delivered:             { label: "Delivered",      bg: "#F0FDF4", color: "#16A34A", dot: "#22C55E" },
-  cancelled:             { label: "Cancelled",      bg: "#FEF2F2", color: "#DC2626", dot: "#EF4444" },
+  cancelled:             { label: "Cancelled",      bg: "#FEF2F2", color: "#DC2626", dot: "#DC2626" },
 };
 
 function StatusBadge({ status }: { status: string }) {

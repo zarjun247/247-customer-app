@@ -115,3 +115,17 @@
 - [x] Brand palette audit: #111827 text, #667085 secondary, #E5E7EB borders, #F8FAFB surfaces
 - [x] Remove all "Browse medications" language
 - [x] TypeScript clean + 36 tests passing
+
+## Header, Account & Design System Refinement (v8)
+
+- [x] Header: human ETA language ("Arriving in ~35 min"), building name, pharmacy name, no backend terms
+- [x] Header: mobile location strip — building + flat, "Pharmacy open" status
+- [x] Account page: replace "Assigned pharmacy active" with actual pharmacy name + address
+- [x] Account page: shorter, calmer compliance text
+- [x] Account page: keep stats, history, prescriptions, refill schedule sections
+- [x] Design system: unify card radius (12px everywhere), chip styles, badge styles
+- [x] Design system: typography hierarchy — title 20px, section 16-18px, body 15-16px, relaxed line-height
+- [x] Design system: icon weights consistent (strokeWidth 1.5 for decorative, 2 for interactive)
+- [x] Design system: status color tokens used consistently across all pages
+- [x] Design system: spacing rhythm — 8px base unit, sections 24-32px apart
+- [x] TypeScript clean + 36 tests passing

@@ -48,58 +48,58 @@
   --radius: 0.75rem;
 
   /* Base surfaces */
-  --background: oklch(0.990 0.000 0);        /* #FAFAFA — near white */
-  --foreground: oklch(0.175 0.012 255);       /* #1a1f2e — near black */
-  --card: oklch(1.000 0.000 0);              /* #FFFFFF */
-  --card-foreground: oklch(0.175 0.012 255);
-  --popover: oklch(1.000 0.000 0);
-  --popover-foreground: oklch(0.175 0.012 255);
+  --background: #F8FAFB;
+  --foreground: #111827;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
 
-  /* Primary — clinical blue #1F6FEB */
-  --primary: oklch(0.545 0.195 255);
-  --primary-foreground: oklch(1.000 0.000 0);
+  /* Primary — clinical blue */
+  --primary: #1F6FEB;
+  --primary-foreground: #FFFFFF;
 
   /* Secondary / Muted — soft grey */
-  --secondary: oklch(0.965 0.004 255);       /* #F4F6F9 */
-  --secondary-foreground: oklch(0.350 0.018 255);
-  --muted: oklch(0.965 0.004 255);
-  --muted-foreground: oklch(0.520 0.018 255); /* #7A8399 */
+  --secondary: #F8FAFB;
+  --secondary-foreground: #374151;
+  --muted: #F8FAFB;
+  --muted-foreground: #667085;
 
   /* Accent — very light blue tint */
-  --accent: oklch(0.960 0.020 255);
-  --accent-foreground: oklch(0.545 0.195 255);
+  --accent: #EFF6FF;
+  --accent-foreground: #1F6FEB;
 
   /* Destructive */
-  --destructive: oklch(0.620 0.210 25);
-  --destructive-foreground: oklch(1.000 0.000 0);
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFFFF;
 
   /* Borders & Inputs */
-  --border: oklch(0.910 0.008 255);          /* #E4E8F0 */
-  --input: oklch(0.965 0.004 255);
-  --ring: oklch(0.545 0.195 255);
+  --border: #E5E7EB;
+  --input: #F8FAFB;
+  --ring: #1F6FEB;
 
   /* Charts */
-  --chart-1: oklch(0.545 0.195 255);
-  --chart-2: oklch(0.620 0.160 200);
-  --chart-3: oklch(0.700 0.120 160);
-  --chart-4: oklch(0.680 0.150 50);
-  --chart-5: oklch(0.600 0.180 30);
+  --chart-1: #1F6FEB;
+  --chart-2: #0D9488;
+  --chart-3: #22C55E;
+  --chart-4: #F59E0B;
+  --chart-5: #DC2626;
 
-  /* Sidebar (same as background) */
-  --sidebar: oklch(1.000 0.000 0);
-  --sidebar-foreground: oklch(0.175 0.012 255);
-  --sidebar-primary: oklch(0.545 0.195 255);
-  --sidebar-primary-foreground: oklch(1.000 0.000 0);
-  --sidebar-accent: oklch(0.960 0.020 255);
-  --sidebar-accent-foreground: oklch(0.545 0.195 255);
-  --sidebar-border: oklch(0.910 0.008 255);
-  --sidebar-ring: oklch(0.545 0.195 255);
+  /* Sidebar */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #1F6FEB;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EFF6FF;
+  --sidebar-accent-foreground: #1F6FEB;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #1F6FEB;
 
   /* Semantic status colors */
-  --status-available: oklch(0.600 0.160 145);   /* #22C55E green */
-  --status-low: oklch(0.720 0.150 55);           /* #F59E0B amber */
-  --status-unavailable: oklch(0.520 0.018 255);  /* grey */
-  --status-rx: oklch(0.620 0.210 25);            /* red for Rx badge */
+  --status-available: #22C55E;
+  --status-low: #F59E0B;
+  --status-unavailable: #9CA3AF;
+  --status-rx: #DC2626;
 }
 
 /* ─── Global Typography ─────────────────────────────────────────────────────── */

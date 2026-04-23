@@ -49,7 +49,7 @@ function StatusBadge({ status }: { status: string }) {
     picking:               { label: "Preparing",      bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
     out_for_delivery:      { label: "On the way",     bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
     delivered:             { label: "Delivered",      bg: "#F0FDF4", color: "#16A34A", dot: "#22C55E" },
-    cancelled:             { label: "Cancelled",      bg: "#FEF2F2",   color: "#DC2626",  dot: "#EF4444" },
+    cancelled:             { label: "Cancelled",      bg: "#FEF2F2",   color: "#DC2626",  dot: "#DC2626" },
   };
   const s = map[status] ?? map.created;
   return (
@@ -116,7 +116,7 @@ export default function OrderDetail() {
     return (
       <AppLayout>
         <div className="px-5 pt-6 space-y-3">
-          <div className="skeleton h-6 w-40 rounded-lg" />
+          <div className="skeleton h-6 w-40 rounded-xl" />
           <div className="skeleton h-48 rounded-xl" />
           <div className="skeleton h-32 rounded-xl" />
         </div>
@@ -228,7 +228,7 @@ export default function OrderDetail() {
                           <CheckCircle2 size={12} color="white" />
                         ) : (
                           <span className="w-2 h-2 rounded-full"
-                            style={{ background: "oklch(0.800 0.008 255)" }} />
+                            style={{ background: "#D1D5DB" }} />
                         )}
                       </div>
                       {!isLast && (
@@ -239,7 +239,7 @@ export default function OrderDetail() {
                     {/* Content */}
                     <div className={`pb-4 ${isLast ? "pb-0" : ""}`}>
                       <p className="text-sm font-semibold leading-tight"
-                        style={{ color: isCompleted ? "#111827" : "oklch(0.750 0.008 255)" }}>
+                        style={{ color: isCompleted ? "#111827" : "#9CA3AF" }}>
                         {step.label}
                       </p>
                       {isCurrent && !isDelivered && (

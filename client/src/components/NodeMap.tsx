@@ -59,7 +59,7 @@ export function NodeMap({
       const el = document.createElement("div");
       el.style.cssText = `
         width: 10px; height: 10px; border-radius: 50%;
-        background: ${node.isAssigned ? "#1F6FEB" : "#94A3B8"};
+        background: ${node.isAssigned ? "#1F6FEB" : "#9CA3AF"};
         border: 2px solid white;
         box-shadow: 0 1px 4px rgba(0,0,0,0.15);
       `;
@@ -129,11 +129,11 @@ export function NodeMap({
       styles: [
         { featureType: "poi",          stylers: [{ visibility: "off" }] },
         { featureType: "transit",      stylers: [{ visibility: "off" }] },
-        { featureType: "road",         elementType: "geometry",       stylers: [{ color: "#F1F5F9" }] },
-        { featureType: "road.highway", elementType: "geometry",       stylers: [{ color: "#E2E8F0" }] },
-        { featureType: "water",        elementType: "geometry",       stylers: [{ color: "#DBEAFE" }] },
-        { featureType: "landscape",    elementType: "geometry",       stylers: [{ color: "#F8FAFC" }] },
-        { elementType: "labels.text.fill",   stylers: [{ color: "#64748B" }] },
+        { featureType: "road",         elementType: "geometry",       stylers: [{ color: "#F8FAFB" }] },
+        { featureType: "road.highway", elementType: "geometry",       stylers: [{ color: "#E5E7EB" }] },
+        { featureType: "water",        elementType: "geometry",       stylers: [{ color: "#EFF6FF" }] },
+        { featureType: "landscape",    elementType: "geometry",       stylers: [{ color: "#F8FAFB" }] },
+        { elementType: "labels.text.fill",   stylers: [{ color: "#667085" }] },
         { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }] },
       ],
     });

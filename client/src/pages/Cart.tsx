@@ -132,7 +132,7 @@ export default function Cart() {
             {hasRxItems && (
               <div className="mb-5">
                 <div className="flex items-center gap-2 mb-3">
-                  <Shield size={12} strokeWidth={2} style={{ color: "#D97706" }} />
+                  <Shield size={12} strokeWidth={1.75} style={{ color: "#D97706" }} />
                   <p className="text-xs font-semibold tracking-widest uppercase"
                     style={{ color: "#D97706" }}>
                     Awaiting prescription
@@ -277,7 +277,7 @@ function CartItem({ item, onUpdate }: { item: any; onUpdate: (qty: number) => vo
             style={{ background: "#F8FAFB", color: "#667085", border: "1px solid #E5E7EB" }}
           >
             {item.quantity === 1
-              ? <Trash2 size={13} style={{ color: "#EF4444" }} />
+              ? <Trash2 size={13} style={{ color: "#DC2626" }} />
               : <Minus size={13} />
             }
           </button>

@@ -7,6 +7,7 @@ import {
   RefreshCw,
   User,
   ShieldCheck,
+  MapPin,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
@@ -27,12 +28,25 @@ const TRUST_SIGNALS = [
   "Secure prescription records",
 ];
 
+// Human-readable ETA string
+function etaLabel(mins: number | undefined | null): string {
+  if (!mins) return "";
+  if (mins <= 20) return `Arriving in ~${mins} min`;
+  if (mins <= 45) return `Arriving in ~${mins} min`;
+  return `Arriving in under ${Math.ceil(mins / 60)} hr`;
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, isAuthenticated } = useAuth();
   const { data: profile } = trpc.user.profile.useQuery(undefined, { enabled: !!user });
+  const { data: store } = trpc.catalog.store.useQuery(undefined, { enabled: isAuthenticated });
   const { data: cartItems } = trpc.cart.get.useQuery(undefined, { enabled: isAuthenticated });
   const cartCount = cartItems?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+
+  const storeName = store?.name ?? null;
+  const eta = (store as any)?.etaMins as number | undefined;
+  const etaText = etaLabel(eta);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#F8FAFB" }}>
@@ -51,14 +65,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-3">
-            {/* Location — desktop */}
-            {profile?.buildingName && (
-              <div className="hidden sm:flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#22C55E" }} />
-                <span className="text-xs font-medium truncate max-w-[160px]"
-                  style={{ color: "#667085" }}>
-                  {profile.buildingName}
-                </span>
+            {/* Pharmacy + ETA — desktop */}
+            {storeName && (
+              <div className="hidden sm:flex flex-col items-end">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#22C55E" }} />
+                  <span className="text-xs font-semibold" style={{ color: "#111827" }}>
+                    {storeName}
+                  </span>
+                </div>
+                {etaText && (
+                  <span className="text-[10px]" style={{ color: "#667085" }}>
+                    {etaText}
+                  </span>
+                )}
               </div>
             )}
 
@@ -75,23 +95,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Location strip — mobile */}
-        {profile?.buildingName && (
+        {/* Context strip — mobile */}
+        {isAuthenticated && (
           <div className="sm:hidden" style={{ borderTop: "1px solid #E5E7EB", background: "#F8FAFB" }}>
-            <div className="max-w-lg mx-auto px-5 py-2 flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ background: "#22C55E" }} />
-              <span className="text-xs font-medium truncate"
-                style={{ color: "#667085" }}>
-                {profile.buildingName}
-                {profile.flatNumber && (
-                  <span style={{ color: "#9CA3AF" }}> · Flat {profile.flatNumber}</span>
+            <div className="max-w-lg mx-auto px-5 py-2 flex items-center gap-2">
+              {/* Building + flat */}
+              {profile?.buildingName ? (
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <MapPin size={11} strokeWidth={1.75} style={{ color: "#9CA3AF", flexShrink: 0 }} />
+                  <span className="text-xs font-medium truncate" style={{ color: "#667085" }}>
+                    {profile.buildingName}
+                    {profile.flatNumber && (
+                      <span style={{ color: "#9CA3AF" }}>, Flat {profile.flatNumber}</span>
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex-1" />
+              )}
+
+              {/* Pharmacy open + ETA */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#22C55E" }} />
+                <span className="text-xs font-medium" style={{ color: "#22C55E" }}>
+                  Pharmacy open
+                </span>
+                {etaText && (
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>
+                    · {etaText}
+                  </span>
                 )}
-              </span>
-              <span className="ml-auto text-xs font-medium"
-                style={{ color: "#22C55E" }}>
-                Pharmacy open
-              </span>
+              </div>
             </div>
           </div>
         )}
