@@ -29,8 +29,8 @@ interface NodeMapProps {
 }
 
 /**
- * NodeMap — Infrastructural pharmacy location + rider tracking map.
- * Intentionally minimal: dark-styled, no controls clutter, data-only markers.
+ * NodeMap — Pharmacy location + rider tracking map.
+ * Clinical light style — no dark backgrounds, no glow effects.
  */
 export function NodeMap({
   nodes = [],
@@ -59,9 +59,9 @@ export function NodeMap({
       const el = document.createElement("div");
       el.style.cssText = `
         width: 10px; height: 10px; border-radius: 50%;
-        background: ${node.isAssigned ? "#2DD4BF" : "#4A5568"};
-        border: 2px solid ${node.isAssigned ? "#2DD4BF" : "#718096"};
-        box-shadow: 0 0 0 3px ${node.isAssigned ? "rgba(45,212,191,0.2)" : "transparent"};
+        background: ${node.isAssigned ? "#1F6FEB" : "#94A3B8"};
+        border: 2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
       `;
       const marker = new window.google.maps.marker.AdvancedMarkerElement({
         map: mapRef.current!,
@@ -78,9 +78,8 @@ export function NodeMap({
       riderEl.style.cssText = `
         width: 12px; height: 12px; border-radius: 50%;
         background: #F59E0B;
-        border: 2px solid #FCD34D;
-        box-shadow: 0 0 0 4px rgba(245,158,11,0.25);
-        animation: pulse 2s infinite;
+        border: 2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
       `;
       const riderMarker = new window.google.maps.marker.AdvancedMarkerElement({
         map: mapRef.current!,
@@ -96,8 +95,9 @@ export function NodeMap({
       const destEl = document.createElement("div");
       destEl.style.cssText = `
         width: 10px; height: 10px; border-radius: 2px;
-        background: #FFFFFF;
-        border: 2px solid #CBD5E0;
+        background: #1F6FEB;
+        border: 2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
         transform: rotate(45deg);
       `;
       const destMarker = new window.google.maps.marker.AdvancedMarkerElement({
@@ -119,7 +119,7 @@ export function NodeMap({
   const handleMapReady = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
 
-    // Apply dark/clinical map style
+    // Clinical light map style — minimal, clean, no POI clutter
     map.setOptions({
       mapTypeControl: false,
       streetViewControl: false,
@@ -127,17 +127,14 @@ export function NodeMap({
       zoomControl: false,
       gestureHandling: "cooperative",
       styles: [
-        { elementType: "geometry",        stylers: [{ color: "#1a1f2e" }] },
-        { elementType: "labels.text.fill",stylers: [{ color: "#6b7280" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#1a1f2e" }] },
-        { featureType: "road",            elementType: "geometry",       stylers: [{ color: "#252d3d" }] },
-        { featureType: "road",            elementType: "geometry.stroke",stylers: [{ color: "#1a1f2e" }] },
-        { featureType: "road.highway",    elementType: "geometry",       stylers: [{ color: "#2d3748" }] },
-        { featureType: "water",           elementType: "geometry",       stylers: [{ color: "#0f1420" }] },
-        { featureType: "poi",             stylers: [{ visibility: "off" }] },
-        { featureType: "transit",         stylers: [{ visibility: "off" }] },
-        { featureType: "administrative",  elementType: "geometry",       stylers: [{ color: "#252d3d" }] },
-        { featureType: "landscape",       elementType: "geometry",       stylers: [{ color: "#1a1f2e" }] },
+        { featureType: "poi",          stylers: [{ visibility: "off" }] },
+        { featureType: "transit",      stylers: [{ visibility: "off" }] },
+        { featureType: "road",         elementType: "geometry",       stylers: [{ color: "#F1F5F9" }] },
+        { featureType: "road.highway", elementType: "geometry",       stylers: [{ color: "#E2E8F0" }] },
+        { featureType: "water",        elementType: "geometry",       stylers: [{ color: "#DBEAFE" }] },
+        { featureType: "landscape",    elementType: "geometry",       stylers: [{ color: "#F8FAFC" }] },
+        { elementType: "labels.text.fill",   stylers: [{ color: "#64748B" }] },
+        { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }] },
       ],
     });
 

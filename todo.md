@@ -86,3 +86,17 @@
 - [x] Update catalog.list tRPC procedure to expose variant information
 - [x] Validate data integrity: linkage, stock accuracy, deduplication
 - [x] Produce full integrity report (counts, category breakdown, normalization logic)
+
+## Medication Continuity Infrastructure UI (v6 — Full Rebuild)
+
+- [x] New design system: white base, soft grey, primary blue #1F6FEB, Inter font, 1.5 line-height, soft shadows, 10-12px radius, no gradients
+- [x] Rebuild index.css: light theme CSS variables, remove dark/neon tokens
+- [x] Rebuild AppLayout: clean white nav, minimal bottom bar, no commerce language
+- [x] Rebuild Home: Active Medications section, Running Low CTA, Recently Ordered, minimal search entry
+- [x] Rebuild Catalog: predictive search, clinical product cards (name/dosage/availability/ETA), no grid clutter
+- [x] Rebuild Prescription flow: full-screen trust UI, pharmacist review states (Received → Being Verified → Approved)
+- [x] Rebuild Cart/Checkout: split Rx/non-Rx, prescription gate before checkout, "Confirm Order" CTA
+- [x] Rebuild Order Tracking: human-language states, progress bar, ETA text (~18 min)
+- [x] Rewrite all microcopy: remove SLA/node/processing/checkout language
+- [x] Remove all dark/neon colors, gradients, glow effects
+- [x] Normalize spacing: large whitespace, minimal borders, soft shadows throughout

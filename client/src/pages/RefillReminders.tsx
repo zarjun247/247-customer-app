@@ -1,192 +1,135 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Bell, X, Clock, ArrowRight, Info } from "lucide-react";
-import { toast } from "sonner";
+import { RefreshCw, Clock, CheckCircle2, Search } from "lucide-react";
 import { useLocation } from "wouter";
-
-function getDaysUntil(date: Date | string) {
-  const diff = new Date(date).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function UrgencyLabel({ days }: { days: number }) {
-  if (days <= 0) return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive bg-destructive/10 px-2 py-0.5 rounded">
-      Overdue by {Math.abs(days)}d
-    </span>
-  );
-  if (days <= 3) return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-      Due in {days}d
-    </span>
-  );
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-      Due in {days}d
-    </span>
-  );
-}
+import { toast } from "sonner";
 
 export default function RefillReminders() {
   const { isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
-  const { data: reminders, isLoading } = trpc.refills.list.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: reminders, isLoading } = trpc.refills.list.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
 
   const dismiss = trpc.refills.dismiss.useMutation({
     onSuccess: () => utils.refills.list.invalidate(),
     onError: (e) => toast.error(e.message),
   });
 
+  const getDaysUntil = (dateVal: Date | string | null) => {
+    if (!dateVal) return null;
+    const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
+    const diff = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  const getUrgencyLabel = (days: number | null) => {
+    if (days === null) return { label: "Due soon", color: "oklch(0.520 0.018 255)" };
+    if (days <= 0) return { label: "Due now", color: "oklch(0.620 0.210 25)" };
+    if (days <= 2) return { label: `Due in ${days}d`, color: "oklch(0.720 0.150 55)" };
+    return { label: `Due in ${days}d`, color: "oklch(0.520 0.018 255)" };
+  };
+
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="px-5 pt-5 space-y-2">
-          {[1, 2].map(i => <div key={i} className="skeleton h-24 rounded-lg" />)}
+        <div className="px-5 pt-6 space-y-3">
+          {[1, 2, 3].map(i => <div key={i} className="skeleton h-20 rounded-xl" />)}
         </div>
       </AppLayout>
     );
   }
 
-  const overdueReminders = reminders?.filter(r => getDaysUntil(r.nextReminderAt) <= 0) ?? [];
-  const upcomingReminders = reminders?.filter(r => getDaysUntil(r.nextReminderAt) > 0) ?? [];
-
   return (
     <AppLayout>
-      <div className="px-5 pt-5">
-        <div className="mb-5">
-          <h1 className="text-base font-semibold text-foreground">Refill Schedule</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Chronic medications · Computed from your order history
+      <div className="px-5 pt-6 pb-10">
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold mb-1" style={{ color: "oklch(0.175 0.012 255)" }}>
+            Refill Schedule
+          </h1>
+          <p className="text-sm" style={{ color: "oklch(0.520 0.018 255)" }}>
+            Medications due for refill based on your order history
           </p>
         </div>
 
         {!reminders || reminders.length === 0 ? (
-          /* ── Empty state ──────────────────────────────────────────────── */
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center mb-5">
-              <Bell size={20} className="text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
+              style={{ background: "oklch(0.965 0.004 255)" }}>
+              <RefreshCw size={22} strokeWidth={1.5} style={{ color: "oklch(0.520 0.018 255)" }} />
             </div>
-            <p className="text-sm font-medium text-foreground mb-1">No refill schedule yet</p>
-            <p className="text-xs text-muted-foreground mb-6 max-w-[240px] leading-relaxed">
-              Refill reminders are generated automatically once you have a history of ordering chronic medications. No manual setup required.
+            <p className="text-base font-semibold mb-2" style={{ color: "oklch(0.175 0.012 255)" }}>
+              No refills due
             </p>
-            <button
-              onClick={() => navigate("/catalog")}
-              className="text-sm text-primary font-medium hover:text-primary/80 transition-colors"
-            >
-              Browse medicines →
-            </button>
+            <p className="text-sm leading-relaxed" style={{ color: "oklch(0.520 0.018 255)", maxWidth: "20rem" }}>
+              Your refill schedule will appear here once you have ordered medications regularly.
+            </p>
           </div>
         ) : (
-          <>
-            {/* ── Overdue ───────────────────────────────────────────────── */}
-            {overdueReminders.length > 0 && (
-              <div className="mb-5">
-                <p className="section-label mb-3">Overdue</p>
-                <div className="space-y-2">
-                  {overdueReminders.map((reminder) => {
-                    const days = getDaysUntil(reminder.nextReminderAt);
-                    return (
-                      <div key={reminder.id} className="px-4 py-3.5 rounded-lg bg-card border border-destructive/20">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground leading-snug">{reminder.name}</p>
-                            {reminder.strength && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {reminder.form} · {reminder.strength}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => dismiss.mutate({ id: reminder.id })}
-                            className="text-muted-foreground hover:text-foreground transition-colors ml-3 flex-shrink-0 mt-0.5"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <UrgencyLabel days={days} />
-                            <span className="text-[10px] text-muted-foreground">
-                              Every {reminder.avgIntervalDays}d avg
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => navigate("/catalog")}
-                            className="flex items-center gap-1 text-xs text-primary font-medium hover:text-primary/80 transition-colors"
-                          >
-                            Order now <ArrowRight size={11} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          <div className="space-y-3">
+            {reminders.map((r) => {
+              const days = getDaysUntil(r.nextReminderAt);
+              const urgency = getUrgencyLabel(days);
+              return (
+                <div key={r.id} className="bg-white rounded-xl p-4 card-shadow"
+                  style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold leading-snug" style={{ color: "oklch(0.175 0.012 255)" }}>
+                        {r.name}
+                      </p>
+                      {(r.strength || r.form) && (
+                        <p className="text-xs mt-0.5" style={{ color: "oklch(0.520 0.018 255)" }}>
+                          {[r.strength, r.form].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Clock size={11} strokeWidth={1.75} style={{ color: urgency.color }} />
+                      <span className="text-xs font-semibold" style={{ color: urgency.color }}>
+                        {urgency.label}
+                      </span>
+                    </div>
+                  </div>
 
-            {/* ── Upcoming ──────────────────────────────────────────────── */}
-            {upcomingReminders.length > 0 && (
-              <div className="mb-5">
-                <p className="section-label mb-3">Upcoming</p>
-                <div className="space-y-2">
-                  {upcomingReminders.map((reminder) => {
-                    const days = getDaysUntil(reminder.nextReminderAt);
-                    const isDueSoon = days <= 3;
-                    return (
-                      <div
-                        key={reminder.id}
-                        className={`px-4 py-3.5 rounded-lg bg-card border ${isDueSoon ? "border-amber-500/20" : "border-border"}`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground leading-snug">{reminder.name}</p>
-                            {reminder.strength && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {reminder.form} · {reminder.strength}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => dismiss.mutate({ id: reminder.id })}
-                            className="text-muted-foreground hover:text-foreground transition-colors ml-3 flex-shrink-0 mt-0.5"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <UrgencyLabel days={days} />
-                            <span className="text-[10px] text-muted-foreground">
-                              Every {reminder.avgIntervalDays}d avg
-                            </span>
-                          </div>
-                          {isDueSoon && (
-                            <button
-                              onClick={() => navigate("/catalog")}
-                              className="flex items-center gap-1 text-xs text-primary font-medium hover:text-primary/80 transition-colors"
-                            >
-                              Order now <ArrowRight size={11} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {r.avgIntervalDays && (
+                    <p className="text-xs mb-3" style={{ color: "oklch(0.650 0.012 255)" }}>
+                      Typically ordered every {r.avgIntervalDays} days
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => navigate(`/catalog?search=${encodeURIComponent(r.name)}`)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
+                      style={{ background: "oklch(0.545 0.195 255)", color: "white" }}
+                    >
+                      <Search size={12} />
+                      Find &amp; add
+                    </button>
+                    <button
+                      onClick={() => dismiss.mutate({ id: r.id })}
+                      disabled={dismiss.isPending}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-40"
+                      style={{ border: "1px solid oklch(0.910 0.008 255)", color: "oklch(0.520 0.018 255)", background: "white" }}
+                    >
+                      <CheckCircle2 size={12} />
+                      Dismiss
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
+              );
+            })}
+          </div>
         )}
 
-        {/* ── Disclaimer ────────────────────────────────────────────────── */}
-        <div className="flex items-start gap-2.5 px-4 py-3.5 rounded-lg bg-card border border-border mt-2 mb-6">
-          <Info size={13} className="text-muted-foreground flex-shrink-0 mt-0.5" />
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Refill intervals are computed from your actual dispensation history for chronic medications only. These are operational estimates and do not constitute clinical advice. Consult your physician for any changes to your medication regimen.
+        {/* ── Info note ─────────────────────────────────────────────────── */}
+        <div className="mt-6 p-4 rounded-xl" style={{ background: "oklch(0.965 0.004 255)" }}>
+          <p className="text-xs leading-relaxed" style={{ color: "oklch(0.520 0.018 255)" }}>
+            Refill reminders are calculated from your order history. They appear 5 days before your estimated next dose runs out.
           </p>
         </div>
       </div>

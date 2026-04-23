@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, Minus, AlertCircle, X, Pill, Baby, Cpu, Leaf, ShoppingBag, Sparkles } from "lucide-react";
+import { Search, Plus, Minus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -17,59 +17,45 @@ const CATEGORIES = [
   { key: "wellness",  label: "Wellness" },
 ];
 
-const SCHEDULE_BADGE: Record<string, { label: string; cls: string }> = {
-  H:   { label: "Rx · Sch H",  cls: "badge-rx" },
-  H1:  { label: "H1 · Controlled", cls: "badge-rx" },
-  X:   { label: "Rx · Sch X",  cls: "badge-rx" },
-  OTC: { label: "OTC",         cls: "badge-otc" },
+// ─── Category placeholder colors (light, clinical) ───────────────────────────
+const CATEGORY_BG: Record<string, string> = {
+  medicine:  "oklch(0.965 0.020 255)",
+  devices:   "oklch(0.965 0.015 200)",
+  baby:      "oklch(0.970 0.020 340)",
+  nutrition: "oklch(0.970 0.025 145)",
+  fmcg:      "oklch(0.970 0.025 55)",
+  wellness:  "oklch(0.970 0.020 290)",
+};
+const CATEGORY_TEXT: Record<string, string> = {
+  medicine:  "oklch(0.545 0.195 255)",
+  devices:   "oklch(0.500 0.160 200)",
+  baby:      "oklch(0.550 0.180 340)",
+  nutrition: "oklch(0.500 0.150 145)",
+  fmcg:      "oklch(0.580 0.150 55)",
+  wellness:  "oklch(0.530 0.160 290)",
 };
 
-const CATEGORY_ACCENT: Record<string, string> = {
-  medicine:  "#2dd4bf",
-  devices:   "#60a5fa",
-  baby:      "#f9a8d4",
-  nutrition: "#86efac",
-  fmcg:      "#fbbf24",
-  wellness:  "#c4b5fd",
-};
-
-// ─── SVG Placeholder ─────────────────────────────────────────────────────────
-function ProductPlaceholder({ name, category, schedule, packSize, companyName }: {
+// ─── Product Placeholder ──────────────────────────────────────────────────────
+function ProductPlaceholder({ name, category, schedule }: {
   name: string; category: string; schedule: string;
-  packSize: string | null; companyName: string | null;
 }) {
-  const accent = CATEGORY_ACCENT[category] ?? "#2dd4bf";
+  const bg = CATEGORY_BG[category] ?? CATEGORY_BG.medicine;
+  const color = CATEGORY_TEXT[category] ?? CATEGORY_TEXT.medicine;
   const initials = name.split(/[\s\-\/]+/).slice(0, 2).map(w => w[0] ?? "").join("").toUpperCase();
-  const badge = schedule === "H1" ? "H1" : schedule === "H" ? "Rx" : schedule === "X" ? "Rx X" : "OTC";
-
+  const isRx = schedule === "H" || schedule === "H1" || schedule === "X";
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #0f1923 0%, #1a2535 100%)" }}>
-      <div className="absolute inset-0 opacity-5" style={{
-        backgroundImage: `linear-gradient(${accent} 1px, transparent 1px), linear-gradient(90deg, ${accent} 1px, transparent 1px)`,
-        backgroundSize: "40px 40px"
-      }} />
-      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[9px] font-semibold"
-        style={{ background: `${accent}20`, color: accent, border: `1px solid ${accent}30` }}>
-        {badge}
+    <div className="w-full h-full flex flex-col items-center justify-center"
+      style={{ background: bg }}>
+      <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold mb-1.5"
+        style={{ background: "white", color }}>
+        {initials}
       </div>
-      <div className="relative z-10 flex flex-col items-center gap-1.5 px-2">
-        <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold"
-          style={{ background: `${accent}15`, border: `1.5px solid ${accent}30`, color: accent }}>
-          {initials}
-        </div>
-        <p className="text-[10px] font-medium text-slate-200 text-center leading-tight max-w-[90px] line-clamp-2">
-          {name}
-        </p>
-        {packSize && <p className="text-[9px] font-medium" style={{ color: accent }}>{packSize}</p>}
-        {companyName && <p className="text-[8px] text-slate-500 text-center max-w-[80px] truncate">{companyName}</p>}
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 h-5 flex items-center justify-center"
-        style={{ background: `${accent}08` }}>
-        <span className="text-[7px] font-medium tracking-widest" style={{ color: `${accent}70` }}>
-          24/7 PHARMACY
+      {isRx && (
+        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+          style={{ background: "oklch(0.97 0.015 25)", color: "oklch(0.550 0.180 25)" }}>
+          Rx
         </span>
-      </div>
+      )}
     </div>
   );
 }
@@ -81,72 +67,122 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
 }) {
   const available = Number(item.availableQty) || 0;
   const isOutOfStock = available <= 0;
-  const discount = Number(item.mrp) > Number(item.sellingPrice)
-    ? Math.round(((Number(item.mrp) - Number(item.sellingPrice)) / Number(item.mrp)) * 100)
-    : 0;
-  const scheduleCfg = SCHEDULE_BADGE[item.schedule] ?? SCHEDULE_BADGE.OTC;
+  const isRx = item.requiresPrescription;
+  const etaMins = item.etaMins ?? null;
 
   return (
-    <div className={`group flex flex-col bg-card border rounded-xl overflow-hidden transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 ${isOutOfStock ? "opacity-55" : "border-border"}`}>
-      {/* Image */}
-      <div className="relative aspect-square overflow-hidden bg-[#0f1923]">
+    <div className="bg-white rounded-xl overflow-hidden card-shadow transition-all hover:shadow-md"
+      style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+      {/* Image area */}
+      <div className="relative aspect-square overflow-hidden"
+        style={{ background: "oklch(0.965 0.004 255)" }}>
         {item.imageUrl ? (
           <img src={item.imageUrl} alt={item.name}
             className="w-full h-full object-cover"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <ProductPlaceholder
-            name={item.name} category={item.category ?? "medicine"}
-            schedule={item.schedule} packSize={item.packSize} companyName={item.companyName} />
-        )}
-        {item.requiresPrescription && (
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">Rx</div>
-        )}
-        {discount > 0 && !isOutOfStock && (
-          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-primary/20 text-primary border border-primary/30">{discount}% off</div>
+            name={item.name}
+            category={item.category ?? "medicine"}
+            schedule={item.schedule} />
         )}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <span className="text-[10px] font-medium text-slate-400 tracking-wider uppercase">Out of Stock</span>
+          <div className="absolute inset-0 flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.75)" }}>
+            <span className="text-xs font-medium" style={{ color: "oklch(0.520 0.018 255)" }}>
+              Not available
+            </span>
           </div>
         )}
       </div>
 
       {/* Info */}
-      <div className="flex flex-col flex-1 p-3 gap-1">
-        <h3 className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{item.name}</h3>
+      <div className="p-3">
+        {/* Rx / OTC indicator */}
+        <div className="flex items-center gap-1.5 mb-1.5">
+          {isRx ? (
+            <span className="badge-rx">Rx</span>
+          ) : (
+            <span className="badge-otc">OTC</span>
+          )}
+          {item.isChronicMedication && (
+            <span className="badge-chronic">Chronic</span>
+          )}
+        </div>
+
+        {/* Name */}
+        <h3 className="text-sm font-semibold leading-snug line-clamp-2 mb-0.5"
+          style={{ color: "oklch(0.175 0.012 255)" }}>
+          {item.name}
+        </h3>
+
+        {/* Dosage / form */}
         {(item.displayLabel || item.packSize) && (
-          <p className="text-[10px] text-primary/80 font-medium leading-tight">
+          <p className="text-xs mb-1" style={{ color: "oklch(0.520 0.018 255)" }}>
             {item.displayLabel || item.packSize}
           </p>
         )}
-        {item.companyName && <p className="text-[10px] text-muted-foreground truncate">{item.companyName}</p>}
 
-        <div className="flex items-center gap-1 flex-wrap mt-0.5">
-          <span className={scheduleCfg.cls} style={{ fontSize: "9px" }}>{scheduleCfg.label}</span>
-          {item.isChronicMedication && <span className="badge-chronic" style={{ fontSize: "9px" }}>Chronic</span>}
+        {/* Company */}
+        {item.companyName && (
+          <p className="text-xs truncate mb-2" style={{ color: "oklch(0.650 0.012 255)" }}>
+            {item.companyName}
+          </p>
+        )}
+
+        {/* Availability + ETA */}
+        <div className="flex items-center justify-between mb-2.5">
+          {!isOutOfStock ? (
+            <span className="text-xs font-medium" style={{ color: "oklch(0.600 0.160 145)" }}>
+              Available
+            </span>
+          ) : (
+            <span className="text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>
+              Not available
+            </span>
+          )}
+          {!isOutOfStock && etaMins && (
+            <span className="eta-chip">~{etaMins} min</span>
+          )}
         </div>
 
-        <div className="flex items-baseline gap-1.5 mt-auto pt-1">
-          <span className="text-sm font-bold text-foreground">₹{Number(item.sellingPrice).toFixed(0)}</span>
-          {discount > 0 && <span className="text-[10px] text-muted-foreground line-through">₹{Number(item.mrp).toFixed(0)}</span>}
+        {/* Price */}
+        <div className="flex items-baseline gap-1.5 mb-2.5">
+          <span className="text-base font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+            ₹{Number(item.sellingPrice).toFixed(0)}
+          </span>
+          {Number(item.mrp) > Number(item.sellingPrice) && (
+            <span className="text-xs line-through" style={{ color: "oklch(0.650 0.012 255)" }}>
+              ₹{Number(item.mrp).toFixed(0)}
+            </span>
+          )}
         </div>
 
+        {/* Add / qty control */}
         {!isOutOfStock && (
-          <div className="mt-1.5">
-            {cartQty === 0 ? (
-              <button onClick={onAdd}
-                className="w-full py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
-                Add
+          cartQty === 0 ? (
+            <button onClick={onAdd}
+              className="w-full py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+              style={{ background: "oklch(0.545 0.195 255)", color: "white" }}>
+              Add
+            </button>
+          ) : (
+            <div className="flex items-center justify-between rounded-xl px-3 py-1.5"
+              style={{ background: "oklch(0.965 0.020 255)", border: "1px solid oklch(0.900 0.040 255)" }}>
+              <button onClick={onRemove} className="transition-opacity hover:opacity-60"
+                style={{ color: "oklch(0.545 0.195 255)" }}>
+                <Minus size={14} />
               </button>
-            ) : (
-              <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-2 py-1">
-                <button onClick={onRemove} className="text-primary hover:text-primary/80 p-0.5"><Minus size={12} /></button>
-                <span className="text-xs font-bold text-primary">{cartQty}</span>
-                <button onClick={onAdd} disabled={cartQty >= available} className="text-primary hover:text-primary/80 p-0.5 disabled:opacity-40"><Plus size={12} /></button>
-              </div>
-            )}
-          </div>
+              <span className="text-sm font-semibold" style={{ color: "oklch(0.545 0.195 255)" }}>
+                {cartQty}
+              </span>
+              <button onClick={onAdd} disabled={cartQty >= available}
+                className="transition-opacity hover:opacity-60 disabled:opacity-30"
+                style={{ color: "oklch(0.545 0.195 255)" }}>
+                <Plus size={14} />
+              </button>
+            </div>
+          )
         )}
       </div>
     </div>
@@ -175,7 +211,6 @@ export default function Catalog() {
   );
   const { data: cartItems } = trpc.cart.get.useQuery(undefined, { enabled: isAuthenticated });
   const utils = trpc.useUtils();
-
   const upsertCart = trpc.cart.upsert.useMutation({
     onSuccess: () => utils.cart.get.invalidate(),
     onError: (e) => toast.error(e.message),
@@ -184,14 +219,12 @@ export default function Catalog() {
   const getCartQty = (skuId: number) => cartItems?.find((i: any) => i.skuId === skuId)?.quantity ?? 0;
   const cartTotal = cartItems?.reduce((s: number, i: any) => s + i.quantity, 0) ?? 0;
 
-  // Reset on search/category change
   useEffect(() => {
     setOffset(0);
     setAllItems([]);
     setHasMore(true);
   }, [debouncedSearch, category]);
 
-  // Accumulate items
   useEffect(() => {
     if (!items) return;
     if (offset === 0) {
@@ -205,7 +238,6 @@ export default function Catalog() {
     setHasMore(items.length === LIMIT);
   }, [items, offset]);
 
-  // Infinite scroll
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
     if (entries[0]?.isIntersecting && hasMore && !isFetching) {
       setOffset(prev => prev + LIMIT);
@@ -227,7 +259,7 @@ export default function Catalog() {
   const handleAdd = (item: any) => {
     const current = getCartQty(item.skuId);
     const available = Number(item.availableQty) || 0;
-    if (current >= available) { toast.error("Maximum available stock reached"); return; }
+    if (current >= available) { toast.error("Maximum available quantity reached"); return; }
     upsertCart.mutate({ skuId: item.skuId, productId: item.productId, variantId: item.variantId ?? undefined, quantity: current + 1 });
   };
 
@@ -239,94 +271,113 @@ export default function Catalog() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen">
-        {/* Sticky header */}
-        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border/50">
+      <div className="min-h-screen" style={{ background: "oklch(0.990 0.000 0)" }}>
+        {/* ── Sticky header ──────────────────────────────────────────────── */}
+        <div className="sticky top-0 z-20 bg-white" style={{ borderBottom: "1px solid oklch(0.910 0.008 255)" }}>
           <div className="px-4 pt-4 pb-3 space-y-3">
-            {/* Pharmacy info */}
+            {/* Pharmacy + ETA */}
             {store && (
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                <span className="text-xs text-muted-foreground">
-                  Fulfilled by <span className="text-primary font-medium">{store.name}</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                <span className="text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>
+                  {store.name}
                 </span>
-                <span className="text-muted-foreground/30">·</span>
-                <span className="text-xs text-muted-foreground">SLA {store.slaMins} min</span>
+                {(store as any).etaMins && (
+                  <>
+                    <span style={{ color: "oklch(0.800 0.008 255)" }}>·</span>
+                    <span className="text-xs" style={{ color: "oklch(0.545 0.195 255)" }}>
+                      Arriving in ~{(store as any).etaMins} min
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
             {/* Search */}
             <div className="relative">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2"
+                style={{ color: "oklch(0.650 0.012 255)" }} />
               <input
                 type="text"
-                placeholder="Search by brand, generic, or product name…"
+                placeholder="Search by name, dosage, or generic…"
                 value={search}
                 onChange={e => handleSearch(e.target.value)}
-                className="w-full bg-card border border-border rounded-lg pl-9 pr-9 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring/50 transition-colors"
+                className="w-full rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none transition-colors"
+                style={{
+                  background: "oklch(0.965 0.004 255)",
+                  border: "1px solid oklch(0.910 0.008 255)",
+                  color: "oklch(0.175 0.012 255)",
+                }}
               />
               {search && (
                 <button onClick={() => { setSearch(""); setDebouncedSearch(""); }}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-60"
+                  style={{ color: "oklch(0.520 0.018 255)" }}>
                   <X size={13} />
                 </button>
               )}
             </div>
 
             {/* Category tabs */}
-            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat.key}
-                  onClick={() => setCategory(cat.key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border ${
-                    category === cat.key
-                      ? "bg-primary/15 text-primary border-primary/30"
-                      : "bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+              {CATEGORIES.map(cat => {
+                const active = category === cat.key;
+                return (
+                  <button
+                    key={cat.key}
+                    onClick={() => setCategory(cat.key)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all"
+                    style={{
+                      background: active ? "oklch(0.545 0.195 255)" : "transparent",
+                      color: active ? "white" : "oklch(0.520 0.018 255)",
+                      border: active ? "1px solid transparent" : "1px solid oklch(0.910 0.008 255)",
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Results count */}
-        <div className="px-4 pt-3 pb-1">
+        {/* ── Results ────────────────────────────────────────────────────── */}
+        <div className="px-4 pt-4 pb-1">
           <p className="section-label">
             {allItems.length > 0
-              ? `${allItems.length}${hasMore ? "+" : ""} products`
+              ? `${allItems.length}${hasMore ? "+" : ""} medications`
               : isFetching ? "Loading…" : ""}
           </p>
         </div>
 
-        {/* Grid */}
+        {/* ── Grid ───────────────────────────────────────────────────────── */}
         <div className="px-4 pb-28">
           {allItems.length === 0 && !isFetching ? (
             <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center">
-                <Search size={20} className="text-muted-foreground opacity-50" />
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                style={{ background: "oklch(0.965 0.004 255)" }}>
+                <Search size={20} strokeWidth={1.5} style={{ color: "oklch(0.520 0.018 255)" }} />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">
-                  {search ? `No results for "${search}"` : "No products found"}
+                <p className="text-sm font-semibold mb-1" style={{ color: "oklch(0.175 0.012 255)" }}>
+                  {search ? `No results for "${search}"` : "No medications found"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>
                   {search
-                    ? "Try a different name, generic, or brand"
-                    : "No products available in this category at your local pharmacy"}
+                    ? "Try a different name, dosage, or generic"
+                    : "No medications available in this category"}
                 </p>
               </div>
               {search && (
                 <button onClick={() => { setSearch(""); setDebouncedSearch(""); }}
-                  className="text-xs text-primary hover:text-primary/80 underline underline-offset-2">
+                  className="text-xs font-medium transition-opacity hover:opacity-70"
+                  style={{ color: "oklch(0.545 0.195 255)" }}>
                   Clear search
                 </button>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {allItems.map((item: any) => (
                 <ProductCard
                   key={item.skuId}
@@ -342,26 +393,30 @@ export default function Catalog() {
           {/* Infinite scroll sentinel */}
           <div ref={loadMoreRef} className="h-12 flex items-center justify-center mt-4">
             {isFetching && allItems.length > 0 && (
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <div className="w-3 h-3 border border-primary/40 border-t-primary rounded-full animate-spin" />
+              <div className="flex items-center gap-2 text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>
+                <div className="w-3 h-3 rounded-full border-2 border-t-transparent animate-spin"
+                  style={{ borderColor: "oklch(0.545 0.195 255)", borderTopColor: "transparent" }} />
                 Loading more…
               </div>
             )}
             {!hasMore && allItems.length > 0 && (
-              <p className="text-muted-foreground/40 text-xs">All {allItems.length} products loaded</p>
+              <p className="text-xs" style={{ color: "oklch(0.650 0.012 255)" }}>
+                All {allItems.length} medications loaded
+              </p>
             )}
           </div>
         </div>
 
-        {/* Cart bar */}
+        {/* ── Cart bar ───────────────────────────────────────────────────── */}
         {cartTotal > 0 && (
           <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-2">
             <div className="max-w-lg mx-auto">
               <button
                 onClick={() => navigate("/cart")}
-                className="w-full flex items-center justify-between bg-primary text-primary-foreground px-5 py-3.5 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90"
+                style={{ background: "oklch(0.545 0.195 255)", color: "white" }}
               >
-                <span className="text-primary-foreground/80 text-xs">
+                <span style={{ opacity: 0.8, fontSize: "0.8125rem" }}>
                   {cartTotal} {cartTotal === 1 ? "item" : "items"}
                 </span>
                 <span>Review order →</span>

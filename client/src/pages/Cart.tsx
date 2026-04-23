@@ -2,14 +2,14 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Minus, Plus, Trash2, Clock, ShieldCheck, AlertTriangle, ArrowLeft, Lock } from "lucide-react";
+import { Minus, Plus, Trash2, Clock, ShieldCheck, Shield, ArrowLeft, Lock, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 export default function Cart() {
   const { isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const { data: cartItems, isLoading } = trpc.cart.get.useQuery(undefined, { enabled: isAuthenticated });
   const { data: store } = trpc.catalog.store.useQuery(undefined, { enabled: isAuthenticated });
@@ -25,26 +25,28 @@ export default function Cart() {
       navigate(`/orders/${data.orderId}`);
     },
     onError: (e) => {
-      setCheckingOut(false);
+      setConfirming(false);
       toast.error(e.message);
     },
   });
 
   const subtotal = cartItems?.reduce((s, i) => s + parseFloat(String(i.sellingPrice)) * i.quantity, 0) ?? 0;
-  const hasRxItems = cartItems?.some(i => i.requiresPrescription) ?? false;
+  const rxItems = cartItems?.filter(i => i.requiresPrescription) ?? [];
+  const nonRxItems = cartItems?.filter(i => !i.requiresPrescription) ?? [];
+  const hasRxItems = rxItems.length > 0;
   const totalItems = cartItems?.reduce((s, i) => s + i.quantity, 0) ?? 0;
 
-  const handleCheckout = () => {
+  const handleConfirm = () => {
     if (!cartItems || cartItems.length === 0) return;
-    setCheckingOut(true);
+    setConfirming(true);
     checkout.mutate({});
   };
 
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="px-5 pt-5 space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="skeleton h-20 rounded-lg" />)}
+        <div className="px-5 pt-6 space-y-3">
+          {[1, 2, 3].map(i => <div key={i} className="skeleton h-20 rounded-xl" />)}
         </div>
       </AppLayout>
     );
@@ -52,157 +54,169 @@ export default function Cart() {
 
   return (
     <AppLayout>
-      <div className="px-5 pt-5">
-        {/* Header */}
+      <div className="px-5 pt-6 pb-10">
+        {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => navigate("/catalog")}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="transition-opacity hover:opacity-60"
+            style={{ color: "oklch(0.520 0.018 255)" }}
           >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-base font-semibold text-foreground">Order Review</h1>
+            <h1 className="text-xl font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+              Your Order
+            </h1>
             {totalItems > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {totalItems} {totalItems === 1 ? "item" : "items"} · {store?.name ?? "Your pharmacy"}
+              <p className="text-sm" style={{ color: "oklch(0.520 0.018 255)" }}>
+                {totalItems} {totalItems === 1 ? "item" : "items"} · {store?.name ?? "24/7 Pharmacy"}
               </p>
             )}
           </div>
         </div>
 
         {!cartItems || cartItems.length === 0 ? (
-          /* ── Empty state ──────────────────────────────────────────────── */
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center mb-5">
-              <ShieldCheck size={20} className="text-muted-foreground" />
+          /* ── Empty state ──────────────────────────────────────────── */
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
+              style={{ background: "oklch(0.965 0.004 255)" }}>
+              <ShieldCheck size={22} strokeWidth={1.5} style={{ color: "oklch(0.520 0.018 255)" }} />
             </div>
-            <p className="text-sm font-medium text-foreground mb-1">No items in your order</p>
-            <p className="text-xs text-muted-foreground mb-6 max-w-[200px]">
-              Add medicines from your local 24/7 pharmacy to get started.
+            <p className="text-base font-semibold mb-2" style={{ color: "oklch(0.175 0.012 255)" }}>
+              No items yet
+            </p>
+            <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.520 0.018 255)", maxWidth: "20rem" }}>
+              Add medications from your assigned pharmacy to start an order.
             </p>
             <button
               onClick={() => navigate("/catalog")}
-              className="text-sm text-primary font-medium hover:text-primary/80 transition-colors"
+              className="text-sm font-medium transition-opacity hover:opacity-70"
+              style={{ color: "oklch(0.545 0.195 255)" }}
             >
-              Browse medicines →
+              Browse medications →
             </button>
           </div>
         ) : (
           <>
-            {/* ── Cart items ──────────────────────────────────────────── */}
-            <div className="space-y-2 mb-5">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-4 px-4 py-3.5 rounded-lg bg-card border border-border">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-sm font-medium text-foreground leading-snug">{item.name}</span>
-                      {item.requiresPrescription && (
-                        <span className="badge-rx">Rx</span>
-                      )}
-                    </div>
-                    {item.brand && (
-                      <p className="text-xs text-muted-foreground">{item.brand}</p>
-                    )}
-                    <div className="flex items-baseline gap-1.5 mt-1.5">
-                      <span className="text-sm font-semibold text-foreground">
-                        ₹{(parseFloat(String(item.sellingPrice)) * item.quantity).toFixed(2)}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        ₹{Number(item.sellingPrice).toFixed(2)} × {item.quantity}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Qty controls */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => upsertCart.mutate({ skuId: item.skuId, productId: item.productId, quantity: item.quantity - 1 })}
-                      className="w-7 h-7 flex items-center justify-center rounded-md bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {item.quantity === 1
-                        ? <Trash2 size={12} className="text-destructive/70" />
-                        : <Minus size={12} />
-                      }
-                    </button>
-                    <span className="text-sm font-semibold text-foreground w-5 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => upsertCart.mutate({ skuId: item.skuId, productId: item.productId, quantity: item.quantity + 1 })}
-                      className="w-7 h-7 flex items-center justify-center rounded-md bg-muted text-primary hover:text-primary/80 transition-colors"
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* ── SLA window ──────────────────────────────────────────── */}
-            {store && (
-              <div className="flex items-center gap-3 px-4 py-3.5 rounded-lg bg-card border border-border mb-3">
-                <Clock size={15} className="text-primary flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">
-                    Estimated delivery: {store.slaMins} minutes
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Fulfilled from {store.name} · SLA committed at checkout
-                  </p>
+            {/* ── Non-Rx items ────────────────────────────────────────── */}
+            {nonRxItems.length > 0 && (
+              <div className="mb-5">
+                {hasRxItems && <p className="section-label mb-3">Ready to prepare</p>}
+                <div className="space-y-2">
+                  {nonRxItems.map((item) => (
+                    <CartItem key={item.id} item={item} onUpdate={(qty) =>
+                      upsertCart.mutate({ skuId: item.skuId, productId: item.productId, quantity: qty })
+                    } />
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* ── Rx notice ───────────────────────────────────────────── */}
+            {/* ── Rx items ────────────────────────────────────────────── */}
             {hasRxItems && (
-              <div className="flex items-start gap-3 px-4 py-3.5 rounded-lg bg-card border border-border mb-3">
-                <AlertTriangle size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield size={12} strokeWidth={2} style={{ color: "oklch(0.620 0.150 55)" }} />
+                  <p className="section-label" style={{ color: "oklch(0.620 0.150 55)" }}>
+                    Awaiting prescription
+                  </p>
+                </div>
+                <div className="space-y-2 mb-3">
+                  {rxItems.map((item) => (
+                    <CartItem key={item.id} item={item} onUpdate={(qty) =>
+                      upsertCart.mutate({ skuId: item.skuId, productId: item.productId, quantity: qty })
+                    } />
+                  ))}
+                </div>
+                {/* Rx notice */}
+                <div className="rounded-xl p-4 flex items-start gap-3"
+                  style={{ background: "oklch(0.97 0.040 55)", border: "1px solid oklch(0.920 0.030 55)" }}>
+                  <ClipboardList size={14} strokeWidth={1.75} className="flex-shrink-0 mt-0.5"
+                    style={{ color: "oklch(0.620 0.150 55)" }} />
+                  <div>
+                    <p className="text-sm font-semibold mb-0.5" style={{ color: "oklch(0.620 0.150 55)" }}>
+                      Prescription required
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: "oklch(0.620 0.150 55)" }}>
+                      These medicines will be prepared after a licensed pharmacist reviews your prescription.
+                    </p>
+                    <button
+                      onClick={() => navigate("/rx-upload")}
+                      className="mt-2 text-xs font-semibold transition-opacity hover:opacity-70"
+                      style={{ color: "oklch(0.545 0.195 255)" }}
+                    >
+                      Upload prescription →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Delivery info ────────────────────────────────────────── */}
+            {store && (
+              <div className="flex items-center gap-3 p-4 rounded-xl mb-4"
+                style={{ background: "oklch(0.965 0.020 255)", border: "1px solid oklch(0.900 0.040 255)" }}>
+                <Clock size={15} strokeWidth={1.75} style={{ color: "oklch(0.545 0.195 255)" }} />
                 <div>
-                  <p className="text-sm font-medium text-foreground">Prescription review required</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                    Your order contains Schedule H medicines. A licensed pharmacist will verify your prescription before this order is picked.
+                  <p className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+                    Arriving in ~{(store as any).etaMins ?? store.slaMins} minutes
+                  </p>
+                  <p className="text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>
+                    Dispensed from {store.name}
                   </p>
                 </div>
               </div>
             )}
 
             {/* ── Order summary ────────────────────────────────────────── */}
-            <div className="bg-card rounded-lg border border-border px-4 py-4 mb-4">
-              <p className="section-label mb-3">Order Summary</p>
+            <div className="bg-white rounded-xl p-4 mb-4 card-shadow"
+              style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+              <p className="section-label mb-3">Summary</p>
               <div className="space-y-2.5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal ({totalItems} items)</span>
-                  <span className="text-foreground font-medium">₹{subtotal.toFixed(2)}</span>
+                  <span style={{ color: "oklch(0.520 0.018 255)" }}>
+                    Medications ({totalItems} {totalItems === 1 ? "item" : "items"})
+                  </span>
+                  <span className="font-medium" style={{ color: "oklch(0.175 0.012 255)" }}>
+                    ₹{subtotal.toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Delivery charge</span>
-                  <span className="text-primary font-medium">Included</span>
+                  <span style={{ color: "oklch(0.520 0.018 255)" }}>Delivery</span>
+                  <span className="font-medium" style={{ color: "oklch(0.600 0.160 145)" }}>Included</span>
                 </div>
-                <div className="h-px bg-border my-1" />
+                <div className="h-px" style={{ background: "oklch(0.910 0.008 255)" }} />
                 <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-foreground">Total payable</span>
-                  <span className="text-sm font-semibold text-foreground">₹{subtotal.toFixed(2)}</span>
+                  <span className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+                    Total
+                  </span>
+                  <span className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+                    ₹{subtotal.toFixed(2)}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* ── Inventory lock notice ────────────────────────────────── */}
+            {/* ── Inventory note ───────────────────────────────────────── */}
             <div className="flex items-center gap-2 mb-5">
-              <Lock size={11} className="text-muted-foreground flex-shrink-0" />
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Stock is reserved at the time of order placement, not when added to cart. Availability is confirmed at checkout.
+              <Lock size={11} className="flex-shrink-0" style={{ color: "oklch(0.650 0.012 255)" }} />
+              <p className="text-xs leading-relaxed" style={{ color: "oklch(0.650 0.012 255)" }}>
+                Stock is reserved at the time of order placement. Availability is confirmed when you confirm.
               </p>
             </div>
 
-            {/* ── Place order ──────────────────────────────────────────── */}
+            {/* ── Confirm order ────────────────────────────────────────── */}
             <button
-              onClick={handleCheckout}
-              disabled={checkingOut || checkout.isPending}
-              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3.5 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-6"
+              onClick={handleConfirm}
+              disabled={confirming || checkout.isPending}
+              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50 mb-6"
+              style={{ background: "oklch(0.545 0.195 255)", color: "white" }}
             >
-              {checkingOut ? (
+              {confirming ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Placing order…
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Confirming…
                 </>
               ) : (
                 `Confirm order · ₹${subtotal.toFixed(2)}`
@@ -212,5 +226,53 @@ export default function Cart() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+// ─── Cart Item Row ────────────────────────────────────────────────────────────
+function CartItem({ item, onUpdate }: { item: any; onUpdate: (qty: number) => void }) {
+  return (
+    <div className="bg-white rounded-xl p-4 card-shadow"
+      style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+            <span className="text-sm font-semibold leading-snug" style={{ color: "oklch(0.175 0.012 255)" }}>
+              {item.name}
+            </span>
+            {item.requiresPrescription && <span className="badge-rx">Rx</span>}
+          </div>
+          {item.packSize && (
+            <p className="text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>{item.packSize}</p>
+          )}
+          <p className="text-sm font-semibold mt-1.5" style={{ color: "oklch(0.175 0.012 255)" }}>
+            ₹{(parseFloat(String(item.sellingPrice)) * item.quantity).toFixed(2)}
+          </p>
+        </div>
+        {/* Qty controls */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => onUpdate(item.quantity - 1)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-opacity hover:opacity-60"
+            style={{ background: "oklch(0.965 0.004 255)", color: "oklch(0.520 0.018 255)" }}
+          >
+            {item.quantity === 1
+              ? <Trash2 size={13} style={{ color: "oklch(0.620 0.210 25)" }} />
+              : <Minus size={13} />
+            }
+          </button>
+          <span className="text-sm font-semibold w-5 text-center" style={{ color: "oklch(0.175 0.012 255)" }}>
+            {item.quantity}
+          </span>
+          <button
+            onClick={() => onUpdate(item.quantity + 1)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-opacity hover:opacity-60"
+            style={{ background: "oklch(0.965 0.020 255)", color: "oklch(0.545 0.195 255)" }}
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
