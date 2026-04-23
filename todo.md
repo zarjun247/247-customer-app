@@ -100,3 +100,18 @@
 - [x] Rewrite all microcopy: remove SLA/node/processing/checkout language
 - [x] Remove all dark/neon colors, gradients, glow effects
 - [x] Normalize spacing: large whitespace, minimal borders, soft shadows throughout
+
+## Final UI Refinement Pass (v7 — Brand Polish)
+
+- [x] Product card: category icon placeholder (medicine/device/baby/nutrition/general), compact visual zone
+- [x] Product card: soft availability language (Available now / Available on request / Arranging / Prescription review required)
+- [x] Product card: stronger Rx treatment — "Prescription required" label, not tiny badge
+- [x] Product card: premium Add CTA — controlled, not retail-aggressive
+- [x] Empty state — Orders: action state with Search medicine + Upload prescription CTAs
+- [x] Empty state — Refills/Schedule: reassurance copy, explain how reminders work
+- [x] Empty state — Home: guidance state with Upload / Search / Reorder options, remove "Browse medications"
+- [x] Trust signals: Verified pharmacist, Licensed dispensing, Secure prescription records in right places
+- [x] Continuity cues: Recently ordered, Running low, Prescription under review — calm and intelligent
+- [x] Brand palette audit: #111827 text, #667085 secondary, #E5E7EB borders, #F8FAFB surfaces
+- [x] Remove all "Browse medications" language
+- [x] TypeScript clean + 36 tests passing

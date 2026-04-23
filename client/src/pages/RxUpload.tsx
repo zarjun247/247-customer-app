@@ -13,30 +13,30 @@ const STATUS_CONFIG: Record<string, {
   pending_ocr: {
     label: "Received",
     sub: "Your prescription has been received and is being prepared for review.",
-    dotColor: "oklch(0.545 0.195 255)",
-    bgColor: "oklch(0.965 0.020 255)",
-    textColor: "oklch(0.545 0.195 255)",
+    dotColor: "#1F6FEB",
+    bgColor: "#EFF6FF",
+    textColor: "#1F6FEB",
   },
   pending_pharmacist: {
     label: "Being reviewed",
     sub: "A licensed pharmacist is reviewing your prescription.",
-    dotColor: "oklch(0.720 0.150 55)",
-    bgColor: "oklch(0.97 0.040 55)",
-    textColor: "oklch(0.620 0.150 55)",
+    dotColor: "#F59E0B",
+    bgColor: "#FFFBEB",
+    textColor: "#D97706",
   },
   approved: {
     label: "Approved",
     sub: "Your prescription has been verified. Medicines may be dispensed.",
-    dotColor: "oklch(0.600 0.160 145)",
-    bgColor: "oklch(0.970 0.025 145)",
-    textColor: "oklch(0.500 0.150 145)",
+    dotColor: "#22C55E",
+    bgColor: "#F0FDF4",
+    textColor: "#16A34A",
   },
   rejected: {
     label: "Could not be verified",
     sub: "Your prescription could not be verified. Please contact your pharmacist.",
-    dotColor: "oklch(0.620 0.210 25)",
-    bgColor: "oklch(0.97 0.015 25)",
-    textColor: "oklch(0.550 0.180 25)",
+    dotColor: "#EF4444",
+    bgColor: "#FEF2F2",
+    textColor: "#DC2626",
   },
 };
 
@@ -96,10 +96,10 @@ export default function RxUpload() {
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="mb-7">
-          <h1 className="text-xl font-semibold mb-1" style={{ color: "oklch(0.175 0.012 255)" }}>
+          <h1 className="text-xl font-semibold mb-1" style={{ color: "#111827" }}>
             Prescriptions
           </h1>
-          <p className="text-sm" style={{ color: "oklch(0.520 0.018 255)" }}>
+          <p className="text-sm" style={{ color: "#667085" }}>
             Reviewed by a licensed pharmacist before dispensing
           </p>
         </div>
@@ -108,19 +108,19 @@ export default function RxUpload() {
         {submitted ? (
           /* ── Submitted confirmation ─────────────────────────────────── */
           <div className="rounded-2xl p-8 text-center mb-6 card-shadow"
-            style={{ background: "white", border: "1px solid oklch(0.910 0.008 255)" }}>
+            style={{ background: "white", border: "1px solid #E5E7EB" }}>
             <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-              style={{ background: "oklch(0.970 0.025 145)" }}>
-              <CheckCircle2 size={28} strokeWidth={1.75} style={{ color: "oklch(0.500 0.150 145)" }} />
+              style={{ background: "#F0FDF4" }}>
+              <CheckCircle2 size={28} strokeWidth={1.75} style={{ color: "#16A34A" }} />
             </div>
-            <h2 className="text-base font-semibold mb-2" style={{ color: "oklch(0.175 0.012 255)" }}>
+            <h2 className="text-base font-semibold mb-2" style={{ color: "#111827" }}>
               Prescription received
             </h2>
-            <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.520 0.018 255)", maxWidth: "22rem", margin: "0 auto 1.25rem" }}>
+            <p className="text-sm leading-relaxed mb-5" style={{ color: "#667085", maxWidth: "22rem", margin: "0 auto 1.25rem" }}>
               A licensed pharmacist will review your prescription. You will be notified once it is approved.
             </p>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-              style={{ background: "oklch(0.97 0.040 55)", color: "oklch(0.620 0.150 55)" }}>
+              style={{ background: "#FFFBEB", color: "#D97706" }}>
               <Clock size={14} />
               Being reviewed by a pharmacist
             </div>
@@ -129,12 +129,12 @@ export default function RxUpload() {
           /* ── Preview + submit ───────────────────────────────────────── */
           <div className="mb-6">
             <div className="relative rounded-2xl overflow-hidden mb-3 card-shadow"
-              style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+              style={{ border: "1px solid #E5E7EB" }}>
               <img src={preview} alt="Prescription" className="w-full max-h-72 object-contain bg-white" />
               <button
                 onClick={() => setPreview(null)}
                 className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-70"
-                style={{ background: "white", border: "1px solid oklch(0.910 0.008 255)", color: "oklch(0.520 0.018 255)" }}
+                style={{ background: "white", border: "1px solid #E5E7EB", color: "#667085" }}
               >
                 <X size={14} />
               </button>
@@ -143,7 +143,7 @@ export default function RxUpload() {
               onClick={handleUpload}
               disabled={uploading || uploadRx.isPending}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
-              style={{ background: "oklch(0.545 0.195 255)", color: "white" }}
+              style={{ background: "#1F6FEB", color: "white" }}
             >
               {uploading ? (
                 <>
@@ -164,21 +164,21 @@ export default function RxUpload() {
             className="rounded-2xl p-8 text-center mb-6 cursor-pointer transition-all hover:shadow-md"
             style={{
               background: "white",
-              border: "2px dashed oklch(0.880 0.008 255)",
+              border: "2px dashed #D1D5DB",
             }}
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
-              style={{ background: "oklch(0.965 0.020 255)" }}>
-              <Camera size={26} strokeWidth={1.5} style={{ color: "oklch(0.545 0.195 255)" }} />
+              style={{ background: "#EFF6FF" }}>
+              <Camera size={26} strokeWidth={1.5} style={{ color: "#1F6FEB" }} />
             </div>
-            <h2 className="text-base font-semibold mb-2" style={{ color: "oklch(0.175 0.012 255)" }}>
+            <h2 className="text-base font-semibold mb-2" style={{ color: "#111827" }}>
               Let us take care of this
             </h2>
-            <p className="text-sm leading-relaxed mb-1" style={{ color: "oklch(0.520 0.018 255)" }}>
+            <p className="text-sm leading-relaxed mb-1" style={{ color: "#667085" }}>
               Upload or photograph your prescription
             </p>
-            <p className="text-xs" style={{ color: "oklch(0.650 0.012 255)" }}>
+            <p className="text-xs" style={{ color: "#9CA3AF" }}>
               JPG or PNG · up to 5 MB
             </p>
           </div>
@@ -195,26 +195,26 @@ export default function RxUpload() {
                 const cfg = STATUS_CONFIG[rx.status] ?? STATUS_CONFIG.pending_ocr;
                 return (
                   <div key={rx.id} className="bg-white rounded-xl p-4 card-shadow"
-                    style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+                    style={{ border: "1px solid #E5E7EB" }}>
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: "oklch(0.965 0.004 255)" }}>
-                        <FileText size={15} strokeWidth={1.5} style={{ color: "oklch(0.520 0.018 255)" }} />
+                        style={{ background: "#F8FAFB" }}>
+                        <FileText size={15} strokeWidth={1.5} style={{ color: "#667085" }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+                          <p className="text-sm font-semibold" style={{ color: "#111827" }}>
                             Prescription #{rx.id}
                           </p>
                           <StatusBadge status={rx.status} />
                         </div>
-                        <p className="text-xs mb-1" style={{ color: "oklch(0.650 0.012 255)" }}>
+                        <p className="text-xs mb-1" style={{ color: "#9CA3AF" }}>
                           {new Date(rx.createdAt).toLocaleDateString("en-IN", {
                             day: "numeric", month: "short", year: "numeric",
                             hour: "2-digit", minute: "2-digit"
                           })}
                         </p>
-                        <p className="text-xs leading-relaxed" style={{ color: "oklch(0.520 0.018 255)" }}>
+                        <p className="text-xs leading-relaxed" style={{ color: "#667085" }}>
                           {cfg.sub}
                         </p>
                       </div>
@@ -228,10 +228,10 @@ export default function RxUpload() {
 
         {/* ── Compliance note ──────────────────────────────────────────── */}
         <div className="flex items-start gap-3 p-4 rounded-xl"
-          style={{ background: "oklch(0.965 0.004 255)" }}>
+          style={{ background: "#F8FAFB" }}>
           <Shield size={13} strokeWidth={1.75} className="flex-shrink-0 mt-0.5"
-            style={{ color: "oklch(0.520 0.018 255)" }} />
-          <p className="text-xs leading-relaxed" style={{ color: "oklch(0.520 0.018 255)" }}>
+            style={{ color: "#667085" }} />
+          <p className="text-xs leading-relaxed" style={{ color: "#667085" }}>
             No Schedule H medicine is dispensed without explicit pharmacist approval. Prescriptions are stored securely and retained for the legally required period under the Drugs and Cosmetics Act. AI is not used for prescription assessment.
           </p>
         </div>

@@ -119,7 +119,7 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.02em;
   line-height: 1.3;
   font-weight: 600;
-  color: oklch(0.175 0.012 255);
+  color: #111827;
 }
 
 h1 { font-size: 1.375rem; }   /* 22px */
@@ -134,7 +134,7 @@ p {
 /* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.880 0.008 255); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
 
 /* ─── Clinical Utility Classes ──────────────────────────────────────────────── */
 
@@ -144,7 +144,7 @@ p {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: oklch(0.520 0.018 255);
+  color: #667085;
 }
 
 /* Soft card shadow — the primary elevation system */
@@ -157,13 +157,13 @@ p {
 
 /* Status indicators */
 .status-available {
-  color: oklch(0.600 0.160 145);
+  color: #22C55E;
 }
 .status-low {
-  color: oklch(0.720 0.150 55);
+  color: #F59E0B;
 }
 .status-unavailable {
-  color: oklch(0.520 0.018 255);
+  color: #667085;
 }
 
 /* Rx badge — minimal, clinical */
@@ -171,8 +171,8 @@ p {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 8px; border-radius: 4px;
   font-size: 0.625rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  background: oklch(0.97 0.015 25); color: oklch(0.550 0.180 25);
-  border: 1px solid oklch(0.920 0.030 25);
+  background: #FFFBEB; color: #D97706;
+  border: 1px solid #FDE68A;
 }
 
 /* Chronic badge */
@@ -180,8 +180,8 @@ p {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 8px; border-radius: 4px;
   font-size: 0.625rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  background: oklch(0.965 0.020 255); color: oklch(0.545 0.195 255);
-  border: 1px solid oklch(0.900 0.040 255);
+  background: #EFF6FF; color: #1F6FEB;
+  border: 1px solid #BFDBFE;
 }
 
 /* OTC badge */
@@ -189,16 +189,13 @@ p {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 8px; border-radius: 4px;
   font-size: 0.625rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  background: oklch(0.970 0.025 145); color: oklch(0.500 0.150 145);
-  border: 1px solid oklch(0.900 0.050 145);
+  background: #F0FDF4; color: #16A34A;
+  border: 1px solid #BBF7D0;
 }
 
 /* Skeleton loader — light version */
 .skeleton {
-  background: linear-gradient(90deg,
-    oklch(0.940 0.004 255) 25%,
-    oklch(0.965 0.004 255) 50%,
-    oklch(0.940 0.004 255) 75%);
+  background: linear-gradient(90deg, #F3F4F6 25%, #F9FAFB 50%, #F3F4F6 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.6s ease-in-out infinite;
   border-radius: 6px;
@@ -212,24 +209,24 @@ p {
 /* Progress bar — clinical, no animation flash */
 .progress-track {
   height: 4px;
-  background: oklch(0.920 0.008 255);
+  background: #E5E7EB;
   border-radius: 2px;
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
-  background: oklch(0.545 0.195 255);
+  background: #1F6FEB;
   border-radius: 2px;
   transition: width 0.6s ease;
 }
 .progress-fill-success {
-  background: oklch(0.600 0.160 145);
+  background: #22C55E;
 }
 
 /* Divider */
 .divider {
   height: 1px;
-  background: oklch(0.920 0.008 255);
+  background: #E5E7EB;
 }
 
 /* Trust indicator pill */
@@ -237,9 +234,9 @@ p {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: 20px;
   font-size: 0.6875rem; font-weight: 500;
-  background: oklch(0.970 0.025 145);
-  color: oklch(0.450 0.140 145);
-  border: 1px solid oklch(0.900 0.050 145);
+  background: #F0FDF4;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
 }
 
 /* ETA chip */
@@ -247,8 +244,8 @@ p {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 8px; border-radius: 4px;
   font-size: 0.6875rem; font-weight: 500;
-  background: oklch(0.965 0.020 255);
-  color: oklch(0.545 0.195 255);
+  background: #EFF6FF;
+  color: #1F6FEB;
 }
 
 /* ─── Base Layer ────────────────────────────────────────────────────────────── */

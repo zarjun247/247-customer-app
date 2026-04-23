@@ -44,12 +44,12 @@ function getStepIndex(status: string) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string; dot: string }> = {
-    created:               { label: "Received",       bg: "oklch(0.965 0.020 255)", color: "oklch(0.545 0.195 255)", dot: "oklch(0.545 0.195 255)" },
-    pharmacist_reviewing:  { label: "Being verified", bg: "oklch(0.97 0.040 55)",   color: "oklch(0.620 0.150 55)",  dot: "oklch(0.720 0.150 55)" },
-    picking:               { label: "Preparing",      bg: "oklch(0.965 0.020 255)", color: "oklch(0.545 0.195 255)", dot: "oklch(0.545 0.195 255)" },
-    out_for_delivery:      { label: "On the way",     bg: "oklch(0.965 0.020 255)", color: "oklch(0.545 0.195 255)", dot: "oklch(0.545 0.195 255)" },
-    delivered:             { label: "Delivered",      bg: "oklch(0.970 0.025 145)", color: "oklch(0.500 0.150 145)", dot: "oklch(0.600 0.160 145)" },
-    cancelled:             { label: "Cancelled",      bg: "oklch(0.97 0.015 25)",   color: "oklch(0.550 0.180 25)",  dot: "oklch(0.620 0.210 25)" },
+    created:               { label: "Received",       bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
+    pharmacist_reviewing:  { label: "Being verified", bg: "#FFFBEB",   color: "#D97706",  dot: "#F59E0B" },
+    picking:               { label: "Preparing",      bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
+    out_for_delivery:      { label: "On the way",     bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
+    delivered:             { label: "Delivered",      bg: "#F0FDF4", color: "#16A34A", dot: "#22C55E" },
+    cancelled:             { label: "Cancelled",      bg: "#FEF2F2",   color: "#DC2626",  dot: "#EF4444" },
   };
   const s = map[status] ?? map.created;
   return (
@@ -128,7 +128,7 @@ export default function OrderDetail() {
     return (
       <AppLayout>
         <div className="px-5 pt-6 text-center py-20">
-          <p className="text-sm" style={{ color: "oklch(0.520 0.018 255)" }}>Order not found.</p>
+          <p className="text-sm" style={{ color: "#667085" }}>Order not found.</p>
         </div>
       </AppLayout>
     );
@@ -149,18 +149,18 @@ export default function OrderDetail() {
           <button
             onClick={() => navigate("/orders")}
             className="transition-opacity hover:opacity-60"
-            style={{ color: "oklch(0.520 0.018 255)" }}
+            style={{ color: "#667085" }}
           >
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+              <h1 className="text-xl font-semibold" style={{ color: "#111827" }}>
                 Order #{order.id}
               </h1>
               <StatusBadge status={order.status} />
             </div>
-            <p className="text-sm mt-0.5" style={{ color: "oklch(0.520 0.018 255)" }}>
+            <p className="text-sm mt-0.5" style={{ color: "#667085" }}>
               {new Date(order.createdAt).toLocaleDateString("en-IN", {
                 day: "numeric", month: "short", year: "numeric",
                 hour: "2-digit", minute: "2-digit"
@@ -172,15 +172,15 @@ export default function OrderDetail() {
         {/* ── ETA banner (active orders) ───────────────────────────────── */}
         {!isDelivered && !isCancelled && displayEta && (
           <div className="flex items-center gap-3 p-4 rounded-xl mb-4"
-            style={{ background: "oklch(0.965 0.020 255)", border: "1px solid oklch(0.900 0.040 255)" }}>
-            <Clock size={15} strokeWidth={1.75} style={{ color: "oklch(0.545 0.195 255)" }} />
+            style={{ background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+            <Clock size={15} strokeWidth={1.75} style={{ color: "#1F6FEB" }} />
             <div>
-              <p className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+              <p className="text-sm font-semibold" style={{ color: "#111827" }}>
                 {isOutForDelivery
                   ? `Arriving in ~${displayEta} min`
                   : `Expected in ~${displayEta} min`}
               </p>
-              <p className="text-xs" style={{ color: "oklch(0.520 0.018 255)" }}>
+              <p className="text-xs" style={{ color: "#667085" }}>
                 Dispensed from {store?.name ?? "24/7 Pharmacy"}
               </p>
             </div>
@@ -190,19 +190,19 @@ export default function OrderDetail() {
         {/* ── Progress timeline ────────────────────────────────────────── */}
         {!isCancelled && (
           <div className="bg-white rounded-xl p-5 mb-4 card-shadow"
-            style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+            style={{ border: "1px solid #E5E7EB" }}>
             {/* Progress bar */}
             <div className="mb-5">
-              <div className="h-1.5 rounded-full mb-2" style={{ background: "oklch(0.910 0.008 255)" }}>
+              <div className="h-1.5 rounded-full mb-2" style={{ background: "#E5E7EB" }}>
                 <div
                   className="h-1.5 rounded-full transition-all duration-500"
                   style={{
-                    background: isDelivered ? "oklch(0.600 0.160 145)" : "oklch(0.545 0.195 255)",
+                    background: isDelivered ? "#22C55E" : "#1F6FEB",
                     width: `${Math.max(5, ((currentStepIdx + 1) / ORDER_STEPS.length) * 100)}%`,
                   }}
                 />
               </div>
-              <p className="text-xs" style={{ color: "oklch(0.650 0.012 255)" }}>
+              <p className="text-xs" style={{ color: "#9CA3AF" }}>
                 Step {Math.min(currentStepIdx + 1, ORDER_STEPS.length)} of {ORDER_STEPS.length}
               </p>
             </div>
@@ -220,9 +220,9 @@ export default function OrderDetail() {
                       <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
                           background: isCompleted
-                            ? (isDelivered && idx === currentStepIdx ? "oklch(0.600 0.160 145)" : "oklch(0.545 0.195 255)")
-                            : "oklch(0.965 0.004 255)",
-                          border: isCompleted ? "none" : "1.5px solid oklch(0.880 0.008 255)",
+                            ? (isDelivered && idx === currentStepIdx ? "#22C55E" : "#1F6FEB")
+                            : "#F8FAFB",
+                          border: isCompleted ? "none" : "1.5px solid #D1D5DB",
                         }}>
                         {isCompleted ? (
                           <CheckCircle2 size={12} color="white" />
@@ -233,18 +233,18 @@ export default function OrderDetail() {
                       </div>
                       {!isLast && (
                         <div className="w-px flex-1 min-h-[28px] mt-1 mb-1"
-                          style={{ background: idx < currentStepIdx ? "oklch(0.545 0.195 255)" : "oklch(0.910 0.008 255)" }} />
+                          style={{ background: idx < currentStepIdx ? "#1F6FEB" : "#E5E7EB" }} />
                       )}
                     </div>
                     {/* Content */}
                     <div className={`pb-4 ${isLast ? "pb-0" : ""}`}>
                       <p className="text-sm font-semibold leading-tight"
-                        style={{ color: isCompleted ? "oklch(0.175 0.012 255)" : "oklch(0.750 0.008 255)" }}>
+                        style={{ color: isCompleted ? "#111827" : "oklch(0.750 0.008 255)" }}>
                         {step.label}
                       </p>
                       {isCurrent && !isDelivered && (
                         <p className="text-xs mt-0.5 leading-relaxed"
-                          style={{ color: "oklch(0.520 0.018 255)" }}>
+                          style={{ color: "#667085" }}>
                           {step.sub}
                         </p>
                       )}
@@ -259,10 +259,10 @@ export default function OrderDetail() {
         {/* ── Live map (out_for_delivery only) ─────────────────────────── */}
         {isOutForDelivery && (
           <div className="rounded-xl overflow-hidden mb-4 card-shadow"
-            style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+            style={{ border: "1px solid #E5E7EB" }}>
             <div className="px-4 py-3 flex items-center justify-between"
-              style={{ borderBottom: "1px solid oklch(0.910 0.008 255)" }}>
-              <p className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+              style={{ borderBottom: "1px solid #E5E7EB" }}>
+              <p className="text-sm font-semibold" style={{ color: "#111827" }}>
                 Live tracking
               </p>
               {etaMins && (
@@ -276,8 +276,8 @@ export default function OrderDetail() {
               deliveryLat={19.1197}
               deliveryLng={72.9050}
             />
-            <div className="px-4 py-2.5" style={{ borderTop: "1px solid oklch(0.910 0.008 255)" }}>
-              <p className="text-xs" style={{ color: "oklch(0.650 0.012 255)" }}>
+            <div className="px-4 py-2.5" style={{ borderTop: "1px solid #E5E7EB" }}>
+              <p className="text-xs" style={{ color: "#9CA3AF" }}>
                 {etaMins ? `Arriving in ~${etaMins} min · ` : ""}Rider location updates every 30 seconds.
               </p>
             </div>
@@ -287,11 +287,11 @@ export default function OrderDetail() {
         {/* ── Delivery address ─────────────────────────────────────────── */}
         {order.flatNumber && (
           <div className="flex items-center gap-3 p-4 rounded-xl mb-4 bg-white card-shadow"
-            style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
-            <MapPin size={14} strokeWidth={1.75} style={{ color: "oklch(0.520 0.018 255)" }} />
+            style={{ border: "1px solid #E5E7EB" }}>
+            <MapPin size={14} strokeWidth={1.75} style={{ color: "#667085" }} />
             <div>
               <p className="section-label mb-0.5">Delivery address</p>
-              <p className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+              <p className="text-sm font-semibold" style={{ color: "#111827" }}>
                 Flat {order.flatNumber}
               </p>
             </div>
@@ -300,32 +300,32 @@ export default function OrderDetail() {
 
         {/* ── Items ───────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl p-4 mb-4 card-shadow"
-          style={{ border: "1px solid oklch(0.910 0.008 255)" }}>
+          style={{ border: "1px solid #E5E7EB" }}>
           <p className="section-label mb-3">Medications</p>
           <div className="space-y-3">
             {order.items?.map((item) => (
               <div key={item.id} className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold leading-snug" style={{ color: "oklch(0.175 0.012 255)" }}>
+                  <p className="text-sm font-semibold leading-snug" style={{ color: "#111827" }}>
                     {item.name}
                   </p>
                   {item.brand && (
-                    <p className="text-xs mt-0.5" style={{ color: "oklch(0.650 0.012 255)" }}>{item.brand}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>{item.brand}</p>
                   )}
-                  <p className="text-xs mt-0.5" style={{ color: "oklch(0.520 0.018 255)" }}>
+                  <p className="text-xs mt-0.5" style={{ color: "#667085" }}>
                     Qty {item.quantity} × ₹{Number(item.unitPrice).toFixed(2)}
                   </p>
                 </div>
-                <p className="text-sm font-semibold flex-shrink-0" style={{ color: "oklch(0.175 0.012 255)" }}>
+                <p className="text-sm font-semibold flex-shrink-0" style={{ color: "#111827" }}>
                   ₹{Number(item.lineTotal).toFixed(2)}
                 </p>
               </div>
             ))}
           </div>
-          <div className="h-px my-3" style={{ background: "oklch(0.910 0.008 255)" }} />
+          <div className="h-px my-3" style={{ background: "#E5E7EB" }} />
           <div className="flex justify-between">
-            <span className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>Total</span>
-            <span className="text-sm font-semibold" style={{ color: "oklch(0.175 0.012 255)" }}>
+            <span className="text-sm font-semibold" style={{ color: "#111827" }}>Total</span>
+            <span className="text-sm font-semibold" style={{ color: "#111827" }}>
               ₹{Number(order.total).toFixed(2)}
             </span>
           </div>
@@ -338,7 +338,7 @@ export default function OrderDetail() {
               onClick={() => reorder.mutate({ orderId: order.id })}
               disabled={reorder.isPending}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
-              style={{ background: "oklch(0.965 0.020 255)", color: "oklch(0.545 0.195 255)", border: "1px solid oklch(0.900 0.040 255)" }}
+              style={{ background: "#EFF6FF", color: "#1F6FEB", border: "1px solid #BFDBFE" }}
             >
               <RotateCcw size={14} />
               {reorder.isPending ? "Adding…" : "Reorder these medications"}
@@ -348,7 +348,7 @@ export default function OrderDetail() {
             <button
               onClick={() => window.open(order.invoiceUrl!, "_blank")}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-              style={{ background: "white", color: "oklch(0.520 0.018 255)", border: "1px solid oklch(0.910 0.008 255)" }}
+              style={{ background: "white", color: "#667085", border: "1px solid #E5E7EB" }}
             >
               <FileDown size={14} />
               Download invoice
@@ -360,7 +360,7 @@ export default function OrderDetail() {
               onClick={() => advanceStatus.mutate({ orderId: order.id, status: nextStatus as any })}
               disabled={advanceStatus.isPending}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-dashed text-xs transition-opacity hover:opacity-70 disabled:opacity-40"
-              style={{ border: "1px dashed oklch(0.880 0.008 255)", color: "oklch(0.650 0.012 255)" }}
+              style={{ border: "1px dashed #D1D5DB", color: "#9CA3AF" }}
             >
               {advanceStatus.isPending ? "Updating…" : `[Demo] Advance → ${nextStatus.replace(/_/g, " ")}`}
             </button>
