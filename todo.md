@@ -23,3 +23,19 @@
 - [x] WhatsApp bot webhook: refill prompt flow
 - [x] Vitest coverage: 19 tests (auth, state machine, FEFO, expiry, soft-lock, refill, WhatsApp)
 - [x] Final checkpoint and delivery
+
+## Refinement Pass (v2)
+- [x] Re-seed database with real Medivision products (72 SKUs from TFS LUX PHARMACIES stock report, 288 store SKUs)
+- [x] Remove all fake browser/path preview wrappers
+- [x] Redesign global design system: tighten typography, spacing, hierarchy
+- [x] Remove all retail/quick-commerce UX cues (oversized FABs, gamification residue)
+- [x] Replace all placeholder copy with premium healthcare-operating language
+- [x] Refine catalog page: clinical product cards, no retail energy
+- [x] Refine cart page: SLA as operational commitment, not delivery promise
+- [x] Refine order tracking: state machine as infrastructure status, not delivery tracker
+- [x] Refine Rx upload: secure vault language, not upload widget
+- [x] Refine refill reminders: chronic medication management, not reminder app
+- [x] Refine profile page: operational identity, building node assignment, not account settings
+- [x] Improve empty states with operational context
+- [x] Integrate Google Maps for node selection (onboarding), ETA (order tracking), rider location (NodeMap component, dark-styled)
+- [x] Tighten AppLayout navigation: remove path-based wrappers

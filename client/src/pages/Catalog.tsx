@@ -2,17 +2,15 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Minus, ShoppingCart, Clock, AlertCircle, FileText } from "lucide-react";
+import { Search, Plus, Minus, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
-function StockBadge({ available }: { available: number }) {
-  if (available <= 0) return <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">Out of Stock</Badge>;
-  if (available <= 5) return <Badge className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border-amber-500/30">Low Stock</Badge>;
-  return <Badge className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary border-primary/20">In Stock</Badge>;
+function ScheduleBadge({ schedule, requiresRx }: { schedule: string | null; requiresRx: boolean | number }) {
+  if (!schedule) return null;
+  if (!requiresRx || schedule === "OTC") return <span className="badge-otc">OTC</span>;
+  if (schedule === "H1") return <span className="badge-rx">H1 · Controlled</span>;
+  return <span className="badge-rx">Rx · Sch {schedule}</span>;
 }
 
 export default function Catalog() {
@@ -54,144 +52,181 @@ export default function Catalog() {
     upsertCart.mutate({ skuId, productId, quantity: current - 1 });
   };
 
+  const cartTotal = cartItems?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+
   return (
     <AppLayout>
-      <div className="px-4 pt-4 pb-2">
-        {/* Store info */}
+      <div className="px-5 pt-5">
+        {/* Node + SLA strip */}
         {store && (
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs text-muted-foreground">{store.name}</span>
-            <span className="text-xs text-muted-foreground">·</span>
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">{store.slaMins} min delivery</span>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="section-label mb-0.5">Pharmacy Node</p>
+              <p className="text-sm font-medium text-foreground">{store.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="section-label mb-0.5">Committed SLA</p>
+              <p className="text-sm font-semibold text-primary">{store.slaMins} min</p>
+            </div>
           </div>
         )}
 
         {/* Search */}
         <div className="relative mb-5">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search medicines, brands, generics..."
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by name, generic, or brand…"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9 h-11 bg-card border-border text-foreground placeholder:text-muted-foreground rounded-xl"
+            className="w-full bg-card border border-border rounded-lg pl-9 pr-9 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring/50 transition-colors"
           />
+          {search && (
+            <button
+              onClick={() => { setSearch(""); setDebouncedSearch(""); }}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
-
-        {/* Rx reminder */}
-        <button
-          onClick={() => navigate("/rx-upload")}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary/8 border border-primary/20 mb-5 hover:bg-primary/12 transition-colors"
-        >
-          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-          <span className="text-sm text-primary font-medium">Upload a prescription</span>
-        </button>
       </div>
 
-      {/* Catalog */}
-      <div className="px-4">
+      {/* ── Catalogue ───────────────────────────────────────────────────── */}
+      <div className="px-5 pb-6">
         {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-24 rounded-xl bg-card animate-pulse" />
+          <div className="space-y-2">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="skeleton h-20 rounded-lg" />
             ))}
           </div>
         ) : catalog && catalog.length > 0 ? (
-          <div className="space-y-2">
-            {catalog.map((item) => {
-              const available = Number(item.availableQty) || 0;
-              const cartQty = getCartQty(item.skuId);
-              const outOfStock = available <= 0;
+          <>
+            {!debouncedSearch && (
+              <p className="section-label mb-3">
+                {catalog.length} medicines in stock
+              </p>
+            )}
+            <div className="space-y-2">
+              {catalog.map((item) => {
+                const available = Number(item.availableQty) || 0;
+                const cartQty = getCartQty(item.skuId);
+                const outOfStock = available <= 0;
+                const discount = Number(item.mrp) > Number(item.sellingPrice)
+                  ? Math.round(((Number(item.mrp) - Number(item.sellingPrice)) / Number(item.mrp)) * 100)
+                  : 0;
 
-              return (
-                <div key={item.skuId} className="flex items-center gap-3 p-3.5 rounded-xl bg-card border border-border hover:border-border/80 transition-colors">
-                  {/* Product info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 mb-1">
-                      <span className="text-sm font-medium text-foreground leading-tight">{item.name}</span>
-                      {item.requiresPrescription && (
-                        <Badge className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-400 border-amber-500/25 flex-shrink-0 mt-0.5">Rx</Badge>
+                return (
+                  <div
+                    key={item.skuId}
+                    className={`flex items-center gap-4 px-4 py-3.5 rounded-lg bg-card border transition-colors ${
+                      outOfStock ? "border-border/40 opacity-60" : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    {/* Product info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2 mb-1">
+                        <span className="text-sm font-medium text-foreground leading-snug">{item.name}</span>
+                      </div>
+                      {item.genericName && (
+                        <p className="text-xs text-muted-foreground mb-1.5 leading-relaxed truncate">
+                          {item.genericName}
+                          {item.strength && <span className="text-muted-foreground/60"> · {item.strength}</span>}
+                        </p>
                       )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <ScheduleBadge schedule={item.schedule} requiresRx={item.requiresPrescription} />
+                        {item.isChronicMedication && <span className="badge-chronic">Chronic</span>}
+                        {item.packSize && (
+                          <span className="text-[10px] text-muted-foreground/70">{item.packSize}</span>
+                        )}
+                      </div>
                     </div>
-                    {item.brand && <p className="text-xs text-muted-foreground">{item.brand}</p>}
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-sm font-semibold text-foreground">₹{Number(item.sellingPrice).toFixed(0)}</span>
-                      {Number(item.mrp) > Number(item.sellingPrice) && (
-                        <span className="text-xs text-muted-foreground line-through">₹{Number(item.mrp).toFixed(0)}</span>
-                      )}
-                      <StockBadge available={available} />
-                    </div>
-                    {item.packSize && <p className="text-[11px] text-muted-foreground mt-0.5">{item.packSize}</p>}
-                  </div>
 
-                  {/* Cart controls */}
-                  <div className="flex-shrink-0">
-                    {outOfStock ? (
-                      <span className="text-xs text-muted-foreground">Unavailable</span>
-                    ) : cartQty === 0 ? (
-                      <Button
-                        size="sm"
-                        className="h-8 w-8 p-0 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
-                        onClick={() => handleAdd(item.skuId, item.productId, available)}
-                        disabled={upsertCart.isPending}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 w-8 p-0 rounded-lg border-border"
-                          onClick={() => handleRemove(item.skuId, item.productId)}
-                          disabled={upsertCart.isPending}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="text-sm font-semibold text-foreground w-5 text-center">{cartQty}</span>
-                        <Button
-                          size="sm"
-                          className="h-8 w-8 p-0 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                    {/* Price + qty controls */}
+                    <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-foreground">
+                          ₹{Number(item.sellingPrice).toFixed(0)}
+                        </span>
+                        {discount > 0 && (
+                          <span className="ml-1.5 text-[10px] text-primary font-medium">{discount}%</span>
+                        )}
+                      </div>
+
+                      {outOfStock ? (
+                        <span className="text-[10px] text-muted-foreground font-medium">Unavailable</span>
+                      ) : cartQty === 0 ? (
+                        <button
                           onClick={() => handleAdd(item.skuId, item.productId, available)}
                           disabled={upsertCart.isPending}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary border border-primary/20 text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
                         >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
+                          <Plus size={11} />
+                          Add
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2 bg-muted rounded-md px-1.5 py-1">
+                          <button
+                            onClick={() => handleRemove(item.skuId, item.productId)}
+                            disabled={upsertCart.isPending}
+                            className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <span className="text-xs font-semibold text-foreground w-4 text-center">{cartQty}</span>
+                          <button
+                            onClick={() => handleAdd(item.skuId, item.productId, available)}
+                            disabled={upsertCart.isPending}
+                            className="w-5 h-5 flex items-center justify-center text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="flex flex-col items-center justify-center py-20 text-center">
             {search ? (
               <>
-                <Search className="h-10 w-10 text-muted-foreground mb-3 opacity-40" />
-                <p className="text-sm text-muted-foreground">No results for "{search}"</p>
+                <Search size={24} className="text-muted-foreground mb-3 opacity-40" />
+                <p className="text-sm font-medium text-foreground mb-1">No results</p>
+                <p className="text-xs text-muted-foreground">
+                  No medicines matching "{search}" in your node's current stock.
+                </p>
               </>
             ) : (
               <>
-                <AlertCircle className="h-10 w-10 text-muted-foreground mb-3 opacity-40" />
-                <p className="text-sm text-muted-foreground">No products available at your node yet.</p>
+                <AlertCircle size={24} className="text-muted-foreground mb-3 opacity-40" />
+                <p className="text-sm font-medium text-foreground mb-1">No stock data</p>
+                <p className="text-xs text-muted-foreground">
+                  Your pharmacy node has not been assigned yet. Complete onboarding first.
+                </p>
               </>
             )}
           </div>
         )}
       </div>
 
-      {/* Floating cart button */}
-      {(cartItems?.length ?? 0) > 0 && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-40">
-          <Button
-            className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-medium shadow-lg shadow-primary/20"
-            onClick={() => navigate("/cart")}
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            View Cart · {cartItems?.reduce((s, i) => s + i.quantity, 0)} items
-          </Button>
+      {/* ── Cart summary bar ─────────────────────────────────────────────── */}
+      {cartTotal > 0 && (
+        <div className="fixed bottom-16 left-0 right-0 z-40 px-5 pb-2">
+          <div className="max-w-lg mx-auto">
+            <button
+              onClick={() => navigate("/cart")}
+              className="w-full flex items-center justify-between bg-primary text-primary-foreground px-5 py-3.5 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors"
+            >
+              <span className="text-primary-foreground/80 text-xs">
+                {cartTotal} {cartTotal === 1 ? "item" : "items"} in cart
+              </span>
+              <span>Review order →</span>
+            </button>
+          </div>
         </div>
       )}
     </AppLayout>

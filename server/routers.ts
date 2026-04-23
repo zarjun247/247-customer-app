@@ -47,7 +47,14 @@ const authRouter = router({
 // ─── User/Onboarding Router ───────────────────────────────────────────────────
 const userRouter = router({
   profile: protectedProcedure.query(async ({ ctx }) => {
-    return getUserById(ctx.user.id);
+    const user = await getUserById(ctx.user.id);
+    if (!user) return null;
+    let buildingName: string | null = null;
+    if (user.buildingId) {
+      const building = await getBuildingById(user.buildingId);
+      buildingName = building?.name ?? null;
+    }
+    return { ...user, buildingName };
   }),
   completeOnboarding: protectedProcedure
     .input(z.object({
