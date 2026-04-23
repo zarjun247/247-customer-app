@@ -54,22 +54,22 @@ export default function Cart() {
 
   return (
     <AppLayout>
-      <div className="px-5 pt-6 pb-10">
+      <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => navigate("/catalog")}
             className="transition-opacity hover:opacity-60"
-            style={{ color: "#667085" }}
+            style={{ color: "#6B6B75" }}
           >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-xl font-semibold" style={{ color: "#111827" }}>
+            <h1 className="text-xl font-semibold" style={{ color: "#F0F0F2" }}>
               Your Order
             </h1>
             {totalItems > 0 && (
-              <p className="text-sm" style={{ color: "#667085" }}>
+              <p className="text-sm" style={{ color: "#6B6B75" }}>
                 {totalItems} {totalItems === 1 ? "item" : "items"} · {store?.name ?? "24/7 Pharmacy"}
               </p>
             )}
@@ -80,21 +80,21 @@ export default function Cart() {
           /* ── Action empty state ──────────────────────────────────────── */
           <div className="flex flex-col items-center py-12 text-center">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-              style={{ background: "#F8FAFB", border: "1px solid #E5E7EB" }}>
-              <ShieldCheck size={22} strokeWidth={1.5} style={{ color: "#9CA3AF" }} />
+              style={{ background: "#141416", border: "1px solid #2A2A2E" }}>
+              <ShieldCheck size={22} strokeWidth={1.5} style={{ color: "#4B4B55" }} />
             </div>
-            <p className="text-base font-semibold mb-2" style={{ color: "#111827" }}>
+            <p className="text-base font-semibold mb-2" style={{ color: "#F0F0F2" }}>
               No items yet
             </p>
             <p className="text-sm leading-relaxed mb-8"
-              style={{ color: "#667085", maxWidth: "20rem" }}>
+              style={{ color: "#6B6B75", maxWidth: "20rem" }}>
               Add medications from your assigned pharmacy to start an order.
             </p>
             <div className="w-full space-y-2.5" style={{ maxWidth: "22rem" }}>
               <button
                 onClick={() => navigate("/catalog")}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-                style={{ background: "#1F6FEB", color: "white" }}
+                style={{ background: "#2B7FFF", color: "white" }}
               >
                 <Search size={15} />
                 <span>Search for a medication</span>
@@ -102,9 +102,9 @@ export default function Cart() {
               <button
                 onClick={() => navigate("/rx-upload")}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-                style={{ background: "#F8FAFB", color: "#111827", border: "1px solid #E5E7EB" }}
+                style={{ background: "#141416", color: "#F0F0F2", border: "1px solid #2A2A2E" }}
               >
-                <FileText size={15} style={{ color: "#667085" }} />
+                <FileText size={15} style={{ color: "#6B6B75" }} />
                 <span>Upload a prescription</span>
               </button>
             </div>
@@ -116,7 +116,7 @@ export default function Cart() {
               <div className="mb-5">
                 {hasRxItems && (
                   <p className="text-xs font-semibold tracking-widest uppercase mb-3"
-                    style={{ color: "#9CA3AF" }}>Ready to prepare</p>
+                    style={{ color: "#4B4B55" }}>Ready to prepare</p>
                 )}
                 <div className="space-y-2">
                   {nonRxItems.map((item) => (
@@ -132,9 +132,9 @@ export default function Cart() {
             {hasRxItems && (
               <div className="mb-5">
                 <div className="flex items-center gap-2 mb-3">
-                  <Shield size={12} strokeWidth={1.75} style={{ color: "#D97706" }} />
+                  <Shield size={12} strokeWidth={1.75} style={{ color: "#F59E0B" }} />
                   <p className="text-xs font-semibold tracking-widest uppercase"
-                    style={{ color: "#D97706" }}>
+                    style={{ color: "#F59E0B" }}>
                     Awaiting prescription
                   </p>
                 </div>
@@ -147,9 +147,9 @@ export default function Cart() {
                 </div>
                 {/* Rx notice */}
                 <div className="rounded-xl p-4 flex items-start gap-3"
-                  style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}>
+                  style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)" }}>
                   <ClipboardList size={14} strokeWidth={1.75} className="flex-shrink-0 mt-0.5"
-                    style={{ color: "#D97706" }} />
+                    style={{ color: "#F59E0B" }} />
                   <div>
                     <p className="text-sm font-semibold mb-0.5" style={{ color: "#92400E" }}>
                       Prescription required
@@ -160,7 +160,7 @@ export default function Cart() {
                     <button
                       onClick={() => navigate("/rx-upload")}
                       className="mt-2 text-xs font-semibold transition-opacity hover:opacity-70"
-                      style={{ color: "#1F6FEB" }}
+                      style={{ color: "#2B7FFF" }}
                     >
                       Upload prescription →
                     </button>
@@ -172,13 +172,13 @@ export default function Cart() {
             {/* ── Delivery info ────────────────────────────────────────── */}
             {store && (
               <div className="flex items-center gap-3 p-4 rounded-xl mb-4"
-                style={{ background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                <Clock size={15} strokeWidth={1.75} style={{ color: "#1F6FEB" }} />
+                style={{ background: "rgba(43,127,255,0.10)", border: "1px solid rgba(43,127,255,0.25)" }}>
+                <Clock size={15} strokeWidth={1.75} style={{ color: "#2B7FFF" }} />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: "#111827" }}>
+                  <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
                     Arriving in ~{(store as any).etaMins ?? store.slaMins} minutes
                   </p>
-                  <p className="text-xs" style={{ color: "#667085" }}>
+                  <p className="text-xs" style={{ color: "#6B6B75" }}>
                     Dispensed from {store.name}
                   </p>
                 </div>
@@ -186,27 +186,27 @@ export default function Cart() {
             )}
 
             {/* ── Order summary ────────────────────────────────────────── */}
-            <div className="bg-white rounded-xl p-4 mb-4"
-              style={{ border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            <div className="rounded-xl p-4 mb-4"
+              style={{ border: "1px solid #2A2A2E", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
               <p className="text-xs font-semibold tracking-widest uppercase mb-3"
-                style={{ color: "#9CA3AF" }}>Summary</p>
+                style={{ color: "#4B4B55" }}>Summary</p>
               <div className="space-y-2.5">
                 <div className="flex justify-between text-sm">
-                  <span style={{ color: "#667085" }}>
+                  <span style={{ color: "#6B6B75" }}>
                     Medications ({totalItems} {totalItems === 1 ? "item" : "items"})
                   </span>
-                  <span className="font-medium" style={{ color: "#111827" }}>
+                  <span className="font-medium" style={{ color: "#F0F0F2" }}>
                     ₹{subtotal.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span style={{ color: "#667085" }}>Delivery</span>
-                  <span className="font-medium" style={{ color: "#16A34A" }}>Included</span>
+                  <span style={{ color: "#6B6B75" }}>Delivery</span>
+                  <span className="font-medium" style={{ color: "#00C896" }}>Included</span>
                 </div>
                 <div className="h-px" style={{ background: "#E5E7EB" }} />
                 <div className="flex justify-between">
-                  <span className="text-sm font-semibold" style={{ color: "#111827" }}>Total</span>
-                  <span className="text-sm font-semibold" style={{ color: "#111827" }}>
+                  <span className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>Total</span>
+                  <span className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
                     ₹{subtotal.toFixed(2)}
                   </span>
                 </div>
@@ -215,8 +215,8 @@ export default function Cart() {
 
             {/* ── Trust + inventory note ───────────────────────────────── */}
             <div className="flex items-start gap-2 mb-5">
-              <Lock size={11} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
-              <p className="text-xs leading-relaxed" style={{ color: "#9CA3AF" }}>
+              <Lock size={11} className="flex-shrink-0 mt-0.5" style={{ color: "#4B4B55" }} />
+              <p className="text-xs leading-relaxed" style={{ color: "#4B4B55" }}>
                 Stock is reserved when you confirm. All prescriptions are reviewed by a licensed pharmacist before dispensing.
               </p>
             </div>
@@ -226,7 +226,7 @@ export default function Cart() {
               onClick={handleConfirm}
               disabled={confirming || checkout.isPending}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50 mb-6"
-              style={{ background: "#1F6FEB", color: "white" }}
+              style={{ background: "#2B7FFF", color: "white" }}
             >
               {confirming ? (
                 <>
@@ -247,25 +247,25 @@ export default function Cart() {
 // ─── Cart Item Row ────────────────────────────────────────────────────────────
 function CartItem({ item, onUpdate }: { item: any; onUpdate: (qty: number) => void }) {
   return (
-    <div className="bg-white rounded-xl p-4"
-      style={{ border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+    <div className="rounded-xl p-4"
+      style={{ border: "1px solid #2A2A2E", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-            <span className="text-sm font-semibold leading-snug" style={{ color: "#111827" }}>
+            <span className="text-sm font-semibold leading-snug" style={{ color: "#F0F0F2" }}>
               {item.name}
             </span>
             {item.requiresPrescription && (
               <span className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                style={{ background: "#FFFBEB", color: "#D97706" }}>
+                style={{ background: "rgba(245,158,11,0.10)", color: "#F59E0B" }}>
                 Rx
               </span>
             )}
           </div>
           {item.packSize && (
-            <p className="text-xs" style={{ color: "#667085" }}>{item.packSize}</p>
+            <p className="text-xs" style={{ color: "#6B6B75" }}>{item.packSize}</p>
           )}
-          <p className="text-sm font-semibold mt-1.5" style={{ color: "#111827" }}>
+          <p className="text-sm font-semibold mt-1.5" style={{ color: "#F0F0F2" }}>
             ₹{(parseFloat(String(item.sellingPrice)) * item.quantity).toFixed(2)}
           </p>
         </div>
@@ -274,20 +274,20 @@ function CartItem({ item, onUpdate }: { item: any; onUpdate: (qty: number) => vo
           <button
             onClick={() => onUpdate(item.quantity - 1)}
             className="w-8 h-8 flex items-center justify-center rounded-lg transition-opacity hover:opacity-60"
-            style={{ background: "#F8FAFB", color: "#667085", border: "1px solid #E5E7EB" }}
+            style={{ background: "#141416", color: "#6B6B75", border: "1px solid #2A2A2E" }}
           >
             {item.quantity === 1
               ? <Trash2 size={13} style={{ color: "#DC2626" }} />
               : <Minus size={13} />
             }
           </button>
-          <span className="text-sm font-semibold w-5 text-center" style={{ color: "#111827" }}>
+          <span className="text-sm font-semibold w-5 text-center" style={{ color: "#F0F0F2" }}>
             {item.quantity}
           </span>
           <button
             onClick={() => onUpdate(item.quantity + 1)}
             className="w-8 h-8 flex items-center justify-center rounded-lg transition-opacity hover:opacity-60"
-            style={{ background: "#EFF6FF", color: "#1F6FEB", border: "1px solid #BFDBFE" }}
+            style={{ background: "rgba(43,127,255,0.10)", color: "#2B7FFF", border: "1px solid rgba(43,127,255,0.25)" }}
           >
             <Plus size={13} />
           </button>

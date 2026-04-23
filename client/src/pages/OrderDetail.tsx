@@ -44,12 +44,12 @@ function getStepIndex(status: string) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string; dot: string }> = {
-    created:               { label: "Received",       bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
-    pharmacist_reviewing:  { label: "Being verified", bg: "#FFFBEB",   color: "#D97706",  dot: "#F59E0B" },
-    picking:               { label: "Preparing",      bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
-    out_for_delivery:      { label: "On the way",     bg: "#EFF6FF", color: "#1F6FEB", dot: "#1F6FEB" },
-    delivered:             { label: "Delivered",      bg: "#F0FDF4", color: "#16A34A", dot: "#22C55E" },
-    cancelled:             { label: "Cancelled",      bg: "#FEF2F2",   color: "#DC2626",  dot: "#DC2626" },
+    created:               { label: "Received",       bg: "#EFF6FF", color: "#2B7FFF", dot: "#1F6FEB" },
+    pharmacist_reviewing:  { label: "Being verified", bg: "#FFFBEB",   color: "#F59E0B",  dot: "#F59E0B" },
+    picking:               { label: "Preparing",      bg: "#EFF6FF", color: "#2B7FFF", dot: "#1F6FEB" },
+    out_for_delivery:      { label: "On the way",     bg: "#EFF6FF", color: "#2B7FFF", dot: "#1F6FEB" },
+    delivered:             { label: "Delivered",      bg: "#F0FDF4", color: "#00C896", dot: "#22C55E" },
+    cancelled:             { label: "Cancelled",      bg: "#FEF2F2",   color: "#F43F5E",  dot: "#DC2626" },
   };
   const s = map[status] ?? map.created;
   return (
@@ -128,7 +128,7 @@ export default function OrderDetail() {
     return (
       <AppLayout>
         <div className="px-5 pt-6 text-center py-20">
-          <p className="text-sm" style={{ color: "#667085" }}>Order not found.</p>
+          <p className="text-sm" style={{ color: "#6B6B75" }}>Order not found.</p>
         </div>
       </AppLayout>
     );
@@ -143,24 +143,24 @@ export default function OrderDetail() {
 
   return (
     <AppLayout>
-      <div className="px-5 pt-6 pb-10">
+      <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => navigate("/orders")}
             className="transition-opacity hover:opacity-60"
-            style={{ color: "#667085" }}
+            style={{ color: "#6B6B75" }}
           >
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-semibold" style={{ color: "#111827" }}>
+              <h1 className="text-xl font-semibold" style={{ color: "#F0F0F2" }}>
                 Order #{order.id}
               </h1>
               <StatusBadge status={order.status} />
             </div>
-            <p className="text-sm mt-0.5" style={{ color: "#667085" }}>
+            <p className="text-sm mt-0.5" style={{ color: "#6B6B75" }}>
               {new Date(order.createdAt).toLocaleDateString("en-IN", {
                 day: "numeric", month: "short", year: "numeric",
                 hour: "2-digit", minute: "2-digit"
@@ -172,15 +172,15 @@ export default function OrderDetail() {
         {/* ── ETA banner (active orders) ───────────────────────────────── */}
         {!isDelivered && !isCancelled && displayEta && (
           <div className="flex items-center gap-3 p-4 rounded-xl mb-4"
-            style={{ background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-            <Clock size={15} strokeWidth={1.75} style={{ color: "#1F6FEB" }} />
+            style={{ background: "rgba(43,127,255,0.10)", border: "1px solid rgba(43,127,255,0.25)" }}>
+            <Clock size={15} strokeWidth={1.75} style={{ color: "#2B7FFF" }} />
             <div>
-              <p className="text-sm font-semibold" style={{ color: "#111827" }}>
+              <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
                 {isOutForDelivery
                   ? `Arriving in ~${displayEta} min`
                   : `Expected in ~${displayEta} min`}
               </p>
-              <p className="text-xs" style={{ color: "#667085" }}>
+              <p className="text-xs" style={{ color: "#6B6B75" }}>
                 Dispensed from {store?.name ?? "24/7 Pharmacy"}
               </p>
             </div>
@@ -189,8 +189,8 @@ export default function OrderDetail() {
 
         {/* ── Progress timeline ────────────────────────────────────────── */}
         {!isCancelled && (
-          <div className="bg-white rounded-xl p-5 mb-4 card-shadow"
-            style={{ border: "1px solid #E5E7EB" }}>
+          <div className="bg-[#141416] rounded-xl p-5 mb-4 card-shadow"
+            style={{ border: "1px solid #2A2A2E" }}>
             {/* Progress bar */}
             <div className="mb-5">
               <div className="h-1.5 rounded-full mb-2" style={{ background: "#E5E7EB" }}>
@@ -202,7 +202,7 @@ export default function OrderDetail() {
                   }}
                 />
               </div>
-              <p className="text-xs" style={{ color: "#9CA3AF" }}>
+              <p className="text-xs" style={{ color: "#4B4B55" }}>
                 Step {Math.min(currentStepIdx + 1, ORDER_STEPS.length)} of {ORDER_STEPS.length}
               </p>
             </div>
@@ -244,7 +244,7 @@ export default function OrderDetail() {
                       </p>
                       {isCurrent && !isDelivered && (
                         <p className="text-xs mt-0.5 leading-relaxed"
-                          style={{ color: "#667085" }}>
+                          style={{ color: "#6B6B75" }}>
                           {step.sub}
                         </p>
                       )}
@@ -259,10 +259,10 @@ export default function OrderDetail() {
         {/* ── Live map (out_for_delivery only) ─────────────────────────── */}
         {isOutForDelivery && (
           <div className="rounded-xl overflow-hidden mb-4 card-shadow"
-            style={{ border: "1px solid #E5E7EB" }}>
+            style={{ border: "1px solid #2A2A2E" }}>
             <div className="px-4 py-3 flex items-center justify-between"
-              style={{ borderBottom: "1px solid #E5E7EB" }}>
-              <p className="text-sm font-semibold" style={{ color: "#111827" }}>
+              style={{ borderBottom: "1px solid #2A2A2E" }}>
+              <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
                 Live tracking
               </p>
               {etaMins && (
@@ -276,8 +276,8 @@ export default function OrderDetail() {
               deliveryLat={19.1197}
               deliveryLng={72.9050}
             />
-            <div className="px-4 py-2.5" style={{ borderTop: "1px solid #E5E7EB" }}>
-              <p className="text-xs" style={{ color: "#9CA3AF" }}>
+            <div className="px-4 py-2.5" style={{ borderTop: "1px solid #2A2A2E" }}>
+              <p className="text-xs" style={{ color: "#4B4B55" }}>
                 {etaMins ? `Arriving in ~${etaMins} min · ` : ""}Rider location updates every 30 seconds.
               </p>
             </div>
@@ -286,12 +286,12 @@ export default function OrderDetail() {
 
         {/* ── Delivery address ─────────────────────────────────────────── */}
         {order.flatNumber && (
-          <div className="flex items-center gap-3 p-4 rounded-xl mb-4 bg-white card-shadow"
-            style={{ border: "1px solid #E5E7EB" }}>
-            <MapPin size={14} strokeWidth={1.75} style={{ color: "#667085" }} />
+          <div className="flex items-center gap-3 p-4 rounded-xl mb-4 bg-[#141416] card-shadow"
+            style={{ border: "1px solid #2A2A2E" }}>
+            <MapPin size={14} strokeWidth={1.75} style={{ color: "#6B6B75" }} />
             <div>
               <p className="section-label mb-0.5">Delivery address</p>
-              <p className="text-sm font-semibold" style={{ color: "#111827" }}>
+              <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
                 Flat {order.flatNumber}
               </p>
             </div>
@@ -299,24 +299,24 @@ export default function OrderDetail() {
         )}
 
         {/* ── Items ───────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl p-4 mb-4 card-shadow"
-          style={{ border: "1px solid #E5E7EB" }}>
+        <div className="bg-[#141416] rounded-xl p-4 mb-4 card-shadow"
+          style={{ border: "1px solid #2A2A2E" }}>
           <p className="section-label mb-3">Medications</p>
           <div className="space-y-3">
             {order.items?.map((item) => (
               <div key={item.id} className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold leading-snug" style={{ color: "#111827" }}>
+                  <p className="text-sm font-semibold leading-snug" style={{ color: "#F0F0F2" }}>
                     {item.name}
                   </p>
                   {item.brand && (
-                    <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>{item.brand}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#4B4B55" }}>{item.brand}</p>
                   )}
-                  <p className="text-xs mt-0.5" style={{ color: "#667085" }}>
+                  <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>
                     Qty {item.quantity} × ₹{Number(item.unitPrice).toFixed(2)}
                   </p>
                 </div>
-                <p className="text-sm font-semibold flex-shrink-0" style={{ color: "#111827" }}>
+                <p className="text-sm font-semibold flex-shrink-0" style={{ color: "#F0F0F2" }}>
                   ₹{Number(item.lineTotal).toFixed(2)}
                 </p>
               </div>
@@ -324,8 +324,8 @@ export default function OrderDetail() {
           </div>
           <div className="h-px my-3" style={{ background: "#E5E7EB" }} />
           <div className="flex justify-between">
-            <span className="text-sm font-semibold" style={{ color: "#111827" }}>Total</span>
-            <span className="text-sm font-semibold" style={{ color: "#111827" }}>
+            <span className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>Total</span>
+            <span className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
               ₹{Number(order.total).toFixed(2)}
             </span>
           </div>
@@ -338,7 +338,7 @@ export default function OrderDetail() {
               onClick={() => reorder.mutate({ orderId: order.id })}
               disabled={reorder.isPending}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
-              style={{ background: "#EFF6FF", color: "#1F6FEB", border: "1px solid #BFDBFE" }}
+              style={{ background: "rgba(43,127,255,0.10)", color: "#2B7FFF", border: "1px solid rgba(43,127,255,0.25)" }}
             >
               <RotateCcw size={14} />
               {reorder.isPending ? "Adding…" : "Reorder these medications"}
@@ -348,7 +348,7 @@ export default function OrderDetail() {
             <button
               onClick={() => window.open(order.invoiceUrl!, "_blank")}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-              style={{ background: "white", color: "#667085", border: "1px solid #E5E7EB" }}
+              style={{ background: "#141416", color: "#6B6B75", border: "1px solid #2A2A2E" }}
             >
               <FileDown size={14} />
               Download invoice
@@ -360,7 +360,7 @@ export default function OrderDetail() {
               onClick={() => advanceStatus.mutate({ orderId: order.id, status: nextStatus as any })}
               disabled={advanceStatus.isPending}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-dashed text-xs transition-opacity hover:opacity-70 disabled:opacity-40"
-              style={{ border: "1px dashed #D1D5DB", color: "#9CA3AF" }}
+              style={{ border: "1px dashed #D1D5DB", color: "#4B4B55" }}
             >
               {advanceStatus.isPending ? "Updating…" : `[Demo] Advance → ${nextStatus.replace(/_/g, " ")}`}
             </button>

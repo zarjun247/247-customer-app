@@ -129,3 +129,17 @@
 - [x] Design system: status color tokens used consistently across all pages
 - [x] Design system: spacing rhythm — 8px base unit, sections 24-32px apart
 - [x] TypeScript clean + 36 tests passing
+
+## Premium Dark Theme Conversion (v9)
+
+- [x] Rebuild index.css: deep charcoal token system, electric blue primary, pharmacy green trust, no gradients/glow
+- [x] Rebuild AppLayout: dark nav bar, single compact context bar (building · pharmacy · open · ETA), no repetition
+- [x] Rebuild Home: dark continuity dashboard, correct empty state copy, no retail feel
+- [x] Rebuild Catalog: dark product cards, category icons, soft availability language, refined Add CTA
+- [x] Rebuild Cart: dark surfaces, split Rx/non-Rx, Confirm Order CTA
+- [x] Rebuild RxUpload: dark premium upload card, dashed border, 3-bullet compliance
+- [x] Rebuild OrderDetail: dark tracking states, progress bar, human-language copy
+- [x] Rebuild Orders: dark list view, action empty state
+- [x] Rebuild RefillReminders: dark calm schedule, correct empty state copy
+- [x] Rebuild Profile/Account: dark identity card, serving pharmacy card, quick links, concise compliance
+- [x] TypeScript clean + 36 tests passing

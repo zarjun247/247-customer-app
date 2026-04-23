@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, CheckCircle, Shield, Clock, RefreshCw, ChevronRight, Search, FileText } from "lucide-react";
+import { ArrowRight, RefreshCw, ChevronRight, Search, FileText, ShieldCheck } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import AppLayout from "@/components/AppLayout";
@@ -9,13 +9,13 @@ import AppLayout from "@/components/AppLayout";
 const LOGO_URL = "/manus-storage/247-logo_fa5fce53.jpg";
 
 // ─── Status label helpers ─────────────────────────────────────────────────────
-const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  created:              { label: "Received",       color: "#1F6FEB", bg: "#EFF6FF" },
-  pharmacist_reviewing: { label: "Being verified", color: "#D97706", bg: "#FFFBEB" },
-  picking:              { label: "Preparing",      color: "#1F6FEB", bg: "#EFF6FF" },
-  out_for_delivery:     { label: "On the way",     color: "#1F6FEB", bg: "#EFF6FF" },
-  delivered:            { label: "Delivered",      color: "#16A34A", bg: "#F0FDF4" },
-  cancelled:            { label: "Cancelled",      color: "#DC2626", bg: "#FEF2F2" },
+const STATUS_LABEL: Record<string, { label: string; color: string; dot: string }> = {
+  created:              { label: "Received",       color: "#2B7FFF", dot: "#2B7FFF" },
+  pharmacist_reviewing: { label: "Being verified", color: "#F59E0B", dot: "#F59E0B" },
+  picking:              { label: "Preparing",      color: "#2B7FFF", dot: "#2B7FFF" },
+  out_for_delivery:     { label: "On the way",     color: "#2B7FFF", dot: "#2B7FFF" },
+  delivered:            { label: "Delivered",      color: "#00C896", dot: "#00C896" },
+  cancelled:            { label: "Cancelled",      color: "#DC2626", dot: "#DC2626" },
 };
 
 // ─── Authenticated home ───────────────────────────────────────────────────────
@@ -23,45 +23,50 @@ function AuthenticatedHome() {
   const [, navigate] = useLocation();
   const { data: orders, isLoading: ordersLoading } = trpc.orders.list.useQuery();
   const { data: refills } = trpc.refills.list.useQuery();
-  const { data: store } = trpc.catalog.store.useQuery();
   const { data: prescriptions } = trpc.prescriptions.list.useQuery();
-  const pendingRx = prescriptions?.filter(p => p.status === 'pending_ocr' || p.status === 'pending_pharmacist') ?? [];
 
-  const activeOrders = orders?.filter(o =>
-    !["delivered", "cancelled"].includes(o.status)
+  const pendingRx = prescriptions?.filter(
+    p => p.status === "pending_ocr" || p.status === "pending_pharmacist"
   ) ?? [];
+
+  const activeOrders = orders?.filter(
+    o => !["delivered", "cancelled"].includes(o.status)
+  ) ?? [];
+
   const recentDelivered = orders?.filter(o => o.status === "delivered").slice(0, 3) ?? [];
+
   const runningLow = refills?.filter(r => {
     if (!r.nextReminderAt) return false;
     const d = new Date(r.nextReminderAt);
     return d.getTime() - Date.now() <= 5 * 24 * 60 * 60 * 1000;
   }) ?? [];
 
+  const hasActivity = activeOrders.length > 0 || recentDelivered.length > 0 || runningLow.length > 0;
+
   return (
     <AppLayout>
-      <div className="px-5 pt-6 pb-10 space-y-8">
+      <div className="px-5 pt-6 pb-10 space-y-7">
 
-        {/* ── Greeting + pharmacy ──────────────────────────────────────── */}
-        <div>
-          <p className="text-xs font-semibold tracking-widest uppercase mb-1"
-            style={{ color: "#1F6FEB" }}>
-            Your pharmacy
-          </p>
-          <h1 className="text-xl font-semibold" style={{ color: "#111827" }}>
-            {store?.name ?? "24/7 Pharmacy"}
-          </h1>
-          {store && (
-            <p className="text-sm mt-0.5" style={{ color: "#667085" }}>
-              {(store as any).displayLabel ?? "Serving your building"}{(store as any).etaMins ? ` · ~${(store as any).etaMins} min` : ""}
-            </p>
-          )}
-        </div>
+        {/* ── Prescription under review ────────────────────────────────── */}
+        {pendingRx.length > 0 && (
+          <div className="rounded-xl p-4 flex items-start gap-3"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.18)" }}>
+            <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: "#F59E0B" }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#F59E0B" }}>
+                {pendingRx.length === 1 ? "Prescription under review" : `${pendingRx.length} prescriptions under review`}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>
+                Being reviewed by a verified pharmacist
+              </p>
+            </div>
+          </div>
+        )}
 
-        {/* ── Active medications (in-progress orders) ──────────────────── */}
+        {/* ── Active medications ───────────────────────────────────────── */}
         {(ordersLoading || activeOrders.length > 0) && (
           <section>
-            <p className="text-xs font-semibold tracking-widest uppercase mb-3"
-              style={{ color: "#9CA3AF" }}>Active medications</p>
+            <p className="section-label mb-3">Active medications</p>
             {ordersLoading ? (
               <div className="space-y-2">
                 {[1, 2].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}
@@ -74,24 +79,22 @@ function AuthenticatedHome() {
                     <button
                       key={order.id}
                       onClick={() => navigate(`/orders/${order.id}`)}
-                      className="w-full flex items-center justify-between p-4 bg-white rounded-xl text-left transition-opacity hover:opacity-80"
-                      style={{ border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+                      className="w-full flex items-center justify-between p-4 rounded-xl text-left transition-opacity hover:opacity-80"
+                      style={{ background: "#141416", border: "1px solid #2A2A2E" }}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                            style={{ background: s.bg, color: s.color }}>
+                        <p className="text-sm font-semibold truncate" style={{ color: "#F0F0F2" }}>
+                          Order #{String(order.id).padStart(6, '0')}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                            style={{ background: s.dot }} />
+                          <span className="text-xs" style={{ color: s.color }}>
                             {s.label}
                           </span>
                         </div>
-                        <p className="text-sm font-semibold" style={{ color: "#111827" }}>
-                          Order #{order.id}
-                        </p>
-                        <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
-                          ₹{Number(order.total).toFixed(0)} · {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        </p>
                       </div>
-                      <ChevronRight size={16} strokeWidth={1.5} style={{ color: "#D1D5DB" }} />
+                      <ChevronRight size={14} strokeWidth={1.75} style={{ color: "#4B4B55" }} />
                     </button>
                   );
                 })}
@@ -100,62 +103,29 @@ function AuthenticatedHome() {
           </section>
         )}
 
-        {/* ── Prescription under review ─────────────────────────────── */}
-        {pendingRx.length > 0 && (
-          <section>
-            <p className="text-xs font-semibold tracking-widest uppercase mb-3"
-              style={{ color: "#9CA3AF" }}>Prescription under review</p>
-            <div className="flex items-start gap-3 p-4 rounded-xl"
-              style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: "#FEF3C7" }}>
-                <Shield size={15} strokeWidth={1.75} style={{ color: "#D97706" }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold mb-0.5" style={{ color: "#92400E" }}>
-                  {pendingRx.length === 1 ? "A prescription is" : `${pendingRx.length} prescriptions are`} being reviewed
-                </p>
-                <p className="text-xs leading-relaxed" style={{ color: "#B45309" }}>
-                  A licensed pharmacist is reviewing {pendingRx.length === 1 ? "your prescription" : "your prescriptions"}. You will be notified once approved.
-                </p>
-                <button
-                  onClick={() => navigate("/rx-upload")}
-                  className="mt-2 text-xs font-semibold transition-opacity hover:opacity-70"
-                  style={{ color: "#1F6FEB" }}
-                >
-                  View status →
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── Running low ──────────────────────────────────────────────── */}
+        {/* ── Running low ─────────────────────────────────────────────── */}
         {runningLow.length > 0 && (
           <section>
-            <p className="text-xs font-semibold tracking-widest uppercase mb-3"
-              style={{ color: "#9CA3AF" }}>Running low</p>
+            <p className="section-label mb-3">Running low</p>
             <div className="space-y-2">
               {runningLow.slice(0, 3).map(r => (
                 <div key={r.id}
-                  className="flex items-center justify-between p-4 bg-white rounded-xl"
-                  style={{ border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+                  className="flex items-center justify-between p-4 rounded-xl"
+                  style={{ background: "#141416", border: "1px solid rgba(245,158,11,0.20)" }}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold" style={{ color: "#111827" }}>
+                    <p className="text-sm font-semibold truncate" style={{ color: "#F0F0F2" }}>
                       {r.name}
                     </p>
-                    {(r.strength || r.form) && (
-                      <p className="text-xs mt-0.5" style={{ color: "#667085" }}>
-                        {[r.strength, r.form].filter(Boolean).join(" · ")}
-                      </p>
-                    )}
+                    <p className="text-xs mt-0.5" style={{ color: "#F59E0B" }}>
+                      Due for refill soon
+                    </p>
                   </div>
                   <button
-                    onClick={() => navigate(`/catalog?search=${encodeURIComponent(r.name)}`)}
-                    className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
-                    style={{ background: "#1F6FEB", color: "white" }}
+                    onClick={() => navigate(`/catalog?q=${encodeURIComponent(r.name)}`)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                    style={{ background: "rgba(43,127,255,0.12)", color: "#2B7FFF" }}
                   >
-                    Refill now
+                    Refill
                   </button>
                 </div>
               ))}
@@ -163,59 +133,41 @@ function AuthenticatedHome() {
           </section>
         )}
 
-        {/* ── Search entry ─────────────────────────────────────────────── */}
-        <section>
-          <button
-            onClick={() => navigate("/catalog")}
-            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm transition-opacity hover:opacity-80"
-            style={{
-              background: "white",
-              border: "1px solid #E5E7EB",
-              color: "#9CA3AF",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-            }}
-          >
-            <Search size={15} strokeWidth={1.75} />
-            <span>Search by name, dosage, or generic…</span>
-          </button>
-        </section>
+        {/* ── Search bar ──────────────────────────────────────────────── */}
+        <button
+          onClick={() => navigate("/catalog")}
+          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity hover:opacity-80"
+          style={{ background: "#141416", border: "1px solid #2A2A2E" }}
+        >
+          <Search size={16} strokeWidth={1.75} style={{ color: "#4B4B55" }} />
+          <span className="text-sm" style={{ color: "#6B6B75" }}>
+            Search by name, dosage, or generic...
+          </span>
+        </button>
 
-        {/* ── Recently ordered ─────────────────────────────────────────── */}
+        {/* ── Recently ordered ────────────────────────────────────────── */}
         {recentDelivered.length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold tracking-widest uppercase"
-                style={{ color: "#9CA3AF" }}>Recently ordered</p>
-              <button
-                onClick={() => navigate("/orders")}
-                className="text-xs font-medium transition-opacity hover:opacity-70"
-                style={{ color: "#1F6FEB" }}
-              >
-                View all
-              </button>
-            </div>
+            <p className="section-label mb-3">Recently ordered</p>
             <div className="space-y-2">
               {recentDelivered.map(order => (
                 <button
                   key={order.id}
                   onClick={() => navigate(`/orders/${order.id}`)}
-                  className="w-full flex items-center justify-between p-4 bg-white rounded-xl text-left transition-opacity hover:opacity-80"
-                  style={{ border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+                  className="w-full flex items-center justify-between p-4 rounded-xl text-left transition-opacity hover:opacity-80"
+                  style={{ background: "#141416", border: "1px solid #2A2A2E" }}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold" style={{ color: "#111827" }}>
-                      Order #{order.id}
+                    <p className="text-sm font-semibold truncate" style={{ color: "#F0F0F2" }}>
+                      Order #{String(order.id).padStart(6, '0')}
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
-                      ₹{Number(order.total).toFixed(0)} · {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>
+                      Delivered · Tap to reorder
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                      style={{ background: "#F0FDF4", color: "#16A34A" }}>
-                      Delivered
-                    </span>
-                    <ChevronRight size={14} strokeWidth={1.5} style={{ color: "#D1D5DB" }} />
+                  <div className="flex items-center gap-1.5">
+                    <RefreshCw size={12} strokeWidth={1.75} style={{ color: "#2B7FFF" }} />
+                    <span className="text-xs font-medium" style={{ color: "#2B7FFF" }}>Reorder</span>
                   </div>
                 </button>
               ))}
@@ -223,36 +175,37 @@ function AuthenticatedHome() {
           </section>
         )}
 
-        {/* ── Empty / first-use state ──────────────────────────────────── */}
-        {!ordersLoading && activeOrders.length === 0 && recentDelivered.length === 0 && runningLow.length === 0 && (
-          <div className="flex flex-col items-center py-10 text-center">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5"
-              style={{ background: "#F8FAFB", border: "1px solid #E5E7EB" }}>
-              <RefreshCw size={22} strokeWidth={1.5} style={{ color: "#9CA3AF" }} />
+        {/* ── Empty state ─────────────────────────────────────────────── */}
+        {!ordersLoading && !hasActivity && (
+          <div className="pt-4 pb-2 flex flex-col items-center text-center gap-5">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "#141416", border: "1px solid #2A2A2E" }}>
+              <RefreshCw size={22} strokeWidth={1.5} style={{ color: "#4B4B55" }} />
             </div>
-            <p className="text-base font-semibold mb-2" style={{ color: "#111827" }}>
-              No active medications
-            </p>
-            <p className="text-sm leading-relaxed mb-8"
-              style={{ color: "#667085", maxWidth: "20rem" }}>
-              Search for your medications or upload a prescription to get started.
-            </p>
-            <div className="w-full space-y-2.5" style={{ maxWidth: "22rem" }}>
+            <div>
+              <p className="text-base font-semibold" style={{ color: "#F0F0F2" }}>
+                No active medications
+              </p>
+              <p className="text-sm mt-1.5 max-w-xs mx-auto" style={{ color: "#6B6B75" }}>
+                Search for a medication or upload a prescription to get started.
+              </p>
+            </div>
+            <div className="w-full space-y-2.5">
               <button
                 onClick={() => navigate("/catalog")}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-                style={{ background: "#1F6FEB", color: "white" }}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                style={{ background: "#2B7FFF", color: "white" }}
               >
-                <Search size={15} />
-                <span>Search for a medication</span>
+                <Search size={15} strokeWidth={1.75} />
+                Search medications
               </button>
               <button
                 onClick={() => navigate("/rx-upload")}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-                style={{ background: "#F8FAFB", color: "#111827", border: "1px solid #E5E7EB" }}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                style={{ background: "#141416", border: "1px solid #2A2A2E", color: "#A0A0A8" }}
               >
-                <FileText size={15} style={{ color: "#667085" }} />
-                <span>Upload a prescription</span>
+                <FileText size={15} strokeWidth={1.75} />
+                Upload a prescription
               </button>
             </div>
           </div>
@@ -265,112 +218,61 @@ function AuthenticatedHome() {
 
 // ─── Unauthenticated landing ──────────────────────────────────────────────────
 function LandingHome() {
+  const [, navigate] = useLocation();
+  const loginUrl = getLoginUrl();
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="px-6 pt-8 max-w-lg mx-auto w-full">
-        <img src={LOGO_URL} alt="24/7 Pharmacy" className="h-8 w-auto object-contain" />
-      </header>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center"
+      style={{ background: "#0A0A0B" }}>
+      <img src={LOGO_URL} alt="24/7 Pharmacy" className="h-12 w-auto mb-8 object-contain" />
 
-      <main className="flex-1 flex flex-col justify-center px-6 max-w-lg mx-auto w-full">
-        <div className="mb-10 mt-8">
-          <p className="text-xs font-semibold tracking-widest uppercase mb-4"
-            style={{ color: "#1F6FEB" }}>
-            Medication Continuity
-          </p>
-          <h1 className="text-2xl font-semibold leading-snug tracking-tight mb-4"
-            style={{ color: "#111827" }}>
-            Your medication is handled<br />
-            by a system you can trust.
-          </h1>
-          <p className="text-base leading-relaxed"
-            style={{ color: "#667085", maxWidth: "28rem" }}>
-            A licensed local pharmacy, assigned to your building.
-            Pharmacist-reviewed prescriptions. Medicines at your door.
-          </p>
-        </div>
+      <h1 className="text-2xl font-semibold mb-3" style={{ color: "#F0F0F2" }}>
+        Your medication, always on.
+      </h1>
+      <p className="text-sm max-w-xs mx-auto mb-8" style={{ color: "#6B6B75", lineHeight: 1.6 }}>
+        Prescription management, refill reminders, and 24/7 delivery — all in one place.
+      </p>
 
-        <div className="space-y-5 mb-10">
-          {[
-            {
-              icon: CheckCircle,
-              title: "Verified pharmacist on every order",
-              body: "A licensed pharmacist reviews and approves every prescription before dispensing.",
-            },
-            {
-              icon: Clock,
-              title: "Arriving in under 30 minutes",
-              body: "Dispensed from the pharmacy serving your building. No third-party logistics.",
-            },
-            {
-              icon: Shield,
-              title: "Compliant with Indian pharmacy law",
-              body: "Schedule H and H1 medicines are dispensed only with a valid prescription.",
-            },
-          ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className="flex items-start gap-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: "#EFF6FF" }}>
-                <Icon size={16} strokeWidth={1.75} style={{ color: "#1F6FEB" }} />
-              </div>
-              <div>
-                <p className="text-sm font-semibold mb-0.5" style={{ color: "#111827" }}>
-                  {title}
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: "#667085" }}>
-                  {body}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <a
+        href={loginUrl}
+        className="flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold no-underline transition-opacity hover:opacity-80"
+        style={{ background: "#2B7FFF", color: "white" }}
+      >
+        Get started <ArrowRight size={15} strokeWidth={1.75} />
+      </a>
 
-        <div className="space-y-3">
-          <a
-            href={getLoginUrl()}
-            className="flex items-center justify-between w-full px-5 py-4 rounded-xl font-semibold text-sm no-underline transition-opacity hover:opacity-90"
-            style={{ background: "#1F6FEB", color: "white" }}
-          >
-            <span>Access your pharmacy</span>
-            <ArrowRight size={16} />
-          </a>
-          <p className="text-center text-xs" style={{ color: "#9CA3AF" }}>
-            Available to residents of registered partner buildings.
-          </p>
-        </div>
-      </main>
-
-      <footer className="px-6 py-6 max-w-lg mx-auto w-full">
-        <div className="flex items-center justify-between">
-          <p className="text-xs" style={{ color: "#9CA3AF" }}>
-            Licensed · Maharashtra Pharmacy Act
-          </p>
-          <p className="text-xs" style={{ color: "#9CA3AF" }}>
-            Reg. MH/PH/2024/001
-          </p>
-        </div>
-      </footer>
+      {/* Trust signals */}
+      <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center mt-10">
+        {["Verified pharmacist", "Licensed dispensing", "Secure records"].map(s => (
+          <div key={s} className="flex items-center gap-1.5">
+            <ShieldCheck size={11} strokeWidth={1.75} style={{ color: "#00C896" }} />
+            <span className="text-[11px]" style={{ color: "#6B6B75" }}>{s}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ─── Root export ──────────────────────────────────────────────────────────────
+// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function Home() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading: isLoading } = useAuth();
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    // intentionally empty — we render the authenticated home directly
-  }, [isAuthenticated, loading, navigate]);
+    if (!isLoading && isAuthenticated) {
+      navigate("/catalog");
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 animate-spin"
-          style={{ borderColor: "#1F6FEB", borderTopColor: "transparent" }} />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0A0A0B" }}>
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: "#2B7FFF", borderTopColor: "transparent" }} />
       </div>
     );
   }
 
-  if (!isAuthenticated) return <LandingHome />;
-  return <AuthenticatedHome />;
+  return isAuthenticated ? <AuthenticatedHome /> : <LandingHome />;
 }
