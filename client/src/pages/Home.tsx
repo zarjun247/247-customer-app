@@ -220,7 +220,9 @@ function AuthenticatedHome() {
 function LandingHome() {
   const [, navigate] = useLocation();
   const loginUrl = getLoginUrl();
-
+  useEffect(() => {
+    document.title = "24/7 Pharmacy — Medicines Delivered 24/7";
+  }, []);
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center"
       style={{ background: "#0A0A0B" }}>
@@ -229,9 +231,9 @@ function LandingHome() {
       <h1 className="text-2xl font-semibold mb-3" style={{ color: "#F0F0F2" }}>
         Your medication, always on.
       </h1>
-      <p className="text-sm max-w-xs mx-auto mb-8" style={{ color: "#6B6B75", lineHeight: 1.6 }}>
+      <h2 className="text-sm font-medium mb-8 max-w-xs mx-auto" style={{ color: "#6B6B75", lineHeight: 1.6, fontWeight: 400 }}>
         Prescription management, refill reminders, and 24/7 delivery — all in one place.
-      </p>
+      </h2>
 
       <a
         href={loginUrl}
