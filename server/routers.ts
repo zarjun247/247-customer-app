@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONBOARDING_REQUIRED_MSG } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   getBuildings, getStoreById, getCatalog, getSkuById,
   getCart, upsertCartItem, clearCart, softLockCart, applySoftLockToSkus, releaseSoftLock,
@@ -66,7 +67,16 @@ const userRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const building = await getBuildingById(input.buildingId);
-      const assignedStoreId = building?.primaryStoreId ?? undefined;
+      if (!building) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Building not found" });
+      }
+      if (!building.primaryStoreId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No pharmacy is currently configured for this building. Please contact support.",
+        });
+      }
+      const assignedStoreId = building.primaryStoreId;
       await updateUserProfile(ctx.user.id, {
         name: input.name,
         phone: input.phone,
@@ -91,20 +101,14 @@ const catalogRouter = router({
       offset: z.number().min(0).default(0),
     }))
     .query(async ({ ctx, input }) => {
-      let user = await getUserById(ctx.user.id);
-      // Auto-assign default store for new users who haven't completed onboarding
-      // so they can browse the catalog while onboarding is pending
-      if (!user?.assignedStoreId) {
-        const allBuildings = await getBuildings();
-        const defaultBuilding = allBuildings[0];
-        if (defaultBuilding?.primaryStoreId) {
-          await updateUserProfile(ctx.user.id, {
-            assignedStoreId: defaultBuilding.primaryStoreId,
-          });
-          user = await getUserById(ctx.user.id);
-        }
+      const user = await getUserById(ctx.user.id);
+      // Guard: require completed onboarding before catalog access
+      if (!user?.onboardingComplete || !user?.assignedStoreId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: ONBOARDING_REQUIRED_MSG,
+        });
       }
-      if (!user?.assignedStoreId) return [];
       return getCatalog(user.assignedStoreId, input.search, input.category, input.limit, input.offset);
     }),
   sku: protectedProcedure
@@ -112,6 +116,13 @@ const catalogRouter = router({
     .query(async ({ input }) => getSkuById(input.skuId)),
   store: protectedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.user.id);
+    // Guard: require completed onboarding
+    if (!user?.onboardingComplete || !user?.assignedStoreId) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: ONBOARDING_REQUIRED_MSG,
+      });
+    }
     // For users without building assignment, return their assigned store directly
     if (!user?.buildingId) {
       if (user?.assignedStoreId) return getStoreById(user.assignedStoreId);
@@ -164,6 +175,13 @@ const cartRouter = router({
   upsert: protectedProcedure
     .input(z.object({ skuId: z.number(), productId: z.number(), variantId: z.number().optional(), quantity: z.number().min(0) }))
     .mutation(async ({ ctx, input }) => {
+      const user = await getUserById(ctx.user.id);
+      if (!user?.onboardingComplete || !user?.assignedStoreId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: ONBOARDING_REQUIRED_MSG,
+        });
+      }
       await upsertCartItem(ctx.user.id, input.skuId, input.productId, input.quantity);
       return { success: true };
     }),
@@ -179,7 +197,12 @@ const orderRouter = router({
     .input(z.object({ prescriptionId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
-      if (!user?.assignedStoreId) throw new Error("No assigned store. Complete onboarding first.");
+      if (!user?.onboardingComplete || !user?.assignedStoreId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: ONBOARDING_REQUIRED_MSG,
+        });
+      }
       const cartData = await getCart(ctx.user.id);
       if (cartData.length === 0) throw new Error("Cart is empty");
 

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText } from "lucide-react";
+import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { TRPCClientError } from "@trpc/client";
+import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 
 // ─── Category config ──────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -190,10 +192,21 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
   );
 }
 
+// ─── Helper: detect ONBOARDING_REQUIRED tRPC error ─────────────────────────────────
+function isOnboardingRequired(error: unknown): boolean {
+  if (error instanceof TRPCClientError) {
+    return (
+      error.data?.code === "PRECONDITION_FAILED" &&
+      error.message === "ONBOARDING_REQUIRED"
+    );
+  }
+  return false;
+}
 // ─── Main Catalog Page ────────────────────────────────────────────────────────
 const LIMIT = 60;
 export default function Catalog() {
   const { isAuthenticated } = useAuth();
+  const { isReady } = useOnboardingGuard();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -211,10 +224,14 @@ export default function Catalog() {
     if (q) { setSearch(q); setDebouncedSearch(q); }
   }, []);
 
-  const { data: store } = trpc.catalog.store.useQuery(undefined, { enabled: isAuthenticated });
-  const { data: items, isFetching } = trpc.catalog.list.useQuery(
+  // Only fire queries once onboarding is confirmed complete
+  const { data: store, error: storeError } = trpc.catalog.store.useQuery(
+    undefined,
+    { enabled: isAuthenticated && isReady, retry: false }
+  );
+  const { data: items, isFetching, error: catalogError } = trpc.catalog.list.useQuery(
     { search: debouncedSearch, category, limit: LIMIT, offset },
-    { enabled: isAuthenticated }
+    { enabled: isAuthenticated && isReady, retry: false }
   );
   const { data: cartItems } = trpc.cart.get.useQuery(undefined, { enabled: isAuthenticated });
   const utils = trpc.useUtils();
@@ -277,6 +294,79 @@ export default function Catalog() {
     upsertCart.mutate({ skuId: item.skuId, productId: item.productId, variantId: item.variantId ?? undefined, quantity: current - 1 });
   };
 
+  // ── Loading: auth/profile not yet resolved ──────────────────────────────────────────────────────
+  if (!isReady) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#0A0A0B" }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+              style={{ borderColor: "#2B7FFF", borderTopColor: "transparent" }} />
+            <p className="text-xs" style={{ color: "#4B4B55" }}>Loading your pharmacy…</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+  // ── Onboarding required (safety net if guard fires after render) ──────────────────────
+  if (isOnboardingRequired(catalogError) || isOnboardingRequired(storeError)) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#0A0A0B" }}>
+          <div className="flex flex-col items-center text-center gap-5 max-w-xs">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(43,127,255,0.10)", border: "1px solid rgba(43,127,255,0.20)" }}>
+              <MapPin size={22} strokeWidth={1.5} style={{ color: "#2B7FFF" }} />
+            </div>
+            <div>
+              <p className="text-base font-semibold mb-2" style={{ color: "#F0F0F2" }}>
+                Complete your setup
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "#6B6B75" }}>
+                Complete your address and pharmacy setup to view available medications.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/onboarding")}
+              className="px-6 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: "#2B7FFF", color: "white" }}>
+              Set up my pharmacy
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+  // ── Network / other error ─────────────────────────────────────────────────────────────────
+  if (catalogError && !isOnboardingRequired(catalogError)) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#0A0A0B" }}>
+          <div className="flex flex-col items-center text-center gap-5 max-w-xs">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.20)" }}>
+              <AlertCircle size={22} strokeWidth={1.5} style={{ color: "#F59E0B" }} />
+            </div>
+            <div>
+              <p className="text-base font-semibold mb-2" style={{ color: "#F0F0F2" }}>
+                Unable to load catalog
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "#6B6B75" }}>
+                There was a problem connecting to your pharmacy. Please try again.
+              </p>
+            </div>
+            <button
+              onClick={() => utils.catalog.list.invalidate()}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: "#141416", color: "#F0F0F2", border: "1px solid #2A2A2E" }}>
+              <RefreshCw size={14} strokeWidth={1.75} />
+              Try again
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
   return (
     <AppLayout>
       <div className="min-h-screen" style={{ background: "#0A0A0B" }}>
@@ -343,7 +433,23 @@ export default function Catalog() {
 
         {/* ── Grid ───────────────────────────────────────────────────────── */}
         <div className="px-4 pb-28">
-          {allItems.length === 0 && !isFetching ? (
+          {/* Loading skeleton while first page fetches */}
+          {isFetching && allItems.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden animate-pulse"
+                  style={{ background: "#141416", border: "1px solid #2A2A2E" }}>
+                  <div style={{ aspectRatio: "4/3", background: "#1C1C1F" }} />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 rounded" style={{ background: "#1C1C1F", width: "80%" }} />
+                    <div className="h-2.5 rounded" style={{ background: "#1C1C1F", width: "60%" }} />
+                    <div className="h-7 rounded-lg mt-3" style={{ background: "#1C1C1F" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : allItems.length === 0 && !isFetching ? (
+            /* True empty catalog state */
             <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
                 style={{ background: "#141416", border: "1px solid #2A2A2E" }}>

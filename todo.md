@@ -168,3 +168,35 @@
 - [x] Replace all logo URL references: AppLayout, SplashScreen, Login, Onboarding
 - [x] Remove any rounded corners or background treatments from logo img tags
 - [x] TypeScript clean + 36 tests passing
+## Catalog Access Bug Fix — New User Flow (v13)
+
+### Backend
+- [x] Add ONBOARDING_REQUIRED constant to shared/const.ts
+- [x] catalog.list: throw PRECONDITION_FAILED with ONBOARDING_REQUIRED when onboardingComplete=false or assignedStoreId missing
+- [x] catalog.store: throw PRECONDITION_FAILED with ONBOARDING_REQUIRED when no assignedStoreId
+- [x] cart.upsert: guard against missing assignedStoreId (throw PRECONDITION_FAILED)
+- [x] orders.checkout: upgrade from plain Error to TRPCError PRECONDITION_FAILED
+
+### Frontend — Page Guards
+- [x] Create useOnboardingGuard() hook in client/src/hooks/useOnboardingGuard.ts
+- [x] Apply guard to Catalog.tsx
+- [x] Apply guard to Orders.tsx
+- [x] Apply guard to Cart.tsx
+- [x] Apply guard to RxUpload.tsx
+- [x] Apply guard to Profile.tsx
+- [x] Apply guard to RefillReminders.tsx
+
+### Frontend — Differentiated Empty States in Catalog
+- [x] Handle ONBOARDING_REQUIRED tRPC error → show "Complete setup" CTA
+- [x] Separate loading state (skeleton/spinner)
+- [x] Separate true-empty state (no items in store)
+- [x] Separate network error state (retry CTA)
+
+### Onboarding Flow
+- [x] After onboarding success, invalidate user.profile cache before navigating to /catalog
+- [x] Ensure building→primaryStoreId mapping works for all buildings in DB
+
+### Tests
+- [x] Add vitest: catalog.list returns ONBOARDING_REQUIRED for user with no assignedStoreId
+- [x] Add vitest: catalog.list returns items for user with valid assignedStoreId
+- [x] TypeScript clean + all tests passing (41/41)

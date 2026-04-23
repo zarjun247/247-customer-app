@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
 import { Minus, Plus, Trash2, Clock, ShieldCheck, Shield, ArrowLeft, Lock, ClipboardList, Search, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { useLocation } from "wouter";
 
 export default function Cart() {
   const { isAuthenticated } = useAuth();
+  const { isReady } = useOnboardingGuard();
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState(false);
 
@@ -52,6 +54,16 @@ export default function Cart() {
     );
   }
 
+  if (!isReady) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#0A0A0B" }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: "#2B7FFF", borderTopColor: "transparent" }} />
+        </div>
+      </AppLayout>
+    );
+  }
   return (
     <AppLayout>
       <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>

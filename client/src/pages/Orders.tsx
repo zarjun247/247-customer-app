@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
 import { Clock, ChevronRight, RotateCcw, Package, Search, FileText } from "lucide-react";
 import { useLocation } from "wouter";
@@ -29,6 +30,7 @@ const ACTIVE_STATUSES = new Set(["created", "pharmacist_reviewing", "picking", "
 
 export default function Orders() {
   const { isAuthenticated } = useAuth();
+  const { isReady } = useOnboardingGuard();
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
@@ -59,6 +61,16 @@ export default function Orders() {
   const activeOrders = orders?.filter(o => ACTIVE_STATUSES.has(o.status)) ?? [];
   const pastOrders = orders?.filter(o => !ACTIVE_STATUSES.has(o.status)) ?? [];
 
+  if (!isReady) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#0A0A0B" }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: "#2B7FFF", borderTopColor: "transparent" }} />
+        </div>
+      </AppLayout>
+    );
+  }
   return (
     <AppLayout>
       <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>

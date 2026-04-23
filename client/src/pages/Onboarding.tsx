@@ -17,8 +17,13 @@ export default function Onboarding() {
 
   const { data: buildings, isLoading: buildingsLoading } = trpc.user.buildings.useQuery();
 
+  const utils = trpc.useUtils();
   const completeOnboarding = trpc.user.completeOnboarding.useMutation({
-    onSuccess: () => navigate("/catalog"),
+    onSuccess: async () => {
+      // Invalidate user profile so useOnboardingGuard sees the updated onboardingComplete flag
+      await utils.user.profile.invalidate();
+      navigate("/catalog");
+    },
     onError: (e) => toast.error(e.message),
   });
 

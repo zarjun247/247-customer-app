@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
 import { Camera, FileText, CheckCircle2, Clock, XCircle, Shield, X, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function RxUpload() {
   const { isAuthenticated } = useAuth();
+  const { isReady } = useOnboardingGuard();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -90,6 +92,16 @@ export default function RxUpload() {
     uploadRx.mutate({ imageBase64: base64, mimeType });
   };
 
+  if (!isReady) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#0A0A0B" }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: "#2B7FFF", borderTopColor: "transparent" }} />
+        </div>
+      </AppLayout>
+    );
+  }
   return (
     <AppLayout>
       <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>

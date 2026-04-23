@@ -1,11 +1,13 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
 import { User, Building2, Home, LogOut, ChevronRight, Package, FileText, Bell, Shield, Phone, MapPin, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function Profile() {
   const { isAuthenticated, logout } = useAuth();
+  const { isReady } = useOnboardingGuard();
   const [, navigate] = useLocation();
   const { data: profile }       = trpc.user.profile.useQuery(undefined, { enabled: isAuthenticated });
   const { data: store }         = trpc.catalog.store.useQuery(undefined, { enabled: isAuthenticated });
@@ -45,6 +47,16 @@ export default function Profile() {
     },
   ];
 
+  if (!isReady) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#0A0A0B" }}>
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: "#2B7FFF", borderTopColor: "transparent" }} />
+        </div>
+      </AppLayout>
+    );
+  }
   return (
     <AppLayout>
       <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>
