@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
-const LOGO_URL = "/manus-storage/247-logo-v2_e9980880.jpg";
+const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
 
 const NAV_ITEMS = [
   { path: "/catalog",   icon: Home,          label: "Medications" },
@@ -61,7 +61,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               src={LOGO_URL}
               alt="24/7 Pharmacy"
               className="h-7 w-auto object-contain"
-              style={{ imageRendering: "crisp-edges" }}
             />
           </Link>
 

@@ -161,3 +161,10 @@
 - [x] Build/refine Onboarding: building/location selection, pharmacy assignment, unlock catalog
 - [x] Mobile safe-area fixes: env(safe-area-inset), bottom nav overlap, Safari/Chrome mobile
 - [x] TypeScript clean + 36 tests passing
+
+## Transparent Logo Fix (v12)
+
+- [x] Upload transparent PNG logo to static assets
+- [x] Replace all logo URL references: AppLayout, SplashScreen, Login, Onboarding
+- [x] Remove any rounded corners or background treatments from logo img tags
+- [x] TypeScript clean + 36 tests passing

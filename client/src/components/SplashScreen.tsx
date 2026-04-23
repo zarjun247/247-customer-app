@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 // ─── Logo URL ────────────────────────────────────────────────────────────────
-const LOGO_URL = "/manus-storage/247-logo-v2_e9980880.jpg";
+const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
 
 // ─── Loading state sequence ───────────────────────────────────────────────────
 const LOADING_STATES = [
@@ -226,8 +226,6 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
               width: "min(72vw, 280px)",
               height: "auto",
               display: "block",
-              // Isolate the logo on black — it already has a black bg
-              borderRadius: "4px",
             }}
           />
 
@@ -237,7 +235,6 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
             inset: 0,
             pointerEvents: "none",
             overflow: "hidden",
-            borderRadius: "4px",
           }}>
             <svg
               viewBox="0 0 280 280"

@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { Building2, Home, MapPin, ChevronRight, CheckCircle2, User } from "lucide-react";
 
-const LOGO_URL = "/manus-storage/247-logo-v2_e9980880.jpg";
+const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
 
 type Step = "name" | "building" | "flat" | "confirm";
 
