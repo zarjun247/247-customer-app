@@ -115,7 +115,11 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
       {/* Info */}
       <div className="flex flex-col flex-1 p-3 gap-1">
         <h3 className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{item.name}</h3>
-        {item.packSize && <p className="text-[10px] text-primary/80 font-medium">{item.packSize}</p>}
+        {(item.displayLabel || item.packSize) && (
+          <p className="text-[10px] text-primary/80 font-medium leading-tight">
+            {item.displayLabel || item.packSize}
+          </p>
+        )}
         {item.companyName && <p className="text-[10px] text-muted-foreground truncate">{item.companyName}</p>}
 
         <div className="flex items-center gap-1 flex-wrap mt-0.5">
@@ -224,13 +228,13 @@ export default function Catalog() {
     const current = getCartQty(item.skuId);
     const available = Number(item.availableQty) || 0;
     if (current >= available) { toast.error("Maximum available stock reached"); return; }
-    upsertCart.mutate({ skuId: item.skuId, productId: item.productId, quantity: current + 1 });
+    upsertCart.mutate({ skuId: item.skuId, productId: item.productId, variantId: item.variantId ?? undefined, quantity: current + 1 });
   };
 
   const handleRemove = (item: any) => {
     const current = getCartQty(item.skuId);
     if (current <= 0) return;
-    upsertCart.mutate({ skuId: item.skuId, productId: item.productId, quantity: current - 1 });
+    upsertCart.mutate({ skuId: item.skuId, productId: item.productId, variantId: item.variantId ?? undefined, quantity: current - 1 });
   };
 
   return (

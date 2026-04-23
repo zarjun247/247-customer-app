@@ -71,3 +71,18 @@
 - [x] Replace with "24/7 Pharmacy", "Serving pharmacy", "Local 24/7 store", "Fulfilled by 24/7"
 - [x] Write routing engine unit tests (Haversine, 3-pass resolution, ETA fallback covered in pharmacy.test.ts)
 - [x] Produce routing logic documentation (ROUTING.md)
+
+## Catalogue Upgrade — Product Hierarchy (v5)
+
+- [x] Audit current schema: products, store_skus, batches table structures
+- [x] Add product_variants table to Drizzle schema (strength, packSize, form, unit)
+- [x] Update store_skus and batches to reference variantId instead of productId
+- [x] Generate and apply Drizzle migration for variant layer
+- [x] Build Python normalization pipeline: parse full PDF, normalize SKU names, extract variants
+- [x] Deduplicate products by normalized brand name + molecule
+- [x] Classify all SKUs into categories (Medicines, OTC, Devices, Nutrition, General, Baby, Wellness)
+- [x] Run full bulk ingestion: products → variants → store_skus → batches
+- [x] Update getCatalog query to join variants and return variant-aware data
+- [x] Update catalog.list tRPC procedure to expose variant information
+- [x] Validate data integrity: linkage, stock accuracy, deduplication
+- [x] Produce full integrity report (counts, category breakdown, normalization logic)

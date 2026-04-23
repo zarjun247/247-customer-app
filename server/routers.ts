@@ -146,7 +146,7 @@ const routingRouter = router({
 const cartRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => getCart(ctx.user.id)),
   upsert: protectedProcedure
-    .input(z.object({ skuId: z.number(), productId: z.number(), quantity: z.number().min(0) }))
+    .input(z.object({ skuId: z.number(), productId: z.number(), variantId: z.number().optional(), quantity: z.number().min(0) }))
     .mutation(async ({ ctx, input }) => {
       await upsertCartItem(ctx.user.id, input.skuId, input.productId, input.quantity);
       return { success: true };
@@ -193,6 +193,7 @@ const orderRouter = router({
         source: "app",
         items: cartData.map(i => ({
           productId: i.productId,
+          variantId: i.variantId ?? undefined,
           storeSkuId: i.skuId,
           quantity: i.quantity,
           unitPrice: String(i.sellingPrice),

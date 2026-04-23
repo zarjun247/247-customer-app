@@ -84,11 +84,30 @@ export const products = mysqlTable("products", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// ─── Product Variants (strength × pack size × form) ─────────────────────────
+// One product master can have many variants.
+// e.g. Amoxicillin 250mg/5ml Suspension 60ml  vs  Amoxicillin 500mg Capsule 10s
+export const productVariants = mysqlTable("product_variants", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),     // FK → products.id
+  // Variant-level attributes (moved from products row)
+  strength: varchar("strength", { length: 100 }),   // e.g. "500mg", "10ml"
+  packSize: varchar("packSize", { length: 100 }),    // e.g. "10 TAB", "200 ML"
+  form: varchar("form", { length: 100 }),            // Tablet, Capsule, Syrup …
+  unit: varchar("unit", { length: 20 }),             // TAB, CAP, ML, GM …
+  // Normalised display label: "500mg · 10 TAB · Tablet"
+  displayLabel: varchar("displayLabel", { length: 200 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // ─── Store SKUs (Node-specific catalog) ───────────────────────────────────────
 export const storeSkus = mysqlTable("store_skus", {
   id: int("id").autoincrement().primaryKey(),
   storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
+  variantId: int("variantId"),               // FK → product_variants.id (nullable for backward compat)
   mrp: decimal("mrp", { precision: 10, scale: 2 }).notNull(),
   sellingPrice: decimal("sellingPrice", { precision: 10, scale: 2 }).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
@@ -103,6 +122,7 @@ export const batches = mysqlTable("batches", {
   id: int("id").autoincrement().primaryKey(),
   storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
+  variantId: int("variantId"),               // FK → product_variants.id (nullable for backward compat)
   batchNumber: varchar("batchNumber", { length: 100 }).notNull(),
   expiryDate: timestamp("expiryDate").notNull(),
   quantity: int("quantity").default(0).notNull(),
@@ -166,6 +186,7 @@ export const orderItems = mysqlTable("order_items", {
   id: int("id").autoincrement().primaryKey(),
   orderId: int("orderId").notNull(),
   productId: int("productId").notNull(),
+  variantId: int("variantId"),               // FK → product_variants.id
   storeSkuId: int("storeSkuId").notNull(),
   allocatedBatchId: int("allocatedBatchId"),
   quantity: int("quantity").notNull(),
@@ -179,6 +200,7 @@ export const cartItems = mysqlTable("cart_items", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   productId: int("productId").notNull(),
+  variantId: int("variantId"),               // FK → product_variants.id
   storeSkuId: int("storeSkuId").notNull(),
   quantity: int("quantity").notNull(),
   isLocked: boolean("isLocked").default(false).notNull(),
@@ -235,6 +257,8 @@ export const auditLogs = mysqlTable("audit_logs", {
 
 // ─── Type exports ─────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
+export type ProductVariant = typeof productVariants.$inferSelect;
+export type InsertProductVariant = typeof productVariants.$inferInsert;
 export type InsertUser = typeof users.$inferInsert;
 export type Building = typeof buildings.$inferSelect;
 export type Store = typeof stores.$inferSelect;

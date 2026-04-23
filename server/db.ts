@@ -10,6 +10,7 @@ import {
   orders,
   otpCodes,
   prescriptions,
+  productVariants,
   products,
   refillReminders,
   storeSkus,
@@ -141,12 +142,14 @@ export async function getCatalog(
   return db.select({
     skuId: storeSkus.id,
     productId: products.id,
+    variantId: storeSkus.variantId,
     name: products.name,
     brand: products.brand,
     genericName: products.genericName,
-    form: products.form,
-    strength: products.strength,
-    packSize: products.packSize,
+    form: productVariants.form,
+    strength: productVariants.strength,
+    packSize: productVariants.packSize,
+    displayLabel: productVariants.displayLabel,
     schedule: products.schedule,
     requiresPrescription: products.requiresPrescription,
     isChronicMedication: products.isChronicMedication,
@@ -161,6 +164,7 @@ export async function getCatalog(
     availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
   }).from(storeSkus)
     .innerJoin(products, eq(storeSkus.productId, products.id))
+    .leftJoin(productVariants, eq(storeSkus.variantId, productVariants.id))
     .where(and(...conditions))
     .orderBy(products.name)
     .limit(limit)
@@ -171,15 +175,18 @@ export async function getSkuById(skuId: number) {
   const db = await getDb();
   if (!db) return undefined;
   const r = await db.select({
-    skuId: storeSkus.id, productId: products.id, name: products.name, brand: products.brand,
-    genericName: products.genericName, form: products.form, strength: products.strength,
-    packSize: products.packSize, schedule: products.schedule,
+    skuId: storeSkus.id, productId: products.id, variantId: storeSkus.variantId,
+    name: products.name, brand: products.brand,
+    genericName: products.genericName, form: productVariants.form, strength: productVariants.strength,
+    packSize: productVariants.packSize, displayLabel: productVariants.displayLabel,
+    schedule: products.schedule,
     requiresPrescription: products.requiresPrescription, isChronicMedication: products.isChronicMedication,
     imageUrl: products.imageUrl, mrp: storeSkus.mrp, sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty,
     availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
     storeId: storeSkus.storeId,
   }).from(storeSkus).innerJoin(products, eq(storeSkus.productId, products.id))
+    .leftJoin(productVariants, eq(storeSkus.variantId, productVariants.id))
     .where(eq(storeSkus.id, skuId)).limit(1);
   return r[0];
 }
@@ -191,9 +198,11 @@ export async function getCart(userId: number) {
   return db.select({
     id: cartItems.id, userId: cartItems.userId, quantity: cartItems.quantity,
     isLocked: cartItems.isLocked, lockedAt: cartItems.lockedAt,
-    skuId: storeSkus.id, productId: products.id, name: products.name,
-    brand: products.brand, form: products.form, strength: products.strength,
-    packSize: products.packSize, requiresPrescription: products.requiresPrescription,
+    skuId: storeSkus.id, productId: products.id, variantId: storeSkus.variantId,
+    name: products.name,
+    brand: products.brand, form: productVariants.form, strength: productVariants.strength,
+    packSize: productVariants.packSize, displayLabel: productVariants.displayLabel,
+    requiresPrescription: products.requiresPrescription,
     imageUrl: products.imageUrl, mrp: storeSkus.mrp, sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty,
     storeId: storeSkus.storeId,
@@ -201,6 +210,7 @@ export async function getCart(userId: number) {
   }).from(cartItems)
     .innerJoin(storeSkus, eq(cartItems.storeSkuId, storeSkus.id))
     .innerJoin(products, eq(storeSkus.productId, products.id))
+    .leftJoin(productVariants, eq(storeSkus.variantId, productVariants.id))
     .where(eq(cartItems.userId, userId));
 }
 
@@ -259,7 +269,7 @@ export async function createOrder(data: {
   subtotal: string; total: string; promisedSlaMins: number;
   deliveryAddress?: string; flatNumber?: string; buildingId?: number;
   source?: "app" | "whatsapp";
-  items: { productId: number; storeSkuId: number; quantity: number; unitPrice: string; lineTotal: string }[];
+  items: { productId: number; variantId?: number; storeSkuId: number; quantity: number; unitPrice: string; lineTotal: string }[];
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -272,7 +282,15 @@ export async function createOrder(data: {
   });
   const orderId = (result as any).insertId as number;
   for (const item of data.items) {
-    await db.insert(orderItems).values({ orderId, ...item });
+    await db.insert(orderItems).values({
+      orderId,
+      productId: item.productId,
+      variantId: item.variantId ?? null,
+      storeSkuId: item.storeSkuId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+    });
   }
   return orderId;
 }
@@ -296,11 +314,14 @@ export async function getOrderItems(orderId: number) {
   return db.select({
     id: orderItems.id, orderId: orderItems.orderId, quantity: orderItems.quantity,
     unitPrice: orderItems.unitPrice, lineTotal: orderItems.lineTotal,
-    productId: products.id, name: products.name, brand: products.brand,
-    form: products.form, strength: products.strength, packSize: products.packSize,
+    productId: products.id, variantId: orderItems.variantId,
+    name: products.name, brand: products.brand,
+    form: productVariants.form, strength: productVariants.strength,
+    packSize: productVariants.packSize, displayLabel: productVariants.displayLabel,
     imageUrl: products.imageUrl,
   }).from(orderItems)
     .innerJoin(products, eq(orderItems.productId, products.id))
+    .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
     .where(eq(orderItems.orderId, orderId));
 }
 

@@ -36,6 +36,13 @@
       "when": 1776937594650,
       "tag": "0004_omniscient_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1776939653349,
+      "tag": "0005_slow_ego",
+      "breakpoints": true
     }
   ]
 }
