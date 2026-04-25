@@ -24,6 +24,11 @@ import InvoiceIngestion from "./pages/InvoiceIngestion";
 import Helpdesk from "./pages/Helpdesk";
 import Consent from "./pages/Consent";
 import DoctorConsult from "./pages/DoctorConsult";
+import ExpiryDashboard from "./pages/ExpiryDashboard";
+import BarcodePrint from "./pages/BarcodePrint";
+import GstExport from "./pages/GstExport";
+import SlaBoard from "./pages/SlaBoard";
+import MedivisionSync from "./pages/MedivisionSync";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -125,6 +130,11 @@ function Router() {
         <Route path="/helpdesk">{() => <ProtectedRoute><Helpdesk /></ProtectedRoute>}</Route>
         <Route path="/consent">{() => <ProtectedRoute><Consent /></ProtectedRoute>}</Route>
         <Route path="/doctor-consult">{() => <ProtectedRoute><DoctorConsult /></ProtectedRoute>}</Route>
+        <Route path="/pharmacy/expiry" component={ExpiryDashboard} />
+        <Route path="/pharmacy/barcodes" component={BarcodePrint} />
+        <Route path="/pharmacy/gst-export" component={GstExport} />
+        <Route path="/pharmacy/sla" component={SlaBoard} />
+        <Route path="/pharmacy/medivision" component={MedivisionSync} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

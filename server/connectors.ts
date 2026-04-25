@@ -1,19 +1,18 @@
 /**
  * External Service Connectors
  *
- * Typed interfaces and stub implementations for all external integrations.
- * Each connector has a well-defined interface and a no-op default
- * implementation that logs the call. Replace stubs with real implementations
- * by setting the appropriate environment variables and swapping the
- * implementation below.
+ * Typed interfaces and real implementations for all external integrations.
+ * Each connector reads credentials from environment variables and falls back
+ * to a no-op stub when credentials are absent (safe for dev/demo environments).
  *
  * Connectors:
- *   - SMS / WhatsApp (customer notifications)
- *   - Payment Gateway (Razorpay)
+ *   - SMS / WhatsApp (MSG91 + WhatsApp Cloud API)
+ *   - Payment Gateway (Razorpay — real SDK integration)
  *   - Label Printer (ZPL for thermal printers)
- *   - ERP Sync (stub for Tally/SAP integration)
+ *   - ERP Sync (Tally/SAP stub)
  */
 
+import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
 
@@ -29,29 +28,111 @@ export interface SmsConnector {
 }
 
 /**
- * Default SMS connector — logs to console and sends owner notification.
- * TODO: Replace with Twilio / Gupshup / MSG91 SDK when credentials are ready.
- *   Required env vars:
- *     SMS_PROVIDER_API_KEY   — API key for SMS provider
- *     SMS_SENDER_ID          — Registered sender ID (DLT approved)
- *     WHATSAPP_BUSINESS_ID   — WhatsApp Business Account ID
- *     WHATSAPP_API_TOKEN     — WhatsApp Cloud API token
+ * MSG91 SMS connector.
+ * Required env vars:
+ *   SMS_PROVIDER_API_KEY   — MSG91 auth key
+ *   SMS_SENDER_ID          — DLT-approved sender ID (e.g. PHRMCY)
+ *   WHATSAPP_PHONE_NUMBER_ID — WhatsApp Business phone number ID
+ *   WHATSAPP_API_TOKEN       — WhatsApp Cloud API token
  */
 export const smsConnector: SmsConnector = {
   async sendSms({ phone, message }) {
-    console.log(`[SMS STUB] To: ${phone} | Message: ${message}`);
-    // TODO: Integrate with MSG91 / Twilio
-    // const response = await fetch("https://api.msg91.com/api/v5/flow/", { ... });
-    return true;
+    const apiKey = process.env.SMS_PROVIDER_API_KEY;
+    const senderId = process.env.SMS_SENDER_ID ?? "PHRMCY";
+
+    if (!apiKey) {
+      console.log(`[SMS STUB] To: ${phone} | Message: ${message}`);
+      return true;
+    }
+
+    try {
+      // Normalize phone: ensure 91 prefix for India
+      const normalizedPhone = phone.replace(/^\+/, "").replace(/^0/, "");
+      const mobileWithCountry = normalizedPhone.startsWith("91")
+        ? normalizedPhone
+        : `91${normalizedPhone}`;
+
+      const payload = {
+        sender: senderId,
+        route: "4", // Transactional route
+        country: "91",
+        sms: [{ message, to: [mobileWithCountry] }],
+      };
+
+      const res = await fetch("https://api.msg91.com/api/v5/flow/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authkey: apiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("[SMS] Failed to send via MSG91:", err);
+      return false;
+    }
   },
 
   async sendWhatsApp({ phone, templateName, variables }) {
-    console.log(
-      `[WhatsApp STUB] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`
-    );
-    // TODO: Integrate with WhatsApp Cloud API
-    // POST https://graph.facebook.com/v18.0/{phone_number_id}/messages
-    return true;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const token = process.env.WHATSAPP_API_TOKEN;
+
+    if (!phoneNumberId || !token) {
+      console.log(
+        `[WhatsApp STUB] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`
+      );
+      return true;
+    }
+
+    try {
+      const normalizedPhone = phone.replace(/^\+/, "").replace(/^0/, "");
+      const to = normalizedPhone.startsWith("91") ? normalizedPhone : `91${normalizedPhone}`;
+
+      const body = {
+        messaging_product: "whatsapp",
+        to,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: "en" },
+          components: variables.length > 0 ? [
+            {
+              type: "body",
+              parameters: variables.map(v => ({ type: "text", text: v })),
+            },
+          ] : [],
+        },
+      };
+
+      const res = await fetch(
+        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("[WhatsApp] Failed to send:", err);
+      return false;
+    }
   },
 };
 
@@ -98,43 +179,89 @@ export interface PaymentGatewayConnector {
 }
 
 /**
- * Default payment gateway connector — Razorpay stub.
- * TODO: Replace with live Razorpay SDK.
- *   Required env vars:
- *     RAZORPAY_KEY_ID     — Razorpay API key ID
- *     RAZORPAY_KEY_SECRET — Razorpay API key secret
+ * Razorpay payment connector — real SDK integration.
+ * Required env vars:
+ *   RAZORPAY_KEY_ID     — Razorpay API key ID
+ *   RAZORPAY_KEY_SECRET — Razorpay API key secret
+ *
+ * Falls back to stub when credentials are absent.
  */
 export const paymentConnector: PaymentGatewayConnector = {
   async createOrder({ amount, currency, receipt, notes }) {
-    console.log(
-      `[Payment STUB] Create order: ₹${amount / 100} | Receipt: ${receipt}`
-    );
-    // TODO: const razorpay = new Razorpay({ key_id, key_secret });
-    // return razorpay.orders.create({ amount, currency, receipt, notes });
-    return {
-      gatewayOrderId: `stub_order_${Date.now()}`,
-      amount,
-      currency,
-    };
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keyId || !keySecret) {
+      console.log(`[Payment STUB] Create order: ₹${amount / 100} | Receipt: ${receipt}`);
+      return {
+        gatewayOrderId: `stub_order_${Date.now()}`,
+        amount,
+        currency,
+      };
+    }
+
+    try {
+      // Dynamic import to avoid issues when credentials are absent
+      const Razorpay = (await import("razorpay")).default;
+      const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+      const order = await rzp.orders.create({
+        amount,
+        currency,
+        receipt,
+        notes,
+      });
+      return {
+        gatewayOrderId: order.id,
+        amount: typeof order.amount === "number" ? order.amount : parseInt(String(order.amount)),
+        currency: order.currency,
+      };
+    } catch (err) {
+      console.error("[Payment] Razorpay createOrder failed:", err);
+      throw new Error("Payment gateway error. Please try again.");
+    }
   },
 
   async verifyPayment({ gatewayOrderId, gatewayPaymentId, signature }) {
-    console.log(
-      `[Payment STUB] Verify: ${gatewayOrderId} | Payment: ${gatewayPaymentId}`
-    );
-    // TODO: Use crypto.createHmac to verify Razorpay signature
-    // const expectedSignature = crypto.createHmac("sha256", key_secret)
-    //   .update(`${gatewayOrderId}|${gatewayPaymentId}`).digest("hex");
-    // return expectedSignature === signature;
-    return true;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keySecret) {
+      console.log(`[Payment STUB] Verify: ${gatewayOrderId} | Payment: ${gatewayPaymentId}`);
+      return true;
+    }
+
+    // Razorpay HMAC-SHA256 signature verification
+    const expectedSignature = crypto
+      .createHmac("sha256", keySecret)
+      .update(`${gatewayOrderId}|${gatewayPaymentId}`)
+      .digest("hex");
+
+    return expectedSignature === signature;
   },
 
   async refund({ gatewayPaymentId, amount, reason }) {
-    console.log(
-      `[Payment STUB] Refund: ${gatewayPaymentId} | Amount: ${amount ?? "full"} | Reason: ${reason}`
-    );
-    // TODO: razorpay.payments.refund(gatewayPaymentId, { amount, notes: { reason } });
-    return { refundId: `stub_refund_${Date.now()}`, status: "processed" };
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keyId || !keySecret) {
+      console.log(`[Payment STUB] Refund: ${gatewayPaymentId} | Amount: ${amount ?? "full"}`);
+      return { refundId: `stub_refund_${Date.now()}`, status: "processed" };
+    }
+
+    try {
+      const Razorpay = (await import("razorpay")).default;
+      const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+      const refund = await rzp.payments.refund(gatewayPaymentId, {
+        amount,
+        notes: reason ? { reason } : undefined,
+      });
+      return {
+        refundId: refund.id,
+        status: refund.status,
+      };
+    } catch (err) {
+      console.error("[Payment] Razorpay refund failed:", err);
+      throw new Error("Refund failed. Please contact support.");
+    }
   },
 };
 
@@ -157,42 +284,119 @@ export interface LabelPrinterConnector {
     mrp: string;
     barcode?: string;
   }): Promise<boolean>;
+
+  /** Generate ZPL string without sending to printer (for preview/download) */
+  generateDispatchLabelZpl(params: {
+    orderId: number;
+    customerName: string;
+    address: string;
+    phone: string;
+    items: Array<{ name: string; qty: number }>;
+    barcodeData?: string;
+  }): string;
+
+  generateBatchLabelZpl(params: {
+    productName: string;
+    batchNumber: string;
+    expiryDate: string;
+    mrp: string;
+    barcode?: string;
+  }): string;
 }
 
 /**
- * Default label printer connector — ZPL (Zebra Printer Language) stub.
- * TODO: Replace with actual ZPL generation + network print queue.
- *   Required env vars:
- *     PRINTER_HOST — IP address of the thermal label printer
- *     PRINTER_PORT — TCP port (default: 9100)
+ * Label printer connector — ZPL (Zebra Printer Language) with Code 128 barcodes.
+ * Required env vars (optional — falls back to logging):
+ *   PRINTER_HOST — IP address of the thermal label printer
+ *   PRINTER_PORT — TCP port (default: 9100)
  */
 export const labelPrinterConnector: LabelPrinterConnector = {
-  async printDispatchLabel({ orderId, customerName, address, items }) {
-    const zpl = `
-^XA
-^FO50,50^A0N,30,30^FDOrder #${orderId}^FS
-^FO50,90^A0N,25,25^FD${customerName}^FS
-^FO50,120^A0N,20,20^FD${address}^FS
-^FO50,160^A0N,20,20^FDItems: ${items.map((i) => `${i.name} x${i.qty}`).join(", ")}^FS
-^XZ`.trim();
-
-    console.log(`[Printer STUB] Dispatch label for order #${orderId}:\n${zpl}`);
-    // TODO: Send ZPL to printer via TCP socket
-    // const socket = net.createConnection(PRINTER_PORT, PRINTER_HOST);
-    // socket.write(zpl); socket.end();
-    return true;
+  generateDispatchLabelZpl({ orderId, customerName, address, phone, items, barcodeData }) {
+    const barcode = barcodeData ?? `ORD-${orderId}`;
+    const itemsText = items.map(i => `${i.name} x${i.qty}`).join(", ").substring(0, 60);
+    return `^XA
+^PW812
+^LL406
+^FO30,20^A0N,35,35^FD24/7 Pharmacy^FS
+^FO30,60^A0N,22,22^FDOrder ORD-${String(orderId).padStart(6, "0")}^FS
+^FO30,90^GB752,2,2^FS
+^FO30,100^A0N,28,28^FD${customerName.substring(0, 30)}^FS
+^FO30,135^A0N,20,20^FD${address.substring(0, 50)}^FS
+^FO30,160^A0N,18,18^FDPh: ${phone}^FS
+^FO30,185^GB752,2,2^FS
+^FO30,195^A0N,18,18^FD${itemsText}^FS
+^FO30,230^BCN,80,Y,N,N^FD${barcode}^FS
+^XZ`;
   },
 
-  async printBatchLabel({ productName, batchNumber, expiryDate, mrp }) {
-    const zpl = `
-^XA
-^FO50,50^A0N,25,25^FD${productName}^FS
-^FO50,85^A0N,20,20^FDBatch: ${batchNumber}^FS
-^FO50,110^A0N,20,20^FDExp: ${expiryDate} | MRP: ${mrp}^FS
-^XZ`.trim();
+  generateBatchLabelZpl({ productName, batchNumber, expiryDate, mrp, barcode }) {
+    const bc = barcode ?? batchNumber;
+    return `^XA
+^PW406
+^LL203
+^FO10,10^A0N,22,22^FD${productName.substring(0, 25)}^FS
+^FO10,38^A0N,18,18^FDBatch: ${batchNumber}^FS
+^FO10,60^A0N,18,18^FDExp: ${expiryDate}  MRP: Rs.${mrp}^FS
+^FO10,85^BCN,70,Y,N,N^FD${bc}^FS
+^XZ`;
+  },
 
-    console.log(`[Printer STUB] Batch label for ${productName}:\n${zpl}`);
-    return true;
+  async printDispatchLabel(params) {
+    const zpl = this.generateDispatchLabelZpl(params);
+    const host = process.env.PRINTER_HOST;
+    const port = parseInt(process.env.PRINTER_PORT ?? "9100");
+
+    if (!host) {
+      console.log(`[Printer STUB] Dispatch label for order #${params.orderId}:\n${zpl}`);
+      return true;
+    }
+
+    try {
+      const net = await import("net");
+      await new Promise<void>((resolve, reject) => {
+        const socket = net.createConnection(port, host, () => {
+          socket.write(zpl, "utf8", () => {
+            socket.end();
+            resolve();
+          });
+        });
+        socket.on("error", reject);
+        socket.setTimeout(5000, () => { socket.destroy(); reject(new Error("Printer timeout")); });
+      });
+      return true;
+    } catch (err) {
+      console.error("[Printer] Failed to send dispatch label:", err);
+      return false;
+    }
+  },
+
+  async printBatchLabel(params) {
+    const zpl = this.generateBatchLabelZpl(params);
+    const host = process.env.PRINTER_HOST;
+    const port = parseInt(process.env.PRINTER_PORT ?? "9100");
+
+    if (!host) {
+      console.log(`[Printer STUB] Batch label for ${params.productName}:\n${zpl}`);
+      return true;
+    }
+
+    try {
+      const net = await import("net");
+      await new Promise<void>((resolve, reject) => {
+        const socket = net.createConnection(port, host, () => {
+          socket.write(zpl, "utf8", () => {
+            socket.end();
+            resolve();
+          });
+        });
+        socket.on("error", reject);
+        socket.setTimeout(5000, () => { socket.destroy(); reject(new Error("Printer timeout")); });
+      });
+      return true;
+    } catch (err) {
+      console.error("[Printer] Failed to send batch label:", err);
+      return false;
+    }
   },
 };
 
@@ -215,33 +419,79 @@ export interface ErpSyncConnector {
     orderId: number;
     storeId: number;
     totalAmount: number;
-    items: Array<{ productName: string; qty: number; unitPrice: number }>;
+    items: Array<{ productName: string; qty: number; unitPrice: number; hsnCode?: string; gstRate?: number }>;
   }): Promise<{ erpRef: string; status: string }>;
 }
 
 /**
- * Default ERP sync connector — stub for Tally/SAP integration.
- * TODO: Replace with actual ERP API calls.
- *   Required env vars:
- *     ERP_BASE_URL    — Base URL of the ERP API
- *     ERP_API_KEY     — API key for ERP authentication
- *     ERP_COMPANY_ID  — Company/tenant identifier in ERP
+ * ERP sync connector — Tally XML / REST stub.
+ * Required env vars:
+ *   ERP_BASE_URL    — Base URL of the ERP API
+ *   ERP_API_KEY     — API key for ERP authentication
+ *   ERP_COMPANY_ID  — Company/tenant identifier in ERP
  */
 export const erpConnector: ErpSyncConnector = {
   async pushGrn({ ingestionId, storeId, items }) {
-    console.log(
-      `[ERP STUB] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`
-    );
-    // TODO: POST to ERP GRN endpoint
-    // await fetch(`${ERP_BASE_URL}/grn`, { method: "POST", body: JSON.stringify({ ... }) });
-    return { erpRef: `GRN-${ingestionId}-${Date.now()}`, status: "synced" };
+    const baseUrl = process.env.ERP_BASE_URL;
+    const apiKey = process.env.ERP_API_KEY;
+    const companyId = process.env.ERP_COMPANY_ID;
+
+    if (!baseUrl || !apiKey) {
+      console.log(
+        `[ERP STUB] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`
+      );
+      return { erpRef: `GRN-${ingestionId}-${Date.now()}`, status: "synced" };
+    }
+
+    try {
+      const res = await fetch(`${baseUrl}/grn`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": apiKey,
+          ...(companyId ? { "X-Company-ID": companyId } : {}),
+        },
+        body: JSON.stringify({ ingestionId, storeId, items }),
+      });
+      const data = await res.json() as { ref?: string; status?: string };
+      return {
+        erpRef: data.ref ?? `GRN-${ingestionId}`,
+        status: data.status ?? "synced",
+      };
+    } catch (err) {
+      console.error("[ERP] pushGrn failed:", err);
+      return { erpRef: `GRN-${ingestionId}-${Date.now()}`, status: "error" };
+    }
   },
 
-  async pushSalesOrder({ orderId, storeId, totalAmount }) {
-    console.log(
-      `[ERP STUB] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`
-    );
-    // TODO: POST to ERP sales order endpoint
-    return { erpRef: `SO-${orderId}-${Date.now()}`, status: "synced" };
+  async pushSalesOrder({ orderId, storeId, totalAmount, items }) {
+    const baseUrl = process.env.ERP_BASE_URL;
+    const apiKey = process.env.ERP_API_KEY;
+    const companyId = process.env.ERP_COMPANY_ID;
+
+    if (!baseUrl || !apiKey) {
+      console.log(`[ERP STUB] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`);
+      return { erpRef: `SO-${orderId}-${Date.now()}`, status: "synced" };
+    }
+
+    try {
+      const res = await fetch(`${baseUrl}/sales-orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": apiKey,
+          ...(companyId ? { "X-Company-ID": companyId } : {}),
+        },
+        body: JSON.stringify({ orderId, storeId, totalAmount, items }),
+      });
+      const data = await res.json() as { ref?: string; status?: string };
+      return {
+        erpRef: data.ref ?? `SO-${orderId}`,
+        status: data.status ?? "synced",
+      };
+    } catch (err) {
+      console.error("[ERP] pushSalesOrder failed:", err);
+      return { erpRef: `SO-${orderId}-${Date.now()}`, status: "error" };
+    }
   },
 };

@@ -425,3 +425,26 @@
 - [x] Global: tighten index.css spacing rhythm tokens
 - [x] Global: fix any remaining raw-ID or node-language leaks
 - [x] TypeScript clean (0 errors), all tests passing
+
+## Upgrade to 10/10 Pass (v21 — gap closure)
+
+### P1 — Revenue + Operations blockers
+- [x] Schema: add sla_events, ai_decisions, product_barcodes tables; run migration
+- [x] Razorpay: payment order creation on checkout, webhook for payment confirmation, order state advances to paid
+- [x] Razorpay: payment status shown in OrderDetail and Orders list
+- [x] SMS notifications: wire MSG91 into server/connectors.ts (replace stub with real HTTP call)
+- [x] SMS notifications: trigger on order created, pharmacist approved, out_for_delivery, delivered
+- [x] SLA breach engine: sla_events written on order creation + state transitions, breach flag computed
+- [x] Command center: SLA board tab showing active orders with SLA remaining + breach alerts
+
+### P2 — Pharmacy OS completeness
+- [x] Expiry dashboard: /pharmacy/expiry page with warning/critical/quarantine/expired zones from batches
+- [x] Medivision CSV sync: /api/integrations/medivision/import-stock endpoint (CSV parse → batch upsert)
+- [x] Medivision sync health heartbeat: last sync time + row counts in command center
+- [x] GST/Tally export: /api/exports/gst CSV endpoint (order lines + HSN + GST breakdown)
+- [x] GST export UI: button in admin dashboard to download GST report for date range
+
+### P3 — Operational completeness
+- [x] Barcode print service: Code 128 label generation for internal batches
+- [x] Barcode print queue: /pharmacy/barcodes page (pending labels, print action)
+- [x] TypeScript clean (0 errors), all tests passing

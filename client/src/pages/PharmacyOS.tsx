@@ -16,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   Package, AlertTriangle, Truck, Users, ShieldCheck, RefreshCw,
-  Building2, ClipboardList, Bike, TrendingUp,
+  Building2, ClipboardList, Bike, TrendingUp, Timer, Barcode, FileSpreadsheet, Flame, Database,
 } from "lucide-react";
 
 const TABS = [
@@ -518,6 +518,27 @@ export default function PharmacyOS() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Quick-access tool strip */}
+      <div className="border-b border-border/20 bg-background/40">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex gap-2 overflow-x-auto">
+          <button onClick={() => navigate("/pharmacy/expiry")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors whitespace-nowrap border border-amber-500/20">
+            <Flame className="h-3.5 w-3.5" />Expiry Board
+          </button>
+          <button onClick={() => navigate("/pharmacy/sla")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors whitespace-nowrap border border-blue-500/20">
+            <Timer className="h-3.5 w-3.5" />SLA Board
+          </button>
+          <button onClick={() => navigate("/pharmacy/barcodes")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors whitespace-nowrap border border-purple-500/20">
+            <Barcode className="h-3.5 w-3.5" />Barcode Print
+          </button>
+          <button onClick={() => navigate("/pharmacy/gst-export")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors whitespace-nowrap border border-emerald-500/20">
+            <FileSpreadsheet className="h-3.5 w-3.5" />GST Export
+          </button>
+          <button onClick={() => navigate("/pharmacy/medivision")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap border border-primary/20">
+            <Database className="h-3.5 w-3.5" />Medivision Sync
+          </button>
         </div>
       </div>
 

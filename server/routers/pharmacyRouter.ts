@@ -13,6 +13,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { tplRxApproved, tplRxRejected, tplOutForDelivery, tplDelivered } from "../notifications";
+import { sendCustomerNotification } from "../connectors";
+import { getUserById } from "../db";
 import {
   getRxQueue,
   quickVerifyRx,
@@ -83,13 +85,26 @@ export const pharmacistRouter = router({
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, PHARMACIST_ROLES, "Pharmacist");
       const result = await approveRx(input.rxId, ctx.user.id, input.note);
-      // Fire-and-forget notification
+      // Fire-and-forget: notify customer via SMS
       const payload = tplRxApproved({
         customerName: "Customer",
         prescriptionId: input.rxId,
         pharmacistName: ctx.user.name ?? undefined,
       });
-      console.log(`[Notification] ${payload.title}`);
+      // Look up order to get customer phone
+      try {
+        const { getDb } = await import("../db");
+        const { prescriptions, orders, users } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          const rx = await db.select({ userId: prescriptions.userId }).from(prescriptions).where(eq(prescriptions.id, input.rxId)).limit(1);
+          if (rx[0]) {
+            const user = await getUserById(rx[0].userId);
+            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+          }
+        }
+      } catch (e) { console.error("[SMS] approve notification failed:", e); }
       return result;
     }),
 
@@ -99,13 +114,25 @@ export const pharmacistRouter = router({
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, PHARMACIST_ROLES, "Pharmacist");
       const result = await rejectRx(input.rxId, ctx.user.id, input.note);
-      // Fire-and-forget notification
+      // Fire-and-forget: notify customer via SMS
       const payload = tplRxRejected({
         customerName: "Customer",
         prescriptionId: input.rxId,
         reason: input.note,
       });
-      console.log(`[Notification] ${payload.title}`);
+      try {
+        const { getDb } = await import("../db");
+        const { prescriptions } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          const rx = await db.select({ userId: prescriptions.userId }).from(prescriptions).where(eq(prescriptions.id, input.rxId)).limit(1);
+          if (rx[0]) {
+            const user = await getUserById(rx[0].userId);
+            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+          }
+        }
+      } catch (e) { console.error("[SMS] reject notification failed:", e); }
       return result;
     }),
 
@@ -253,9 +280,21 @@ export const riderRouter = router({
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
       const result = await assignRider(input.orderId, input.riderId, ctx.user.id);
-      // Fire-and-forget: notify customer that order is out for delivery
+      // Fire-and-forget: notify customer via SMS
       const payload = tplOutForDelivery({ orderId: input.orderId, customerName: "Customer", riderName: "Rider" });
-      console.log(`[Notification] ${payload.title}`);
+      try {
+        const { getDb } = await import("../db");
+        const { orders, users } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          const order = await db.select({ userId: orders.userId }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+          if (order[0]) {
+            const user = await getUserById(order[0].userId);
+            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+          }
+        }
+      } catch (e) { console.error("[SMS] out-for-delivery notification failed:", e); }
       return result;
     }),
 
@@ -264,9 +303,23 @@ export const riderRouter = router({
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
       const result = await verifyDeliveryOtp(input.orderId, input.otp);
-      // Fire-and-forget: notify customer that order has been delivered
+      // Fire-and-forget: notify customer via SMS + close SLA event
       const payload = tplDelivered({ orderId: input.orderId, customerName: "Customer" });
-      console.log(`[Notification] ${payload.title}`);
+      try {
+        const { getDb } = await import("../db");
+        const { orders } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const { closeSlaEvent } = await import("../payment");
+        const db = await getDb();
+        if (db) {
+          const order = await db.select({ userId: orders.userId }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+          if (order[0]) {
+            const user = await getUserById(order[0].userId);
+            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+          }
+        }
+        await closeSlaEvent(input.orderId);
+      } catch (e) { console.error("[SMS] delivered notification failed:", e); }
       return result;
     }),
 

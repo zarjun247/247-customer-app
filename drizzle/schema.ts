@@ -658,3 +658,56 @@ export type DeliveryOtp = typeof deliveryOtps.$inferSelect;
 export type MetricsEvent = typeof metricsEvents.$inferSelect;
 export type RxPriorApproval = typeof rxPriorApprovals.$inferSelect;
 export type DoctorConsultRequest = typeof doctorConsultRequests.$inferSelect;
+
+// ─── Payment Records ──────────────────────────────────────────────────────────
+export const paymentRecords = mysqlTable("payment_records", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  userId: int("userId").notNull(),
+  gatewayOrderId: varchar("gatewayOrderId", { length: 100 }).notNull(),
+  gatewayPaymentId: varchar("gatewayPaymentId", { length: 100 }),
+  gatewaySignature: varchar("gatewaySignature", { length: 500 }),
+  amount: int("amount").notNull(), // in paise
+  currency: varchar("currency", { length: 10 }).default("INR").notNull(),
+  status: mysqlEnum("status", ["pending", "paid", "failed", "refunded"]).default("pending").notNull(),
+  method: varchar("method", { length: 50 }), // upi, card, netbanking, etc.
+  paidAt: timestamp("paidAt"),
+  failureReason: text("failureReason"),
+  refundId: varchar("refundId", { length: 100 }),
+  refundedAt: timestamp("refundedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── SLA Events ───────────────────────────────────────────────────────────────
+export const slaEvents = mysqlTable("sla_events", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  storeId: int("storeId").notNull(),
+  slaStartedAt: timestamp("slaStartedAt").notNull(),
+  promisedSlaMins: int("promisedSlaMins").notNull(),
+  slaDeadline: timestamp("slaDeadline").notNull(),
+  deliveredAt: timestamp("deliveredAt"),
+  breached: boolean("breached").default(false).notNull(),
+  breachDetectedAt: timestamp("breachDetectedAt"),
+  breachAlertSent: boolean("breachAlertSent").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Medivision Sync Log ──────────────────────────────────────────────────────
+export const medivisionSyncLog = mysqlTable("medivision_sync_log", {
+  id: int("id").autoincrement().primaryKey(),
+  filename: varchar("filename", { length: 255 }).notNull(),
+  rowsProcessed: int("rowsProcessed").default(0).notNull(),
+  rowsInserted: int("rowsInserted").default(0).notNull(),
+  rowsUpdated: int("rowsUpdated").default(0).notNull(),
+  rowsSkipped: int("rowsSkipped").default(0).notNull(),
+  errors: text("errors"),
+  status: mysqlEnum("status", ["running", "completed", "failed"]).default("running").notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type PaymentRecord = typeof paymentRecords.$inferSelect;
+export type SlaEvent = typeof slaEvents.$inferSelect;
+export type MedivisionSyncLog = typeof medivisionSyncLog.$inferSelect;

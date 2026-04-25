@@ -1,0 +1,295 @@
+/**
+ * server/routers/paymentRouter.ts
+ * Razorpay payment flow:
+ *   1. createPaymentOrder — creates Razorpay order, stores pending payment record
+ *   2. verifyPayment      — verifies HMAC signature, marks payment paid, advances order
+ *   3. failPayment        — marks payment failed (called on modal dismiss/failure)
+ *   4. exportGst          — returns GST-itemized CSV for a date range (admin only)
+ *   5. slaBoard           — returns open SLA events + breach summary (manager/admin)
+ *   6. detectBreaches     — manually trigger SLA breach detection (manager/admin)
+ */
+
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { protectedProcedure, router } from "../_core/trpc";
+import { paymentConnector } from "../connectors";
+import {
+  createPaymentRecord,
+  confirmPaymentRecord,
+  failPaymentRecord,
+  getPaymentByOrderId,
+  getPaymentByGatewayOrderId,
+  createSlaEvent,
+  closeSlaEvent,
+  detectSlaBreaches,
+  getSlaBreachSummary,
+  getOpenSlaEvents,
+  getExpiryZones,
+} from "../payment";
+import { getOrderById, updateOrderStatus, getOrderItems } from "../db";
+
+const MANAGER_ROLES = ["store_manager", "admin"] as const;
+
+function assertRole(userRole: string, allowed: readonly string[], label: string) {
+  if (!allowed.includes(userRole)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: `${label} access required` });
+  }
+}
+
+function getStoreId(user: { staffStoreId?: number | null; role: string }): number {
+  if (user.staffStoreId) return user.staffStoreId;
+  throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No store assigned" });
+}
+
+// ─── Payment Router ───────────────────────────────────────────────────────────
+
+export const paymentRouter = router({
+  /**
+   * Step 1: Create a Razorpay order for an existing app order.
+   * Returns the Razorpay order ID + key_id for the frontend Checkout modal.
+   */
+  createPaymentOrder: protectedProcedure
+    .input(z.object({ orderId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const order = await getOrderById(input.orderId);
+      if (!order || order.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+
+      // Check if already paid
+      const existing = await getPaymentByOrderId(input.orderId);
+      if (existing?.status === "paid") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Order is already paid" });
+      }
+
+      const amountPaise = Math.round(parseFloat(String(order.total)) * 100);
+      const receipt = `ORD-${String(input.orderId).padStart(6, "0")}`;
+
+      const gatewayOrder = await paymentConnector.createOrder({
+        amount: amountPaise,
+        currency: "INR",
+        receipt,
+        notes: {
+          orderId: String(input.orderId),
+          userId: String(ctx.user.id),
+        },
+      });
+
+      // Store pending payment record
+      await createPaymentRecord({
+        orderId: input.orderId,
+        userId: ctx.user.id,
+        gatewayOrderId: gatewayOrder.gatewayOrderId,
+        amount: amountPaise,
+        currency: "INR",
+      });
+
+      return {
+        gatewayOrderId: gatewayOrder.gatewayOrderId,
+        amount: amountPaise,
+        currency: "INR",
+        keyId: process.env.RAZORPAY_KEY_ID ?? "rzp_test_demo",
+        receipt,
+      };
+    }),
+
+  /**
+   * Step 2: Verify Razorpay payment after the modal succeeds.
+   * Validates HMAC signature, marks payment paid, advances order to picking/pharmacist_reviewing.
+   */
+  verifyPayment: protectedProcedure
+    .input(z.object({
+      gatewayOrderId: z.string(),
+      gatewayPaymentId: z.string(),
+      signature: z.string(),
+      method: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const isValid = await paymentConnector.verifyPayment({
+        gatewayOrderId: input.gatewayOrderId,
+        gatewayPaymentId: input.gatewayPaymentId,
+        signature: input.signature,
+      });
+
+      if (!isValid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Payment signature verification failed" });
+      }
+
+      // Get the payment record
+      const payment = await getPaymentByGatewayOrderId(input.gatewayOrderId);
+      if (!payment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
+      }
+
+      // Confirm payment
+      await confirmPaymentRecord({
+        gatewayOrderId: input.gatewayOrderId,
+        gatewayPaymentId: input.gatewayPaymentId,
+        gatewaySignature: input.signature,
+        method: input.method,
+      });
+
+      // Advance order status and start SLA clock
+      const order = await getOrderById(payment.orderId);
+      if (order) {
+        const items = await getOrderItems(payment.orderId);
+        const needsRx = items.some((i) => (i as { requiresPrescription?: boolean }).requiresPrescription);
+        const nextStatus = needsRx ? "pharmacist_reviewing" : "picking";
+        await updateOrderStatus(payment.orderId, nextStatus);
+
+        // Start SLA clock
+        await createSlaEvent({
+          orderId: payment.orderId,
+          storeId: order.storeId,
+          promisedSlaMins: order.promisedSlaMins,
+        });
+      }
+
+      return { success: true, orderId: payment.orderId };
+    }),
+
+  /**
+   * Step 2 (failure path): Mark payment as failed.
+   */
+  failPayment: protectedProcedure
+    .input(z.object({
+      gatewayOrderId: z.string(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await failPaymentRecord({
+        gatewayOrderId: input.gatewayOrderId,
+        reason: input.reason,
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Get payment status for an order.
+   */
+  getPaymentStatus: protectedProcedure
+    .input(z.object({ orderId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const order = await getOrderById(input.orderId);
+      if (!order || order.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const payment = await getPaymentByOrderId(input.orderId);
+      return payment
+        ? {
+            status: payment.status,
+            method: payment.method,
+            paidAt: payment.paidAt,
+            amount: payment.amount,
+          }
+        : null;
+    }),
+
+  /**
+   * GST/Tally export — returns CSV string with order lines, HSN codes, and GST breakdown.
+   * Admin/manager only.
+   */
+  exportGst: protectedProcedure
+    .input(z.object({
+      fromDate: z.string(), // ISO date string
+      toDate: z.string(),
+      storeId: z.number().int().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
+
+      const { getDb } = await import("../db");
+      const { orders, orderItems, products } = await import("../../drizzle/schema");
+      const { and, gte, lte, eq } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const from = new Date(input.fromDate);
+      const to = new Date(input.toDate);
+      to.setHours(23, 59, 59, 999);
+
+      const storeId = input.storeId ?? (ctx.user.staffStoreId ?? undefined);
+
+      const rows = await db
+        .select({
+          orderId: orders.id,
+          placedAt: orders.placedAt,
+          total: orders.total,
+          itemId: orderItems.id,
+          productName: products.name,
+          hsnCode: products.hsnCode,
+          gstRate: products.gstRate,
+          quantity: orderItems.quantity,
+          unitPrice: orderItems.unitPrice,
+          lineTotal: orderItems.lineTotal,
+        })
+        .from(orders)
+        .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
+        .innerJoin(products, eq(products.id, orderItems.productId))
+        .where(
+          and(
+            gte(orders.placedAt, from),
+            lte(orders.placedAt, to),
+            ...(storeId ? [eq(orders.storeId, storeId)] : [])
+          )
+        );
+
+      // Build CSV
+      const header = "Order ID,Date,Product,HSN Code,GST Rate (%),Qty,Unit Price (₹),Line Total (₹),GST Amount (₹),Taxable Value (₹)";
+      const lines = rows.map(r => {
+        const gstRate = parseFloat(String(r.gstRate ?? 12));
+        const lineTotal = parseFloat(String(r.lineTotal ?? 0));
+        const taxableValue = lineTotal / (1 + gstRate / 100);
+        const gstAmount = lineTotal - taxableValue;
+        const date = r.placedAt ? new Date(r.placedAt).toLocaleDateString("en-IN") : "";
+        return [
+          `ORD-${String(r.orderId).padStart(6, "0")}`,
+          date,
+          `"${r.productName}"`,
+          r.hsnCode ?? "30049099",
+          gstRate.toFixed(2),
+          r.quantity,
+          parseFloat(String(r.unitPrice ?? 0)).toFixed(2),
+          lineTotal.toFixed(2),
+          gstAmount.toFixed(2),
+          taxableValue.toFixed(2),
+        ].join(",");
+      });
+
+      return {
+        csv: [header, ...lines].join("\n"),
+        rowCount: rows.length,
+        fromDate: input.fromDate,
+        toDate: input.toDate,
+      };
+    }),
+
+  // ─── SLA Board ──────────────────────────────────────────────────────────────
+
+  slaBoard: protectedProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(7) }))
+    .query(async ({ ctx, input }) => {
+      assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
+      const storeId = getStoreId(ctx.user);
+      const [summary, openEvents] = await Promise.all([
+        getSlaBreachSummary(storeId, input.days),
+        getOpenSlaEvents(storeId),
+      ]);
+      return { summary, openEvents };
+    }),
+
+  detectBreaches: protectedProcedure.mutation(async ({ ctx }) => {
+    assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
+    const count = await detectSlaBreaches();
+    return { breachesDetected: count };
+  }),
+
+  // ─── Expiry Dashboard ───────────────────────────────────────────────────────
+
+  expiryZones: protectedProcedure.query(async ({ ctx }) => {
+    assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
+    const storeId = getStoreId(ctx.user);
+    return getExpiryZones(storeId);
+  }),
+});

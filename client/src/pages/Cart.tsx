@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
-import { Minus, Plus, Trash2, Clock, ShieldCheck, Shield, ArrowLeft, Lock, ClipboardList, Search, FileText } from "lucide-react";
+import { Minus, Plus, Trash2, Clock, ShieldCheck, Shield, ArrowLeft, Lock, ClipboardList, Search, FileText, CreditCard, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -12,6 +12,7 @@ export default function Cart() {
   const { isReady } = useOnboardingGuard();
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<"idle" | "creating" | "modal" | "verifying" | "done">("idle");
 
   const { data: cartItems, isLoading } = trpc.cart.get.useQuery(undefined, { enabled: isAuthenticated });
   const { data: store } = trpc.catalog.store.useQuery(undefined, { enabled: isAuthenticated });
@@ -22,15 +23,86 @@ export default function Cart() {
   });
 
   const checkout = trpc.orders.checkout.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       utils.cart.get.invalidate();
-      navigate(`/orders/${data.orderId}`);
+      // If Razorpay is configured, open payment modal; otherwise go directly to order
+      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (keyId && keyId !== 'rzp_test_demo') {
+        await openRazorpayModal(data.orderId, subtotal);
+      } else {
+        // Demo/stub mode — skip payment modal, go directly to order
+        navigate(`/orders/${data.orderId}`);
+      }
     },
     onError: (e) => {
       setConfirming(false);
+      setPaymentStep("idle");
       toast.error(e.message);
     },
   });
+
+  const createPaymentOrder = trpc.payment.createPaymentOrder.useMutation();
+  const verifyPayment = trpc.payment.verifyPayment.useMutation();
+  const failPayment = trpc.payment.failPayment.useMutation();
+
+  const openRazorpayModal = async (orderId: number, amount: number) => {
+    try {
+      setPaymentStep("creating");
+      const payOrder = await createPaymentOrder.mutateAsync({ orderId });
+      setPaymentStep("modal");
+
+      // Dynamically load Razorpay checkout script
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).Razorpay) { resolve(); return; }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load Razorpay"));
+        document.head.appendChild(script);
+      });
+
+      const rzp = new (window as any).Razorpay({
+        key: payOrder.keyId,
+        amount: payOrder.amount,
+        currency: payOrder.currency,
+        order_id: payOrder.gatewayOrderId,
+        name: "24/7 Pharmacy",
+        description: `Order ${payOrder.receipt}`,
+        theme: { color: "#2B7FFF" },
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string; razorpay_payment_method?: string }) => {
+          setPaymentStep("verifying");
+          try {
+            const result = await verifyPayment.mutateAsync({
+              gatewayOrderId: response.razorpay_order_id,
+              gatewayPaymentId: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+              method: response.razorpay_payment_method,
+            });
+            setPaymentStep("done");
+            toast.success("Payment successful!");
+            navigate(`/orders/${result.orderId}`);
+          } catch (e: any) {
+            setPaymentStep("idle");
+            setConfirming(false);
+            toast.error("Payment verification failed. Please contact support.");
+          }
+        },
+        modal: {
+          ondismiss: async () => {
+            await failPayment.mutateAsync({ gatewayOrderId: payOrder.gatewayOrderId, reason: "User dismissed" });
+            setPaymentStep("idle");
+            setConfirming(false);
+            toast.error("Payment cancelled.");
+          },
+        },
+      });
+      rzp.open();
+    } catch (e: any) {
+      setPaymentStep("idle");
+      setConfirming(false);
+      toast.error(e.message ?? "Payment setup failed");
+    }
+  };
 
   const subtotal = cartItems?.reduce((s, i) => s + parseFloat(String(i.sellingPrice)) * i.quantity, 0) ?? 0;
   const rxItems = cartItems?.filter(i => i.requiresPrescription) ?? [];
@@ -43,6 +115,8 @@ export default function Cart() {
     setConfirming(true);
     checkout.mutate({});
   };
+
+  const isPaymentLoading = paymentStep !== "idle" && paymentStep !== "done";
 
   if (isLoading) {
     return (
@@ -236,17 +310,18 @@ export default function Cart() {
             {/* ── Confirm order ────────────────────────────────────────── */}
             <button
               onClick={handleConfirm}
-              disabled={confirming || checkout.isPending}
+              disabled={confirming || checkout.isPending || isPaymentLoading}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50 mb-6"
               style={{ background: "#2B7FFF", color: "white" }}
             >
-              {confirming ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Confirming…
-                </>
+              {paymentStep === "creating" ? (
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Setting up payment…</>
+              ) : paymentStep === "verifying" ? (
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Verifying payment…</>
+              ) : confirming ? (
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Confirming…</>
               ) : (
-                `Confirm order · ₹${subtotal.toFixed(2)}`
+                <><CreditCard size={16} />{`Pay ₹${subtotal.toFixed(2)}`}</>
               )}
             </button>
           </>

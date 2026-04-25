@@ -27,6 +27,8 @@ import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRout
 import { ingestionRouter } from "./routers/ingestionRouter";
 import { helpdeskRouter } from "./routers/helpdeskRouter";
 import { consentRouter } from "./routers/consentRouter";
+import { paymentRouter } from "./routers/paymentRouter";
+import { medivisionRouter } from "./routers/medivisionRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
@@ -642,6 +644,8 @@ export const appRouter = router({
   helpdesk: helpdeskRouter,
   consent: consentRouter,
   consult: consultRouter,
+  payment: paymentRouter,
+  medivision: medivisionRouter,
 });
 
 export type AppRouter = typeof appRouter;
