@@ -17,6 +17,9 @@ import RxUpload from "./pages/RxUpload";
 import Profile from "./pages/Profile";
 import Invoices from "./pages/Invoices";
 import RefillReminders from "./pages/RefillReminders";
+import PharmacistWorkbench from "./pages/PharmacistWorkbench";
+import PharmacyOS from "./pages/PharmacyOS";
+import FounderDashboard from "./pages/FounderDashboard";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -81,6 +84,9 @@ function Router() {
         <Route path="/profile" component={Profile} />
         <Route path="/invoices" component={Invoices} />
         <Route path="/refills" component={RefillReminders} />
+        <Route path="/workbench" component={PharmacistWorkbench} />
+        <Route path="/pharmacy-os" component={PharmacyOS} />
+        <Route path="/dashboard" component={FounderDashboard} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

@@ -57,6 +57,13 @@
       "when": 1777096068124,
       "tag": "0007_military_next_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1777097735101,
+      "tag": "0008_colorful_pyro",
+      "breakpoints": true
     }
   ]
 }

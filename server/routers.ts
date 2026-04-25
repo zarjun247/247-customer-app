@@ -20,6 +20,7 @@ import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
 import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
+import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const authRouter = router({
@@ -544,6 +545,12 @@ export const appRouter = router({
   prescriptions: prescriptionRouter,
   refills: refillRouter,
   whatsapp: whatsappRouter,
+  pharmacist: pharmacistRouter,
+  inventory: inventoryRouter,
+  vendor: vendorRouter,
+  staff: staffRouter,
+  rider: riderRouter,
+  metrics: metricsRouter,
 });
 
 export type AppRouter = typeof appRouter;

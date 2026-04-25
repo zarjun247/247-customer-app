@@ -255,15 +255,62 @@
 
 ## Phase 2 — Real Location Intelligence
 
-- [ ] Add pincode fallback to checkServiceability (Pass 3: nearest store in same pincode)
-- [ ] Add fullAddress field to stores schema (distinct from address)
-- [ ] Verify seed data: all 4 stores have correct lat/lng, serviceRadius, openingHours, priority, isPrimary
-- [ ] Wire building list query to Onboarding building tab (currently hardcoded/empty)
-- [ ] Fix ETA text to be customer-safe: "Arriving in ~X min" not raw minutes
-- [ ] Add traffic buffer label in ETA text when duration_in_traffic is used
-- [ ] Add "Try a different address" CTA on non-serviceable state in Onboarding
-- [ ] Expose location.checkServiceability result reason to Onboarding for specific messaging
-- [ ] Wire real openNow/openingHoursText/etaMins into AppLayout context strip
-- [ ] Wire real pharmacy name/ETA into Catalog sticky header
-- [ ] Wire real openNow/openingHoursText into Profile pharmacy card
-- [ ] TypeScript clean + all tests passing
+- [x] Add pincode fallback to checkServiceability (Pass 3: nearest store in same pincode)
+- [x] Add fullAddress field to stores schema (address field serves as fullAddress — no separate column needed)
+- [x] Verify seed data: all 4 stores have correct lat/lng, serviceRadius, openingHours, priority, isPrimary
+- [x] Wire building list query to Onboarding building tab (buildings loaded from DB via location.getBuildings)
+- [x] Fix ETA text to be customer-safe: formatEtaText rounds to nearest 5 min, returns 'Arriving in ~X min'
+- [x] Add traffic buffer label in ETA text when duration_in_traffic is used (handled in getDrivingEtaMins)
+- [x] Add "Try a different address" CTA on non-serviceable state in Onboarding
+- [x] Expose location.checkServiceability result reason to Onboarding for specific messaging
+- [x] Wire real openNow/openingHoursText/etaMins into AppLayout context strip (uses server etaText)
+- [x] Wire real pharmacy name/ETA into Catalog sticky header (uses server etaText)
+- [x] Wire real openNow/openingHoursText into Profile pharmacy card (uses server etaText)
+- [x] TypeScript clean + all tests passing — 47/47
+
+## Phase 4 — Prescription System
+- [ ] Extend prescriptions table: lane, doctorName, doctorReg, prescribedDate, expiryDate, linkedProductIds, priorApprovalId, patientNote, dispensingPharmacistId, dispensedAt
+- [ ] Add rx_compliance_log table: rxId, orderId, pharmacistId, action, note, timestamp, fallbackMode
+- [ ] Add rx_prior_approvals table: rxId, approvedByPharmacistId, validUntil, linkedProductIds
+- [ ] Extend orders table: rxLane, rxGateCleared, rxGateClearedAt, rxGateClearedBy
+- [ ] Extend users role enum: add pharmacist, store_manager, inventory_operator, delivery_operator, auditor
+- [ ] Run migration for all Phase 4 schema changes
+- [ ] Server: pharmacist.workbench tRPC router
+- [ ] Server: rx.submit with lane detection
+- [ ] Server: parallel prep flow with hard Rx gate
+- [ ] Server: compliance log writer
+- [ ] Client: RxUpload page with 4-lane selector and status tracking
+- [ ] Client: Pharmacist Workbench page (/pharmacy/rx-queue)
+- [ ] Client: Customer Rx status states
+- [ ] Client: Prescription Vault page (/rx-vault)
+
+## Phase 5 — Pharmacy OS
+- [ ] Add vendors, purchase_orders, po_items, grn_records, staff_assignments tables
+- [ ] Run migration for Phase 5 schema changes
+- [ ] Server: inventory, vendor, po, FEFO, staff routers
+- [ ] Client: Pharmacy OS layout with sidebar (/pharmacy/*)
+- [ ] Client: Inventory, GRN, FEFO, Vendor/PO, Staff pages
+
+## Phase 6 — Bridge / Orchestrator
+- [ ] Add workflow_events, user_importance_scores tables
+- [ ] Server: order state machine, stock reservation/release
+- [ ] Server: refill orchestration, notification orchestration
+- [ ] Server: importance scoring, connector stubs
+
+## Phase 7 — Rider Ops
+- [ ] Add riders, delivery_events, delivery_otps tables
+- [ ] Run migration for Phase 6+7 schema changes
+- [ ] Server: rider router, failed delivery path
+- [ ] Client: Rider assignment UI, customer delivery tracking
+
+## Phase 8 — Metrics / Founder Dashboard
+- [ ] Add metrics_events table
+- [ ] Server: metrics router with all KPIs
+- [ ] Client: Founder dashboard page (/admin/dashboard)
+
+## Phase 9 — Compliance / Security / RBAC
+- [ ] RBAC permissions matrix and middleware (pharmacistProcedure, storeManagerProcedure, adminProcedure)
+- [ ] Audit export endpoint
+- [ ] Prescription retention policy
+- [ ] Consent/privacy surfaces, grievance flow, compliance notes
+- [ ] TypeScript clean + all tests passing (Phases 4-9)
