@@ -105,7 +105,7 @@ function AuthenticatedHome() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate" style={{ color: "#F0F0F2" }}>
-                          Order #{String(order.id).padStart(6, '0')}
+                          ORD-{String(order.id).padStart(6, '0')}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -180,7 +180,7 @@ function AuthenticatedHome() {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: "#F0F0F2" }}>
-                      Order #{String(order.id).padStart(6, '0')}
+                      ORD-{String(order.id).padStart(6, '0')}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>
                       Delivered · Tap to reorder

@@ -132,27 +132,26 @@ export default function RefillReminders() {
                   const urgency = getUrgencyConfig(days);
                   const isChronic = r.isChronicMedication;
                   return (
-                    <div key={r.id} className="rounded-xl p-4 relative"
-                      style={{ background: "#141416", border: "1px solid #2A2A2E" }}>
-
-                      {/* Chronic badge */}
-                      {isChronic && (
-                        <div className="absolute top-3 right-3">
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded"
-                            style={{ background: "rgba(0,200,150,0.10)", border: "1px solid rgba(0,200,150,0.20)" }}>
-                            <Repeat size={9} strokeWidth={2} style={{ color: "#00C896" }} />
-                            <span className="text-[9px] font-semibold" style={{ color: "#00C896" }}>Chronic</span>
-                          </div>
-                        </div>
-                      )}
+                    <div key={r.id} className="rounded-xl p-4"
+                      style={{ background: "#141416", border: isChronic ? "1px solid rgba(0,200,150,0.20)" : "1px solid #2A2A2E" }}>
 
                       <div className="flex items-start gap-3 mb-3">
-                        <div className="flex-1 min-w-0 pr-16">
-                          <p className="text-sm font-semibold leading-snug" style={{ color: "#F0F0F2" }}>
-                            {r.name}
-                          </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="text-sm font-semibold leading-snug" style={{ color: "#F0F0F2" }}>
+                              {r.name}
+                            </p>
+                            {/* Chronic badge — inline, more visible */}
+                            {isChronic && (
+                              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full flex-shrink-0"
+                                style={{ background: "rgba(0,200,150,0.12)", border: "1px solid rgba(0,200,150,0.25)" }}>
+                                <Repeat size={10} strokeWidth={2} style={{ color: "#00C896" }} />
+                                <span className="text-[10px] font-semibold" style={{ color: "#00C896" }}>Chronic</span>
+                              </div>
+                            )}
+                          </div>
                           {(r.strength || r.form) && (
-                            <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>
+                            <p className="text-xs" style={{ color: "#6B6B75" }}>
                               {[r.strength, r.form].filter(Boolean).join(" · ")}
                             </p>
                           )}
@@ -234,9 +233,12 @@ export default function RefillReminders() {
             {/* ── Snoozed reminders ───────────────────────────────────── */}
             {snoozedReminders.length > 0 && (
               <div className="mb-5">
-                <p className="text-xs font-semibold tracking-widest uppercase mb-2" style={{ color: "#4B4B55" }}>
-                  Snoozed
-                </p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Clock size={11} strokeWidth={1.75} style={{ color: "#4B4B55" }} />
+                  <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#4B4B55" }}>
+                    Snoozed
+                  </p>
+                </div>
                 <div className="space-y-2">
                   {snoozedReminders.map((r: any) => (
                     <div key={r.id} className="rounded-xl p-3 flex items-center gap-3"

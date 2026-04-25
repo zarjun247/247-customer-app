@@ -6,7 +6,7 @@ import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
 import {
   Camera, FileText, CheckCircle2, Clock, Shield, X, Upload,
-  BookOpen, Phone, ChevronRight, Star, AlertCircle, Archive, Stethoscope
+  BookOpen, Phone, ChevronRight, ChevronLeft, Star, AlertCircle, Archive, Stethoscope
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -56,30 +56,47 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Lane selector ────────────────────────────────────────────────────────────
 type Lane = "upload" | "vault" | "pharmacist" | "doctor";
 
-const LANES: { key: Lane; icon: React.ElementType; label: string; sub: string }[] = [
+const LANES: {
+  key: Lane;
+  icon: React.ElementType;
+  label: string;
+  sub: string;
+  iconBg: string;
+  iconColor: string;
+  badge?: string;
+}[] = [
   {
     key: "upload",
     icon: Camera,
     label: "Upload prescription",
     sub: "Photo or PDF of your current prescription",
+    iconBg: "rgba(43,127,255,0.12)",
+    iconColor: "#2B7FFF",
+    badge: "Most common",
   },
   {
     key: "vault",
     icon: Archive,
     label: "Use a saved prescription",
     sub: "Approved prescriptions stored on file",
+    iconBg: "rgba(0,200,150,0.12)",
+    iconColor: "#00C896",
   },
   {
     key: "pharmacist",
     icon: Phone,
     label: "Pharmacist-assisted",
     sub: "Our pharmacist will help you over the phone",
+    iconBg: "rgba(245,158,11,0.12)",
+    iconColor: "#F59E0B",
   },
   {
     key: "doctor",
     icon: Stethoscope,
     label: "Talk to a doctor",
     sub: "Don\u2019t have a prescription? Get one from a licensed physician",
+    iconBg: "rgba(167,139,250,0.12)",
+    iconColor: "#A78BFA",
   },
 ];
 
@@ -196,12 +213,20 @@ export default function RxUpload() {
                   style={{ background: "#141416", border: "1px solid #2A2A2E" }}
                 >
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(43,127,255,0.10)" }}>
-                    <Icon size={18} strokeWidth={1.5} style={{ color: "#2B7FFF" }} />
+                    style={{ background: lane.iconBg }}>
+                    <Icon size={18} strokeWidth={1.5} style={{ color: lane.iconColor }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>{lane.label}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>{lane.sub}</p>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>{lane.label}</p>
+                      {lane.badge && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                          style={{ background: "rgba(43,127,255,0.12)", color: "#2B7FFF" }}>
+                          {lane.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs" style={{ color: "#6B6B75" }}>{lane.sub}</p>
                   </div>
                   <ChevronRight size={15} strokeWidth={1.75} style={{ color: "#4B4B55" }} />
                 </button>
@@ -216,8 +241,9 @@ export default function RxUpload() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>Upload prescription</p>
               <button onClick={() => { setActiveLane(null); setPreview(null); setSubmitted(false); }}
-                className="text-xs transition-opacity hover:opacity-70" style={{ color: "#6B6B75" }}>
-                ← Back
+                className="flex items-center gap-0.5 text-xs transition-opacity hover:opacity-70" style={{ color: "#6B6B75" }}>
+                <ChevronLeft size={13} strokeWidth={2} />
+                Back
               </button>
             </div>
 
@@ -283,13 +309,14 @@ export default function RxUpload() {
               </div>
             )}
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            {/* Don't have a prescription? shortcut */}
+            {/* Need a prescription? shortcut */}
             {!submitted && (
               <button
                 onClick={() => navigate("/doctor-consult")}
-                className="w-full mt-2 py-2.5 rounded-xl text-xs font-medium transition-opacity hover:opacity-70"
+                className="w-full mt-2 py-2.5 rounded-xl text-xs font-medium transition-opacity hover:opacity-70 flex items-center justify-center gap-1.5"
                 style={{ color: "#6B6B75", background: "transparent", border: "1px solid #2A2A2E" }}>
-                Don’t have a prescription? Talk to a doctor
+                <Stethoscope size={12} strokeWidth={1.75} />
+                Need a prescription? Talk to a doctor
               </button>
             )}
           </div>
@@ -301,8 +328,9 @@ export default function RxUpload() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>Saved prescriptions</p>
               <button onClick={() => setActiveLane(null)}
-                className="text-xs transition-opacity hover:opacity-70" style={{ color: "#6B6B75" }}>
-                ← Back
+                className="flex items-center gap-0.5 text-xs transition-opacity hover:opacity-70" style={{ color: "#6B6B75" }}>
+                <ChevronLeft size={13} strokeWidth={2} />
+                Back
               </button>
             </div>
 

@@ -407,3 +407,21 @@
 - [x] RxUpload: add "Don't have a prescription? Talk to a doctor" ghost button below upload lane
 - [x] Home: add "Don't have a prescription? Talk to a doctor" tertiary CTA in empty state
 - [x] TypeScript clean (0 errors), 73/73 tests passing
+
+## 10/10 Final Polish Pass (v20 — pasted_content_11.txt)
+
+- [x] Catalog: replace "Ad" badge with editorial "Featured" label on sponsored shelf cards
+- [x] Catalog: upgrade sponsored shelf header to brand-block editorial feel (not ad-like)
+- [x] Catalog: add "Personal care" product flag for personal_care category
+- [x] Catalog: improve out-of-stock language ("Currently unavailable" not just label)
+- [x] Catalog: tighten product card spacing and flag visual hierarchy
+- [x] RxUpload: elevate lane cards to premium feel (larger icons, better spacing, clearer sub-copy)
+- [x] RxUpload: improve Rx status visual hierarchy (status badge + sub-copy + next-step hint)
+- [x] RxUpload: make "Don't have a prescription?" path feel guided and compliant, not shortcut-ish
+- [x] Home: tighten continuity card styling and empty state first-run impression
+- [x] Home: improve "Talk to a doctor" CTA prominence in empty state
+- [x] DoctorConsult: make compliance disclaimer more prominent and reassuring
+- [x] RefillReminders: improve chronic/snooze visual hierarchy
+- [x] Global: tighten index.css spacing rhythm tokens
+- [x] Global: fix any remaining raw-ID or node-language leaks
+- [x] TypeScript clean (0 errors), all tests passing

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Stethoscope, Clock, CheckCircle2, XCircle, AlertCircle,
-  ChevronLeft, Loader2, MessageSquare, Calendar, Zap,
+  ChevronLeft, Loader2, MessageSquare, Calendar, Zap, ShieldAlert,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -234,9 +234,12 @@ export default function DoctorConsult() {
             </div>
 
             {/* Medical disclaimer */}
-            <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}>
-              <p className="text-xs font-semibold" style={{ color: "#F59E0B" }}>Medical disclaimer</p>
-              <p className="text-xs leading-relaxed" style={{ color: "#9CA3AF" }}>
+            <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(245,158,11,0.08)", border: "1.5px solid rgba(245,158,11,0.30)" }}>
+              <div className="flex items-center gap-2">
+                <ShieldAlert size={15} strokeWidth={1.75} style={{ color: "#F59E0B" }} />
+                <p className="text-xs font-semibold" style={{ color: "#F59E0B" }}>Medical disclaimer</p>
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: "#C4A35A" }}>
                 This service connects you with licensed physicians for teleconsultation only. It is not a substitute for emergency care. If you are experiencing a medical emergency, call 112 immediately. Prescriptions are issued solely at the physician's clinical discretion and in accordance with applicable regulations.
               </p>
             </div>

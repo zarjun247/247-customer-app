@@ -7,12 +7,12 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 const STATUS_HUMAN: Record<string, { label: string; bg: string; color: string; dot: string }> = {
-  created:               { label: "Received",       bg: "#EFF6FF", color: "#2B7FFF", dot: "#1F6FEB" },
-  pharmacist_reviewing:  { label: "Being verified", bg: "#FFFBEB", color: "#F59E0B", dot: "#F59E0B" },
-  picking:               { label: "Preparing",      bg: "#EFF6FF", color: "#2B7FFF", dot: "#1F6FEB" },
-  out_for_delivery:      { label: "On the way",     bg: "#EFF6FF", color: "#2B7FFF", dot: "#1F6FEB" },
-  delivered:             { label: "Delivered",      bg: "#F0FDF4", color: "#00C896", dot: "#22C55E" },
-  cancelled:             { label: "Cancelled",      bg: "#FEF2F2", color: "#F43F5E", dot: "#DC2626" },
+  created:               { label: "Received",       bg: "rgba(43,127,255,0.10)",  color: "#2B7FFF", dot: "#2B7FFF" },
+  pharmacist_reviewing:  { label: "Being verified", bg: "rgba(245,158,11,0.10)",  color: "#F59E0B", dot: "#F59E0B" },
+  picking:               { label: "Preparing",      bg: "rgba(43,127,255,0.10)",  color: "#2B7FFF", dot: "#2B7FFF" },
+  out_for_delivery:      { label: "On the way",     bg: "rgba(43,127,255,0.10)",  color: "#2B7FFF", dot: "#2B7FFF" },
+  delivered:             { label: "Delivered",      bg: "rgba(0,200,150,0.10)",   color: "#00C896", dot: "#00C896" },
+  cancelled:             { label: "Cancelled",      bg: "rgba(244,63,94,0.10)",   color: "#F43F5E", dot: "#F43F5E" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -79,7 +79,7 @@ export default function Orders() {
             Orders
           </h1>
           <p className="text-sm" style={{ color: "#6B6B75" }}>
-            Dispensation history from your assigned pharmacy
+            Your complete medication dispensation history
           </p>
         </div>
 
@@ -134,7 +134,7 @@ export default function Orders() {
                       <div className="flex items-start justify-between mb-2.5">
                         <div>
                           <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
-                            Order #{String(order.id).padStart(6,'0')}
+                            ORD-{String(order.id).padStart(6,'0')}
                           </p>
                           <p className="text-xs mt-0.5" style={{ color: "#4B4B55" }}>
                             {new Date(order.createdAt).toLocaleDateString("en-IN", {
@@ -177,7 +177,7 @@ export default function Orders() {
                       <div className="flex items-start justify-between mb-2.5">
                         <div>
                           <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
-                            Order #{String(order.id).padStart(6,'0')}
+                            ORD-{String(order.id).padStart(6,'0')}
                           </p>
                           <p className="text-xs mt-0.5" style={{ color: "#4B4B55" }}>
                             {new Date(order.createdAt).toLocaleDateString("en-IN", {

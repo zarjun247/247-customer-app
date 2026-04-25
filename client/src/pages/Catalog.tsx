@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw, Clock, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw, Clock, ChevronLeft, ChevronRight, Info, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { TRPCClientError } from "@trpc/client";
@@ -16,7 +16,8 @@ const CATEGORIES = [
   { key: "nutrition", label: "Nutrition" },
   { key: "fmcg",      label: "General" },
   { key: "baby",      label: "Baby" },
-  { key: "wellness",  label: "Wellness" },
+  { key: "wellness",      label: "Wellness" },
+  { key: "personal_care", label: "Personal Care" },
 ];
 
 // ─── Category icon + palette ──────────────────────────────────────────────────
@@ -25,8 +26,9 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; bg: string; col
   devices:   { icon: Stethoscope, bg: "rgba(0,200,150,0.10)",   color: "#00C896" },
   baby:      { icon: Baby,        bg: "rgba(244,63,94,0.10)",   color: "#F43F5E" },
   nutrition: { icon: Leaf,        bg: "rgba(0,200,150,0.10)",   color: "#00C896" },
-  fmcg:      { icon: ShoppingBag, bg: "rgba(245,158,11,0.10)",  color: "#F59E0B" },
-  wellness:  { icon: Sparkles,    bg: "rgba(43,127,255,0.10)",  color: "#2B7FFF" },
+  fmcg:          { icon: ShoppingBag, bg: "rgba(245,158,11,0.10)",  color: "#F59E0B" },
+  wellness:      { icon: Sparkles,    bg: "rgba(43,127,255,0.10)",  color: "#2B7FFF" },
+  personal_care: { icon: Heart,       bg: "rgba(244,63,94,0.10)",   color: "#F43F5E" },
 };
 const DEFAULT_CONFIG = { icon: Pill, bg: "rgba(43,127,255,0.10)", color: "#2B7FFF" };
 
@@ -45,7 +47,7 @@ function getAvailabilityLabel(
   if (availableQty === 0 && (schedule === "H" || schedule === "H1" || schedule === "X")) {
     return { label: "Available on request", color: "#6B6B75" };
   }
-    return { label: "Arranging from nearby pharmacy", color: "#6B6B75" };
+  return { label: "Currently unavailable", color: "#6B6B75" };
 }
 
 // ─── Product Placeholder ──────────────────────────────────────────────────────
@@ -225,8 +227,8 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
 
         {/* Out-of-stock overlay */}
         {!canAdd && (
-          <div className="absolute inset-0 flex items-center justify-center"
-            style={{ background: "rgba(10,10,11,0.60)" }}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1"
+            style={{ background: "rgba(10,10,11,0.65)" }}>
             <span className="text-[10px] font-medium px-2 py-1 rounded-md"
               style={{ color: "#A0A0A8", background: "#1C1C1F", border: "1px solid #2A2A2E" }}>
               {avail.label}
@@ -265,6 +267,8 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
           if (item.category === "devices") flags.push({ label: "Device", color: "#A0A0A8", bg: "rgba(160,160,168,0.10)" });
           if (item.category === "nutrition") flags.push({ label: "Nutrition", color: "#00C896", bg: "rgba(0,200,150,0.10)" });
           if (item.category === "baby") flags.push({ label: "Baby care", color: "#F43F5E", bg: "rgba(244,63,94,0.10)" });
+          if (item.category === "personal_care") flags.push({ label: "Personal care", color: "#F43F5E", bg: "rgba(244,63,94,0.10)" });
+          if (item.category === "wellness") flags.push({ label: "Wellness", color: "#2B7FFF", bg: "rgba(43,127,255,0.10)" });
           if (flags.length === 0) return null;
           return (
             <div className="flex flex-wrap gap-1 mb-2">
@@ -335,9 +339,10 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
         {isRx && cartQty === 0 && onConsult && (
           <button
             onClick={e => { e.stopPropagation(); onConsult(); }}
-            className="w-full mt-1.5 py-1.5 rounded-lg text-[10px] font-medium transition-opacity hover:opacity-70"
+            className="w-full mt-1.5 py-1.5 rounded-lg text-[10px] font-medium transition-opacity hover:opacity-70 flex items-center justify-center gap-1"
             style={{ color: "#6B6B75", background: "transparent", border: "1px solid #2A2A2E" }}>
-            Don't have a prescription?
+            <Stethoscope size={10} strokeWidth={1.75} />
+            Need a prescription? Talk to a doctor
           </button>
         )}
       </div>
