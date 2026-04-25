@@ -269,48 +269,59 @@
 - [x] TypeScript clean + all tests passing — 47/47
 
 ## Phase 4 — Prescription System
-- [ ] Extend prescriptions table: lane, doctorName, doctorReg, prescribedDate, expiryDate, linkedProductIds, priorApprovalId, patientNote, dispensingPharmacistId, dispensedAt
-- [ ] Add rx_compliance_log table: rxId, orderId, pharmacistId, action, note, timestamp, fallbackMode
-- [ ] Add rx_prior_approvals table: rxId, approvedByPharmacistId, validUntil, linkedProductIds
-- [ ] Extend orders table: rxLane, rxGateCleared, rxGateClearedAt, rxGateClearedBy
-- [ ] Extend users role enum: add pharmacist, store_manager, inventory_operator, delivery_operator, auditor
-- [ ] Run migration for all Phase 4 schema changes
-- [ ] Server: pharmacist.workbench tRPC router
-- [ ] Server: rx.submit with lane detection
-- [ ] Server: parallel prep flow with hard Rx gate
-- [ ] Server: compliance log writer
-- [ ] Client: RxUpload page with 4-lane selector and status tracking
-- [ ] Client: Pharmacist Workbench page (/pharmacy/rx-queue)
-- [ ] Client: Customer Rx status states
-- [ ] Client: Prescription Vault page (/rx-vault)
+- [x] Extend prescriptions table: lane, doctorName, doctorReg, prescribedDate, expiryDate, linkedProductIds, priorApprovalId, patientNote, dispensingPharmacistId, dispensedAt
+- [x] Add rx_compliance_log table: rxId, orderId, pharmacistId, action, note, timestamp, fallbackMode
+- [x] Add rx_prior_approvals table: rxId, approvedByPharmacistId, validUntil, linkedProductIds
+- [x] Extend orders table: rxLane, rxGateCleared, rxGateClearedAt, rxGateClearedBy
+- [x] Extend users role enum: add pharmacist, store_manager, inventory_operator, delivery_operator, auditor
+- [x] Run migration for all Phase 4 schema changes
+- [x] Server: pharmacist.workbench tRPC router
+- [x] Server: rx.submit with lane detection
+- [x] Server: parallel prep flow with hard Rx gate
+- [x] Server: compliance log writer
+- [x] Client: RxUpload page with 4-lane selector and status tracking
+- [x] Client: Pharmacist Workbench page (/pharmacy/rx-queue)
+- [x] Client: Customer Rx status states
+- [x] Client: Prescription Vault page (/rx-vault)
 
 ## Phase 5 — Pharmacy OS
-- [ ] Add vendors, purchase_orders, po_items, grn_records, staff_assignments tables
-- [ ] Run migration for Phase 5 schema changes
-- [ ] Server: inventory, vendor, po, FEFO, staff routers
-- [ ] Client: Pharmacy OS layout with sidebar (/pharmacy/*)
-- [ ] Client: Inventory, GRN, FEFO, Vendor/PO, Staff pages
+- [x] Add vendors, purchase_orders, po_items, grn_records, staff_assignments tables
+- [x] Run migration for Phase 5 schema changes
+- [x] Server: inventory, vendor, po, FEFO, staff routers
+- [x] Client: Pharmacy OS layout with sidebar (/pharmacy/*)
+- [x] Client: Inventory, GRN, FEFO, Vendor/PO, Staff pages
 
 ## Phase 6 — Bridge / Orchestrator
-- [ ] Add workflow_events, user_importance_scores tables
-- [ ] Server: order state machine, stock reservation/release
-- [ ] Server: refill orchestration, notification orchestration
-- [ ] Server: importance scoring, connector stubs
+- [x] Add workflow_events, user_importance_scores tables
+- [x] Server: order state machine, stock reservation/release
+- [x] Server: refill orchestration, notification orchestration
+- [x] Server: importance scoring, connector stubs
 
 ## Phase 7 — Rider Ops
-- [ ] Add riders, delivery_events, delivery_otps tables
-- [ ] Run migration for Phase 6+7 schema changes
-- [ ] Server: rider router, failed delivery path
-- [ ] Client: Rider assignment UI, customer delivery tracking
+- [x] Add riders, delivery_events, delivery_otps tables
+- [x] Run migration for Phase 6+7 schema changes
+- [x] Server: rider router, failed delivery path
+- [x] Client: Rider assignment UI, customer delivery tracking
 
 ## Phase 8 — Metrics / Founder Dashboard
-- [ ] Add metrics_events table
-- [ ] Server: metrics router with all KPIs
-- [ ] Client: Founder dashboard page (/admin/dashboard)
+- [x] Add metrics_events table
+- [x] Server: metrics router with all KPIs
+- [x] Client: Founder dashboard page (/admin/dashboard)
 
 ## Phase 9 — Compliance / Security / RBAC
-- [ ] RBAC permissions matrix and middleware (pharmacistProcedure, storeManagerProcedure, adminProcedure)
-- [ ] Audit export endpoint
-- [ ] Prescription retention policy
-- [ ] Consent/privacy surfaces, grievance flow, compliance notes
-- [ ] TypeScript clean + all tests passing (Phases 4-9)
+- [x] RBAC permissions matrix and middleware (pharmacistProcedure, storeManagerProcedure, adminProcedure)
+- [x] Audit export endpoint
+- [x] Prescription retention policy
+- [x] Consent/privacy surfaces, grievance flow, compliance notes
+- [x] TypeScript clean + all tests passing (Phases 4-9)
+
+## Phase 3 — Root-Cause Bug Fix Pass
+
+- [x] Fix useAuth: move localStorage.setItem out of useMemo into useEffect; remove manus-runtime-user-info
+- [x] Fix DashboardLayout: replace window.location.href = getLoginUrl() with navigate("/login")
+- [x] Fix App.tsx OnboardingGuard: handle Case A (unauthenticated → /login) explicitly
+- [x] Fix useOnboardingGuard: show loading skeleton while isReady=false instead of null
+- [x] Verify catalog.list/store throw ONBOARDING_REQUIRED (already done - confirm)
+- [x] Verify OTP verifyOtp creates real session cookie (already done - confirm)
+- [x] Verify no node/pharmacy-node language in client (already done - confirm)
+- [x] TypeScript clean + all tests passing

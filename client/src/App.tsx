@@ -42,30 +42,60 @@ const PUBLIC_ROUTES = ["/login", "/onboarding"];
  * After authentication, checks if the user has completed onboarding.
  * If not, redirects to /onboarding — regardless of which route they tried to access.
  */
+/**
+ * ProtectedRoute
+ * Wraps a single protected page with 3-case guard logic:
+ *   Case A: not authenticated → redirect to /login
+ *   Case B: authenticated but onboarding incomplete or no store assigned → redirect to /onboarding
+ *   Case C: authenticated + onboarded + store assigned → render children
+ */
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const [location, navigate] = useLocation();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { data: profile, isLoading: profileLoading } = trpc.user.profile.useQuery(
+    undefined,
+    { enabled: isAuthenticated }
+  );
+
+  useEffect(() => {
+    if (authLoading) return;
+    // Case A: not authenticated
+    if (!isAuthenticated) {
+      navigate(`/login?return=${encodeURIComponent(location)}`);
+      return;
+    }
+    if (profileLoading) return;
+    // Case B: authenticated but onboarding incomplete or no store assigned
+    if (profile && (!profile.onboardingComplete || !profile.assignedStoreId)) {
+      navigate("/onboarding");
+    }
+  }, [authLoading, profileLoading, isAuthenticated, profile, location, navigate]);
+
+  // Show nothing while resolving — individual pages show their own skeletons via useOnboardingGuard
+  if (authLoading || (!isAuthenticated && !authLoading)) return null;
+  return <>{children}</>;
+}
+
+/**
+ * OnboardingGuard (legacy wrapper — kept for non-route-level usage)
+ * Wraps the entire router and handles the onboarding redirect for authenticated users.
+ */
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-
-  // Only fetch profile when authenticated and not on a public route
   const isPublicRoute = PUBLIC_ROUTES.some(r => location.startsWith(r));
   const { data: profile, isLoading: profileLoading } = trpc.user.profile.useQuery(
     undefined,
     { enabled: isAuthenticated && !isPublicRoute }
   );
-
   useEffect(() => {
-    // Wait until auth and profile are resolved
     if (authLoading || profileLoading) return;
-    // Not authenticated — let Login page handle it
     if (!isAuthenticated || !user) return;
-    // Already on a public route — no redirect needed
     if (isPublicRoute) return;
-    // Profile loaded and onboarding not complete OR no store assigned → redirect
     if (profile && (!profile.onboardingComplete || !profile.assignedStoreId)) {
       navigate("/onboarding");
     }
   }, [authLoading, profileLoading, isAuthenticated, user, profile, isPublicRoute, navigate]);
-
   return <>{children}</>;
 }
 
@@ -76,14 +106,14 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/login" component={Login} />
         <Route path="/onboarding" component={Onboarding} />
-        <Route path="/catalog" component={Catalog} />
-        <Route path="/cart" component={Cart} />
-        <Route path="/orders" component={Orders} />
-        <Route path="/orders/:id" component={OrderDetail} />
-        <Route path="/rx-upload" component={RxUpload} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/invoices" component={Invoices} />
-        <Route path="/refills" component={RefillReminders} />
+        <Route path="/catalog">{() => <ProtectedRoute><Catalog /></ProtectedRoute>}</Route>
+        <Route path="/cart">{() => <ProtectedRoute><Cart /></ProtectedRoute>}</Route>
+        <Route path="/orders">{() => <ProtectedRoute><Orders /></ProtectedRoute>}</Route>
+        <Route path="/orders/:id">{() => <ProtectedRoute><OrderDetail /></ProtectedRoute>}</Route>
+        <Route path="/rx-upload">{() => <ProtectedRoute><RxUpload /></ProtectedRoute>}</Route>
+        <Route path="/profile">{() => <ProtectedRoute><Profile /></ProtectedRoute>}</Route>
+        <Route path="/invoices">{() => <ProtectedRoute><Invoices /></ProtectedRoute>}</Route>
+        <Route path="/refills">{() => <ProtectedRoute><RefillReminders /></ProtectedRoute>}</Route>
         <Route path="/workbench" component={PharmacistWorkbench} />
         <Route path="/pharmacy-os" component={PharmacyOS} />
         <Route path="/dashboard" component={FounderDashboard} />
