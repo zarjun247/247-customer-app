@@ -23,6 +23,7 @@ export default function Profile() {
   const storeName    = store?.name ?? null;
   const storeAddress = (store as any)?.address as string | undefined;
   const eta          = (store as any)?.etaMins as number | undefined;
+  const etaText      = (store as any)?.etaText as string | undefined;
 
   const navLinks = [
     {
@@ -142,11 +143,11 @@ export default function Profile() {
                     </p>
                   </div>
                 )}
-                {eta && (
+                {(etaText || eta) && (
                   <div className="flex items-center gap-1 mt-1.5">
                     <Clock size={11} strokeWidth={1.5} style={{ color: "#4B4B55" }} />
                     <p className="text-xs" style={{ color: "#6B6B75" }}>
-                      Arriving in ~{eta} min
+                      {etaText ?? `Arriving in ~${eta} min`}
                     </p>
                   </div>
                 )}

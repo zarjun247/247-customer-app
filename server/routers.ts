@@ -176,7 +176,7 @@ const catalogRouter = router({
     // Log routing resolution for auditability
     console.info(formatRoutingAuditEntry({ buildingId: user.buildingId }, result));
     const store = await getStoreById(result.storeId);
-    return store ? { ...store, etaMins: result.etaMins, slaMins: result.slaMins, openNow: result.openNow, openingHoursText: result.openingHoursText, displayLabel: result.displayLabel, resolutionPath: result.resolutionPath } : null;
+    return store ? { ...store, etaMins: result.etaMins, etaText: result.etaText, slaMins: result.slaMins, openNow: result.openNow, openingHoursText: result.openingHoursText, displayLabel: result.displayLabel, resolutionPath: result.resolutionPath } : null;
   }),
 });
 
@@ -520,9 +520,15 @@ const locationRouter = router({
       lat: z.number(),
       lng: z.number(),
       buildingPrimaryStoreId: z.number().optional(),
+      pincode: z.string().optional(),
     }))
     .query(async ({ input }) => {
-      return checkServiceability(input.lat, input.lng, input.buildingPrimaryStoreId);
+      return checkServiceability(
+        input.lat,
+        input.lng,
+        input.buildingPrimaryStoreId,
+        input.pincode
+      );
     }),
 });
 

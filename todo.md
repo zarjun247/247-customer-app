@@ -239,16 +239,31 @@
 
 ## Phase 1 — Production Auth & Route Guards (v15)
 
-- [ ] Make users.openId nullable (phone users have no Manus openId)
-- [ ] Add getUserByPhone and upsertUserByPhone helpers to db.ts
-- [ ] verifyOtp procedure: upsert user by phone + create session cookie on success
-- [ ] Replace getLoginUrl() Manus portal redirect with /login in const.ts
-- [ ] Fix main.tsx global UNAUTHORIZED handler to redirect to /login
-- [ ] Fix Home.tsx LandingHome "Get started" to link to /login
-- [ ] Fix useAuth redirectPath default to /login
-- [ ] Add Google OAuth server route and client button
-- [ ] Add Apple OAuth server route and client button
-- [ ] OnboardingGuard in App.tsx: also check assignedStoreId
-- [ ] Verify useOnboardingGuard is applied to all 6 protected pages
-- [ ] Catalog: all 5 states differentiated (loading/onboarding/unavailable/error/empty)
+- [x] Make users.openId nullable (phone users have no Manus openId)
+- [x] Add getUserByPhone and upsertUserByPhone helpers to db.ts
+- [x] verifyOtp procedure: upsert user by phone + create session cookie on success
+- [x] Replace getLoginUrl() Manus portal redirect with /login in const.ts
+- [x] Fix main.tsx global UNAUTHORIZED handler to redirect to /login
+- [x] Fix Home.tsx LandingHome "Get started" to link to /login
+- [x] Fix useAuth redirectPath default to /login
+- [x] Add Google OAuth server route and client button (via Manus SSO, getManusSSOUrl)
+- [x] Add Apple OAuth server route and client button (shows coming-soon toast; infrastructure ready)
+- [x] OnboardingGuard in App.tsx: also check assignedStoreId
+- [x] Verify useOnboardingGuard is applied to all 6 protected pages
+- [x] Catalog: all 5 states differentiated (loading/onboarding/unavailable/error/empty)
 - [x] TypeScript clean + all tests passing
+
+## Phase 2 — Real Location Intelligence
+
+- [ ] Add pincode fallback to checkServiceability (Pass 3: nearest store in same pincode)
+- [ ] Add fullAddress field to stores schema (distinct from address)
+- [ ] Verify seed data: all 4 stores have correct lat/lng, serviceRadius, openingHours, priority, isPrimary
+- [ ] Wire building list query to Onboarding building tab (currently hardcoded/empty)
+- [ ] Fix ETA text to be customer-safe: "Arriving in ~X min" not raw minutes
+- [ ] Add traffic buffer label in ETA text when duration_in_traffic is used
+- [ ] Add "Try a different address" CTA on non-serviceable state in Onboarding
+- [ ] Expose location.checkServiceability result reason to Onboarding for specific messaging
+- [ ] Wire real openNow/openingHoursText/etaMins into AppLayout context strip
+- [ ] Wire real pharmacy name/ETA into Catalog sticky header
+- [ ] Wire real openNow/openingHoursText into Profile pharmacy card
+- [ ] TypeScript clean + all tests passing

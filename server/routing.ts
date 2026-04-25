@@ -23,6 +23,7 @@ import {
   getDrivingEtaMins,
   isStoreOpenNow,
   getTodayHoursText,
+  formatEtaText,
 } from "./location";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ export interface RoutingResult {
   storeLat: number;
   storeLng: number;
   etaMins: number;
+  etaText: string;              // customer-safe: "Arriving in ~X min"
   slaMins: number;
   openNow: boolean;
   openingHoursText: string;
@@ -156,6 +158,7 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
     storeLat: Number(resolvedStore.lat ?? 0),
     storeLng: Number(resolvedStore.lng ?? 0),
     etaMins,
+    etaText: formatEtaText(etaMins) ?? `~${etaMins} min`,
     slaMins: resolvedStore.slaMins,
     openNow,
     openingHoursText,

@@ -41,8 +41,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const cartCount = cartItems?.reduce((s, i) => s + i.quantity, 0) ?? 0;
   const storeName = store?.name ?? null;
+  // Prefer server-computed customer-safe etaText; fall back to client-side etaLabel
   const eta = (store as any)?.etaMins as number | undefined;
-  const etaText = etaLabel(eta);
+  const etaText = (store as any)?.etaText ?? etaLabel(eta);
 
   // Single context line: "Godrej Emerald · 24/7 Pharmacy Kanjurmarg"
   const buildingPart = profile?.buildingName ?? null;

@@ -35,6 +35,7 @@ type ServiceResult = {
   storeName: string | null;
   storeAddress: string | null;
   etaMins: number | null;
+  etaText: string | null;       // customer-safe: "Arriving in ~X min"
   openNow: boolean;
   openingHoursText: string | null;
   distanceMetres: number | null;
@@ -137,6 +138,7 @@ export default function Onboarding() {
         lat: resolvedLat,
         lng: resolvedLng,
         buildingPrimaryStoreId: buildingPrimaryStoreId ?? undefined,
+        pincode: resolvedPincode ?? undefined,
       });
       setServiceResult(result as ServiceResult);
       setStep("service");
@@ -438,12 +440,14 @@ export default function Onboarding() {
                     </div>
                     {serviceResult.openingHoursText && <span className="text-xs" style={{ color: "#6B6B75" }}>{serviceResult.openingHoursText}</span>}
                   </div>
-                  {serviceResult.etaMins && (
+                  {(serviceResult.etaText || serviceResult.etaMins) && (
                     <>
                       <div className="h-px" style={{ background: "#2A2A2E" }} />
                       <div className="flex items-center gap-2">
                         <Clock size={13} style={{ color: "#6B6B75" }} />
-                        <span className="text-sm" style={{ color: "#F0F0F2" }}>~{serviceResult.etaMins} min delivery</span>
+                        <span className="text-sm" style={{ color: "#F0F0F2" }}>
+                          {serviceResult.etaText ?? `~${serviceResult.etaMins} min delivery`}
+                        </span>
                         {serviceResult.distanceMetres && (
                           <span className="text-xs ml-auto" style={{ color: "#6B6B75" }}>
                             {serviceResult.distanceMetres >= 1000
@@ -517,13 +521,13 @@ export default function Onboarding() {
                 </div>
               ))}
             </div>
-            {serviceResult?.etaMins && (
+            {(serviceResult?.etaText || serviceResult?.etaMins) && (
               <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border mb-5"
                 style={{ background: "rgba(0,200,150,0.06)", borderColor: "rgba(0,200,150,0.2)" }}>
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#00C896" }} />
                 <div>
                   <p className="text-xs font-medium" style={{ color: "#00C896" }}>
-                    ~{serviceResult.etaMins} min delivery · {serviceResult.openNow ? "Open now" : "Closed"}
+                    {serviceResult.etaText ?? `~${serviceResult.etaMins} min`} · {serviceResult.openNow ? "Open now" : "Closed"}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>{serviceResult.openingHoursText}</p>
                 </div>

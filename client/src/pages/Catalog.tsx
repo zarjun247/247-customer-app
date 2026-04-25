@@ -69,6 +69,7 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
   const available = Number(item.availableQty) || 0;
   const isRx = item.requiresPrescription;
   const etaMins = item.etaMins ?? null;
+  const etaText = item.etaText ?? (etaMins ? `~${etaMins} min` : null);
   const avail = getAvailabilityLabel(available, isRx, item.schedule ?? "");
   const canAdd = available > 0;
 
@@ -140,10 +141,10 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
             <span className="text-[10px] font-medium" style={{ color: avail.color }}>
               {avail.label}
             </span>
-            {etaMins && (
+            {etaText && (
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded"
                 style={{ background: "rgba(43,127,255,0.12)", color: "#2B7FFF" }}>
-                ~{etaMins} min
+                {etaText}
               </span>
             )}
           </div>
@@ -393,10 +394,10 @@ export default function Catalog() {
                     </span>
                   )}
                 </div>
-                {(store as any).etaMins && (
+                {((store as any).etaText || (store as any).etaMins) && (
                   <span className="text-xs flex-shrink-0 ml-2 px-2 py-0.5 rounded-full"
                     style={{ background: "rgba(43,127,255,0.10)", color: "#2B7FFF" }}>
-                    ~{(store as any).etaMins} min
+                    {(store as any).etaText ?? `~${(store as any).etaMins} min`}
                   </span>
                 )}
               </div>

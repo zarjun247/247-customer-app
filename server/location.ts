@@ -42,11 +42,12 @@ export type ServiceabilityResult = {
   storeLat: number | null;
   storeLng: number | null;
   etaMins: number | null;
+  etaText: string | null;       // customer-safe: "Arriving in ~X min"
   slaMins: number | null;
   openNow: boolean;
   openingHoursText: string | null;
   distanceMetres: number | null;
-  reason: "primary_assignment" | "geo_nearest" | "out_of_range" | "no_stores";
+  reason: "primary_assignment" | "geo_nearest" | "pincode_fallback" | "out_of_range" | "no_stores";
 };
 
 export type OpeningHourSlot = {
@@ -127,6 +128,19 @@ export function getTodayHoursText(openingHoursRaw: string | null): string {
   if (!slot) return "Closed today";
   if (slot.open === "00:00" && slot.close === "23:59") return "Open 24 hours";
   return `${slot.open} – ${slot.close}`;
+}
+
+// ─── Customer-safe ETA text ──────────────────────────────────────────────────
+
+/**
+ * Format raw ETA minutes into a customer-safe string.
+ * e.g. 18 → "Arriving in ~20 min" (rounded up to nearest 5)
+ */
+export function formatEtaText(etaMins: number | null): string | null {
+  if (etaMins === null) return null;
+  // Round up to nearest 5 minutes for customer display
+  const rounded = Math.ceil(etaMins / 5) * 5;
+  return `Arriving in ~${rounded} min`;
 }
 
 // ─── Places Autocomplete ──────────────────────────────────────────────────────
@@ -279,21 +293,22 @@ export async function getDrivingEtaMins(
  * Given a lat/lng, find the best eligible store and return serviceability info.
  *
  * Resolution order:
- * 1. If a buildingId is provided and the building has a primaryStoreId, use that
- *    (as long as the store is active and within serviceRadius).
- * 2. Otherwise, find the nearest active store whose serviceRadius covers the point.
- * 3. If no store covers the point, return serviceable=false.
+ * 1. Building's primary store (if within its service radius).
+ * 2. Nearest active store whose serviceRadius covers the point.
+ * 3. Pincode fallback: nearest active store in the same pincode (expanded radius).
+ * 4. Out of range — return serviceable=false.
  */
 export async function checkServiceability(
   lat: number,
   lng: number,
-  buildingPrimaryStoreId?: number | null
+  buildingPrimaryStoreId?: number | null,
+  pincode?: string | null
 ): Promise<ServiceabilityResult> {
   const db = await getDb();
   if (!db) {
     return {
       serviceable: false, storeId: null, storeName: null, storeAddress: null,
-      storeLat: null, storeLng: null, etaMins: null, slaMins: null,
+      storeLat: null, storeLng: null, etaMins: null, etaText: null, slaMins: null,
       openNow: false, openingHoursText: null, distanceMetres: null,
       reason: "no_stores",
     };
@@ -307,7 +322,7 @@ export async function checkServiceability(
   if (allStores.length === 0) {
     return {
       serviceable: false, storeId: null, storeName: null, storeAddress: null,
-      storeLat: null, storeLng: null, etaMins: null, slaMins: null,
+      storeLat: null, storeLng: null, etaMins: null, etaText: null, slaMins: null,
       openNow: false, openingHoursText: null, distanceMetres: null,
       reason: "no_stores",
     };
@@ -347,10 +362,22 @@ export async function checkServiceability(
     }
   }
 
+  // Pass 3: pincode fallback — nearest active store in the same pincode
+  // (uses an expanded 8km radius to handle large pincodes)
+  if (!chosen && pincode) {
+    const pincodeMatch = withDistance.find(
+      (w) => w.store.pincode === pincode && w.distanceM <= 8000
+    );
+    if (pincodeMatch) {
+      chosen = pincodeMatch;
+      reason = "pincode_fallback";
+    }
+  }
+
   if (!chosen) {
     return {
       serviceable: false, storeId: null, storeName: null, storeAddress: null,
-      storeLat: null, storeLng: null, etaMins: null, slaMins: null,
+      storeLat: null, storeLng: null, etaMins: null, etaText: null, slaMins: null,
       openNow: false, openingHoursText: null, distanceMetres: null,
       reason: "out_of_range",
     };
@@ -360,7 +387,7 @@ export async function checkServiceability(
   const openNow = isStoreOpenNow(s.openingHours ?? null);
   const openingHoursText = getTodayHoursText(s.openingHours ?? null);
 
-  // Try real ETA; fall back to slaMins
+  // Try real ETA via Distance Matrix; fall back to store's slaMins
   let etaMins = s.slaMins;
   const mapsEta = await getDrivingEtaMins(
     Number(s.lat), Number(s.lng), lat, lng
@@ -375,6 +402,7 @@ export async function checkServiceability(
     storeLat: Number(s.lat),
     storeLng: Number(s.lng),
     etaMins,
+    etaText: formatEtaText(etaMins),
     slaMins: s.slaMins,
     openNow,
     openingHoursText,
