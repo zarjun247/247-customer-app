@@ -183,7 +183,7 @@ export const prescriptions = mysqlTable("prescriptions", {
     "on_file",
   ]).default("pending_ocr").notNull(),
   // Rx lane classification
-  lane: mysqlEnum("lane", ["otc", "digital", "on_file", "fallback"]).default("digital").notNull(),
+  lane: mysqlEnum("lane", ["otc", "digital", "on_file", "fallback", "doctor_consult"]).default("digital").notNull(),
   // Doctor / prescription metadata
   doctorName: varchar("doctorName", { length: 200 }),
   doctorReg: varchar("doctorReg", { length: 100 }),  // MCI/state registration number
@@ -258,7 +258,7 @@ export const orders = mysqlTable("orders", {
     "return_to_stock",
   ]).default("created").notNull(),
   // Rx lane for this order
-  rxLane: mysqlEnum("rxLane", ["otc", "digital", "on_file", "fallback"]).default("otc").notNull(),
+  rxLane: mysqlEnum("rxLane", ["otc", "digital", "on_file", "fallback", "doctor_consult"]).default("otc").notNull(),
   rxGateCleared: boolean("rxGateCleared").default(false).notNull(),
   rxGateClearedAt: timestamp("rxGateClearedAt"),
   rxGateClearedBy: int("rxGateClearedBy"),  // pharmacistId who cleared the gate
@@ -595,6 +595,39 @@ export const userConsents = mysqlTable("user_consents", {
   revokedAt: timestamp("revokedAt"),
 });
 
+// ─── Doctor Consult Requests ─────────────────────────────────────────────────
+export const doctorConsultRequests = mysqlTable("doctor_consult_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  consultType: mysqlEnum("consultType", ["instant", "scheduled"]).default("instant").notNull(),
+  status: mysqlEnum("status", [
+    "requested",
+    "assigned",
+    "in_progress",
+    "completed",
+    "cancelled",
+    "no_show",
+  ]).default("requested").notNull(),
+  // Doctor assigned to this consult
+  assignedDoctorName: varchar("assignedDoctorName", { length: 200 }),
+  assignedDoctorReg: varchar("assignedDoctorReg", { length: 100 }),
+  // Patient-stated reason for consult
+  chiefComplaint: text("chiefComplaint"),
+  // Doctor note after consult
+  consultNote: text("consultNote"),
+  // If doctor issued a prescription during consult, it is linked here
+  linkedPrescriptionId: int("linkedPrescriptionId"),
+  // Scheduling
+  scheduledAt: timestamp("scheduledAt"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  requestedAt: timestamp("requestedAt").defaultNow().notNull(),
+  // Consent: patient confirmed they understand this is a real medical consult
+  consentGiven: boolean("consentGiven").default(false).notNull(),
+  // Platform note (internal)
+  platformNote: text("platformNote"),
+});
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type ProductVariant = typeof productVariants.$inferSelect;
@@ -624,3 +657,4 @@ export type DeliveryEvent = typeof deliveryEvents.$inferSelect;
 export type DeliveryOtp = typeof deliveryOtps.$inferSelect;
 export type MetricsEvent = typeof metricsEvents.$inferSelect;
 export type RxPriorApproval = typeof rxPriorApprovals.$inferSelect;
+export type DoctorConsultRequest = typeof doctorConsultRequests.$inferSelect;

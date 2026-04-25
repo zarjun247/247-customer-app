@@ -23,6 +23,7 @@ import FounderDashboard from "./pages/FounderDashboard";
 import InvoiceIngestion from "./pages/InvoiceIngestion";
 import Helpdesk from "./pages/Helpdesk";
 import Consent from "./pages/Consent";
+import DoctorConsult from "./pages/DoctorConsult";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -123,6 +124,7 @@ function Router() {
         <Route path="/ingestion">{() => <ProtectedRoute><InvoiceIngestion /></ProtectedRoute>}</Route>
         <Route path="/helpdesk">{() => <ProtectedRoute><Helpdesk /></ProtectedRoute>}</Route>
         <Route path="/consent">{() => <ProtectedRoute><Consent /></ProtectedRoute>}</Route>
+        <Route path="/doctor-consult">{() => <ProtectedRoute><DoctorConsult /></ProtectedRoute>}</Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

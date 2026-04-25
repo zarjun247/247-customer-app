@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl, LOGO_URL } from "@/const";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, RefreshCw, ChevronRight, Search, FileText, ShieldCheck } from "lucide-react";
+import { ArrowRight, RefreshCw, ChevronRight, Search, FileText, ShieldCheck, Stethoscope } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import AppLayout from "@/components/AppLayout";
@@ -21,6 +21,7 @@ function AuthenticatedHome() {
   const { data: orders, isLoading: ordersLoading } = trpc.orders.list.useQuery();
   const { data: refills } = trpc.refills.list.useQuery();
   const { data: prescriptions } = trpc.prescriptions.list.useQuery();
+  const { data: consults } = trpc.consult.list.useQuery();
 
   const pendingRx = prescriptions?.filter(
     p => p.status === "pending_ocr" || p.status === "pending_pharmacist"
@@ -39,10 +40,33 @@ function AuthenticatedHome() {
   }) ?? [];
 
   const hasActivity = activeOrders.length > 0 || recentDelivered.length > 0 || runningLow.length > 0;
+  const activeConsults = (consults ?? []).filter(
+    c => !["completed", "cancelled", "no_show"].includes((c as any).status)
+  );
 
   return (
     <AppLayout>
       <div className="px-5 pt-6 pb-10 space-y-7">
+
+        {/* ── Active doctor consult banner ──────────────────────────────── */}
+        {activeConsults.length > 0 && (
+          <button
+            onClick={() => navigate("/doctor-consult")}
+            className="w-full rounded-xl p-4 flex items-start gap-3 text-left transition-opacity hover:opacity-80"
+            style={{ background: "rgba(43,127,255,0.08)", border: "1px solid rgba(43,127,255,0.20)" }}
+          >
+            <Stethoscope size={14} strokeWidth={1.75} className="flex-shrink-0 mt-0.5" style={{ color: "#2B7FFF" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: "#2B7FFF" }}>
+                {activeConsults.length === 1 ? "Doctor consult in progress" : `${activeConsults.length} doctor consults in progress`}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "#6B6B75" }}>
+                A physician is reviewing your request. Tap for details.
+              </p>
+            </div>
+            <ChevronRight size={14} strokeWidth={1.75} style={{ color: "#4B4B55" }} />
+          </button>
+        )}
 
         {/* ── Prescription under review ────────────────────────────────── */}
         {pendingRx.length > 0 && (

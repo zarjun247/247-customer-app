@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
 import {
   Camera, FileText, CheckCircle2, Clock, Shield, X, Upload,
-  BookOpen, Phone, ChevronRight, Star, AlertCircle, Archive
+  BookOpen, Phone, ChevronRight, Star, AlertCircle, Archive, Stethoscope
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,7 +54,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ─── Lane selector ────────────────────────────────────────────────────────────
-type Lane = "upload" | "vault" | "pharmacist";
+type Lane = "upload" | "vault" | "pharmacist" | "doctor";
 
 const LANES: { key: Lane; icon: React.ElementType; label: string; sub: string }[] = [
   {
@@ -74,9 +75,16 @@ const LANES: { key: Lane; icon: React.ElementType; label: string; sub: string }[
     label: "Pharmacist-assisted",
     sub: "Our pharmacist will help you over the phone",
   },
+  {
+    key: "doctor",
+    icon: Stethoscope,
+    label: "Talk to a doctor",
+    sub: "Don\u2019t have a prescription? Get one from a licensed physician",
+  },
 ];
 
 export default function RxUpload() {
+  const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const { isReady } = useOnboardingGuard();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,7 +186,11 @@ export default function RxUpload() {
                       toast.info("Our pharmacist will call you within 30 minutes during pharmacy hours.");
                       return;
                     }
-                    setActiveLane(lane.key);
+                    if (lane.key === "doctor") {
+                      navigate("/doctor-consult");
+                      return;
+                    }
+                    setActiveLane(lane.key as Lane);
                   }}
                   className="w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all hover:opacity-80"
                   style={{ background: "#141416", border: "1px solid #2A2A2E" }}

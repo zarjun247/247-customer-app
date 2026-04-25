@@ -383,3 +383,17 @@
 - [x] Frontend Catalog.tsx: add ProductDetailModal with multi-angle image gallery (dot indicators, prev/next arrows, GST display, generic name note)
 - [x] Frontend Catalog.tsx: wire onDetail prop into ProductCard — card click opens modal; Add/Remove buttons stop propagation
 - [x] TypeScript clean (0 errors), 73/73 tests passing
+
+## Doctor Consult Lane + Continuity Pass (v18 — pasted_content_9.txt)
+
+- [x] Schema: add "doctor_consult" to prescriptions.lane enum
+- [x] Schema: add "doctor_consult" to orders.rxLane enum
+- [x] Schema: add doctor_consult_requests table (userId, consultType, status, assignedDoctorName, consultNote, linkedPrescriptionId, requestedAt, completedAt)
+- [x] Schema: run migration (3 SQL statements applied)
+- [x] Server db.ts: createConsultRequest, getConsultRequests, linkConsultPrescription helpers
+- [x] Server routers.ts: consultRouter with consult.request, consult.list, consult.linkPrescription procedures
+- [x] Frontend RxUpload.tsx: add 5th lane "Talk to a doctor" (Stethoscope icon, navigates to /doctor-consult)
+- [x] Frontend DoctorConsult.tsx: new page with 3-step flow (type → complaint → review/consent → done), active consult tracker, past consult history with doctor's note display, medical disclaimer, consent checkbox
+- [x] Frontend App.tsx: register /doctor-consult route (ProtectedRoute)
+- [x] Frontend Home.tsx: add active consult banner (blue, tappable, navigates to /doctor-consult) in continuity hooks section
+- [x] TypeScript clean (0 errors), 73/73 tests passing

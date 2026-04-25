@@ -17,6 +17,7 @@ import {
   createWhatsappPrescription, generateAndStoreInvoice,
   getPrescriptionVault, markPrescriptionOnFile, getActivePriorApprovals,
   getSponsoredShelf, snoozeRefillReminder, getSnoozedReminders,
+  createConsultRequest, getConsultRequests, linkConsultPrescription,
 } from "./db";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
@@ -585,6 +586,40 @@ const locationRouter = router({
     }),
 });
 
+// ─── Doctor Consult Router ───────────────────────────────────────────────────
+const consultRouter = router({
+  // Request a new doctor consult
+  request: protectedProcedure
+    .input(z.object({
+      chiefComplaint: z.string().min(5).max(1000),
+      consultType: z.enum(["instant", "scheduled"]).default("instant"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const consult = await createConsultRequest(
+        ctx.user.id,
+        input.chiefComplaint,
+        input.consultType
+      );
+      return consult;
+    }),
+
+  // List all consult requests for the current user
+  list: protectedProcedure.query(async ({ ctx }) => {
+    return getConsultRequests(ctx.user.id);
+  }),
+
+  // Link a prescription to a completed consult
+  linkPrescription: protectedProcedure
+    .input(z.object({
+      consultId: z.number().int().positive(),
+      prescriptionId: z.number().int().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await linkConsultPrescription(input.consultId, ctx.user.id, input.prescriptionId);
+      return { ok: true };
+    }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auth: authRouter,
@@ -606,6 +641,7 @@ export const appRouter = router({
   ingestion: ingestionRouter,
   helpdesk: helpdeskRouter,
   consent: consentRouter,
+  consult: consultRouter,
 });
 
 export type AppRouter = typeof appRouter;

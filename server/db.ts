@@ -14,6 +14,7 @@ import {
   products,
   refillReminders,
   rxPriorApprovals,
+  doctorConsultRequests,
   storeSkus,
   stores,
   users,
@@ -766,4 +767,56 @@ export async function generateAndStoreInvoice(
   const { url } = await storeFn(key, buffer, "text/plain");
   await updateOrderInvoice(orderId, url, key);
   return url;
+}
+
+// ─── Doctor Consult Requests ─────────────────────────────────────────────────────────────
+export async function createConsultRequest(
+  userId: number,
+  chiefComplaint: string,
+  consultType: "instant" | "scheduled" = "instant"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(doctorConsultRequests).values({
+    userId,
+    chiefComplaint,
+    consultType,
+    consentGiven: true,
+    status: "requested",
+  });
+  const [row] = await db
+    .select()
+    .from(doctorConsultRequests)
+    .where(eq(doctorConsultRequests.userId, userId))
+    .orderBy(desc(doctorConsultRequests.requestedAt))
+    .limit(1);
+  return row;
+}
+
+export async function getConsultRequests(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(doctorConsultRequests)
+    .where(eq(doctorConsultRequests.userId, userId))
+    .orderBy(desc(doctorConsultRequests.requestedAt));
+}
+
+export async function linkConsultPrescription(
+  consultId: number,
+  userId: number,
+  prescriptionId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db
+    .update(doctorConsultRequests)
+    .set({ linkedPrescriptionId: prescriptionId, status: "completed" })
+    .where(
+      and(
+        eq(doctorConsultRequests.id, consultId),
+        eq(doctorConsultRequests.userId, userId)
+      )
+    );
 }
