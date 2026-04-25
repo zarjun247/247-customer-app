@@ -372,3 +372,14 @@
 - [x] Frontend: RefillReminders — chronic medication badge (Repeat icon + "Chronic" label)
 - [x] Frontend: RefillReminders — snoozed reminders section (dimmed, shows wake-up date)
 - [x] TypeScript clean (0 errors), 73/73 tests passing
+
+## Gap-Fill Pass (v17 — pasted_content_8.txt remaining gaps)
+
+- [x] Server db.ts: wire multi-angle image fields (imageHeroUrl, imageSideUrl, imageRearUrl, imageLabelUrl, imageNutritionUrl) into getCatalog and getSkuById
+- [x] Server db.ts: add searchableTokens to catalog search WHERE conditions
+- [x] Server db.ts: add getSnoozedReminders helper (reminders where snoozedUntil > now)
+- [x] Server routers.ts: add refills.listSnoozed procedure
+- [x] Frontend RefillReminders.tsx: use refills.listSnoozed endpoint instead of client-side filter
+- [x] Frontend Catalog.tsx: add ProductDetailModal with multi-angle image gallery (dot indicators, prev/next arrows, GST display, generic name note)
+- [x] Frontend Catalog.tsx: wire onDetail prop into ProductCard — card click opens modal; Add/Remove buttons stop propagation
+- [x] TypeScript clean (0 errors), 73/73 tests passing

@@ -16,7 +16,7 @@ import {
   computeRefillIntervalFromHistory, getOrderItemsForReorder,
   createWhatsappPrescription, generateAndStoreInvoice,
   getPrescriptionVault, markPrescriptionOnFile, getActivePriorApprovals,
-  getSponsoredShelf, snoozeRefillReminder,
+  getSponsoredShelf, snoozeRefillReminder, getSnoozedReminders,
 } from "./db";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
@@ -425,6 +425,8 @@ const refillRouter = router({
       await snoozeRefillReminder(input.id, ctx.user.id, input.days);
       return { success: true };
     }),
+  /** Snoozed reminders — those with snoozedUntil > now */
+  listSnoozed: protectedProcedure.query(async ({ ctx }) => getSnoozedReminders(ctx.user.id)),
 });
 
 // ─── WhatsApp Bot Router (shared order engine) ────────────────────────────────

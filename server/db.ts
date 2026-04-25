@@ -174,7 +174,8 @@ export async function getCatalog(
         like(products.name, term),
         like(products.brand, term),
         like(products.genericName, term),
-        like(products.companyName, term)
+        like(products.companyName, term),
+        like(products.searchableTokens, term)
       )!
     );
   }
@@ -198,7 +199,13 @@ export async function getCatalog(
     category: products.category,
     companyName: products.companyName,
     imageUrl: products.imageUrl,
+    imageHeroUrl: products.imageHeroUrl,
+    imageSideUrl: products.imageSideUrl,
+    imageRearUrl: products.imageRearUrl,
+    imageLabelUrl: products.imageLabelUrl,
+    imageNutritionUrl: products.imageNutritionUrl,
     imageApprovalStatus: products.imageApprovalStatus,
+    gstRate: products.gstRate,
     mrp: storeSkus.mrp,
     sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty,
@@ -223,7 +230,14 @@ export async function getSkuById(skuId: number) {
     packSize: productVariants.packSize, displayLabel: productVariants.displayLabel,
     schedule: products.schedule,
     requiresPrescription: products.requiresPrescription, isChronicMedication: products.isChronicMedication,
-    imageUrl: products.imageUrl, mrp: storeSkus.mrp, sellingPrice: storeSkus.sellingPrice,
+    imageUrl: products.imageUrl,
+    imageHeroUrl: products.imageHeroUrl,
+    imageSideUrl: products.imageSideUrl,
+    imageRearUrl: products.imageRearUrl,
+    imageLabelUrl: products.imageLabelUrl,
+    imageNutritionUrl: products.imageNutritionUrl,
+    gstRate: products.gstRate,
+    mrp: storeSkus.mrp, sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty,
     availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
     storeId: storeSkus.storeId,
@@ -589,7 +603,31 @@ export async function snoozeRefillReminder(id: number, userId: number, days: num
   const snoozedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   await db.update(refillReminders).set({ snoozedUntil }).where(and(eq(refillReminders.id, id), eq(refillReminders.userId, userId)));
 }
-
+/** Returns reminders that are currently snoozed (snoozedUntil > now) */
+export async function getSnoozedReminders(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  return db.select({
+    id: refillReminders.id, userId: refillReminders.userId,
+    avgIntervalDays: refillReminders.avgIntervalDays,
+    nextReminderAt: refillReminders.nextReminderAt,
+    lastOrderedAt: refillReminders.lastOrderedAt,
+    isDismissed: refillReminders.isDismissed,
+    snoozedUntil: refillReminders.snoozedUntil,
+    productId: products.id, name: products.name, brand: products.brand,
+    form: products.form, strength: products.strength, packSize: products.packSize,
+    isChronicMedication: products.isChronicMedication, imageUrl: products.imageUrl,
+  }).from(refillReminders)
+    .innerJoin(products, eq(refillReminders.productId, products.id))
+    .where(and(
+      eq(refillReminders.userId, userId),
+      eq(refillReminders.isDismissed, false),
+      sql`${refillReminders.snoozedUntil} IS NOT NULL`,
+      sql`${refillReminders.snoozedUntil} > ${now}`
+    ))
+    .orderBy(refillReminders.snoozedUntil);
+}
 export async function upsertRefillReminder(userId: number, productId: number, lastOrderedAt: Date, avgIntervalDays: number) {
   const db = await getDb();
   if (!db) return;

@@ -23,15 +23,19 @@ export default function RefillReminders() {
   const { data: reminders, isLoading } = trpc.refills.list.useQuery(undefined, {
     enabled: isAuthenticated,
   });
+  const { data: snoozedData } = trpc.refills.listSnoozed.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
 
   const dismiss = trpc.refills.dismiss.useMutation({
-    onSuccess: () => utils.refills.list.invalidate(),
+    onSuccess: () => { utils.refills.list.invalidate(); utils.refills.listSnoozed.invalidate(); },
     onError: (e) => toast.error(e.message),
   });
 
   const snooze = trpc.refills.snooze.useMutation({
     onSuccess: (_, vars) => {
       utils.refills.list.invalidate();
+      utils.refills.listSnoozed.invalidate();
       setSnoozeOpen(null);
       toast.success(`Reminder snoozed for ${vars.days} day${vars.days > 1 ? "s" : ""}`);
     },
@@ -74,14 +78,10 @@ export default function RefillReminders() {
     );
   }
 
-  const activeReminders = (reminders ?? []).filter((r: any) => {
-    if (!r.snoozedUntil) return true;
-    return new Date(r.snoozedUntil) <= new Date();
-  });
-  const snoozedReminders = (reminders ?? []).filter((r: any) => {
-    if (!r.snoozedUntil) return false;
-    return new Date(r.snoozedUntil) > new Date();
-  });
+  // Active reminders come from the server (already filtered to exclude currently-snoozed)
+  const activeReminders = reminders ?? [];
+  // Snoozed reminders come from the dedicated endpoint
+  const snoozedReminders = snoozedData ?? [];
 
   return (
     <AppLayout>

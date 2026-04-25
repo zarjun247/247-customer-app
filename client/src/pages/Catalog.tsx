@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw, Clock } from "lucide-react";
+import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw, Clock, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { TRPCClientError } from "@trpc/client";
@@ -61,10 +61,131 @@ function ProductPlaceholder({ category }: { category: string }) {
   );
 }
 
-// ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ item, cartQty, onAdd, onRemove }: {
+// ─── Product Detail Modal ─────────────────────────────────────────────────────
+function ProductDetailModal({ item, cartQty, onAdd, onRemove, onClose }: {
   item: any; cartQty: number;
-  onAdd: () => void; onRemove: () => void;
+  onAdd: () => void; onRemove: () => void; onClose: () => void;
+}) {
+  const available = Number(item.availableQty) || 0;
+  const isRx = item.requiresPrescription;
+  const avail = getAvailabilityLabel(available, isRx, item.schedule ?? "");
+  const canAdd = available > 0;
+  const images = [
+    item.imageUrl, item.imageHeroUrl, item.imageSideUrl,
+    item.imageRearUrl, item.imageLabelUrl, item.imageNutritionUrl,
+  ].filter(Boolean) as string[];
+  const [imgIdx, setImgIdx] = useState(0);
+  const safeIdx = Math.min(imgIdx, Math.max(0, images.length - 1));
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.75)" }}
+      onClick={onClose}>
+      <div
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden"
+        style={{ background: "#141416", border: "1px solid #2A2A2E", maxHeight: "92dvh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <h2 className="text-base font-semibold leading-snug pr-4" style={{ color: "#F0F0F2" }}>{item.name}</h2>
+          <button onClick={onClose} className="p-1 rounded-lg transition-opacity hover:opacity-60 shrink-0"
+            style={{ color: "#6B6B75" }}><X size={16} /></button>
+        </div>
+        {images.length > 0 ? (
+          <div className="relative mx-4 mb-3 rounded-xl overflow-hidden" style={{ aspectRatio: "4/3", background: "#0A0A0B" }}>
+            <img src={images[safeIdx]} alt={`${item.name} view ${safeIdx + 1}`}
+              className="w-full h-full object-contain" />
+            {images.length > 1 && (
+              <>
+                <button onClick={() => setImgIdx(i => Math.max(0, i - 1))} disabled={safeIdx === 0}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 disabled:opacity-20"
+                  style={{ background: "rgba(14,14,16,0.80)", color: "#F0F0F2" }}>
+                  <ChevronLeft size={14} />
+                </button>
+                <button onClick={() => setImgIdx(i => Math.min(images.length - 1, i + 1))} disabled={safeIdx === images.length - 1}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-80 disabled:opacity-20"
+                  style={{ background: "rgba(14,14,16,0.80)", color: "#F0F0F2" }}>
+                  <ChevronRight size={14} />
+                </button>
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                  {images.map((_, i) => (
+                    <button key={i} onClick={() => setImgIdx(i)}
+                      className="w-1.5 h-1.5 rounded-full transition-all"
+                      style={{ background: i === safeIdx ? "#2B7FFF" : "rgba(255,255,255,0.25)" }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="mx-4 mb-3 rounded-xl overflow-hidden" style={{ aspectRatio: "4/3", background: "#0A0A0B" }}>
+            <ProductPlaceholder category={item.category ?? "medicine"} />
+          </div>
+        )}
+        <div className="px-4 pb-5 space-y-3">
+          {(item.displayLabel || item.packSize) && (
+            <p className="text-sm" style={{ color: "#A0A0A8" }}>{item.displayLabel || item.packSize}</p>
+          )}
+          {item.companyName && (
+            <p className="text-xs" style={{ color: "#6B6B75" }}>{item.companyName}</p>
+          )}
+          {isRx && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg w-fit"
+              style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)" }}>
+              <ShieldCheck size={12} strokeWidth={2} style={{ color: "#F59E0B" }} />
+              <span className="text-xs font-semibold" style={{ color: "#F59E0B" }}>Prescription required</span>
+            </div>
+          )}
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-semibold" style={{ color: "#F0F0F2" }}>₹{Number(item.sellingPrice).toFixed(0)}</span>
+            {Number(item.mrp) > Number(item.sellingPrice) && (
+              <span className="text-sm line-through" style={{ color: "#4B4B55" }}>₹{Number(item.mrp).toFixed(0)}</span>
+            )}
+            {item.gstRate && (
+              <span className="text-xs ml-auto" style={{ color: "#4B4B55" }}>incl. {item.gstRate}% GST</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: avail.color }} />
+            <span className="text-xs font-medium" style={{ color: avail.color }}>{avail.label}</span>
+          </div>
+          {canAdd && (
+            cartQty === 0 ? (
+              <button onClick={onAdd}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+                style={{ background: "#2B7FFF", color: "white" }}>
+                Add to order
+              </button>
+            ) : (
+              <div className="flex items-center justify-between rounded-xl px-4 py-3"
+                style={{ background: "rgba(43,127,255,0.12)", border: "1px solid rgba(43,127,255,0.25)" }}>
+                <button onClick={onRemove} className="transition-opacity hover:opacity-60" style={{ color: "#2B7FFF" }}>
+                  <Minus size={16} />
+                </button>
+                <span className="text-sm font-semibold" style={{ color: "#2B7FFF" }}>{cartQty} in order</span>
+                <button onClick={onAdd} disabled={cartQty >= available}
+                  className="transition-opacity hover:opacity-60 disabled:opacity-30" style={{ color: "#2B7FFF" }}>
+                  <Plus size={16} />
+                </button>
+              </div>
+            )
+          )}
+          {item.genericName && (
+            <div className="flex items-start gap-2 p-3 rounded-lg"
+              style={{ background: "#0A0A0B", border: "1px solid #1C1C1F" }}>
+              <Info size={12} strokeWidth={1.75} className="mt-0.5 shrink-0" style={{ color: "#4B4B55" }} />
+              <p className="text-xs leading-relaxed" style={{ color: "#6B6B75" }}>
+                Generic name: <span style={{ color: "#A0A0A8" }}>{item.genericName}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─── Product Card ─────────────────────────────────────────────────────────────
+function ProductCard({ item, cartQty, onAdd, onRemove, onDetail }: {
+  item: any; cartQty: number;
+  onAdd: () => void; onRemove: () => void; onDetail: () => void;
 }) {
   const available = Number(item.availableQty) || 0;
   const isRx = item.requiresPrescription;
@@ -75,7 +196,8 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
 
   return (
     <div className="flex flex-col rounded-xl overflow-hidden transition-all hover:opacity-90"
-      style={{ background: "#141416", border: "1px solid #2A2A2E" }}>
+      style={{ background: "#141416", border: "1px solid #2A2A2E" }}
+      onClick={onDetail}>
 
       {/* ── Visual zone ─────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden" style={{ aspectRatio: "4/3", background: "#141416" }}>
@@ -165,7 +287,7 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
         {/* Add / qty control */}
         {canAdd && (
           cartQty === 0 ? (
-            <button onClick={onAdd}
+            <button onClick={e => { e.stopPropagation(); onAdd(); }}
               className="w-full py-2 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-95"
               style={{ background: "#2B7FFF", color: "white" }}>
               Add
@@ -173,14 +295,14 @@ function ProductCard({ item, cartQty, onAdd, onRemove }: {
           ) : (
             <div className="flex items-center justify-between rounded-lg px-3 py-1.5"
               style={{ background: "rgba(43,127,255,0.12)", border: "1px solid rgba(43,127,255,0.25)" }}>
-              <button onClick={onRemove} className="transition-opacity hover:opacity-60"
+              <button onClick={e => { e.stopPropagation(); onRemove(); }} className="transition-opacity hover:opacity-60"
                 style={{ color: "#2B7FFF" }}>
                 <Minus size={13} />
               </button>
               <span className="text-xs font-semibold" style={{ color: "#2B7FFF" }}>
                 {cartQty}
               </span>
-              <button onClick={onAdd} disabled={cartQty >= available}
+              <button onClick={e => { e.stopPropagation(); onAdd(); }} disabled={cartQty >= available}
                 className="transition-opacity hover:opacity-60 disabled:opacity-30"
                 style={{ color: "#2B7FFF" }}>
                 <Plus size={13} />
@@ -215,6 +337,7 @@ export default function Catalog() {
   const [offset, setOffset] = useState(0);
   const [allItems, setAllItems] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(true);
+  const [selectedSku, setSelectedSku] = useState<any | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<any>(null);
 
@@ -591,6 +714,7 @@ export default function Catalog() {
                   cartQty={getCartQty(item.skuId)}
                   onAdd={() => handleAdd(item)}
                   onRemove={() => handleRemove(item)}
+                  onDetail={() => setSelectedSku(item)}
                 />
               ))}
             </div>
@@ -631,6 +755,16 @@ export default function Catalog() {
           </div>
         )}
       </div>
+      {/* ── Product detail modal ─────────────────────────────────────── */}
+      {selectedSku && (
+        <ProductDetailModal
+          item={selectedSku}
+          cartQty={getCartQty(selectedSku.skuId)}
+          onAdd={() => handleAdd(selectedSku)}
+          onRemove={() => handleRemove(selectedSku)}
+          onClose={() => setSelectedSku(null)}
+        />
+      )}
     </AppLayout>
   );
 }
