@@ -318,4 +318,19 @@ p {
       max-width: 1280px;
     }
   }
+
+  /* ── Safe-area utilities for iOS notch / home-bar devices ─────────────── */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* bottom nav bar (64px) + iOS home-bar inset */
+  .pb-safe-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
 }

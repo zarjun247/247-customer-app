@@ -1,6 +1,13 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 /**
+ * Centralized logo asset — transparent background version.
+ * Use this everywhere in the app UI so the logo integrates cleanly with the dark theme.
+ * The black-background version is for external/print use only.
+ */
+export const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
+
+/**
  * Returns the app-owned login page path.
  * Accepts an optional returnPath so the login page can redirect back after auth.
  */

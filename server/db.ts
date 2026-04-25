@@ -13,6 +13,7 @@ import {
   productVariants,
   products,
   refillReminders,
+  rxPriorApprovals,
   storeSkus,
   stores,
   users,
@@ -402,6 +403,152 @@ export async function getPrescriptionById(id: number) {
 }
 
 // ─── Refill Reminders ─────────────────────────────────────────────────────────
+// ─── Prescription Vault / Lane helpers ──────────────────────────────────────
+/** Returns all on-file prescriptions for a user (status = 'on_file' or 'approved') */
+export async function getPrescriptionVault(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(prescriptions)
+    .where(and(
+      eq(prescriptions.userId, userId),
+      or(
+        eq(prescriptions.status, "on_file"),
+        eq(prescriptions.status, "approved")
+      )
+    ))
+    .orderBy(desc(prescriptions.createdAt));
+}
+/** Marks a prescription as on-file (vault) */
+export async function markPrescriptionOnFile(rxId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(prescriptions)
+    .set({ status: "on_file", lane: "on_file" })
+    .where(and(eq(prescriptions.id, rxId), eq(prescriptions.userId, userId)));
+}
+/** Creates a prior approval record for a prescription */
+export async function createPriorApproval(
+  rxId: number,
+  pharmacistId: number,
+  validUntil: Date,
+  linkedProductIds: number[],
+  notes?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const [r] = await db.insert(rxPriorApprovals).values({
+    rxId,
+    approvedByPharmacistId: pharmacistId,
+    validUntil,
+    linkedProductIds: JSON.stringify(linkedProductIds),
+    notes,
+  });
+  return (r as any).insertId as number;
+}
+/** Gets valid prior approvals for a user */
+export async function getActivePriorApprovals(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: rxPriorApprovals.id,
+    rxId: rxPriorApprovals.rxId,
+    validUntil: rxPriorApprovals.validUntil,
+    linkedProductIds: rxPriorApprovals.linkedProductIds,
+    notes: rxPriorApprovals.notes,
+    createdAt: rxPriorApprovals.createdAt,
+  }).from(rxPriorApprovals)
+    .innerJoin(prescriptions, eq(rxPriorApprovals.rxId, prescriptions.id))
+    .where(and(
+      eq(prescriptions.userId, userId),
+      gt(rxPriorApprovals.validUntil, new Date())
+    ))
+    .orderBy(desc(rxPriorApprovals.createdAt));
+}
+// ─── Sponsored Shelf helpers ──────────────────────────────────────────────────
+/** Returns featured/sponsored SKUs for a store, filtered to safe categories only */
+const SPONSORED_SAFE_CATEGORIES = ["fmcg", "wellness", "nutrition", "devices", "baby"] as const;
+export async function getSponsoredShelf(storeId: number, limit = 8) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  return db.select({
+    skuId: storeSkus.id,
+    productId: products.id,
+    variantId: storeSkus.variantId,
+    name: products.name,
+    brand: products.brand,
+    genericName: products.genericName,
+    form: productVariants.form,
+    strength: productVariants.strength,
+    packSize: productVariants.packSize,
+    displayLabel: productVariants.displayLabel,
+    schedule: products.schedule,
+    requiresPrescription: products.requiresPrescription,
+    isChronicMedication: products.isChronicMedication,
+    category: products.category,
+    companyName: products.companyName,
+    imageUrl: products.imageUrl,
+    mrp: storeSkus.mrp,
+    sellingPrice: storeSkus.sellingPrice,
+    stockQty: storeSkus.stockQty,
+    softLockedQty: storeSkus.softLockedQty,
+    availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
+    isFeatured: storeSkus.isFeatured,
+    sponsorPriority: storeSkus.sponsorPriority,
+    sponsorCategory: storeSkus.sponsorCategory,
+    sponsorLabel: storeSkus.sponsorLabel,
+  }).from(storeSkus)
+    .innerJoin(products, eq(storeSkus.productId, products.id))
+    .leftJoin(productVariants, eq(storeSkus.variantId, productVariants.id))
+    .where(and(
+      eq(storeSkus.storeId, storeId),
+      eq(storeSkus.isActive, true),
+      eq(storeSkus.isFeatured, true),
+      eq(products.requiresPrescription, false),  // NEVER sponsor Rx products
+      or(
+        ...SPONSORED_SAFE_CATEGORIES.map(c => eq(products.category, c))
+      ),
+      or(
+        sql`${storeSkus.sponsorValidUntil} IS NULL`,
+        gt(storeSkus.sponsorValidUntil, now)
+      )
+    ))
+    .orderBy(desc(storeSkus.sponsorPriority))
+    .limit(limit);
+}
+// ─── Catalog normalization helpers ───────────────────────────────────────────
+/** Builds searchable tokens from product fields for FTS */
+export function buildSearchableTokens(product: {
+  name: string;
+  brand?: string | null;
+  genericName?: string | null;
+  companyName?: string | null;
+  strength?: string | null;
+  form?: string | null;
+  barcode?: string | null;
+}): string {
+  const parts = [
+    product.name,
+    product.brand,
+    product.genericName,
+    product.companyName,
+    product.strength,
+    product.form,
+    product.barcode,
+  ]
+    .filter(Boolean)
+    .map(s => s!.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim());
+  const tokenSet = new Set(parts.join(" ").split(" ").filter(t => t.length > 1));
+  return Array.from(tokenSet).join(" ");
+}
+/** Normalizes a product name to a canonical form */
+export function normalizeProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/tablet|capsule|syrup|injection|ointment|cream|gel|drops|suspension|solution/gi, s => s.toLowerCase())
+    .trim();
+}
 export async function getRefillReminders(userId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -412,6 +559,7 @@ export async function getRefillReminders(userId: number) {
     nextReminderAt: refillReminders.nextReminderAt,
     lastOrderedAt: refillReminders.lastOrderedAt,
     isDismissed: refillReminders.isDismissed,
+    snoozedUntil: refillReminders.snoozedUntil,
     productId: products.id, name: products.name, brand: products.brand,
     form: products.form, strength: products.strength, packSize: products.packSize,
     isChronicMedication: products.isChronicMedication, imageUrl: products.imageUrl,
@@ -420,6 +568,11 @@ export async function getRefillReminders(userId: number) {
     .where(and(
       eq(refillReminders.userId, userId),
       eq(refillReminders.isDismissed, false),
+      // Exclude snoozed reminders that haven't expired yet
+      or(
+        sql`${refillReminders.snoozedUntil} IS NULL`,
+        lte(refillReminders.snoozedUntil, now)
+      ),
       lte(refillReminders.nextReminderAt, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000))
     ))
     .orderBy(refillReminders.nextReminderAt);
@@ -429,6 +582,12 @@ export async function dismissRefillReminder(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
   await db.update(refillReminders).set({ isDismissed: true }).where(and(eq(refillReminders.id, id), eq(refillReminders.userId, userId)));
+}
+export async function snoozeRefillReminder(id: number, userId: number, days: number) {
+  const db = await getDb();
+  if (!db) return;
+  const snoozedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  await db.update(refillReminders).set({ snoozedUntil }).where(and(eq(refillReminders.id, id), eq(refillReminders.userId, userId)));
 }
 
 export async function upsertRefillReminder(userId: number, productId: number, lastOrderedAt: Date, avgIntervalDays: number) {

@@ -17,8 +17,7 @@ import {
   Building2, MapPin, ChevronRight, CheckCircle2, User,
   Search, Clock, AlertTriangle, X, Loader2,
 } from "lucide-react";
-
-const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
+import { LOGO_URL } from "@/const";
 
 type Step = "name" | "address" | "flat" | "service" | "confirm";
 

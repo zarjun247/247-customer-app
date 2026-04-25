@@ -134,7 +134,7 @@ export default function Orders() {
                       <div className="flex items-start justify-between mb-2.5">
                         <div>
                           <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
-                            Order #{order.id}
+                            Order #{String(order.id).padStart(6,'0')}
                           </p>
                           <p className="text-xs mt-0.5" style={{ color: "#4B4B55" }}>
                             {new Date(order.createdAt).toLocaleDateString("en-IN", {
@@ -177,7 +177,7 @@ export default function Orders() {
                       <div className="flex items-start justify-between mb-2.5">
                         <div>
                           <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
-                            Order #{order.id}
+                            Order #{String(order.id).padStart(6,'0')}
                           </p>
                           <p className="text-xs mt-0.5" style={{ color: "#4B4B55" }}>
                             {new Date(order.createdAt).toLocaleDateString("en-IN", {

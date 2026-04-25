@@ -15,6 +15,8 @@ import {
   getWhatsappSession, upsertWhatsappSession, getBuildingById,
   computeRefillIntervalFromHistory, getOrderItemsForReorder,
   createWhatsappPrescription, generateAndStoreInvoice,
+  getPrescriptionVault, markPrescriptionOnFile, getActivePriorApprovals,
+  getSponsoredShelf, snoozeRefillReminder,
 } from "./db";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
@@ -155,6 +157,12 @@ const catalogRouter = router({
   sku: protectedProcedure
     .input(z.object({ skuId: z.number() }))
     .query(async ({ input }) => getSkuById(input.skuId)),
+  /** Sponsored shelf — OTC/wellness/nutrition/devices/personal care only, never Rx */
+  sponsored: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    if (!user?.onboardingComplete || !user?.assignedStoreId) return [];
+    return getSponsoredShelf(user.assignedStoreId, 8);
+  }),
   store: protectedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.user.id);
     // Guard: require completed onboarding
@@ -384,6 +392,21 @@ const prescriptionRouter = router({
       if (!rx || rx.userId !== ctx.user.id) throw new Error("Not found");
       return rx;
     }),
+  /** Prescription vault — approved + on-file prescriptions */
+  vault: protectedProcedure.query(async ({ ctx }) => getPrescriptionVault(ctx.user.id)),
+  /** Mark an approved prescription as permanently on-file */
+  markOnFile: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const rx = await getPrescriptionById(input.id);
+      if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+      if (rx.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "Only approved prescriptions can be stored on file" });
+      await markPrescriptionOnFile(input.id, ctx.user.id);
+      await writeAuditLog(ctx.user.id, "prescription_marked_on_file", "prescription", input.id);
+      return { success: true };
+    }),
+  /** Active prior approvals for the current user */
+  priorApprovals: protectedProcedure.query(async ({ ctx }) => getActivePriorApprovals(ctx.user.id)),
 });
 
 // ─── Refill Reminders Router ──────────────────────────────────────────────────
@@ -393,6 +416,13 @@ const refillRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       await dismissRefillReminder(input.id, ctx.user.id);
+      return { success: true };
+    }),
+  /** Snooze a refill reminder for N days (1, 3, or 7) */
+  snooze: protectedProcedure
+    .input(z.object({ id: z.number(), days: z.union([z.literal(1), z.literal(3), z.literal(7)]) }))
+    .mutation(async ({ ctx, input }) => {
+      await snoozeRefillReminder(input.id, ctx.user.id, input.days);
       return { success: true };
     }),
 });

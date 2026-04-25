@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw } from "lucide-react";
+import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { TRPCClientError } from "@trpc/client";
@@ -234,6 +234,13 @@ export default function Catalog() {
     { search: debouncedSearch, category, limit: LIMIT, offset },
     { enabled: isAuthenticated && isReady, retry: false }
   );
+  // Sponsored shelf — only for non-Rx categories when no search is active
+  const sponsoredEnabled = isAuthenticated && isReady && !debouncedSearch &&
+    ["all", "wellness", "nutrition", "devices", "fmcg"].includes(category);
+  const { data: sponsoredItems } = trpc.catalog.sponsored.useQuery(
+    undefined,
+    { enabled: sponsoredEnabled }
+  );
   const { data: cartItems } = trpc.cart.get.useQuery(undefined, { enabled: isAuthenticated });
   const utils = trpc.useUtils();
   const upsertCart = trpc.cart.upsert.useMutation({
@@ -332,6 +339,38 @@ export default function Catalog() {
               className="px-6 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
               style={{ background: "#2B7FFF", color: "white" }}>
               Set up my pharmacy
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+  // ── Store closed / service unavailable ──────────────────────────────────────────────────
+  if (isReady && store && (store as any).openNow === false && !isFetching && allItems.length === 0) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#0A0A0B" }}>
+          <div className="flex flex-col items-center text-center gap-5 max-w-xs">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.20)" }}>
+              <Clock size={22} strokeWidth={1.5} style={{ color: "#F59E0B" }} />
+            </div>
+            <div>
+              <p className="text-base font-semibold mb-2" style={{ color: "#F0F0F2" }}>
+                {store.name} is currently closed
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "#6B6B75" }}>
+                {(store as any).openingHoursText
+                  ? `Opens ${(store as any).openingHoursText}. Upload a prescription and we'll prepare your order when we reopen.`
+                  : "Your pharmacy is currently closed. Upload a prescription and we'll prepare your order when we reopen."}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/rx-upload")}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: "#2B7FFF", color: "white" }}>
+              <FileText size={14} strokeWidth={1.75} />
+              Upload prescription for later
             </button>
           </div>
         </div>
@@ -450,6 +489,39 @@ export default function Catalog() {
           </div>
         </div>
 
+        {/* ── Sponsored shelf strip (non-Rx, no active search) ──────────── */}
+        {sponsoredEnabled && sponsoredItems && (sponsoredItems as any[]).length > 0 && (
+          <div className="px-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#4B4B55" }}>Featured</p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded"
+                style={{ background: "rgba(43,127,255,0.10)", color: "#2B7FFF" }}>Sponsored</span>
+            </div>
+            <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+              {(sponsoredItems as any[]).map((item: any) => (
+                <div key={item.skuId} className="flex-shrink-0 w-36 rounded-xl overflow-hidden"
+                  style={{ background: "#141416", border: "1px solid rgba(43,127,255,0.15)" }}>
+                  <div className="relative" style={{ aspectRatio: "4/3", background: "#141416" }}>
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    ) : (
+                      <ProductPlaceholder category={item.category ?? "wellness"} />
+                    )}
+                    <div className="absolute top-1.5 right-1.5">
+                      <span className="text-[9px] px-1 py-0.5 rounded"
+                        style={{ background: "rgba(43,127,255,0.85)", color: "white" }}>Ad</span>
+                    </div>
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs font-semibold line-clamp-2 mb-1" style={{ color: "#F0F0F2" }}>{item.name}</p>
+                    <p className="text-xs font-semibold" style={{ color: "#2B7FFF" }}>₹{Number(item.sellingPrice).toFixed(0)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {/* ── Results count ──────────────────────────────────────────────── */}
         <div className="px-4 pt-4 pb-1">
           <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#4B4B55" }}>

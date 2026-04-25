@@ -10,8 +10,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-
-const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
+import { LOGO_URL } from "@/const";
 
 const NAV_ITEMS = [
   { path: "/catalog",   icon: Home,          label: "Medications" },

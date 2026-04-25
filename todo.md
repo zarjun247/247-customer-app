@@ -344,3 +344,31 @@
 - [x] P9: Add /api/health observability endpoint and alert stubs
 - [x] P9: Register helpdesk/consent routes in App.tsx
 - [x] TypeScript clean + all tests passing (73/73)
+
+## Hardening Pass (v16 — pasted_content_7.txt)
+- [x] Schema: add snoozedUntil to refillReminders table
+- [x] Schema: add gstRate, searchableTokens to products table
+- [x] Schema: add isFeatured, sponsorPriority, sponsorCategory, sponsorLabel, sponsorValidUntil to storeSkus (sponsored shelf)
+- [x] Schema: add imageAngle2Url, imageAngle3Url, imageAngle4Url, imageVideoUrl to products (multi-angle media)
+- [x] Schema: run migration (15 ALTER TABLE statements applied)
+- [x] Server db.ts: getSponsoredShelf helper (OTC/wellness only, never Rx, ordered by sponsorPriority)
+- [x] Server db.ts: getPrescriptionVault helper (approved + on-file prescriptions)
+- [x] Server db.ts: markPrescriptionOnFile helper
+- [x] Server db.ts: createPriorApproval / getActivePriorApprovals helpers
+- [x] Server db.ts: snoozeRefillReminder helper
+- [x] Server db.ts: buildSearchableTokens / normalizeProductName catalog normalization helpers
+- [x] Server routers.ts: catalog.sponsored procedure (sponsored shelf)
+- [x] Server routers.ts: prescriptions.vault, prescriptions.markOnFile, prescriptions.priorApprovals procedures
+- [x] Server routers.ts: refills.snooze procedure
+- [x] Frontend: centralize LOGO_URL in const.ts; remove local definitions from Login, AppLayout, SplashScreen, Home, Onboarding
+- [x] Frontend: safe-area utility classes (pb-safe, pt-safe, mb-safe, pb-safe-nav) in index.css
+- [x] Frontend: Catalog — store-closed state with "Upload prescription for later" CTA
+- [x] Frontend: Catalog — sponsored shelf horizontal strip (OTC/wellness, no Rx, no active search)
+- [x] Frontend: Orders/OrderDetail — zero-padded display IDs (ORD-000123) instead of raw integer IDs
+- [x] Frontend: RxUpload — 4-lane UI (upload / vault / pharmacist-assisted / prior approvals banner)
+- [x] Frontend: RxUpload — additional_verification status in STATUS_CONFIG
+- [x] Frontend: RxUpload — "Save to vault" CTA on approved prescriptions
+- [x] Frontend: RefillReminders — snooze dropdown (1d / 3d / 7w) with optimistic update
+- [x] Frontend: RefillReminders — chronic medication badge (Repeat icon + "Chronic" label)
+- [x] Frontend: RefillReminders — snoozed reminders section (dimmed, shows wake-up date)
+- [x] TypeScript clean (0 errors), 73/73 tests passing

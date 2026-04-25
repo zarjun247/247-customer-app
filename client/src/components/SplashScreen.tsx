@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-
-// ─── Logo URL ────────────────────────────────────────────────────────────────
-const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
+import { LOGO_URL } from "@/const";
 
 // ─── Loading state sequence ───────────────────────────────────────────────────
 const LOADING_STATES = [

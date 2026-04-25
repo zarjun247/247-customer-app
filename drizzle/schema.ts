@@ -99,6 +99,17 @@ export const products = mysqlTable("products", {
   imageApprovalStatus: mysqlEnum("imageApprovalStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
   imageApprovedAt: timestamp("imageApprovedAt"),
   imageApprovedBy: int("imageApprovedBy"),
+  // Multi-angle image slots (CDN/storage-ready)
+  imageHeroUrl: text("imageHeroUrl"),
+  imageSideUrl: text("imageSideUrl"),
+  imageRearUrl: text("imageRearUrl"),
+  imageLabelUrl: text("imageLabelUrl"),
+  imageNutritionUrl: text("imageNutritionUrl"),
+  // Catalog truth fields
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("12.00"),
+  searchableTokens: text("searchableTokens"),  // space-separated normalized tokens for FTS
+  canonicalName: varchar("canonicalName", { length: 300 }),  // normalized deduped name
+  masterProductId: int("masterProductId"),  // FK to canonical product (for dedup)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -120,6 +131,12 @@ export const productVariants = mysqlTable("product_variants", {
 // ─── Store SKUs ───────────────────────────────────────────────────────────────
 export const storeSkus = mysqlTable("store_skus", {
   id: int("id").autoincrement().primaryKey(),
+  // Sponsored shelf / monetization hooks (OTC/wellness/nutrition/devices/personal care only)
+  isFeatured: boolean("isFeatured").default(false).notNull(),
+  sponsorPriority: int("sponsorPriority").default(0).notNull(),  // higher = shown first
+  sponsorCategory: varchar("sponsorCategory", { length: 50 }),  // 'featured_brand' | 'sponsored_shelf' | 'brand_spotlight'
+  sponsorLabel: varchar("sponsorLabel", { length: 100 }),  // display label e.g. "Sponsored"
+  sponsorValidUntil: timestamp("sponsorValidUntil"),  // null = permanent
   storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   variantId: int("variantId"),
@@ -303,11 +320,11 @@ export const refillReminders = mysqlTable("refill_reminders", {
   avgIntervalDays: int("avgIntervalDays").default(30).notNull(),
   nextReminderAt: timestamp("nextReminderAt").notNull(),
   isDismissed: boolean("isDismissed").default(false).notNull(),
+  snoozedUntil: timestamp("snoozedUntil"),  // null = not snoozed
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
-// ─── WhatsApp Sessions ────────────────────────────────────────────────────────
+// ─── WhatsApp Sessionss ────────────────────────────────────────────────────────
 export const whatsappSessions = mysqlTable("whatsapp_sessions", {
   id: int("id").autoincrement().primaryKey(),
   phone: varchar("phone", { length: 20 }).notNull(),

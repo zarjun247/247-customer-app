@@ -156,7 +156,7 @@ export default function OrderDetail() {
           <div className="flex-1">
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl font-semibold" style={{ color: "#F0F0F2" }}>
-                Order #{order.id}
+                Order #{String(order.id).padStart(6,'0')}
               </h1>
               <StatusBadge status={order.status} />
             </div>

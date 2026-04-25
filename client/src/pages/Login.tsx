@@ -5,9 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { ArrowLeft, Phone, Shield, ChevronRight } from "lucide-react";
-import { getManusSSOUrl } from "@/const";
-
-const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
+import { getManusSSOUrl, LOGO_URL } from "@/const";
 
 // ─── Google SVG icon ──────────────────────────────────────────────────────────
 function GoogleIcon() {

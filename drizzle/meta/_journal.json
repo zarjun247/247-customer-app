@@ -71,6 +71,13 @@
       "when": 1777102074369,
       "tag": "0009_jazzy_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1777108433810,
+      "tag": "0010_tiny_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }

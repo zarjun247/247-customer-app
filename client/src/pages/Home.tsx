@@ -1,14 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, LOGO_URL } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, RefreshCw, ChevronRight, Search, FileText, ShieldCheck } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import AppLayout from "@/components/AppLayout";
-
-const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
-
-// ─── Status label helpers ─────────────────────────────────────────────────────
+// Status label helpers
 const STATUS_LABEL: Record<string, { label: string; color: string; dot: string }> = {
   created:              { label: "Received",       color: "#2B7FFF", dot: "#2B7FFF" },
   pharmacist_reviewing: { label: "Being verified", color: "#F59E0B", dot: "#F59E0B" },
