@@ -236,3 +236,19 @@
 - [x] Vitest: serviceability check returns correct store for Hiranandani coordinates
 - [x] Vitest: serviceability check returns null for coordinates outside all service radii
 - [x] TypeScript clean + all tests passing
+
+## Phase 1 — Production Auth & Route Guards (v15)
+
+- [ ] Make users.openId nullable (phone users have no Manus openId)
+- [ ] Add getUserByPhone and upsertUserByPhone helpers to db.ts
+- [ ] verifyOtp procedure: upsert user by phone + create session cookie on success
+- [ ] Replace getLoginUrl() Manus portal redirect with /login in const.ts
+- [ ] Fix main.tsx global UNAUTHORIZED handler to redirect to /login
+- [ ] Fix Home.tsx LandingHome "Get started" to link to /login
+- [ ] Fix useAuth redirectPath default to /login
+- [ ] Add Google OAuth server route and client button
+- [ ] Add Apple OAuth server route and client button
+- [ ] OnboardingGuard in App.tsx: also check assignedStoreId
+- [ ] Verify useOnboardingGuard is applied to all 6 protected pages
+- [ ] Catalog: all 5 states differentiated (loading/onboarding/unavailable/error/empty)
+- [x] TypeScript clean + all tests passing

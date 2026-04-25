@@ -57,8 +57,8 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated || !user) return;
     // Already on a public route — no redirect needed
     if (isPublicRoute) return;
-    // Profile loaded and onboarding not complete → redirect
-    if (profile && !profile.onboardingComplete) {
+    // Profile loaded and onboarding not complete OR no store assigned → redirect
+    if (profile && (!profile.onboardingComplete || !profile.assignedStoreId)) {
       navigate("/onboarding");
     }
   }, [authLoading, profileLoading, isAuthenticated, user, profile, isPublicRoute, navigate]);

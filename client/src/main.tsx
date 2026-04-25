@@ -15,10 +15,13 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (typeof window === "undefined") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
   if (!isUnauthorized) return;
 
-  window.location.href = getLoginUrl();
+  // Already on login page — don't redirect in a loop
+  if (window.location.pathname === "/login") return;
+
+  // Redirect to app-owned login page, preserving the current path as return URL
+  window.location.href = getLoginUrl(window.location.pathname);
 };
 
 queryClient.getQueryCache().subscribe(event => {

@@ -219,7 +219,7 @@ function AuthenticatedHome() {
 // ─── Unauthenticated landing ──────────────────────────────────────────────────
 function LandingHome() {
   const [, navigate] = useLocation();
-  const loginUrl = getLoginUrl();
+  const loginUrl = "/login"; // app-owned login page
   useEffect(() => {
     document.title = "24/7 Pharmacy — Medicines Delivered 24/7";
   }, []);

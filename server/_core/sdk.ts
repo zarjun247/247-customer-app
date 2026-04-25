@@ -214,8 +214,7 @@ class SDKServer {
 
       if (
         !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
+        !isNonEmptyString(appId)
       ) {
         console.warn("[Auth] Session payload missing required fields");
         return null;
@@ -224,7 +223,7 @@ class SDKServer {
       return {
         openId,
         appId,
-        name,
+        name: typeof name === "string" ? name : "",
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -268,6 +267,16 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // ── Phone-OTP users: openId is "phone:+91XXXXXXXXXX" ──────────────────────
+    if (sessionUserId.startsWith("phone:")) {
+      const phone = sessionUserId.slice(6);
+      const phoneUser = await db.getUserByPhone(phone);
+      if (!phoneUser) throw ForbiddenError("Phone user not found");
+      return phoneUser;
+    }
+
+    // ── Manus OAuth users ─────────────────────────────────────────────────────
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically
@@ -292,10 +301,13 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    // Update lastSignedIn — openId is guaranteed non-null for OAuth users
+    if (user.openId) {
+      await db.upsertUser({
+        openId: user.openId,
+        lastSignedIn: signedInAt,
+      });
+    }
 
     return user;
   }

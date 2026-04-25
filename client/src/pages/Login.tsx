@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { ArrowLeft, Phone, Shield, ChevronRight } from "lucide-react";
-import { getLoginUrl } from "@/const";
+import { getManusSSOUrl } from "@/const";
 
 const LOGO_URL = "/manus-storage/247-logo-transparent_ef3d59e3.png";
 
@@ -33,11 +33,17 @@ function AppleIcon() {
 type AuthStep = "entry" | "phone" | "otp";
 
 export default function Login() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [step, setStep] = useState<AuthStep>("entry");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [devCode, setDevCode] = useState<string | undefined>();
+
+  // After login, redirect to the return URL if present, else smart-route
+  const getReturnPath = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("return") ?? null;
+  };
 
   const sendOtp = trpc.auth.sendOtp.useMutation({
     onSuccess: (data) => {
@@ -47,12 +53,22 @@ export default function Login() {
     onError: (e) => toast.error(e.message),
   });
 
+  const utils = trpc.useUtils();
   const verifyOtp = trpc.auth.verifyOtp.useMutation({
-    onSuccess: (data) => {
-      if (data.valid) {
+    onSuccess: async (data) => {
+      if (!data.valid) {
+        toast.error("That code doesn't match. Please try again.");
+        return;
+      }
+      // Invalidate auth cache so useAuth() picks up the new session
+      await utils.auth.me.invalidate();
+      const returnPath = getReturnPath();
+      if (returnPath) {
+        navigate(returnPath);
+      } else if (!data.onboardingComplete || !data.assignedStoreId) {
         navigate("/onboarding");
       } else {
-        toast.error("That code doesn't match. Please try again.");
+        navigate("/catalog");
       }
     },
     onError: (e) => toast.error(e.message),
@@ -126,7 +142,7 @@ export default function Login() {
 
             {/* Google */}
             <button
-              onClick={() => window.location.href = getLoginUrl()}
+              onClick={() => window.location.href = getManusSSOUrl()}
               className="w-full h-12 flex items-center justify-between px-4 rounded-xl border transition-all"
               style={{
                 background: "#141416",

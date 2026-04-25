@@ -11,6 +11,7 @@ import {
   createPrescription, getPrescriptionsByUser, getPrescriptionById,
   getRefillReminders, dismissRefillReminder, upsertRefillReminder,
   getUserById, updateUserProfile, writeAuditLog, createOtp, verifyOtp,
+  upsertUserByPhone, getUserByPhone,
   getWhatsappSession, upsertWhatsappSession, getBuildingById,
   computeRefillIntervalFromHistory, getOrderItemsForReorder,
   createWhatsappPrescription, generateAndStoreInvoice,
@@ -41,9 +42,30 @@ const authRouter = router({
     }),
   verifyOtp: publicProcedure
     .input(z.object({ phone: z.string(), code: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const valid = await verifyOtp(input.phone, input.code);
-      return { valid };
+      if (!valid) return { valid: false as const };
+
+      // Upsert the user record keyed by phone
+      const { id: userId } = await upsertUserByPhone(input.phone, { loginMethod: "phone" });
+      const user = await getUserByPhone(input.phone);
+      if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
+
+      // Create a session JWT and set the cookie — same mechanism as OAuth callback
+      const { sdk } = await import("./_core/sdk");
+      // Use phone as the stable identifier (openId may be null for phone users)
+      const sessionToken = await sdk.signSession(
+        { openId: `phone:${input.phone}`, appId: "", name: user.name ?? "" },
+        { expiresInMs: 1000 * 60 * 60 * 24 * 365 }
+      );
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 1000 * 60 * 60 * 24 * 365 });
+
+      return {
+        valid: true as const,
+        onboardingComplete: user.onboardingComplete,
+        assignedStoreId: user.assignedStoreId,
+      };
     }),
 });
 

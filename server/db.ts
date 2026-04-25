@@ -52,6 +52,45 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
 
+/**
+ * Get a user by phone number (used for phone/OTP login).
+ */
+export async function getUserByPhone(phone: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
+  return result[0];
+}
+
+/**
+ * Upsert a user identified by phone number.
+ * Creates the user if they don't exist; updates lastSignedIn if they do.
+ * openId is left null for phone-only users.
+ */
+export async function upsertUserByPhone(phone: string, extra?: {
+  name?: string;
+  loginMethod?: string;
+}): Promise<{ id: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const existing = await getUserByPhone(phone);
+  if (existing) {
+    await db.update(users)
+      .set({ lastSignedIn: new Date(), ...(extra?.name ? { name: extra.name } : {}) })
+      .where(eq(users.id, existing.id));
+    return { id: existing.id };
+  }
+  const result = await db.insert(users).values({
+    openId: null as unknown as string, // nullable after migration
+    phone,
+    name: extra?.name ?? null,
+    loginMethod: extra?.loginMethod ?? "phone",
+    lastSignedIn: new Date(),
+  });
+  const insertId = (result[0] as any).insertId as number;
+  return { id: insertId };
+}
+
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
