@@ -325,3 +325,22 @@
 - [x] Verify OTP verifyOtp creates real session cookie (already done - confirm)
 - [x] Verify no node/pharmacy-node language in client (already done - confirm)
 - [x] TypeScript clean + all tests passing
+
+## Full System Completion Pass (v15)
+
+- [x] P3: Add invoiceIngestions, ocrJobs, humanReviewItems schema tables; run migration
+- [x] P3: Build server/ingestion.ts (OCR hook, duplicate merge, batch creation, barcode scaffolding)
+- [x] P3: Build server/routers/ingestionRouter.ts (upload, list, review, approve, reject procedures)
+- [x] P3: Build client InvoiceIngestion.tsx human review console
+- [x] P3: Register /ingestion route in App.tsx
+- [x] P6: Build server/notifications.ts (6 customer notification templates)
+- [x] P6: Build server/connectors.ts (WhatsApp/SMS, payment, printer, ERP stubs)
+- [x] P6: Wire notifications into order lifecycle procedures
+- [x] P9: Add helpdesk_tickets, user_consents schema tables; run migration
+- [x] P9: Build server/routers/helpdeskRouter.ts (ticket create/list/resolve)
+- [x] P9: Build client Helpdesk.tsx grievance/support page
+- [x] P9: Build client Consent.tsx privacy/consent surface
+- [x] P9: Build server/worker.ts queue worker scaffolding with retry logic
+- [x] P9: Add /api/health observability endpoint and alert stubs
+- [x] P9: Register helpdesk/consent routes in App.tsx
+- [x] TypeScript clean + all tests passing (73/73)

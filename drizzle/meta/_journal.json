@@ -64,6 +64,13 @@
       "when": 1777097735101,
       "tag": "0008_colorful_pyro",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1777102074369,
+      "tag": "0009_jazzy_patriot",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,9 @@ import RefillReminders from "./pages/RefillReminders";
 import PharmacistWorkbench from "./pages/PharmacistWorkbench";
 import PharmacyOS from "./pages/PharmacyOS";
 import FounderDashboard from "./pages/FounderDashboard";
+import InvoiceIngestion from "./pages/InvoiceIngestion";
+import Helpdesk from "./pages/Helpdesk";
+import Consent from "./pages/Consent";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -117,6 +120,9 @@ function Router() {
         <Route path="/workbench" component={PharmacistWorkbench} />
         <Route path="/pharmacy-os" component={PharmacyOS} />
         <Route path="/dashboard" component={FounderDashboard} />
+        <Route path="/ingestion">{() => <ProtectedRoute><InvoiceIngestion /></ProtectedRoute>}</Route>
+        <Route path="/helpdesk">{() => <ProtectedRoute><Helpdesk /></ProtectedRoute>}</Route>
+        <Route path="/consent">{() => <ProtectedRoute><Consent /></ProtectedRoute>}</Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

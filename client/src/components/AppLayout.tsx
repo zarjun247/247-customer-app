@@ -7,6 +7,7 @@ import {
   RefreshCw,
   User,
   ShieldCheck,
+  MessageSquare,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 

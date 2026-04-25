@@ -491,6 +491,93 @@ export const metricsEvents = mysqlTable("metrics_events", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// ─── Priority 3: Invoice Ingestion Engine ────────────────────────────────────
+export const invoiceIngestions = mysqlTable("invoice_ingestions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  uploadedBy: int("uploadedBy").notNull(),
+  fileKey: varchar("fileKey", { length: 500 }).notNull(),
+  fileUrl: varchar("fileUrl", { length: 500 }).notNull(),
+  originalFilename: varchar("originalFilename", { length: 255 }).notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).default("application/pdf").notNull(),
+  status: mysqlEnum("status", ["pending_ocr", "ocr_complete", "under_review", "approved", "rejected"]).default("pending_ocr").notNull(),
+  ocrRawText: text("ocrRawText"),
+  itemCount: int("itemCount").default(0).notNull(),
+  approvedCount: int("approvedCount").default(0).notNull(),
+  rejectedCount: int("rejectedCount").default(0).notNull(),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const ocrJobs = mysqlTable("ocr_jobs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  ingestionId: bigint("ingestionId", { mode: "number" }).notNull(),
+  status: mysqlEnum("status", ["queued", "processing", "complete", "failed"]).default("queued").notNull(),
+  provider: varchar("provider", { length: 50 }).default("llm").notNull(),
+  rawResponse: text("rawResponse"),
+  parsedJson: text("parsedJson"),  // JSON array of extracted line items
+  errorMessage: text("errorMessage"),
+  attempts: int("attempts").default(0).notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const humanReviewItems = mysqlTable("human_review_items", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  ingestionId: bigint("ingestionId", { mode: "number" }).notNull(),
+  rawLine: text("rawLine").notNull(),
+  parsedName: varchar("parsedName", { length: 255 }),
+  parsedBatch: varchar("parsedBatch", { length: 100 }),
+  parsedExpiry: varchar("parsedExpiry", { length: 50 }),
+  parsedQty: int("parsedQty"),
+  parsedUnitCost: decimal("parsedUnitCost", { precision: 10, scale: 2 }),
+  parsedMrp: decimal("parsedMrp", { precision: 10, scale: 2 }),
+  parsedBarcode: varchar("parsedBarcode", { length: 100 }),
+  matchedProductId: int("matchedProductId"),
+  matchedVariantId: int("matchedVariantId"),
+  matchConfidence: decimal("matchConfidence", { precision: 5, scale: 2 }),
+  isDuplicate: boolean("isDuplicate").default(false).notNull(),
+  duplicateOfId: bigint("duplicateOfId", { mode: "number" }),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "merged"]).default("pending").notNull(),
+  reviewedBy: int("reviewedBy"),
+  reviewNote: text("reviewNote"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Priority 9: Helpdesk / Grievance ─────────────────────────────────────────
+export const helpdeskTickets = mysqlTable("helpdesk_tickets", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  orderId: int("orderId"),
+  prescriptionId: int("prescriptionId"),
+  category: mysqlEnum("category", ["order", "prescription", "delivery", "billing", "product", "account", "other"]).default("other").notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  status: mysqlEnum("status", ["open", "in_progress", "resolved", "closed"]).default("open").notNull(),
+  priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).default("normal").notNull(),
+  assignedTo: int("assignedTo"),
+  resolvedAt: timestamp("resolvedAt"),
+  resolutionNote: text("resolutionNote"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const userConsents = mysqlTable("user_consents", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  consentType: mysqlEnum("consentType", ["terms_of_service", "privacy_policy", "rx_data_processing", "marketing", "location"]).notNull(),
+  version: varchar("version", { length: 20 }).notNull(),
+  granted: boolean("granted").default(true).notNull(),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: varchar("userAgent", { length: 500 }),
+  grantedAt: timestamp("grantedAt").defaultNow().notNull(),
+  revokedAt: timestamp("revokedAt"),
+});
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
 export type User = typeof users.$inferSelect;
 export type ProductVariant = typeof productVariants.$inferSelect;

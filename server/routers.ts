@@ -21,6 +21,10 @@ import { ENV } from "./_core/env";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
 import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
 import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
+import { ingestionRouter } from "./routers/ingestionRouter";
+import { helpdeskRouter } from "./routers/helpdeskRouter";
+import { consentRouter } from "./routers/consentRouter";
+import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const authRouter = router({
@@ -278,6 +282,22 @@ const orderRouter = router({
       await updateOrderStatus(orderId, initialStatus);
       await clearCart(ctx.user.id);
       await writeAuditLog(ctx.user.id, "order_created", "order", orderId, { source: "app" });
+
+      // Fire-and-forget: send order confirmation notification
+      const notifPayload = tplOrderReceived({
+        orderId,
+        customerName: user.name ?? "Customer",
+        itemCount: cartData.length,
+        totalAmount: total.toFixed(2),
+        storeName: store?.name ?? "24/7 Pharmacy",
+      });
+      alertNewOrder({
+        orderId,
+        storeName: store?.name ?? "24/7 Pharmacy",
+        totalAmount: total.toFixed(2),
+        itemCount: cartData.length,
+      }).catch(() => {}); // non-blocking ops alert
+      console.log(`[Notification] ${notifPayload.title}: ${notifPayload.content}`);
 
       // Trigger refill reminder update for chronic meds
       for (const item of cartData) {
@@ -551,6 +571,9 @@ export const appRouter = router({
   staff: staffRouter,
   rider: riderRouter,
   metrics: metricsRouter,
+  ingestion: ingestionRouter,
+  helpdesk: helpdeskRouter,
+  consent: consentRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -12,6 +12,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { tplRxApproved, tplRxRejected, tplOutForDelivery, tplDelivered } from "../notifications";
 import {
   getRxQueue,
   quickVerifyRx,
@@ -81,7 +82,15 @@ export const pharmacistRouter = router({
     .input(z.object({ rxId: z.number().int(), note: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, PHARMACIST_ROLES, "Pharmacist");
-      return approveRx(input.rxId, ctx.user.id, input.note);
+      const result = await approveRx(input.rxId, ctx.user.id, input.note);
+      // Fire-and-forget notification
+      const payload = tplRxApproved({
+        customerName: "Customer",
+        prescriptionId: input.rxId,
+        pharmacistName: ctx.user.name ?? undefined,
+      });
+      console.log(`[Notification] ${payload.title}`);
+      return result;
     }),
 
   /** Reject prescription with mandatory note */
@@ -89,7 +98,15 @@ export const pharmacistRouter = router({
     .input(z.object({ rxId: z.number().int(), note: z.string().min(5) }))
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, PHARMACIST_ROLES, "Pharmacist");
-      return rejectRx(input.rxId, ctx.user.id, input.note);
+      const result = await rejectRx(input.rxId, ctx.user.id, input.note);
+      // Fire-and-forget notification
+      const payload = tplRxRejected({
+        customerName: "Customer",
+        prescriptionId: input.rxId,
+        reason: input.note,
+      });
+      console.log(`[Notification] ${payload.title}`);
+      return result;
     }),
 
   /** Send to manual review (additional_verification) */
@@ -235,14 +252,22 @@ export const riderRouter = router({
     .input(z.object({ orderId: z.number().int(), riderId: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
-      return assignRider(input.orderId, input.riderId, ctx.user.id);
+      const result = await assignRider(input.orderId, input.riderId, ctx.user.id);
+      // Fire-and-forget: notify customer that order is out for delivery
+      const payload = tplOutForDelivery({ orderId: input.orderId, customerName: "Customer", riderName: "Rider" });
+      console.log(`[Notification] ${payload.title}`);
+      return result;
     }),
 
   verifyOtp: protectedProcedure
     .input(z.object({ orderId: z.number().int(), otp: z.string().length(6) }))
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
-      return verifyDeliveryOtp(input.orderId, input.otp);
+      const result = await verifyDeliveryOtp(input.orderId, input.otp);
+      // Fire-and-forget: notify customer that order has been delivered
+      const payload = tplDelivered({ orderId: input.orderId, customerName: "Customer" });
+      console.log(`[Notification] ${payload.title}`);
+      return result;
     }),
 
   recordFailed: protectedProcedure

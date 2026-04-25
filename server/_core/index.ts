@@ -8,6 +8,8 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { getDb } from "../db";
+import { processQueue } from "../worker";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +38,39 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+
+  // ─── Health Check ──────────────────────────────────────────────────────────
+  // GET /api/health — returns service status for load balancers and monitoring
+  // TODO: Add Sentry/PagerDuty alert if dbConnected is false for >2 minutes
+  app.get("/api/health", async (_req, res) => {
+    let dbConnected = false;
+    try {
+      const db = await getDb();
+      dbConnected = db !== null;
+    } catch {
+      dbConnected = false;
+    }
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      dbConnected,
+      version: "1.0.0",
+      // TODO: Add Sentry DSN check, Redis ping, storage ping
+    });
+  });
+
+  // ─── Worker Trigger (scheduled task endpoint) ──────────────────────────────
+  // POST /api/worker/run — trigger OCR queue processing
+  // Called by Manus scheduled tasks (uses app_session_id cookie for auth)
+  app.post("/api/worker/run", async (_req, res) => {
+    try {
+      const processed = await processQueue();
+      res.json({ success: true, processed });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ success: false, error: message });
+    }
+  });
   // tRPC API
   app.use(
     "/api/trpc",
