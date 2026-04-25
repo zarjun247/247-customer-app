@@ -95,7 +95,7 @@ export default function Profile() {
               <div className="flex items-center gap-1.5">
                 <Building2 size={12} strokeWidth={1.75} style={{ color: "#6B6B75" }} />
                 <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
-                  {profile?.buildingName ?? ((profile as any)?.userAddress ? (profile as any).userAddress : (profile?.buildingId ? `Building ${profile.buildingId}` : "Not set"))}
+                  {profile?.buildingName ?? ((profile as any)?.userAddress ? (profile as any).userAddress : "Not set")}
                 </p>
               </div>
             </div>

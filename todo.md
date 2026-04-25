@@ -397,3 +397,13 @@
 - [x] Frontend App.tsx: register /doctor-consult route (ProtectedRoute)
 - [x] Frontend Home.tsx: add active consult banner (blue, tappable, navigates to /doctor-consult) in continuity hooks section
 - [x] TypeScript clean (0 errors), 73/73 tests passing
+
+## Final Polish Pass (v19 — pasted_content_10.txt)
+
+- [x] Catalog: add storeError service-unavailable state (server error guard before store-closed)
+- [x] Catalog: add OTC / Chronic / Medical Device / Nutrition product card flags (colour-coded badges)
+- [x] Catalog: add "Don't have a prescription?" consult shortcut on Rx product card tap
+- [x] Profile: fix raw buildingId fallback — show "Not set" instead of "Building {id}"
+- [x] RxUpload: add "Don't have a prescription? Talk to a doctor" ghost button below upload lane
+- [x] Home: add "Don't have a prescription? Talk to a doctor" tertiary CTA in empty state
+- [x] TypeScript clean (0 errors), 73/73 tests passing

@@ -283,6 +283,15 @@ export default function RxUpload() {
               </div>
             )}
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            {/* Don't have a prescription? shortcut */}
+            {!submitted && (
+              <button
+                onClick={() => navigate("/doctor-consult")}
+                className="w-full mt-2 py-2.5 rounded-xl text-xs font-medium transition-opacity hover:opacity-70"
+                style={{ color: "#6B6B75", background: "transparent", border: "1px solid #2A2A2E" }}>
+                Don’t have a prescription? Talk to a doctor
+              </button>
+            )}
           </div>
         )}
 

@@ -228,6 +228,14 @@ function AuthenticatedHome() {
                 <FileText size={15} strokeWidth={1.75} />
                 Upload a prescription
               </button>
+              <button
+                onClick={() => navigate("/doctor-consult")}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-medium transition-opacity hover:opacity-70"
+                style={{ background: "transparent", border: "1px solid #2A2A2E", color: "#6B6B75" }}
+              >
+                <Stethoscope size={13} strokeWidth={1.75} />
+                Don’t have a prescription? Talk to a doctor
+              </button>
             </div>
           </div>
         )}

@@ -183,9 +183,9 @@ function ProductDetailModal({ item, cartQty, onAdd, onRemove, onClose }: {
   );
 }
 // ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ item, cartQty, onAdd, onRemove, onDetail }: {
+function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
   item: any; cartQty: number;
-  onAdd: () => void; onRemove: () => void; onDetail: () => void;
+  onAdd: () => void; onRemove: () => void; onDetail: () => void; onConsult?: () => void;
 }) {
   const available = Number(item.availableQty) || 0;
   const isRx = item.requiresPrescription;
@@ -252,10 +252,31 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail }: {
 
         {/* Manufacturer */}
         {item.companyName && (
-          <p className="text-[10px] truncate mb-2.5 leading-snug" style={{ color: "#4B4B55" }}>
+          <p className="text-[10px] truncate mb-1.5 leading-snug" style={{ color: "#4B4B55" }}>
             {item.companyName}
           </p>
         )}
+
+        {/* Product type flags */}
+        {(() => {
+          const flags: Array<{ label: string; color: string; bg: string }> = [];
+          if (!item.requiresPrescription) flags.push({ label: "OTC", color: "#00C896", bg: "rgba(0,200,150,0.10)" });
+          if (item.isChronic) flags.push({ label: "Chronic", color: "#2B7FFF", bg: "rgba(43,127,255,0.10)" });
+          if (item.category === "devices") flags.push({ label: "Device", color: "#A0A0A8", bg: "rgba(160,160,168,0.10)" });
+          if (item.category === "nutrition") flags.push({ label: "Nutrition", color: "#00C896", bg: "rgba(0,200,150,0.10)" });
+          if (item.category === "baby") flags.push({ label: "Baby care", color: "#F43F5E", bg: "rgba(244,63,94,0.10)" });
+          if (flags.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {flags.map(f => (
+                <span key={f.label} className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                  style={{ color: f.color, background: f.bg }}>
+                  {f.label}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Availability */}
         {canAdd && (
@@ -309,6 +330,15 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail }: {
               </button>
             </div>
           )
+        )}
+        {/* Rx consult shortcut — only for Rx items when not in cart */}
+        {isRx && cartQty === 0 && onConsult && (
+          <button
+            onClick={e => { e.stopPropagation(); onConsult(); }}
+            className="w-full mt-1.5 py-1.5 rounded-lg text-[10px] font-medium transition-opacity hover:opacity-70"
+            style={{ color: "#6B6B75", background: "transparent", border: "1px solid #2A2A2E" }}>
+            Don't have a prescription?
+          </button>
         )}
       </div>
     </div>
@@ -494,6 +524,36 @@ export default function Catalog() {
               style={{ background: "#2B7FFF", color: "white" }}>
               <FileText size={14} strokeWidth={1.75} />
               Upload prescription for later
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+  // ── Store query error (service unavailable) ───────────────────────────────────────────────
+  if (storeError && !isOnboardingRequired(storeError)) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "#0A0A0B" }}>
+          <div className="flex flex-col items-center text-center gap-5 max-w-xs">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.20)" }}>
+              <AlertCircle size={22} strokeWidth={1.5} style={{ color: "#F59E0B" }} />
+            </div>
+            <div>
+              <p className="text-base font-semibold mb-2" style={{ color: "#F0F0F2" }}>
+                Service temporarily unavailable
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "#6B6B75" }}>
+                We could not reach your serving pharmacy right now. Please check your connection and try again.
+              </p>
+            </div>
+            <button
+              onClick={() => utils.catalog.store.invalidate()}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ background: "#141416", color: "#F0F0F2", border: "1px solid #2A2A2E" }}>
+              <RefreshCw size={14} strokeWidth={1.75} />
+              Try again
             </button>
           </div>
         </div>
@@ -715,6 +775,7 @@ export default function Catalog() {
                   onAdd={() => handleAdd(item)}
                   onRemove={() => handleRemove(item)}
                   onDetail={() => setSelectedSku(item)}
+                  onConsult={item.requiresPrescription ? () => navigate("/doctor-consult") : undefined}
                 />
               ))}
             </div>
