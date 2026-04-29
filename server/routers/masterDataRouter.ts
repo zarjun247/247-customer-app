@@ -838,6 +838,17 @@ const customerListRouter = router({
     }),
 });
 
+// ─── Part 3 routers ─────────────────────────────────────────────────────────────
+import {
+  doctorMasterRouter,
+  patientCategoryRouter,
+  staffMasterRouter,
+  storeMasterRouter,
+  buildingMasterRouter,
+  printerMasterRouter,
+  productMasterRouter,
+} from "./masterDataPart3Router";
+
 // ─── Compose masterDataRouter ─────────────────────────────────────────────────────
 export const masterDataRouter = router({
   suppliers: supplierRouter,
@@ -852,4 +863,12 @@ export const masterDataRouter = router({
   states: stateRouter,
   printers: printerRouter,
   customers: customerListRouter,
+  // Part 3
+  doctorMaster: doctorMasterRouter,
+  patientCategories: patientCategoryRouter,
+  staff: staffMasterRouter,
+  stores: storeMasterRouter,
+  buildings: buildingMasterRouter,
+  printerMaster: printerMasterRouter,
+  products: productMasterRouter,
 });

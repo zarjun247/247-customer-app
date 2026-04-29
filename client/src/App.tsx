@@ -54,6 +54,13 @@ import AdminCategories from "./pages/masters/AdminCategories";
 import AdminGenerics from "./pages/masters/AdminGenerics";
 import AdminSchedules from "./pages/masters/AdminSchedules";
 import AdminDiscountCategories from "./pages/masters/AdminDiscountCategories";
+import AdminDoctors from "./pages/masters/AdminDoctors";
+import AdminPatientCategories from "./pages/masters/AdminPatientCategories";
+import AdminStaff from "./pages/masters/AdminStaff";
+import AdminStores from "./pages/masters/AdminStores";
+import AdminBuildings from "./pages/masters/AdminBuildings";
+import AdminPrinters from "./pages/masters/AdminPrinters";
+import AdminProducts from "./pages/masters/AdminProducts";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -196,6 +203,13 @@ function Router() {
         <Route path="/admin/masters/generics" component={AdminGenerics} />
         <Route path="/admin/masters/schedules" component={AdminSchedules} />
         <Route path="/admin/masters/discount-categories" component={AdminDiscountCategories} />
+        <Route path="/admin/masters/doctors" component={AdminDoctors} />
+        <Route path="/admin/masters/patient-categories" component={AdminPatientCategories} />
+        <Route path="/admin/masters/staff" component={AdminStaff} />
+        <Route path="/admin/masters/stores" component={AdminStores} />
+        <Route path="/admin/masters/buildings" component={AdminBuildings} />
+        <Route path="/admin/masters/printers" component={AdminPrinters} />
+        <Route path="/admin/masters/products" component={AdminProducts} />
         <Route path="/admin/sales" component={CounterSale} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

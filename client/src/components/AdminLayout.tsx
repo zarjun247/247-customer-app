@@ -90,6 +90,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Staff", href: "/admin/masters/staff", icon: UserCog },
       { label: "Buildings", href: "/admin/masters/buildings", icon: Building2 },
       { label: "Stores", href: "/admin/masters/stores", icon: Boxes },
+      { label: "Patient Categories", href: "/admin/masters/patient-categories", icon: Tag },
+      { label: "Printers", href: "/admin/masters/printers", icon: Printer },
     ],
   },
   {

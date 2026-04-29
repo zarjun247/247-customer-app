@@ -1301,3 +1301,54 @@ export type ShiftClosing = typeof shiftClosings.$inferSelect;
 export type Ledger = typeof ledgers.$inferSelect;
 export type LedgerEntry = typeof ledgerEntries.$inferSelect;
 export type FinancialYear = typeof financialYears.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PART 3 — Master Data Part B + Upgraded Product Master
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Staff Master ─────────────────────────────────────────────────────────────
+export const staffMaster = mysqlTable("staff_master", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 300 }).notNull(),
+  role: mysqlEnum("role", ["pharmacist", "salesman", "cashier", "store_manager", "purchase_manager", "delivery_rider", "admin", "other"]).notNull(),
+  salesmanCode: varchar("salesmanCode", { length: 50 }),
+  pharmacistRegistrationNo: varchar("pharmacistRegistrationNo", { length: 100 }),
+  storeId: int("storeId"),
+  phone: varchar("phone", { length: 20 }),
+  email: varchar("email", { length: 200 }),
+  loginEnabled: boolean("loginEnabled").default(false).notNull(),
+  linkedUserId: int("linkedUserId"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Product Barcodes ─────────────────────────────────────────────────────────
+export const productBarcodes = mysqlTable("product_barcodes", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  barcode: varchar("barcode", { length: 200 }).notNull(),
+  barcodeType: mysqlEnum("barcodeType", ["ean13", "ean8", "code128", "qr", "datamatrix", "other"]).default("ean13").notNull(),
+  isPrimary: boolean("isPrimary").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Product Margin Rules ─────────────────────────────────────────────────────
+export const productMarginRules = mysqlTable("product_margin_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  storeId: int("storeId"),
+  minMarginPct: decimal("minMarginPct", { precision: 5, scale: 2 }).default("0.00"),
+  maxDiscountPct: decimal("maxDiscountPct", { precision: 5, scale: 2 }).default("0.00"),
+  roleOverrideRequired: boolean("roleOverrideRequired").default(false).notNull(),
+  effectiveFrom: timestamp("effectiveFrom").defaultNow().notNull(),
+  effectiveTo: timestamp("effectiveTo"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Type exports (PART 3) ────────────────────────────────────────────────────
+export type StaffMember = typeof staffMaster.$inferSelect;
+export type ProductBarcode = typeof productBarcodes.$inferSelect;
+export type ProductMarginRule = typeof productMarginRules.$inferSelect;

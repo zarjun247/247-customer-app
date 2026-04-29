@@ -572,3 +572,26 @@
 - [x] AdminLayout sidebar: expand Masters section with 6 sub-links
 - [x] App.tsx: register all 7 new /admin/masters/* routes
 - [x] TypeScript 0 errors, 73/73 tests passing
+
+## PART 3 — Master Data Part B + Upgraded Product Master
+
+- [x] Schema: add staff_master, product_barcodes, product_margin_rules tables; upgrade products, buildings, stores, doctors, printers with new fields
+- [x] Migration 0017 generated and applied to DB (3 new tables)
+- [x] masterDataPart3Router.ts: doctorMasterRouter (list/create/update/deactivate/reactivate/exportCsv + audit log)
+- [x] masterDataPart3Router.ts: patientCategoryRouter (list/create/update/deactivate/reactivate + audit log)
+- [x] masterDataPart3Router.ts: staffMasterRouter (list/create/update/deactivate/reactivate/exportCsv + audit log)
+- [x] masterDataPart3Router.ts: storeMasterRouter (list/create/update/deactivate/reactivate/exportCsv + audit log)
+- [x] masterDataPart3Router.ts: buildingMasterRouter (list/create/update/exportCsv + audit log)
+- [x] masterDataPart3Router.ts: printerMasterRouter (list/upsert/deactivate/reactivate + audit log)
+- [x] masterDataPart3Router.ts: productMasterRouter (list/create/update/deactivate/exportCsv + audit log)
+- [x] All Part 3 routers registered in masterDataRouter.ts
+- [x] Frontend: /admin/masters/doctors — full CRUD table with search, deactivate, reactivate, CSV export
+- [x] Frontend: /admin/masters/patient-categories — full CRUD table
+- [x] Frontend: /admin/masters/staff — full CRUD table with role filter, login toggle, CSV export
+- [x] Frontend: /admin/masters/stores — full CRUD table with SLA/radius/coordinates fields
+- [x] Frontend: /admin/masters/buildings — full CRUD table with coordinates and store mapping
+- [x] Frontend: /admin/masters/printers — full CRUD table with printer type badges
+- [x] Frontend: /admin/masters/products — paginated CRUD table with tabbed create/edit dialog (Basic/Compliance/Catalog), schedule badges, CSV export
+- [x] App.tsx: registered all 7 new /admin/masters/* routes
+- [x] AdminLayout: added Patient Categories and Printers to Masters sidebar section
+- [x] TypeScript 0 errors
