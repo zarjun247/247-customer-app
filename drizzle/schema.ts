@@ -767,11 +767,24 @@ export const states = mysqlTable("states", {
 });
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
+// ─── Drug / Product Category Master ─────────────────────────────────────────
+export const drugCategories = mysqlTable("drug_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryName: varchar("categoryName", { length: 200 }).notNull(),
+  parentCategoryId: int("parentCategoryId"),
+  marginPolicy: decimal("marginPolicy", { precision: 5, scale: 2 }).default("0.00"),
+  description: text("description"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+// ─── Suppliers ────────────────────────────────────────────────────────────────
 export const suppliers = mysqlTable("suppliers", {
   id: int("id").autoincrement().primaryKey(),
   supplierName: varchar("supplierName", { length: 300 }).notNull(),
   gstin: varchar("gstin", { length: 20 }),
   address: text("address"),
+  state: varchar("state", { length: 100 }),
   stateId: int("stateId"),
   contactPerson: varchar("contactPerson", { length: 200 }),
   phone: varchar("phone", { length: 20 }),

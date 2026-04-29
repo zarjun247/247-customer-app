@@ -85,7 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Categories", href: "/admin/masters/categories", icon: Tag },
       { label: "Generics / Salts", href: "/admin/masters/generics", icon: FlaskConical },
       { label: "Schedules", href: "/admin/masters/schedules", icon: ShieldCheck },
-      { label: "Discounts", href: "/admin/masters/discounts", icon: Tag },
+      { label: "Discounts", href: "/admin/masters/discount-categories", icon: Tag },
       { label: "Doctors", href: "/admin/masters/doctors", icon: Stethoscope },
       { label: "Staff", href: "/admin/masters/staff", icon: UserCog },
       { label: "Buildings", href: "/admin/masters/buildings", icon: Building2 },

@@ -42,7 +42,8 @@ export default function PurchaseEntry() {
   });
 
   const { data: invoices, refetch: refetchInvoices } = trpc.purchase.listInvoices.useQuery({ storeId: form.storeId });
-  const { data: suppliers } = trpc.masterData.suppliers.list.useQuery({ limit: 200 });
+  const { data: suppliersResp } = trpc.masterData.suppliers.list.useQuery({ limit: 200 });
+  const suppliers = (suppliersResp as any)?.rows ?? [];
   const { data: invoiceDetail, refetch: refetchDetail } = trpc.purchase.getInvoice.useQuery(
     { id: selectedInvoiceId! },
     { enabled: !!selectedInvoiceId }
@@ -177,7 +178,7 @@ export default function PurchaseEntry() {
                     <SelectValue placeholder="Select supplier" />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers?.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.supplierName}</SelectItem>)}
+                    {(suppliers as any[]).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.supplierName}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

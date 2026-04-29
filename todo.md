@@ -551,3 +551,24 @@
 - [x] /admin/reports/daily-sales, stock, expiry, purchase, h1, gst
 - [x] /admin/accounting: ledger, payment/receipt entry, Tally export placeholder
 - [x] /admin/utilities: printer setup, batch management, transaction lock, DB health
+
+## PART 2 — Master Data Part A (v25)
+
+- [x] Schema: add categories table (parentCategoryId, marginPolicy), add state varchar to suppliers
+- [x] masterDataRouter: supplierRouter — add deactivate + exportCsv + state field
+- [x] masterDataRouter: manufacturerRouter — add deactivate + exportCsv
+- [x] masterDataRouter: categoryRouter — create from scratch (list/create/update/deactivate/exportCsv)
+- [x] masterDataRouter: genericRouter — add deactivate + exportCsv
+- [x] masterDataRouter: scheduleRouter — add create/update/deactivate procedures
+- [x] masterDataRouter: discountCategoryRouter — add create/update/deactivate/exportCsv
+- [x] All mutations: write proper writeAuditLog calls (entityType, before, after, reason)
+- [x] Frontend: /admin/masters index hub page
+- [x] Frontend: /admin/masters/suppliers — full CRUD table with search, modal, deactivate, CSV export
+- [x] Frontend: /admin/masters/manufacturers — full CRUD table
+- [x] Frontend: /admin/masters/categories — full CRUD table with parent selector
+- [x] Frontend: /admin/masters/generics — full CRUD table
+- [x] Frontend: /admin/masters/schedules — full CRUD table with boolean toggles
+- [x] Frontend: /admin/masters/discount-categories — full CRUD table
+- [x] AdminLayout sidebar: expand Masters section with 6 sub-links
+- [x] App.tsx: register all 7 new /admin/masters/* routes
+- [x] TypeScript 0 errors, 73/73 tests passing

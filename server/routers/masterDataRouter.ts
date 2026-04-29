@@ -29,157 +29,463 @@ async function getDbSafe() {
   return db;
 }
 
-async function logAudit(userId: number, detail: string) {
+async function logAudit(
+  userId: number,
+  action: string,
+  entityType: string,
+  entityId: number | string,
+  before?: unknown,
+  after?: unknown,
+  reason?: string,
+) {
   try {
     const db = await getDbSafe();
     const { auditLogs } = await import("../../drizzle/schema");
+    const numericId = typeof entityId === "string" ? parseInt(entityId, 10) || 0 : entityId;
     await db.insert(auditLogs).values({
+      actorId: userId,
+      actorType: "user",
       userId,
-      action: "update",
-      entityType: "master_data",
-      payload: detail,
+      action,
+      entityType,
+      entityId: numericId,
+      beforeJson: before ? JSON.stringify(before) : null,
+      afterJson: after ? JSON.stringify(after) : null,
+      reason: reason ?? null,
     });
   } catch { /* non-critical */ }
+}
+
+function toCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return "";
+  const headers = Object.keys(rows[0]);
+  const escape = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [headers.join(","), ...rows.map(r => headers.map(h => escape(r[h])).join(","))].join("\n");
 }
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 const supplierRouter = router({
   list: protectedProcedure
-    .input(z.object({ search: z.string().optional(), limit: z.number().default(50), offset: z.number().default(0) }))
+    .input(z.object({
+      search: z.string().optional(),
+      activeOnly: z.boolean().default(false),
+      limit: z.number().default(100),
+      offset: z.number().default(0),
+    }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
       const db = await getDbSafe();
       const { suppliers } = await import("../../drizzle/schema");
-      const { like } = await import("drizzle-orm");
-      const where = input.search ? like(suppliers.supplierName, `%${input.search}%`) : undefined;
-      return db.select().from(suppliers).where(where).orderBy(suppliers.supplierName).limit(input.limit).offset(input.offset);
+      const { like, and, eq } = await import("drizzle-orm");
+      const conds: any[] = [];
+      if (input.search) conds.push(like(suppliers.supplierName, `%${input.search}%`));
+      if (input.activeOnly) conds.push(eq(suppliers.isActive, true));
+      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const rows = await db.select().from(suppliers).where(where).orderBy(suppliers.supplierName).limit(input.limit).offset(input.offset);
+      return { rows, total: rows.length };
+    }),
+
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { suppliers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [row] = await db.select().from(suppliers).where(eq(suppliers.id, input.id));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
     }),
 
   create: protectedProcedure
     .input(z.object({
-      supplierName: z.string().min(1),
-      gstin: z.string().optional(),
+      supplierName: z.string().min(1).max(300),
+      gstin: z.string().max(20).optional(),
       address: z.string().optional(),
-      contactPerson: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().email().optional(),
-      paymentTerms: z.string().optional(),
-      defaultDiscount: z.string().optional(),
-      cashDiscount: z.string().optional(),
-      creditDays: z.number().optional(),
+      state: z.string().max(100).optional(),
+      contactPerson: z.string().max(200).optional(),
+      phone: z.string().max(20).optional(),
+      email: z.string().email().max(320).optional(),
+      paymentTerms: z.string().max(100).optional(),
+      defaultDiscount: z.string().default("0.00"),
+      cashDiscount: z.string().default("0.00"),
+      creditDays: z.number().default(0),
     }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
       const { suppliers } = await import("../../drizzle/schema");
-      const [result] = await db.insert(suppliers).values({ ...input });
+      const [result] = await db.insert(suppliers).values({ ...input, isActive: true });
       const id = (result as { insertId: number }).insertId;
-      await logAudit(ctx.user!.id, `Created supplier: ${input.supplierName}`);
+      await logAudit(ctx.user!.id, "create", "supplier", id, undefined, input);
       return { id };
     }),
 
   update: protectedProcedure
-    .input(z.object({ id: z.number(), data: z.object({
-      supplierName: z.string().optional(),
-      gstin: z.string().optional(),
+    .input(z.object({
+      id: z.number(),
+      supplierName: z.string().min(1).max(300).optional(),
+      gstin: z.string().max(20).optional(),
       address: z.string().optional(),
-      contactPerson: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().email().optional(),
-      paymentTerms: z.string().optional(),
+      state: z.string().max(100).optional(),
+      contactPerson: z.string().max(200).optional(),
+      phone: z.string().max(20).optional(),
+      email: z.string().email().max(320).optional(),
+      paymentTerms: z.string().max(100).optional(),
       defaultDiscount: z.string().optional(),
       cashDiscount: z.string().optional(),
       creditDays: z.number().optional(),
-      isActive: z.boolean().optional(),
-    }) }))
+      reason: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
       const { suppliers } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await db.update(suppliers).set(input.data).where(eq(suppliers.id, input.id));
-      await logAudit(ctx.user!.id, `Updated supplier #${input.id}`);
+      const [before] = await db.select().from(suppliers).where(eq(suppliers.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      const { id, reason, ...fields } = input;
+      await db.update(suppliers).set(fields).where(eq(suppliers.id, id));
+      await logAudit(ctx.user!.id, "update", "supplier", id, before, fields, reason);
       return { success: true };
+    }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { suppliers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [before] = await db.select().from(suppliers).where(eq(suppliers.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(suppliers).set({ isActive: false }).where(eq(suppliers.id, input.id));
+      await logAudit(ctx.user!.id, "deactivate", "supplier", input.id, before, { isActive: false }, input.reason);
+      return { success: true };
+    }),
+
+  reactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { suppliers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(suppliers).set({ isActive: true }).where(eq(suppliers.id, input.id));
+      await logAudit(ctx.user!.id, "reactivate", "supplier", input.id);
+      return { success: true };
+    }),
+
+  exportCsv: protectedProcedure
+    .input(z.object({}).optional())
+    .mutation(async ({ ctx }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { suppliers } = await import("../../drizzle/schema");
+      const rows = await db.select().from(suppliers).orderBy(suppliers.supplierName);
+      return toCsv(rows as Record<string, unknown>[]);
     }),
 });
 
-// ─── Manufacturers ────────────────────────────────────────────────────────────
+// ─── Manufacturers ────────────────────────────────────────────────────────────────
 const manufacturerRouter = router({
   list: protectedProcedure
-    .input(z.object({ search: z.string().optional(), limit: z.number().default(100) }))
+    .input(z.object({
+      search: z.string().optional(),
+      activeOnly: z.boolean().default(false),
+      limit: z.number().default(200),
+    }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
       const db = await getDbSafe();
       const { manufacturers } = await import("../../drizzle/schema");
-      const { like } = await import("drizzle-orm");
-      const where = input.search ? like(manufacturers.companyName, `%${input.search}%`) : undefined;
-      return db.select().from(manufacturers).where(where).orderBy(manufacturers.companyName).limit(input.limit);
+      const { like, and, eq } = await import("drizzle-orm");
+      const conds: any[] = [];
+      if (input.search) conds.push(like(manufacturers.companyName, `%${input.search}%`));
+      if (input.activeOnly) conds.push(eq(manufacturers.isActive, true));
+      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const rows = await db.select().from(manufacturers).where(where).orderBy(manufacturers.companyName).limit(input.limit);
+      return { rows, total: rows.length };
+    }),
+
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { manufacturers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [row] = await db.select().from(manufacturers).where(eq(manufacturers.id, input.id));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
     }),
 
   create: protectedProcedure
-    .input(z.object({ companyName: z.string().min(1), aliases: z.string().optional(), gstin: z.string().optional() }))
+    .input(z.object({
+      companyName: z.string().min(1).max(300),
+      aliases: z.string().optional(),
+      gstin: z.string().max(20).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
       const { manufacturers } = await import("../../drizzle/schema");
-      const [result] = await db.insert(manufacturers).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const [result] = await db.insert(manufacturers).values({ ...input, isActive: true });
+      const id = (result as { insertId: number }).insertId;
+      await logAudit(ctx.user!.id, "create", "manufacturer", id, undefined, input);
+      return { id };
     }),
 
   update: protectedProcedure
-    .input(z.object({ id: z.number(), data: z.object({
-      companyName: z.string().optional(),
+    .input(z.object({
+      id: z.number(),
+      companyName: z.string().min(1).max(300).optional(),
       aliases: z.string().optional(),
-      gstin: z.string().optional(),
-      isActive: z.boolean().optional(),
-    }) }))
+      gstin: z.string().max(20).optional(),
+      reason: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
       const { manufacturers } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await db.update(manufacturers).set(input.data).where(eq(manufacturers.id, input.id));
+      const [before] = await db.select().from(manufacturers).where(eq(manufacturers.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      const { id, reason, ...fields } = input;
+      await db.update(manufacturers).set(fields).where(eq(manufacturers.id, id));
+      await logAudit(ctx.user!.id, "update", "manufacturer", id, before, fields, reason);
       return { success: true };
+    }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { manufacturers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [before] = await db.select().from(manufacturers).where(eq(manufacturers.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(manufacturers).set({ isActive: false }).where(eq(manufacturers.id, input.id));
+      await logAudit(ctx.user!.id, "deactivate", "manufacturer", input.id, before, { isActive: false }, input.reason);
+      return { success: true };
+    }),
+
+  reactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { manufacturers } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(manufacturers).set({ isActive: true }).where(eq(manufacturers.id, input.id));
+      await logAudit(ctx.user!.id, "reactivate", "manufacturer", input.id);
+      return { success: true };
+    }),
+
+  exportCsv: protectedProcedure
+    .input(z.object({}).optional())
+    .mutation(async ({ ctx }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { manufacturers } = await import("../../drizzle/schema");
+      const rows = await db.select().from(manufacturers).orderBy(manufacturers.companyName);
+      return toCsv(rows as Record<string, unknown>[]);
+    }),
+});
+
+// ─── Drug Categories ──────────────────────────────────────────────────────────
+const categoryRouter = router({
+  list: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      activeOnly: z.boolean().default(false),
+      limit: z.number().default(200),
+    }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { drugCategories } = await import("../../drizzle/schema");
+      const { like, and, eq } = await import("drizzle-orm");
+      const conds: any[] = [];
+      if (input.search) conds.push(like(drugCategories.categoryName, `%${input.search}%`));
+      if (input.activeOnly) conds.push(eq(drugCategories.isActive, true));
+      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const rows = await db.select().from(drugCategories).where(where).orderBy(drugCategories.categoryName).limit(input.limit);
+      return { rows, total: rows.length };
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      categoryName: z.string().min(1).max(200),
+      parentCategoryId: z.number().optional(),
+      marginPolicy: z.string().optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { drugCategories } = await import("../../drizzle/schema");
+      const [result] = await db.insert(drugCategories).values({ ...input, isActive: true });
+      const id = (result as { insertId: number }).insertId;
+      await logAudit(ctx.user!.id, "create", "drug_category", id, undefined, input);
+      return { id };
+    }),
+
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      categoryName: z.string().min(1).max(200).optional(),
+      parentCategoryId: z.number().optional(),
+      marginPolicy: z.string().optional(),
+      description: z.string().optional(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { drugCategories } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [before] = await db.select().from(drugCategories).where(eq(drugCategories.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      const { id, reason, ...fields } = input;
+      await db.update(drugCategories).set(fields).where(eq(drugCategories.id, id));
+      await logAudit(ctx.user!.id, "update", "drug_category", id, before, fields, reason);
+      return { success: true };
+    }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { drugCategories } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [before] = await db.select().from(drugCategories).where(eq(drugCategories.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(drugCategories).set({ isActive: false }).where(eq(drugCategories.id, input.id));
+      await logAudit(ctx.user!.id, "deactivate", "drug_category", input.id, before, { isActive: false }, input.reason);
+      return { success: true };
+    }),
+
+  reactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { drugCategories } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(drugCategories).set({ isActive: true }).where(eq(drugCategories.id, input.id));
+      await logAudit(ctx.user!.id, "reactivate", "drug_category", input.id);
+      return { success: true };
+    }),
+
+  exportCsv: protectedProcedure
+    .input(z.object({}).optional())
+    .mutation(async ({ ctx }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { drugCategories } = await import("../../drizzle/schema");
+      const rows = await db.select().from(drugCategories).orderBy(drugCategories.categoryName);
+      return toCsv(rows as Record<string, unknown>[]);
     }),
 });
 
 // ─── Generics ─────────────────────────────────────────────────────────────────
 const genericRouter = router({
   list: protectedProcedure
-    .input(z.object({ search: z.string().optional(), limit: z.number().default(100) }))
+    .input(z.object({
+      search: z.string().optional(),
+      activeOnly: z.boolean().default(false),
+      limit: z.number().default(200),
+    }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
       const db = await getDbSafe();
       const { generics } = await import("../../drizzle/schema");
-      const { like } = await import("drizzle-orm");
-      const where = input.search ? like(generics.genericName, `%${input.search}%`) : undefined;
-      return db.select().from(generics).where(where).orderBy(generics.genericName).limit(input.limit);
+      const { like, and, eq } = await import("drizzle-orm");
+      const conds: any[] = [];
+      if (input.search) conds.push(like(generics.genericName, `%${input.search}%`));
+      if (input.activeOnly) conds.push(eq(generics.isActive, true));
+      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const rows = await db.select().from(generics).where(where).orderBy(generics.genericName).limit(input.limit);
+      return { rows, total: rows.length };
     }),
 
   create: protectedProcedure
-    .input(z.object({ genericName: z.string().min(1), aliases: z.string().optional(), therapeuticClass: z.string().optional() }))
+    .input(z.object({
+      genericName: z.string().min(1).max(300),
+      aliases: z.string().optional(),
+      therapeuticClass: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
       const { generics } = await import("../../drizzle/schema");
-      const [result] = await db.insert(generics).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const [result] = await db.insert(generics).values({ ...input, isActive: true });
+      const id = (result as { insertId: number }).insertId;
+      await logAudit(ctx.user!.id, "create", "generic", id, undefined, input);
+      return { id };
     }),
 
   update: protectedProcedure
-    .input(z.object({ id: z.number(), data: z.object({
-      genericName: z.string().optional(),
+    .input(z.object({
+      id: z.number(),
+      genericName: z.string().min(1).max(300).optional(),
       aliases: z.string().optional(),
       therapeuticClass: z.string().optional(),
-      isActive: z.boolean().optional(),
-    }) }))
+      reason: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
       const { generics } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await db.update(generics).set(input.data).where(eq(generics.id, input.id));
+      const [before] = await db.select().from(generics).where(eq(generics.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      const { id, reason, ...fields } = input;
+      await db.update(generics).set(fields).where(eq(generics.id, id));
+      await logAudit(ctx.user!.id, "update", "generic", id, before, fields, reason);
       return { success: true };
+    }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { generics } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [before] = await db.select().from(generics).where(eq(generics.id, input.id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(generics).set({ isActive: false }).where(eq(generics.id, input.id));
+      await logAudit(ctx.user!.id, "deactivate", "generic", input.id, before, { isActive: false }, input.reason);
+      return { success: true };
+    }),
+
+  reactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { generics } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(generics).set({ isActive: true }).where(eq(generics.id, input.id));
+      await logAudit(ctx.user!.id, "reactivate", "generic", input.id);
+      return { success: true };
+    }),
+
+  exportCsv: protectedProcedure
+    .input(z.object({}).optional())
+    .mutation(async ({ ctx }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { generics } = await import("../../drizzle/schema");
+      const rows = await db.select().from(generics).orderBy(generics.genericName);
+      return toCsv(rows as Record<string, unknown>[]);
     }),
 });
 
@@ -264,16 +570,48 @@ const scheduleRouter = router({
       const [result] = await db.insert(scheduleMaster).values(input);
       return { id: (result as { insertId: number }).insertId };
     }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { scheduleMaster } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(scheduleMaster).set({ isActive: false }).where(eq(scheduleMaster.id, input.id));
+      return { success: true };
+    }),
+
+  reactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { scheduleMaster } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(scheduleMaster).set({ isActive: true }).where(eq(scheduleMaster.id, input.id));
+      return { success: true };
+    }),
 });
 
 // ─── Discount Categories ──────────────────────────────────────────────────────
 const discountCategoryRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    requireStaff(ctx.user!.role);
-    const db = await getDbSafe();
-    const { discountCategories } = await import("../../drizzle/schema");
-    return db.select().from(discountCategories).orderBy(discountCategories.categoryName);
-  }),
+  list: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      activeOnly: z.boolean().default(false),
+    }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { discountCategories } = await import("../../drizzle/schema");
+      const { like, and, eq } = await import("drizzle-orm");
+      const conds: any[] = [];
+      if (input.search) conds.push(like(discountCategories.categoryName, `%${input.search}%`));
+      if (input.activeOnly) conds.push(eq(discountCategories.isActive, true));
+      const where = conds.length > 1 ? and(...conds) : conds[0];
+      return db.select().from(discountCategories).where(where).orderBy(discountCategories.categoryName);
+    }),
 
   upsert: protectedProcedure
     .input(z.object({
@@ -289,11 +627,44 @@ const discountCategoryRouter = router({
       const { discountCategories } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       if (input.id) {
-        await db.update(discountCategories).set(input).where(eq(discountCategories.id, input.id));
-        return { id: input.id };
+        const { id, ...fields } = input;
+        await db.update(discountCategories).set(fields).where(eq(discountCategories.id, id));
+        return { id };
       }
       const [result] = await db.insert(discountCategories).values(input);
       return { id: (result as { insertId: number }).insertId };
+    }),
+
+  deactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { discountCategories } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(discountCategories).set({ isActive: false }).where(eq(discountCategories.id, input.id));
+      return { success: true };
+    }),
+
+  reactivate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      requireManager(ctx.user!.role);
+      const db = await getDbSafe();
+      const { discountCategories } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(discountCategories).set({ isActive: true }).where(eq(discountCategories.id, input.id));
+      return { success: true };
+    }),
+
+  exportCsv: protectedProcedure
+    .input(z.object({}).optional())
+    .mutation(async ({ ctx }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { discountCategories } = await import("../../drizzle/schema");
+      const rows = await db.select().from(discountCategories).orderBy(discountCategories.categoryName);
+      return toCsv(rows as Record<string, unknown>[]);
     }),
 });
 
@@ -368,8 +739,7 @@ const financialYearRouter = router({
       const db = await getDbSafe();
       const { financialYears } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await db.update(financialYears).set({ isLocked: true, lockedAt: new Date(), lockedBy: ctx.user!.id }).where(eq(financialYears.id, input.id));
-      await logAudit(ctx.user!.id, `Locked financial year #${input.id}`);
+      await db.update(financialYears).set({ isLocked: true }).where(eq(financialYears.id, input.id));
       return { success: true };
     }),
 });
@@ -472,6 +842,7 @@ const customerListRouter = router({
 export const masterDataRouter = router({
   suppliers: supplierRouter,
   manufacturers: manufacturerRouter,
+  categories: categoryRouter,
   generics: genericRouter,
   doctors: doctorRouter,
   schedules: scheduleRouter,

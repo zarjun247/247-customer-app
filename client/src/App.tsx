@@ -47,6 +47,13 @@ import AdminRefills from "./pages/AdminRefills";
 import AdminAccounting from "./pages/AdminAccounting";
 import AdminUtilities from "./pages/AdminUtilities";
 import AdminSettings from "./pages/AdminSettings";
+import AdminMastersIndex from "./pages/masters/AdminMastersIndex";
+import AdminSuppliers from "./pages/masters/AdminSuppliers";
+import AdminManufacturers from "./pages/masters/AdminManufacturers";
+import AdminCategories from "./pages/masters/AdminCategories";
+import AdminGenerics from "./pages/masters/AdminGenerics";
+import AdminSchedules from "./pages/masters/AdminSchedules";
+import AdminDiscountCategories from "./pages/masters/AdminDiscountCategories";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -182,7 +189,13 @@ function Router() {
         <Route path="/admin/accounting" component={AdminAccounting} />
         <Route path="/admin/utilities" component={AdminUtilities} />
         <Route path="/admin/settings" component={AdminSettings} />
-        <Route path="/admin/masters" component={MasterData} />
+        <Route path="/admin/masters" component={AdminMastersIndex} />
+        <Route path="/admin/masters/suppliers" component={AdminSuppliers} />
+        <Route path="/admin/masters/manufacturers" component={AdminManufacturers} />
+        <Route path="/admin/masters/categories" component={AdminCategories} />
+        <Route path="/admin/masters/generics" component={AdminGenerics} />
+        <Route path="/admin/masters/schedules" component={AdminSchedules} />
+        <Route path="/admin/masters/discount-categories" component={AdminDiscountCategories} />
         <Route path="/admin/sales" component={CounterSale} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

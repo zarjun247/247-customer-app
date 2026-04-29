@@ -43,7 +43,7 @@ export default function MasterData() {
   const generics = trpc.masterData.generics.list.useQuery({ search: search || undefined, limit: 100 });
   const doctors = trpc.masterData.doctors.list.useQuery({ search: search || undefined, limit: 100 });
   const schedules = trpc.masterData.schedules.list.useQuery();
-  const discounts = trpc.masterData.discountCategories.list.useQuery();
+  const discounts = trpc.masterData.discountCategories.list.useQuery({});
   const templates = trpc.masterData.messageTemplates.list.useQuery({});
   const printers = trpc.masterData.printers.list.useQuery();
 
@@ -56,7 +56,7 @@ export default function MasterData() {
     switch (section) {
       case "suppliers": return (
         <div className="space-y-2">
-          {suppliers.data?.map(s => (
+          {(suppliers.data as any)?.rows?.map((s: any) => (
             <Card key={s.id} className="bg-white/5 border-white/10">
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
@@ -67,12 +67,12 @@ export default function MasterData() {
               </CardContent>
             </Card>
           ))}
-          {!suppliers.data?.length && <p className="text-center py-10 text-white/40">No suppliers yet</p>}
+          {!(suppliers.data as any)?.rows?.length && <p className="text-center py-10 text-white/40">No suppliers yet</p>}
         </div>
       );
       case "manufacturers": return (
         <div className="space-y-2">
-          {manufacturers.data?.map(m => (
+          {(manufacturers.data as any)?.rows?.map((m: any) => (
             <Card key={m.id} className="bg-white/5 border-white/10">
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
@@ -83,12 +83,12 @@ export default function MasterData() {
               </CardContent>
             </Card>
           ))}
-          {!manufacturers.data?.length && <p className="text-center py-10 text-white/40">No manufacturers yet</p>}
+          {!(manufacturers.data as any)?.rows?.length && <p className="text-center py-10 text-white/40">No manufacturers yet</p>}
         </div>
       );
       case "generics": return (
         <div className="space-y-2">
-          {generics.data?.map(g => (
+          {(generics.data as any)?.rows?.map((g: any) => (
             <Card key={g.id} className="bg-white/5 border-white/10">
               <CardContent className="p-3">
                 <p className="font-medium text-sm">{g.genericName}</p>
@@ -96,7 +96,7 @@ export default function MasterData() {
               </CardContent>
             </Card>
           ))}
-          {!generics.data?.length && <p className="text-center py-10 text-white/40">No generics yet</p>}
+          {!(generics.data as any)?.rows?.length && <p className="text-center py-10 text-white/40">No generics yet</p>}
         </div>
       );
       case "doctors": return (
