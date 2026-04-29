@@ -9,6 +9,7 @@ import {
   boolean,
   bigint,
   date,
+  json,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -1019,13 +1020,19 @@ export const purchaseInvoices = mysqlTable("purchase_invoices", {
   invoiceNo: varchar("invoiceNo", { length: 100 }).notNull(),
   invoiceDate: timestamp("invoiceDate").notNull(),
   supplierGstin: varchar("supplierGstin", { length: 20 }),
+  sourceType: mysqlEnum("sourceType", ["manual", "ocr", "import", "whatsapp"]).default("manual").notNull(),
+  rawFileRef: varchar("rawFileRef", { length: 500 }),
   totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }).default("0.00"),
   totalGst: decimal("totalGst", { precision: 12, scale: 2 }).default("0.00"),
   totalDiscount: decimal("totalDiscount", { precision: 12, scale: 2 }).default("0.00"),
   netAmount: decimal("netAmount", { precision: 12, scale: 2 }).default("0.00"),
+  gstSummary: json("gstSummary"),
   status: mysqlEnum("status", ["draft", "committed", "partially_returned", "returned", "cancelled"]).default("draft").notNull(),
   notes: text("notes"),
   createdBy: int("createdBy").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  debitNoteNo: varchar("debitNoteNo", { length: 100 }),
   committedAt: timestamp("committedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -1037,6 +1044,7 @@ export const purchaseLines = mysqlTable("purchase_lines", {
   purchaseInvoiceId: int("purchaseInvoiceId").notNull(),
   productId: int("productId").notNull(),
   batchNo: varchar("batchNo", { length: 100 }).notNull(),
+  mfgDate: timestamp("mfgDate"),
   expiryDate: timestamp("expiryDate").notNull(),
   mrp: decimal("mrp", { precision: 10, scale: 2 }).notNull(),
   purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }).notNull(),
@@ -1049,8 +1057,12 @@ export const purchaseLines = mysqlTable("purchase_lines", {
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("12.00"),
   landingCost: decimal("landingCost", { precision: 10, scale: 2 }),
   margin: decimal("margin", { precision: 5, scale: 2 }),
+  rawLineText: text("rawLineText"),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }),
+  reviewerId: int("reviewerId"),
   batchId: int("batchId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
 
 // ─── Purchase Returns ─────────────────────────────────────────────────────────
@@ -1062,9 +1074,14 @@ export const purchaseReturns = mysqlTable("purchase_returns", {
   returnDate: timestamp("returnDate").defaultNow().notNull(),
   totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }).default("0.00"),
   reason: text("reason"),
+  debitNoteNo: varchar("debitNoteNo", { length: 100 }),
+  gstReversal: json("gstReversal"),
   status: mysqlEnum("status", ["draft", "committed"]).default("draft").notNull(),
   createdBy: int("createdBy").notNull(),
+  approvedBy: int("approvedBy"),
+  committedAt: timestamp("committedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
 
 // ─── Purchase Return Lines ────────────────────────────────────────────────────
@@ -1084,13 +1101,17 @@ export const supplierPayments = mysqlTable("supplier_payments", {
   id: int("id").autoincrement().primaryKey(),
   supplierId: int("supplierId").notNull(),
   storeId: int("storeId").notNull(),
+  purchaseInvoiceId: int("purchaseInvoiceId"),  // optional invoice-wise allocation
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   paymentMode: mysqlEnum("paymentMode", ["cash", "cheque", "upi", "neft", "rtgs"]).default("upi").notNull(),
   referenceNo: varchar("referenceNo", { length: 100 }),
+  voucherNo: varchar("voucherNo", { length: 100 }),
+  bankRef: varchar("bankRef", { length: 200 }),
   paymentDate: timestamp("paymentDate").defaultNow().notNull(),
   notes: text("notes"),
   createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
 
 // ─── OCR / AI Ingestion Tables ────────────────────────────────────────────────

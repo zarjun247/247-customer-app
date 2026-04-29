@@ -129,13 +129,13 @@ export default function PurchaseEntry() {
         {step === "list" && (
           <>
             <div className="flex justify-between items-center mb-4">
-              <p className="text-white/60 text-sm">{invoices?.length ?? 0} invoices</p>
+              <p className="text-white/60 text-sm">{invoices?.rows?.length ?? 0} invoices</p>
               <Button onClick={() => setStep("create")} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
                 <Plus className="w-4 h-4" /> New Invoice
               </Button>
             </div>
             <div className="space-y-3">
-              {invoices?.map((row) => (
+              {invoices?.rows?.map((row) => (
                 <Card key={row.invoice.id} className="bg-white/5 border-white/10 cursor-pointer hover:bg-white/8 transition-colors" onClick={() => { setSelectedInvoiceId(row.invoice.id); setStep("view"); }}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
@@ -146,7 +146,7 @@ export default function PurchaseEntry() {
                   </CardContent>
                 </Card>
               ))}
-              {(!invoices || invoices.length === 0) && (
+              {(!invoices?.rows || invoices.rows.length === 0) && (
                 <div className="text-center py-16 text-white/40">
                   <Package className="w-10 h-10 mx-auto mb-3 opacity-40" />
                   <p>No purchase invoices yet</p>

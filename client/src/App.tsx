@@ -67,6 +67,10 @@ import AdminStores from "./pages/masters/AdminStores";
 import AdminBuildings from "./pages/masters/AdminBuildings";
 import AdminPrinters from "./pages/masters/AdminPrinters";
 import AdminProducts from "./pages/masters/AdminProducts";
+import AdminPurchaseInvoices from "./pages/purchase/AdminPurchaseInvoices";
+import AdminPurchaseReturns from "./pages/purchase/AdminPurchaseReturns";
+import AdminSupplierPayments from "./pages/purchase/AdminSupplierPayments";
+import AdminPurchaseReports from "./pages/purchase/AdminPurchaseReports";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -185,7 +189,11 @@ function Router() {
         <Route path="/admin/prescriptions" component={AdminPrescriptions} />
         <Route path="/admin/sales/counter" component={CounterSale} />
         <Route path="/admin/reports" component={AdminReports} />
-        <Route path="/admin/purchase" component={PurchaseEntry} />
+        <Route path="/admin/purchase">{() => <AdminPurchaseInvoices />}</Route>
+        <Route path="/admin/purchase/invoices">{() => <AdminPurchaseInvoices />}</Route>
+        <Route path="/admin/purchase/returns">{() => <AdminPurchaseReturns />}</Route>
+        <Route path="/admin/purchase/payments">{() => <AdminSupplierPayments />}</Route>
+        <Route path="/admin/purchase/reports">{() => <AdminPurchaseReports />}</Route>
         <Route path="/admin/ocr" component={OcrIngestion} />
         <Route path="/admin/master-data" component={MasterData} />
         <Route path="/admin/shift" component={ShiftClosing} />

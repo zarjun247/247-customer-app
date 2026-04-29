@@ -625,3 +625,22 @@
 - [x] App.tsx: registered all 6 new /admin/inventory/* routes
 - [x] Fixed duplicate stockMovements/stockAdjustments exports in schema.ts
 - [x] TypeScript 0 errors, 73/73 tests passing
+
+## PART 5 — Purchase Module
+
+- [x] Schema: ALTER TABLE purchase_invoices — add sourceType, rawFileRef, gstSummary (text), approvedBy
+- [x] Schema: ALTER TABLE purchase_lines — add rawLineText, confidence, reviewerId
+- [x] Schema: ALTER TABLE supplier_payments — add purchaseInvoiceId, voucherNo, bankRef
+- [x] purchaseRouter: updateInvoice, cancelInvoice procedures
+- [x] purchaseRouter: updateLine, deleteLine procedures
+- [x] purchaseRouter: GST summary auto-calculation on commitInvoice (per-rate breakdown)
+- [x] purchaseRouter: enhanced commitInvoice — creates batch_ledger entries + stock_movements (purchase_inward) + updates qtyOnHand
+- [x] purchaseRouter: createReturn, addReturnLine, commitReturn, listReturns, getReturn procedures
+- [x] purchaseRouter: reports sub-router — register, supplierWise, productWise, batchwiseReport
+- [x] Frontend: /admin/purchase/invoices — invoice list, create, detail, add/edit/delete lines, commit, cancel
+- [x] Frontend: /admin/purchase/returns — return list, create, add lines, commit return
+- [x] Frontend: /admin/purchase/payments — supplier payment list, record payment (cheque/UPI/NEFT/cash/RTGS)
+- [x] Frontend: /admin/purchase/reports — purchase register, supplier-wise, product-wise, batchwise with CSV export
+- [x] AdminLayout: Purchase section expanded with 4 sub-links + OCR
+- [x] App.tsx: 5 new /admin/purchase/* routes registered
+- [x] TypeScript 0 errors, 73/73 tests passing

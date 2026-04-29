@@ -9,7 +9,7 @@ import {
   Printer, Lock, Activity, TrendingUp, BookOpen,
   CreditCard, Wrench, ShieldCheck, Boxes, MessageSquare,
   Bike, RefreshCw, ChevronDown, ChevronRight, Home,
-  DollarSign, Archive, Layers,
+  DollarSign, Archive, Layers, Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Purchase",
     items: [
-      { label: "Purchase Entry", href: "/admin/purchase", icon: Receipt },
+      { label: "Invoices", href: "/admin/purchase/invoices", icon: Receipt },
+      { label: "Purchase Returns", href: "/admin/purchase/returns", icon: RefreshCw },
+      { label: "Supplier Payments", href: "/admin/purchase/payments", icon: Wallet },
+      { label: "Purchase Reports", href: "/admin/purchase/reports", icon: BarChart3 },
       { label: "OCR Ingestion", href: "/admin/ocr", icon: ScanLine },
     ],
   },
