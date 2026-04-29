@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import {
   Package, AlertTriangle, Truck, Users, ShieldCheck, RefreshCw,
   Building2, ClipboardList, Bike, TrendingUp, Timer, Barcode, FileSpreadsheet, Flame, Database,
+  ShoppingCart, ScanLine, BarChart3, BookOpen, DollarSign,
 } from "lucide-react";
 
 const TABS = [
@@ -538,6 +539,21 @@ export default function PharmacyOS() {
           </button>
           <button onClick={() => navigate("/pharmacy/medivision")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap border border-primary/20">
             <Database className="h-3.5 w-3.5" />Medivision Sync
+          </button>
+          <button onClick={() => navigate("/pharmacy/purchase")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors whitespace-nowrap border border-cyan-500/20">
+            <ShoppingCart className="h-3.5 w-3.5" />Purchase Entry
+          </button>
+          <button onClick={() => navigate("/pharmacy/ocr")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors whitespace-nowrap border border-violet-500/20">
+            <ScanLine className="h-3.5 w-3.5" />AI Bill OCR
+          </button>
+          <button onClick={() => navigate("/pharmacy/reports")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors whitespace-nowrap border border-rose-500/20">
+            <BarChart3 className="h-3.5 w-3.5" />Reports
+          </button>
+          <button onClick={() => navigate("/pharmacy/master-data")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors whitespace-nowrap border border-orange-500/20">
+            <BookOpen className="h-3.5 w-3.5" />Master Data
+          </button>
+          <button onClick={() => navigate("/pharmacy/shift")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-teal-500/10 text-teal-400 hover:bg-teal-500/20 transition-colors whitespace-nowrap border border-teal-500/20">
+            <DollarSign className="h-3.5 w-3.5" />Shift Closing
           </button>
         </div>
       </div>

@@ -448,3 +448,66 @@
 - [x] Barcode print service: Code 128 label generation for internal batches
 - [x] Barcode print queue: /pharmacy/barcodes page (pending labels, print action)
 - [x] TypeScript clean (0 errors), all tests passing
+
+## Full Pharmacy OS Upgrade (v22 — pasted_content_12.txt)
+
+### P0 — Stabilise
+- [ ] Extend user.role enum: cashier, salesman, purchase_manager, accountant, super_admin
+- [ ] staffProcedure / pharmacistProcedure / managerProcedure RBAC guards
+- [ ] Lock order mutations: customers view own orders only; staff advance operational statuses
+- [ ] audit_logs table + writeAuditLog on all sensitive mutations
+- [ ] Harden stock reservation: atomic checkout + release on cancel/timeout
+
+### P1 — Master Data
+- [ ] Schema: suppliers, manufacturers, generics, doctors, patient_categories, schedules, discount_categories, message_templates, printers, financial_years, states, product_aliases, product_supplier_mappings, product_locks, stock_movements, stock_adjustments
+- [ ] Master Data admin section in PharmacyOS with CRUD for each master
+- [ ] CSV import/export on each master
+
+### P2+P3 — Inventory + Purchase
+- [ ] Schema: purchase_invoices, purchase_lines, purchase_returns, supplier_payments
+- [ ] Purchase entry form (supplier, invoice, line items, batch, MRP, GST, stock commit)
+- [ ] Stock movements ledger page
+- [ ] Batchwise balance page with FEFO + expiry zones
+
+### P4+P5 — OCR Ingestion + Counter Billing
+- [ ] Schema: ingestion_jobs, ingestion_files, ocr_extracted_headers, ocr_extracted_lines, ocr_match_candidates, sku_creation_drafts, purchase_drafts, purchase_draft_lines
+- [ ] OCR upload → invokeLLM extraction → draft purchase → human review → commit
+- [ ] Counter billing / POS screen: barcode scan, FEFO batch, payment, print bill
+
+### P6+P7 — Prescription Governance + Customer Medicine Record
+- [ ] H1 register table + H1 report generation
+- [ ] Repeat-dispense validation
+- [ ] Customer medicine record page (full purchase + Rx history per patient)
+- [ ] Family member mapping on customer profile
+
+### P8 — Reports Engine
+- [ ] Reports section: daily sale, daily purchase, GST summary, HSN-wise, stock valuation, H1 report, SLA report
+- [ ] CSV + PDF export for each report category
+
+### P9 — Accounting + Tally + Shift Closing
+- [ ] Schema: ledgers, ledger_entries, shift_closings
+- [ ] Shift closing form (opening cash, sales, UPI, expenses, variance, manager approval)
+- [ ] Tally-compatible CSV/XML export (sales voucher, purchase voucher, receipt/payment)
+
+### P10 — System Admin Utilities
+- [ ] System health dashboard (OCR queue, WhatsApp webhook, Medivision sync, DB check)
+- [ ] Transaction locking (daily shift lock, monthly lock, GST filing lock)
+- [ ] Financial year management
+
+## Full Pharmacy OS Upgrade — v22 (Apr 29 2026)
+
+- [x] P0: Extend user.role enum — cashier, salesman, purchase_manager, accountant, super_admin, store_manager, inventory_operator, delivery_operator, auditor
+- [x] P0: audit_logs table added to schema
+- [x] P1: 34 new master data tables — suppliers, manufacturers, generics, doctors, patient_categories, schedules, discount_categories, message_templates, printers, financial_years, states, product_aliases, product_supplier_mappings, product_locks, stock_movements, stock_adjustments, purchase_invoices, purchase_lines, purchase_returns, supplier_payments, ocr_ingestion_jobs, ocr_extracted_headers, ocr_extracted_lines, ocr_match_candidates, sku_creation_drafts, purchase_drafts, purchase_draft_lines, ledgers, ledger_entries, shift_closings, system_settings, transaction_locks, h1_register, customer_medicine_records
+- [x] P1: masterDataRouter — CRUD for suppliers, manufacturers, generics, doctors, schedules, discount_categories, message_templates, printers
+- [x] P1: MasterData.tsx page — tabbed CRUD UI for all master data
+- [x] P2: purchaseRouter — create/list/get invoice, add line, commit invoice (stock update + batch creation)
+- [x] P2: PurchaseEntry.tsx page — invoice list, create form, line item entry, commit action
+- [x] P3: ocrIngestionRouter — listJobs, getJob, reviewLine procedures
+- [x] P3: OcrIngestion.tsx page — upload zone, job list, line review with approve/reject
+- [x] P4: reportsRouter — dailySale, dailyPurchase, gstSummary, stockValuation, nearExpiry, slaPerformance, h1Register, nonMoving, shiftClosings, submitShiftClosing
+- [x] P4: Reports.tsx page — 6 report tabs with CSV export, date range filter
+- [x] P5: ShiftClosing.tsx page — shift form with variance preview, submit for approval
+- [x] P6: PharmacyOS quick-access strip extended — 10 tool buttons (Expiry, SLA, Barcode, GST, Medivision, Purchase, OCR, Reports, Master Data, Shift)
+- [x] P6: App.tsx — 5 new routes registered (/pharmacy/purchase, /pharmacy/ocr, /pharmacy/reports, /pharmacy/master-data, /pharmacy/shift)
+- [x] TypeScript 0 errors, 73/73 tests passing

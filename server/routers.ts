@@ -29,6 +29,10 @@ import { helpdeskRouter } from "./routers/helpdeskRouter";
 import { consentRouter } from "./routers/consentRouter";
 import { paymentRouter } from "./routers/paymentRouter";
 import { medivisionRouter } from "./routers/medivisionRouter";
+import { masterDataRouter } from "./routers/masterDataRouter";
+import { purchaseRouter } from "./routers/purchaseRouter";
+import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
+import { reportsRouter } from "./routers/reportsRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
@@ -646,6 +650,10 @@ export const appRouter = router({
   consult: consultRouter,
   payment: paymentRouter,
   medivision: medivisionRouter,
+  masterData: masterDataRouter,
+  purchase: purchaseRouter,
+  ocr: ocrIngestionRouter,
+  reports: reportsRouter,
 });
 
 export type AppRouter = typeof appRouter;

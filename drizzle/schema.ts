@@ -26,6 +26,11 @@ export const users = mysqlTable("users", {
     "inventory_operator",
     "delivery_operator",
     "auditor",
+    "cashier",
+    "salesman",
+    "purchase_manager",
+    "accountant",
+    "super_admin",
   ]).default("user").notNull(),
   // Building/flat identity for routing
   buildingId: int("buildingId"),
@@ -711,3 +716,541 @@ export const medivisionSyncLog = mysqlTable("medivision_sync_log", {
 export type PaymentRecord = typeof paymentRecords.$inferSelect;
 export type SlaEvent = typeof slaEvents.$inferSelect;
 export type MedivisionSyncLog = typeof medivisionSyncLog.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHARMACY OS — MASTER DATA TABLES (v22)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── States ──────────────────────────────────────────────────────────────────
+export const states = mysqlTable("states", {
+  id: int("id").autoincrement().primaryKey(),
+  stateName: varchar("stateName", { length: 100 }).notNull(),
+  stateCode: varchar("stateCode", { length: 10 }).notNull(),
+  gstStateCode: varchar("gstStateCode", { length: 4 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Suppliers ────────────────────────────────────────────────────────────────
+export const suppliers = mysqlTable("suppliers", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierName: varchar("supplierName", { length: 300 }).notNull(),
+  gstin: varchar("gstin", { length: 20 }),
+  address: text("address"),
+  stateId: int("stateId"),
+  contactPerson: varchar("contactPerson", { length: 200 }),
+  phone: varchar("phone", { length: 20 }),
+  email: varchar("email", { length: 320 }),
+  paymentTerms: varchar("paymentTerms", { length: 100 }),
+  defaultDiscount: decimal("defaultDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  cashDiscount: decimal("cashDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  creditDays: int("creditDays").default(0),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Manufacturers / Companies ────────────────────────────────────────────────
+export const manufacturers = mysqlTable("manufacturers", {
+  id: int("id").autoincrement().primaryKey(),
+  companyName: varchar("companyName", { length: 300 }).notNull(),
+  aliases: text("aliases"),
+  gstin: varchar("gstin", { length: 20 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Generics / Salts ─────────────────────────────────────────────────────────
+export const generics = mysqlTable("generics", {
+  id: int("id").autoincrement().primaryKey(),
+  genericName: varchar("genericName", { length: 300 }).notNull(),
+  aliases: text("aliases"),
+  therapeuticClass: varchar("therapeuticClass", { length: 200 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Doctors ──────────────────────────────────────────────────────────────────
+export const doctors = mysqlTable("doctors", {
+  id: int("id").autoincrement().primaryKey(),
+  doctorName: varchar("doctorName", { length: 300 }).notNull(),
+  registrationNo: varchar("registrationNo", { length: 100 }),
+  clinicHospital: varchar("clinicHospital", { length: 300 }),
+  phone: varchar("phone", { length: 20 }),
+  address: text("address"),
+  specialization: varchar("specialization", { length: 200 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Patient Categories ───────────────────────────────────────────────────────
+export const patientCategories = mysqlTable("patient_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryName: varchar("categoryName", { length: 100 }).notNull(),
+  description: text("description"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Schedule Master ──────────────────────────────────────────────────────────
+export const scheduleMaster = mysqlTable("schedule_master", {
+  id: int("id").autoincrement().primaryKey(),
+  scheduleCode: varchar("scheduleCode", { length: 10 }).notNull(),
+  prescriptionRequired: boolean("prescriptionRequired").default(false).notNull(),
+  pharmacistReviewRequired: boolean("pharmacistReviewRequired").default(false).notNull(),
+  h1RegisterRequired: boolean("h1RegisterRequired").default(false).notNull(),
+  repeatDispenseAllowed: boolean("repeatDispenseAllowed").default(true).notNull(),
+  retentionPolicyDays: int("retentionPolicyDays").default(365),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Discount Categories ──────────────────────────────────────────────────────
+export const discountCategories = mysqlTable("discount_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryName: varchar("categoryName", { length: 100 }).notNull(),
+  maxDiscount: decimal("maxDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  minMargin: decimal("minMargin", { precision: 5, scale: 2 }).default("0.00"),
+  roleOverrideRequired: boolean("roleOverrideRequired").default(false).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Message Templates ────────────────────────────────────────────────────────
+export const messageTemplates = mysqlTable("message_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  templateName: varchar("templateName", { length: 200 }).notNull(),
+  channel: mysqlEnum("channel", ["whatsapp", "sms", "email", "app"]).default("sms").notNull(),
+  messageBody: text("messageBody").notNull(),
+  variables: text("variables"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Printers ─────────────────────────────────────────────────────────────────
+export const printers = mysqlTable("printers", {
+  id: int("id").autoincrement().primaryKey(),
+  printerName: varchar("printerName", { length: 200 }).notNull(),
+  printerType: mysqlEnum("printerType", ["bill", "barcode", "a4", "thermal"]).default("thermal").notNull(),
+  assignedTerminal: varchar("assignedTerminal", { length: 100 }),
+  assignedStoreId: int("assignedStoreId"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Financial Years ──────────────────────────────────────────────────────────
+export const financialYears = mysqlTable("financial_years", {
+  id: int("id").autoincrement().primaryKey(),
+  yearLabel: varchar("yearLabel", { length: 20 }).notNull(),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  isCurrent: boolean("isCurrent").default(false).notNull(),
+  isLocked: boolean("isLocked").default(false).notNull(),
+  lockedAt: timestamp("lockedAt"),
+  lockedBy: int("lockedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Product Aliases ──────────────────────────────────────────────────────────
+export const productAliases = mysqlTable("product_aliases", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  alias: varchar("alias", { length: 300 }).notNull(),
+  aliasType: mysqlEnum("aliasType", ["supplier_code", "legacy_code", "medivision_code", "samarth_code", "barcode", "other"]).default("other").notNull(),
+  supplierId: int("supplierId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Product Supplier Mappings ────────────────────────────────────────────────
+export const productSupplierMappings = mysqlTable("product_supplier_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  supplierId: int("supplierId").notNull(),
+  supplierProductCode: varchar("supplierProductCode", { length: 100 }),
+  lastPurchaseRate: decimal("lastPurchaseRate", { precision: 10, scale: 2 }),
+  isPreferred: boolean("isPreferred").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Product Locks ────────────────────────────────────────────────────────────
+export const productLocks = mysqlTable("product_locks", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  lockType: mysqlEnum("lockType", ["min_margin", "max_discount", "price_lock", "sale_block"]).notNull(),
+  lockValue: decimal("lockValue", { precision: 10, scale: 2 }),
+  roleOverrideRequired: boolean("roleOverrideRequired").default(true).notNull(),
+  reason: text("reason"),
+  createdBy: int("createdBy").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Stock Movements ──────────────────────────────────────────────────────────
+export const stockMovements = mysqlTable("stock_movements", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: int("batchId").notNull(),
+  storeId: int("storeId").notNull(),
+  movementType: mysqlEnum("movementType", [
+    "purchase_inward",
+    "sale_reserve",
+    "sale_fulfil",
+    "cancellation_release",
+    "sale_return",
+    "purchase_return",
+    "stock_adjustment",
+    "stock_transfer",
+    "batch_transfer",
+    "quarantine",
+    "disposal",
+    "audit_correction",
+  ]).notNull(),
+  qty: int("qty").notNull(),
+  qtyBefore: int("qtyBefore").notNull(),
+  qtyAfter: int("qtyAfter").notNull(),
+  referenceType: varchar("referenceType", { length: 50 }),
+  referenceId: int("referenceId"),
+  reason: text("reason"),
+  performedBy: int("performedBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Stock Adjustments ────────────────────────────────────────────────────────
+export const stockAdjustments = mysqlTable("stock_adjustments", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: int("batchId").notNull(),
+  storeId: int("storeId").notNull(),
+  adjustmentType: mysqlEnum("adjustmentType", ["increase", "decrease"]).notNull(),
+  qty: int("qty").notNull(),
+  reason: text("reason").notNull(),
+  supportingNote: text("supportingNote"),
+  status: mysqlEnum("status", ["pending_approval", "approved", "rejected"]).default("pending_approval").notNull(),
+  requestedBy: int("requestedBy").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Purchase Invoices ────────────────────────────────────────────────────────
+export const purchaseInvoices = mysqlTable("purchase_invoices", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierId: int("supplierId").notNull(),
+  storeId: int("storeId").notNull(),
+  invoiceNo: varchar("invoiceNo", { length: 100 }).notNull(),
+  invoiceDate: timestamp("invoiceDate").notNull(),
+  supplierGstin: varchar("supplierGstin", { length: 20 }),
+  totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }).default("0.00"),
+  totalGst: decimal("totalGst", { precision: 12, scale: 2 }).default("0.00"),
+  totalDiscount: decimal("totalDiscount", { precision: 12, scale: 2 }).default("0.00"),
+  netAmount: decimal("netAmount", { precision: 12, scale: 2 }).default("0.00"),
+  status: mysqlEnum("status", ["draft", "committed", "partially_returned", "returned", "cancelled"]).default("draft").notNull(),
+  notes: text("notes"),
+  createdBy: int("createdBy").notNull(),
+  committedAt: timestamp("committedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Purchase Lines ───────────────────────────────────────────────────────────
+export const purchaseLines = mysqlTable("purchase_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  purchaseInvoiceId: int("purchaseInvoiceId").notNull(),
+  productId: int("productId").notNull(),
+  batchNo: varchar("batchNo", { length: 100 }).notNull(),
+  expiryDate: timestamp("expiryDate").notNull(),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }).notNull(),
+  purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }).notNull(),
+  saleRate: decimal("saleRate", { precision: 10, scale: 2 }),
+  qty: int("qty").notNull(),
+  freeQty: int("freeQty").default(0),
+  schemeDiscount: decimal("schemeDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  cashDiscount: decimal("cashDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  hsnCode: varchar("hsnCode", { length: 20 }),
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("12.00"),
+  landingCost: decimal("landingCost", { precision: 10, scale: 2 }),
+  margin: decimal("margin", { precision: 5, scale: 2 }),
+  batchId: int("batchId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Purchase Returns ─────────────────────────────────────────────────────────
+export const purchaseReturns = mysqlTable("purchase_returns", {
+  id: int("id").autoincrement().primaryKey(),
+  purchaseInvoiceId: int("purchaseInvoiceId").notNull(),
+  supplierId: int("supplierId").notNull(),
+  storeId: int("storeId").notNull(),
+  returnDate: timestamp("returnDate").defaultNow().notNull(),
+  totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }).default("0.00"),
+  reason: text("reason"),
+  status: mysqlEnum("status", ["draft", "committed"]).default("draft").notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Purchase Return Lines ────────────────────────────────────────────────────
+export const purchaseReturnLines = mysqlTable("purchase_return_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  purchaseReturnId: int("purchaseReturnId").notNull(),
+  purchaseLineId: int("purchaseLineId").notNull(),
+  batchId: int("batchId").notNull(),
+  qty: int("qty").notNull(),
+  returnRate: decimal("returnRate", { precision: 10, scale: 2 }).notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Supplier Payments ────────────────────────────────────────────────────────
+export const supplierPayments = mysqlTable("supplier_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierId: int("supplierId").notNull(),
+  storeId: int("storeId").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  paymentMode: mysqlEnum("paymentMode", ["cash", "cheque", "upi", "neft", "rtgs"]).default("upi").notNull(),
+  referenceNo: varchar("referenceNo", { length: 100 }),
+  paymentDate: timestamp("paymentDate").defaultNow().notNull(),
+  notes: text("notes"),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── OCR / AI Ingestion Tables ────────────────────────────────────────────────
+export const ingestionJobs = mysqlTable("ingestion_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  jobType: mysqlEnum("jobType", ["purchase_bill", "prescription", "stock_audit"]).default("purchase_bill").notNull(),
+  status: mysqlEnum("status", ["queued", "processing", "ocr_complete", "under_review", "committed", "failed"]).default("queued").notNull(),
+  fileUrl: text("fileUrl"),
+  fileKey: text("fileKey"),
+  filename: varchar("filename", { length: 255 }),
+  mimeType: varchar("mimeType", { length: 100 }),
+  ocrRawText: text("ocrRawText"),
+  ocrConfidence: decimal("ocrConfidence", { precision: 5, scale: 2 }),
+  errorMessage: text("errorMessage"),
+  createdBy: int("createdBy").notNull(),
+  processedAt: timestamp("processedAt"),
+  committedAt: timestamp("committedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const ocrExtractedHeaders = mysqlTable("ocr_extracted_headers", {
+  id: int("id").autoincrement().primaryKey(),
+  ingestionJobId: int("ingestionJobId").notNull(),
+  supplierName: varchar("supplierName", { length: 300 }),
+  supplierGstin: varchar("supplierGstin", { length: 20 }),
+  invoiceNo: varchar("invoiceNo", { length: 100 }),
+  invoiceDate: varchar("invoiceDate", { length: 50 }),
+  totalAmount: decimal("totalAmount", { precision: 12, scale: 2 }),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }),
+  matchedSupplierId: int("matchedSupplierId"),
+  reviewStatus: mysqlEnum("reviewStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const ocrExtractedLines = mysqlTable("ocr_extracted_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  ingestionJobId: int("ingestionJobId").notNull(),
+  lineNo: int("lineNo").notNull(),
+  rawText: text("rawText"),
+  itemName: varchar("itemName", { length: 300 }),
+  manufacturer: varchar("manufacturer", { length: 200 }),
+  batchNo: varchar("batchNo", { length: 100 }),
+  expiryDate: varchar("expiryDate", { length: 50 }),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }),
+  purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }),
+  qty: int("qty"),
+  freeQty: int("freeQty").default(0),
+  discount: decimal("discount", { precision: 5, scale: 2 }),
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }),
+  hsnCode: varchar("hsnCode", { length: 20 }),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }),
+  matchedProductId: int("matchedProductId"),
+  matchConfidence: decimal("matchConfidence", { precision: 5, scale: 2 }),
+  matchStatus: mysqlEnum("matchStatus", ["auto_matched", "review_required", "unknown_sku", "rejected"]).default("review_required").notNull(),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const skuCreationDrafts = mysqlTable("sku_creation_drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  ingestionJobId: int("ingestionJobId").notNull(),
+  ocrLineId: int("ocrLineId"),
+  draftName: varchar("draftName", { length: 300 }).notNull(),
+  brand: varchar("brand", { length: 200 }),
+  genericName: varchar("genericName", { length: 300 }),
+  manufacturer: varchar("manufacturer", { length: 200 }),
+  scheduleFlag: varchar("scheduleFlag", { length: 10 }),
+  hsnCode: varchar("hsnCode", { length: 20 }),
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }),
+  packSize: varchar("packSize", { length: 100 }),
+  status: mysqlEnum("status", ["pending_review", "approved", "rejected"]).default("pending_review").notNull(),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  activatedProductId: int("activatedProductId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const purchaseDrafts = mysqlTable("purchase_drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  ingestionJobId: int("ingestionJobId").notNull(),
+  supplierId: int("supplierId"),
+  invoiceNo: varchar("invoiceNo", { length: 100 }),
+  invoiceDate: varchar("invoiceDate", { length: 50 }),
+  status: mysqlEnum("status", ["draft", "under_review", "approved", "committed", "rejected"]).default("draft").notNull(),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  committedInvoiceId: int("committedInvoiceId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const purchaseDraftLines = mysqlTable("purchase_draft_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  purchaseDraftId: int("purchaseDraftId").notNull(),
+  ocrLineId: int("ocrLineId"),
+  productId: int("productId"),
+  batchNo: varchar("batchNo", { length: 100 }),
+  expiryDate: varchar("expiryDate", { length: 50 }),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }),
+  purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }),
+  qty: int("qty"),
+  freeQty: int("freeQty").default(0),
+  discount: decimal("discount", { precision: 5, scale: 2 }),
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }),
+  hsnCode: varchar("hsnCode", { length: 20 }),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── H1 Register ──────────────────────────────────────────────────────────────
+export const h1Register = mysqlTable("h1_register", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId"),
+  prescriptionId: int("prescriptionId"),
+  storeId: int("storeId").notNull(),
+  patientName: varchar("patientName", { length: 300 }).notNull(),
+  patientPhone: varchar("patientPhone", { length: 20 }),
+  prescribingDoctor: varchar("prescribingDoctor", { length: 300 }),
+  drugName: varchar("drugName", { length: 300 }).notNull(),
+  batchNo: varchar("batchNo", { length: 100 }),
+  qty: int("qty").notNull(),
+  prescriptionRef: varchar("prescriptionRef", { length: 100 }),
+  pharmacistId: int("pharmacistId").notNull(),
+  billNo: varchar("billNo", { length: 100 }),
+  dispensedAt: timestamp("dispensedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Ledgers ──────────────────────────────────────────────────────────────────
+export const ledgers = mysqlTable("ledgers", {
+  id: int("id").autoincrement().primaryKey(),
+  ledgerName: varchar("ledgerName", { length: 200 }).notNull(),
+  ledgerType: mysqlEnum("ledgerType", [
+    "supplier", "customer", "sales", "purchases",
+    "gst_output", "gst_input", "cash", "bank",
+    "upi_settlement", "discounts", "purchase_returns",
+    "sales_returns", "stock_adjustment", "expiry_loss",
+    "gross_margin", "expenses",
+  ]).notNull(),
+  storeId: int("storeId"),
+  supplierId: int("supplierId"),
+  customerId: int("customerId"),
+  openingBalance: decimal("openingBalance", { precision: 14, scale: 2 }).default("0.00"),
+  currentBalance: decimal("currentBalance", { precision: 14, scale: 2 }).default("0.00"),
+  financialYearId: int("financialYearId"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const ledgerEntries = mysqlTable("ledger_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  ledgerId: int("ledgerId").notNull(),
+  entryDate: timestamp("entryDate").defaultNow().notNull(),
+  entryType: mysqlEnum("entryType", ["debit", "credit"]).notNull(),
+  amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+  referenceType: varchar("referenceType", { length: 50 }),
+  referenceId: int("referenceId"),
+  narration: text("narration"),
+  runningBalance: decimal("runningBalance", { precision: 14, scale: 2 }),
+  financialYearId: int("financialYearId"),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// ─── Shift Closings ───────────────────────────────────────────────────────────
+export const shiftClosings = mysqlTable("shift_closings", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  shiftDate: timestamp("shiftDate").notNull(),
+  openingCash: decimal("openingCash", { precision: 12, scale: 2 }).default("0.00"),
+  cashSales: decimal("cashSales", { precision: 12, scale: 2 }).default("0.00"),
+  upiCardSales: decimal("upiCardSales", { precision: 12, scale: 2 }).default("0.00"),
+  creditSales: decimal("creditSales", { precision: 12, scale: 2 }).default("0.00"),
+  refunds: decimal("refunds", { precision: 12, scale: 2 }).default("0.00"),
+  expenses: decimal("expenses", { precision: 12, scale: 2 }).default("0.00"),
+  cashDeposited: decimal("cashDeposited", { precision: 12, scale: 2 }).default("0.00"),
+  expectedCash: decimal("expectedCash", { precision: 12, scale: 2 }).default("0.00"),
+  actualCash: decimal("actualCash", { precision: 12, scale: 2 }).default("0.00"),
+  variance: decimal("variance", { precision: 12, scale: 2 }).default("0.00"),
+  cashierId: int("cashierId").notNull(),
+  pharmacistOnDutyId: int("pharmacistOnDutyId"),
+  pendingOrders: int("pendingOrders").default(0),
+  cancelledBills: int("cancelledBills").default(0),
+  status: mysqlEnum("status", ["open", "submitted", "approved", "locked"]).default("open").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── System Settings ──────────────────────────────────────────────────────────
+export const systemSettings = mysqlTable("system_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  settingKey: varchar("settingKey", { length: 200 }).notNull(),
+  settingValue: text("settingValue"),
+  settingType: mysqlEnum("settingType", ["string", "number", "boolean", "json"]).default("string").notNull(),
+  description: text("description"),
+  isLocked: boolean("isLocked").default(false).notNull(),
+  updatedBy: int("updatedBy"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Report Exports ───────────────────────────────────────────────────────────
+export const reportExports = mysqlTable("report_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  reportType: varchar("reportType", { length: 100 }).notNull(),
+  parameters: text("parameters"),
+  fileUrl: text("fileUrl"),
+  fileKey: text("fileKey"),
+  status: mysqlEnum("status", ["queued", "generating", "ready", "failed"]).default("queued").notNull(),
+  requestedBy: int("requestedBy").notNull(),
+  storeId: int("storeId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+// ─── Type exports ─────────────────────────────────────────────────────────────
+export type Supplier = typeof suppliers.$inferSelect;
+export type Manufacturer = typeof manufacturers.$inferSelect;
+export type Generic = typeof generics.$inferSelect;
+export type Doctor = typeof doctors.$inferSelect;
+export type PurchaseInvoice = typeof purchaseInvoices.$inferSelect;
+export type PurchaseLine = typeof purchaseLines.$inferSelect;
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type IngestionJob = typeof ingestionJobs.$inferSelect;
+export type OcrExtractedLine = typeof ocrExtractedLines.$inferSelect;
+export type ShiftClosing = typeof shiftClosings.$inferSelect;
+export type Ledger = typeof ledgers.$inferSelect;
+export type LedgerEntry = typeof ledgerEntries.$inferSelect;
+export type FinancialYear = typeof financialYears.$inferSelect;

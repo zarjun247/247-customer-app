@@ -29,6 +29,11 @@ import BarcodePrint from "./pages/BarcodePrint";
 import GstExport from "./pages/GstExport";
 import SlaBoard from "./pages/SlaBoard";
 import MedivisionSync from "./pages/MedivisionSync";
+import PurchaseEntry from "./pages/PurchaseEntry";
+import OcrIngestion from "./pages/OcrIngestion";
+import Reports from "./pages/Reports";
+import MasterData from "./pages/MasterData";
+import ShiftClosing from "./pages/ShiftClosing";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -135,6 +140,11 @@ function Router() {
         <Route path="/pharmacy/gst-export" component={GstExport} />
         <Route path="/pharmacy/sla" component={SlaBoard} />
         <Route path="/pharmacy/medivision" component={MedivisionSync} />
+        <Route path="/pharmacy/purchase" component={PurchaseEntry} />
+        <Route path="/pharmacy/ocr" component={OcrIngestion} />
+        <Route path="/pharmacy/reports" component={Reports} />
+        <Route path="/pharmacy/master-data" component={MasterData} />
+        <Route path="/pharmacy/shift" component={ShiftClosing} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
