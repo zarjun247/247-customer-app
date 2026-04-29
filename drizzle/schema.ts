@@ -164,15 +164,39 @@ export const batches = mysqlTable("batches", {
   storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   variantId: int("variantId"),
+  // Legacy field kept for backward compat; use batchNo going forward
   batchNumber: varchar("batchNumber", { length: 100 }).notNull(),
+  // Alias generated column (virtual) — use batchNo in all new code
+  batchNo: varchar("batchNo", { length: 100 }),
+  mfgDate: timestamp("mfgDate"),
   expiryDate: timestamp("expiryDate").notNull(),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }),
+  purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }),
+  saleRate: decimal("saleRate", { precision: 10, scale: 2 }),
+  schemeDiscount: decimal("schemeDiscount", { precision: 5, scale: 2 }).default("0"),
+  cashDiscount: decimal("cashDiscount", { precision: 5, scale: 2 }).default("0"),
+  landingCost: decimal("landingCost", { precision: 10, scale: 2 }),
+  margin: decimal("margin", { precision: 5, scale: 2 }),
+  // Legacy qty field; use qtyOnHand in all new code
   quantity: int("quantity").default(0).notNull(),
-  status: mysqlEnum("status", ["active", "quarantined", "depleted", "expired"])
+  qtyOnHand: int("qtyOnHand").default(0),
+  qtyReserved: int("qtyReserved").default(0),
+  qtyQuarantined: int("qtyQuarantined").default(0),
+  qtyExpired: int("qtyExpired").default(0),
+  internalBarcode: varchar("internalBarcode", { length: 100 }),
+  manufacturerBarcode: varchar("manufacturerBarcode", { length: 100 }),
+  purchaseInvoiceId: int("purchaseInvoiceId" ),
+  storageCondition: mysqlEnum("storageCondition", ["room_temp", "refrigerated", "frozen", "controlled"]).default("room_temp"),
+  coldChainFlag: boolean("coldChainFlag").default(false),
+  expiryBucket: mysqlEnum("expiryBucket", ["normal", "warning", "critical", "quarantine_candidate", "expired"]).default("normal"),
+  status: mysqlEnum("status", ["active", "quarantined", "depleted", "expired", "recalled", "damaged", "returned_to_supplier"])
     .default("active").notNull(),
+  // Legacy cost field
   unitCost: decimal("unitCost", { precision: 10, scale: 2 }),
-  supplierId: int("supplierId"),  // FK → vendors.id
-  grnId: int("grnId"),           // FK → grn_records.id
+  supplierId: int("supplierId"),
+  grnId: int("grnId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
 
 // ─── Prescriptions ────────────────────────────────────────────────────────────
