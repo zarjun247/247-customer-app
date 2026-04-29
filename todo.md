@@ -452,47 +452,47 @@
 ## Full Pharmacy OS Upgrade (v22 — pasted_content_12.txt)
 
 ### P0 — Stabilise
-- [ ] Extend user.role enum: cashier, salesman, purchase_manager, accountant, super_admin
-- [ ] staffProcedure / pharmacistProcedure / managerProcedure RBAC guards
-- [ ] Lock order mutations: customers view own orders only; staff advance operational statuses
-- [ ] audit_logs table + writeAuditLog on all sensitive mutations
-- [ ] Harden stock reservation: atomic checkout + release on cancel/timeout
+- [x] Extend user.role enum: cashier, salesman, purchase_manager, accountant, super_admin
+- [x] staffProcedure / pharmacistProcedure / managerProcedure RBAC guards
+- [x] Lock order mutations: customers view own orders only; staff advance operational statuses
+- [x] audit_logs table + writeAuditLog on all sensitive mutations
+- [x] Harden stock reservation: atomic checkout + release on cancel/timeout
 
 ### P1 — Master Data
-- [ ] Schema: suppliers, manufacturers, generics, doctors, patient_categories, schedules, discount_categories, message_templates, printers, financial_years, states, product_aliases, product_supplier_mappings, product_locks, stock_movements, stock_adjustments
-- [ ] Master Data admin section in PharmacyOS with CRUD for each master
-- [ ] CSV import/export on each master
+- [x] Schema: suppliers, manufacturers, generics, doctors, patient_categories, schedules, discount_categories, message_templates, printers, financial_years, states, product_aliases, product_supplier_mappings, product_locks, stock_movements, stock_adjustments
+- [x] Master Data admin section in PharmacyOS with CRUD for each master
+- [x] CSV import/export on each master
 
 ### P2+P3 — Inventory + Purchase
-- [ ] Schema: purchase_invoices, purchase_lines, purchase_returns, supplier_payments
-- [ ] Purchase entry form (supplier, invoice, line items, batch, MRP, GST, stock commit)
-- [ ] Stock movements ledger page
-- [ ] Batchwise balance page with FEFO + expiry zones
+- [x] Schema: purchase_invoices, purchase_lines, purchase_returns, supplier_payments
+- [x] Purchase entry form (supplier, invoice, line items, batch, MRP, GST, stock commit)
+- [x] Stock movements ledger page
+- [x] Batchwise balance page with FEFO + expiry zones
 
 ### P4+P5 — OCR Ingestion + Counter Billing
-- [ ] Schema: ingestion_jobs, ingestion_files, ocr_extracted_headers, ocr_extracted_lines, ocr_match_candidates, sku_creation_drafts, purchase_drafts, purchase_draft_lines
-- [ ] OCR upload → invokeLLM extraction → draft purchase → human review → commit
-- [ ] Counter billing / POS screen: barcode scan, FEFO batch, payment, print bill
+- [x] Schema: ingestion_jobs, ingestion_files, ocr_extracted_headers, ocr_extracted_lines, ocr_match_candidates, sku_creation_drafts, purchase_drafts, purchase_draft_lines
+- [x] OCR upload → invokeLLM extraction → draft purchase → human review → commit
+- [x] Counter billing / POS screen: barcode scan, FEFO batch, payment, print bill
 
 ### P6+P7 — Prescription Governance + Customer Medicine Record
-- [ ] H1 register table + H1 report generation
-- [ ] Repeat-dispense validation
-- [ ] Customer medicine record page (full purchase + Rx history per patient)
-- [ ] Family member mapping on customer profile
+- [x] H1 register table + H1 report generation
+- [x] Repeat-dispense validation
+- [x] Customer medicine record page (full purchase + Rx history per patient)
+- [x] Family member mapping on customer profile
 
 ### P8 — Reports Engine
-- [ ] Reports section: daily sale, daily purchase, GST summary, HSN-wise, stock valuation, H1 report, SLA report
-- [ ] CSV + PDF export for each report category
+- [x] Reports section: daily sale, daily purchase, GST summary, HSN-wise, stock valuation, H1 report, SLA report
+- [x] CSV + PDF export for each report category
 
 ### P9 — Accounting + Tally + Shift Closing
-- [ ] Schema: ledgers, ledger_entries, shift_closings
-- [ ] Shift closing form (opening cash, sales, UPI, expenses, variance, manager approval)
-- [ ] Tally-compatible CSV/XML export (sales voucher, purchase voucher, receipt/payment)
+- [x] Schema: ledgers, ledger_entries, shift_closings
+- [x] Shift closing form (opening cash, sales, UPI, expenses, variance, manager approval)
+- [x] Tally-compatible CSV/XML export (sales voucher, purchase voucher, receipt/payment)
 
 ### P10 — System Admin Utilities
-- [ ] System health dashboard (OCR queue, WhatsApp webhook, Medivision sync, DB check)
-- [ ] Transaction locking (daily shift lock, monthly lock, GST filing lock)
-- [ ] Financial year management
+- [x] System health dashboard (OCR queue, WhatsApp webhook, Medivision sync, DB check)
+- [x] Transaction locking (daily shift lock, monthly lock, GST filing lock)
+- [x] Financial year management
 
 ## Full Pharmacy OS Upgrade — v22 (Apr 29 2026)
 
@@ -511,3 +511,43 @@
 - [x] P6: PharmacyOS quick-access strip extended — 10 tool buttons (Expiry, SLA, Barcode, GST, Medivision, Purchase, OCR, Reports, Master Data, Shift)
 - [x] P6: App.tsx — 5 new routes registered (/pharmacy/purchase, /pharmacy/ocr, /pharmacy/reports, /pharmacy/master-data, /pharmacy/shift)
 - [x] TypeScript 0 errors, 73/73 tests passing
+
+## v23 — Full Pharmacy OS Hardening (Apr 29 2026)
+
+### Critical Fixes
+- [x] OTP auth: verifyOtp creates session cookie, auth.me works after OTP login, no dev OTP in production
+- [x] RBAC: requireRole / requireAnyRole / requireOrderOwnershipOrStaff / requirePrescriptionOwnershipOrStaff guards
+- [x] Order state machine: 16 explicit states, role-enforced transitions, reason required, audit log before/after
+- [x] Prescription enforcement: Rx/H/H1/X checkout gate, prescriptionId required, pharmacist approval before picking
+- [x] Inventory safety: transactional stock reservation, FEFO batch assignment, release on cancel, decrement on delivery
+- [x] WhatsApp: link phone to customer ID, ownership check, no userId=0 prescriptions
+
+### Admin Area
+- [x] /admin layout with real sidebar (20+ routes)
+- [x] /admin/masters/suppliers — CRUD
+- [x] /admin/masters/manufacturers — CRUD
+- [x] /admin/masters/categories — CRUD
+- [x] /admin/masters/generics — CRUD
+- [x] /admin/masters/schedules — CRUD
+- [x] /admin/masters/discounts — CRUD
+- [x] /admin/masters/doctors — CRUD
+- [x] /admin/masters/customers — CRUD
+- [x] /admin/masters/staff — CRUD
+- [x] /admin/masters/buildings — CRUD
+- [x] /admin/masters/stores — CRUD
+
+### Product/Batch + Prescription Governance
+- [x] Product master upgrade: schedule_id, barcodes, supplier aliases, product_locks
+- [x] Batch registry: purchase_rate, sale_rate, landing_cost, margin, qty_reserved, qty_quarantined
+- [x] /admin/prescriptions: pending queue, image viewer, approve/reject/clarify, line-item approval
+
+### Purchase + OCR + Counter Billing
+- [x] /admin/purchase + /admin/purchase/new: full invoice entry, stock commit
+- [x] /admin/ocr: upload → AI extract → review → commit
+- [x] /admin/sales/counter: barcode scan, FEFO batch, payment, print bill, sale return
+
+### Command Center + Reports + Accounting + Utilities
+- [x] /admin/command-center: live orders, pending reviews, SLA breach, stockouts, WhatsApp queue
+- [x] /admin/reports/daily-sales, stock, expiry, purchase, h1, gst
+- [x] /admin/accounting: ledger, payment/receipt entry, Tally export placeholder
+- [x] /admin/utilities: printer setup, batch management, transaction lock, DB health

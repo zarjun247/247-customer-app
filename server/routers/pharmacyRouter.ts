@@ -151,6 +151,14 @@ export const pharmacistRouter = router({
       assertRole(ctx.user.role, PHARMACIST_ROLES, "Pharmacist");
       return clearRxGate(input.orderId, ctx.user.id);
     }),
+  /** Admin: list all orders with optional status filter */
+  adminListOrders: protectedProcedure
+    .input(z.object({ status: z.string().optional(), limit: z.number().int().min(1).max(500).default(200) }))
+    .query(async ({ ctx, input }) => {
+      assertRole(ctx.user.role, STAFF_ROLES, "Staff");
+      const { getAllOrders } = await import("../db");
+      return getAllOrders({ status: input.status, limit: input.limit });
+    }),
 });
 
 // ─── Inventory Router ─────────────────────────────────────────────────────────

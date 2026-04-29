@@ -34,6 +34,11 @@ import OcrIngestion from "./pages/OcrIngestion";
 import Reports from "./pages/Reports";
 import MasterData from "./pages/MasterData";
 import ShiftClosing from "./pages/ShiftClosing";
+import AdminCommandCenter from "./pages/AdminCommandCenter";
+import AdminOrders from "./pages/AdminOrders";
+import AdminPrescriptions from "./pages/AdminPrescriptions";
+import CounterSale from "./pages/CounterSale";
+import AdminReports from "./pages/AdminReports";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -145,6 +150,22 @@ function Router() {
         <Route path="/pharmacy/reports" component={Reports} />
         <Route path="/pharmacy/master-data" component={MasterData} />
         <Route path="/pharmacy/shift" component={ShiftClosing} />
+        {/* Admin area */}
+        <Route path="/admin" component={AdminCommandCenter} />
+        <Route path="/admin/command-center" component={AdminCommandCenter} />
+        <Route path="/admin/orders" component={AdminOrders} />
+        <Route path="/admin/prescriptions" component={AdminPrescriptions} />
+        <Route path="/admin/sales/counter" component={CounterSale} />
+        <Route path="/admin/reports" component={AdminReports} />
+        <Route path="/admin/purchase" component={PurchaseEntry} />
+        <Route path="/admin/ocr" component={OcrIngestion} />
+        <Route path="/admin/master-data" component={MasterData} />
+        <Route path="/admin/shift" component={ShiftClosing} />
+        <Route path="/admin/expiry" component={ExpiryDashboard} />
+        <Route path="/admin/sla" component={SlaBoard} />
+        <Route path="/admin/barcodes" component={BarcodePrint} />
+        <Route path="/admin/gst-export" component={GstExport} />
+        <Route path="/admin/medivision" component={MedivisionSync} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

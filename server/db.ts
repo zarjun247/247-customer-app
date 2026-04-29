@@ -357,6 +357,15 @@ export async function getOrdersByUser(userId: number) {
   if (!db) return [];
   return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
 }
+export async function getAllOrders(opts?: { status?: string; limit?: number }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (opts?.status) conditions.push(eq(orders.status, opts.status as any));
+  const q = db.select().from(orders);
+  if (conditions.length > 0) q.where(and(...conditions));
+  return q.orderBy(desc(orders.createdAt)).limit(opts?.limit ?? 200);
+}
 
 export async function getOrderById(orderId: number) {
   const db = await getDb();
@@ -382,10 +391,19 @@ export async function getOrderItems(orderId: number) {
     .where(eq(orderItems.orderId, orderId));
 }
 
-export async function updateOrderStatus(orderId: number, status: typeof orders.$inferSelect["status"]) {
+export async function updateOrderStatus(
+  orderId: number,
+  status: typeof orders.$inferSelect["status"],
+  opts?: { reason?: string; changedBy?: number },
+) {
   const db = await getDb();
   if (!db) return;
-  const updateData: Record<string, unknown> = { status };
+  const updateData: Record<string, unknown> = {
+    status,
+    statusChangedAt: new Date(),
+    statusChangedBy: opts?.changedBy ?? null,
+    statusReason: opts?.reason ?? null,
+  };
   if (status === "delivered") updateData.deliveredAt = new Date();
   await db.update(orders).set(updateData).where(eq(orders.id, orderId));
 }
@@ -664,12 +682,46 @@ export async function upsertWhatsappSession(phone: string, data: { userId?: numb
 }
 
 // ─── Audit Logs ───────────────────────────────────────────────────────────────
-export async function writeAuditLog(userId: number | null, action: string, entityType?: string, entityId?: number, payload?: unknown) {
+export interface AuditLogOptions {
+  actorId?: number | null;
+  actorType?: string;  // 'user' | 'system' | 'whatsapp' | 'scheduled'
+  actorRole?: string;
+  entityType?: string;
+  entityId?: number;
+  beforeJson?: unknown;
+  afterJson?: unknown;
+  payload?: unknown;
+  reason?: string;
+  channel?: string;  // 'app' | 'whatsapp' | 'admin' | 'api'
+  ipAddress?: string;
+  sessionId?: string;
+}
+
+export async function writeAuditLog(
+  userId: number | null,
+  action: string,
+  entityType?: string,
+  entityId?: number,
+  payload?: unknown,
+  opts?: AuditLogOptions,
+) {
   const db = await getDb();
   if (!db) return;
   await db.insert(auditLogs).values({
-    userId: userId ?? undefined, action, entityType, entityId,
-    payload: payload ? JSON.stringify(payload) : undefined,
+    userId: userId ?? undefined,
+    actorId: opts?.actorId ?? userId ?? undefined,
+    actorType: opts?.actorType ?? 'user',
+    actorRole: opts?.actorRole,
+    action,
+    entityType: opts?.entityType ?? entityType,
+    entityId: opts?.entityId ?? entityId,
+    beforeJson: opts?.beforeJson ? JSON.stringify(opts.beforeJson) : undefined,
+    afterJson: opts?.afterJson ? JSON.stringify(opts.afterJson) : undefined,
+    payload: (opts?.payload ?? payload) ? JSON.stringify(opts?.payload ?? payload) : undefined,
+    reason: opts?.reason,
+    channel: opts?.channel ?? 'app',
+    ipAddress: opts?.ipAddress,
+    sessionId: opts?.sessionId,
   });
 }
 
@@ -724,9 +776,22 @@ export async function createWhatsappPrescription(phone: string, imageUrl: string
   if (!db) return null;
   // Try to find a linked user via whatsapp session
   const session = await getWhatsappSession(phone);
-  const userId = session?.userId ?? null;
+  let userId = session?.userId ?? null;
+  // If no linked user, upsert one by phone so we never use userId=0
+  if (!userId) {
+    const upserted = await upsertUserByPhone(phone, { loginMethod: "whatsapp" });
+    userId = upserted?.id ?? null;
+    // Update the session with the resolved userId
+    if (userId) {
+      await upsertWhatsappSession(phone, { userId });
+    }
+  }
+  if (!userId) {
+    console.error("[WhatsApp] Could not resolve userId for phone", phone, "— skipping Rx insert");
+    return null;
+  }
   const [r] = await db.insert(prescriptions).values({
-    userId: userId ?? 0,
+    userId,
     storeId: undefined,
     imageUrl,
     imageKey,

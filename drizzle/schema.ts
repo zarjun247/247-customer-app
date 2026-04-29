@@ -254,14 +254,28 @@ export const orders = mysqlTable("orders", {
   storeId: int("storeId").notNull(),
   prescriptionId: int("prescriptionId"),
   status: mysqlEnum("status", [
+    "draft",
+    "awaiting_prescription",
+    "awaiting_pharmacist_review",
+    "clarification_needed",
+    "rejected",
+    "awaiting_allocation",
+    "backorder_review",
+    "reserved",
+    "picking",
+    "packed",
+    "assigned_to_rider",
+    "out_for_delivery",
+    "delivery_exception",
+    "returned",
+    "delivered",
+    "closed",
+    "cancelled",
+    // legacy compat
     "created",
     "pharmacist_reviewing",
-    "picking",
-    "out_for_delivery",
-    "delivered",
-    "cancelled",
     "return_to_stock",
-  ]).default("created").notNull(),
+  ]).default("draft").notNull(),
   // Rx lane for this order
   rxLane: mysqlEnum("rxLane", ["otc", "digital", "on_file", "fallback", "doctor_consult"]).default("otc").notNull(),
   rxGateCleared: boolean("rxGateCleared").default(false).notNull(),
@@ -274,6 +288,9 @@ export const orders = mysqlTable("orders", {
   flatNumber: varchar("flatNumber", { length: 20 }),
   buildingId: int("buildingId"),
   source: mysqlEnum("source", ["app", "whatsapp"]).default("app").notNull(),
+  statusReason: varchar("statusReason", { length: 500 }),
+  statusChangedBy: int("statusChangedBy"),
+  statusChangedAt: timestamp("statusChangedAt"),
   invoiceUrl: text("invoiceUrl"),
   invoiceKey: varchar("invoiceKey", { length: 500 }),
   // Rider assignment
@@ -354,13 +371,26 @@ export const otpCodes = mysqlTable("otp_codes", {
 // ─── Audit Logs ───────────────────────────────────────────────────────────────
 export const auditLogs = mysqlTable("audit_logs", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  // Actor
+  actorId: int("actorId"),
+  actorType: varchar("actorType", { length: 50 }).default("user"),  // user | system | whatsapp | scheduled
+  actorRole: varchar("actorRole", { length: 50 }),
+  // Legacy compat
   userId: int("userId"),
+  // Action
   action: varchar("action", { length: 200 }).notNull(),
   entityType: varchar("entityType", { length: 100 }),
   entityId: int("entityId"),
+  // Before/after state
+  beforeJson: text("beforeJson"),
+  afterJson: text("afterJson"),
   payload: text("payload"),
+  reason: varchar("reason", { length: 500 }),
+  // Request context
   ipAddress: varchar("ipAddress", { length: 45 }),
   userAgent: text("userAgent"),
+  sessionId: varchar("sessionId", { length: 200 }),
+  channel: varchar("channel", { length: 50 }).default("app"),  // app | whatsapp | admin | api
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

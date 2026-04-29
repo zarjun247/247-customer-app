@@ -2,7 +2,7 @@ import { z } from "zod";
 import { COOKIE_NAME, ONBOARDING_REQUIRED_MSG } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router, requireOrderOwnershipOrStaff, requireAnyRole, isStaffRole, PHARMACIST_ROLES, RIDER_ROLES, STAFF_ROLES } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
   getBuildings, getStoreById, getCatalog, getSkuById,
@@ -271,8 +271,25 @@ const orderRouter = router({
       const total = subtotal;
 
       const needsRx = cartData.some(i => i.requiresPrescription);
-      const initialStatus = needsRx ? "pharmacist_reviewing" : "picking";
-
+      // Rx gate: if cart contains Rx/H/H1/X items, prescriptionId is required
+      if (needsRx) {
+        if (!input.prescriptionId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "A valid prescription is required for one or more items in your cart. Please upload your prescription before checkout.",
+          });
+        }
+        // Verify prescription belongs to this customer
+        const rx = await getPrescriptionById(input.prescriptionId);
+        if (!rx || rx.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Prescription does not belong to this account" });
+        }
+        if (rx.status === "rejected") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "This prescription has been rejected. Please upload a new prescription." });
+        }
+      }
+      // Initial status: Rx orders enter pharmacist review; OTC orders go to awaiting_allocation
+      const initialStatus = needsRx ? "awaiting_pharmacist_review" : "awaiting_allocation";
       const orderId = await createOrder({
         userId: ctx.user.id,
         storeId: user.assignedStoreId,
@@ -353,14 +370,52 @@ const orderRouter = router({
       return { success: true, itemCount: items.length };
     }),
 
-  // Admin/demo: advance order status
+  // Advance order status — role-gated, reason required, audit logged
   advanceStatus: protectedProcedure
-    .input(z.object({ orderId: z.number(), status: z.enum(["pharmacist_reviewing", "picking", "out_for_delivery", "delivered", "cancelled"]) }))
+    .input(z.object({
+      orderId: z.number(),
+      status: z.enum([
+        "draft", "awaiting_prescription", "awaiting_pharmacist_review",
+        "clarification_needed", "rejected", "awaiting_allocation",
+        "backorder_review", "reserved", "picking", "packed",
+        "assigned_to_rider", "out_for_delivery", "delivery_exception",
+        "returned", "delivered", "closed", "cancelled",
+        // legacy compat
+        "pharmacist_reviewing", "return_to_stock",
+      ]),
+      reason: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const order = await getOrderById(input.orderId);
-      if (!order) throw new Error("Order not found");
-      await updateOrderStatus(input.orderId, input.status);
-      await writeAuditLog(ctx.user.id, "order_status_changed", "order", input.orderId, { status: input.status });
+      if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      const userRole = ctx.user.role;
+      // Customers cannot advance operational statuses
+      const customerOnlyStatuses = ["cancelled"];
+      const staffOnlyStatuses = [
+        "awaiting_pharmacist_review", "clarification_needed", "rejected",
+        "awaiting_allocation", "backorder_review", "reserved",
+        "picking", "packed", "assigned_to_rider", "out_for_delivery",
+        "delivery_exception", "returned", "delivered", "closed",
+        // legacy
+        "pharmacist_reviewing", "return_to_stock",
+      ];
+      if (staffOnlyStatuses.includes(input.status) && !isStaffRole(userRole)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can advance to this status" });
+      }
+      // Customers can only cancel their own orders
+      if (!isStaffRole(userRole) && input.status !== "cancelled") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Customers can only cancel orders" });
+      }
+      requireOrderOwnershipOrStaff(ctx.user.id, order.userId, userRole);
+      const before = { status: order.status };
+      await updateOrderStatus(input.orderId, input.status, { reason: input.reason, changedBy: ctx.user.id });
+      await writeAuditLog(ctx.user.id, "order_status_changed", "order", input.orderId, undefined, {
+        actorRole: userRole,
+        beforeJson: before,
+        afterJson: { status: input.status },
+        reason: input.reason,
+        channel: 'admin',
+      });
       // Auto-generate invoice on delivery
       if (input.status === "delivered") {
         try {
