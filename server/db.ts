@@ -695,11 +695,34 @@ export interface AuditLogOptions {
   channel?: string;  // 'app' | 'whatsapp' | 'admin' | 'api'
   ipAddress?: string;
   sessionId?: string;
+  deviceId?: string;
+}
+
+/**
+ * Named-object signature (preferred):
+ *   writeAuditLog({ actor, action, entityType, entityId, before, after, reason, ... })
+ *
+ * Legacy positional signature (backward compat):
+ *   writeAuditLog(userId, action, entityType?, entityId?, payload?, opts?)
+ */
+export interface AuditLogParams {
+  actor: { id: number | null; role?: string; type?: string };
+  action: string;
+  entityType?: string;
+  entityId?: number;
+  before?: unknown;
+  after?: unknown;
+  reason?: string;
+  channel?: string;
+  ipAddress?: string;
+  sessionId?: string;
+  deviceId?: string;
+  payload?: unknown;
 }
 
 export async function writeAuditLog(
-  userId: number | null,
-  action: string,
+  userIdOrParams: number | null | AuditLogParams,
+  action?: string,
   entityType?: string,
   entityId?: number,
   payload?: unknown,
@@ -707,12 +730,38 @@ export async function writeAuditLog(
 ) {
   const db = await getDb();
   if (!db) return;
+
+  // Named-object signature
+  if (userIdOrParams !== null && typeof userIdOrParams === 'object') {
+    const p = userIdOrParams as AuditLogParams;
+    await db.insert(auditLogs).values({
+      userId: p.actor.id ?? undefined,
+      actorId: p.actor.id ?? undefined,
+      actorType: p.actor.type ?? 'user',
+      actorRole: p.actor.role,
+      action: p.action,
+      entityType: p.entityType,
+      entityId: p.entityId,
+      beforeJson: p.before ? JSON.stringify(p.before) : undefined,
+      afterJson: p.after ? JSON.stringify(p.after) : undefined,
+      payload: p.payload ? JSON.stringify(p.payload) : undefined,
+      reason: p.reason,
+      channel: p.channel ?? 'app',
+      ipAddress: p.ipAddress,
+      sessionId: p.sessionId,
+      deviceId: p.deviceId,
+    });
+    return;
+  }
+
+  // Legacy positional signature
+  const userId = userIdOrParams as number | null;
   await db.insert(auditLogs).values({
     userId: userId ?? undefined,
     actorId: opts?.actorId ?? userId ?? undefined,
     actorType: opts?.actorType ?? 'user',
     actorRole: opts?.actorRole,
-    action,
+    action: action!,
     entityType: opts?.entityType ?? entityType,
     entityId: opts?.entityId ?? entityId,
     beforeJson: opts?.beforeJson ? JSON.stringify(opts.beforeJson) : undefined,
@@ -722,6 +771,7 @@ export async function writeAuditLog(
     channel: opts?.channel ?? 'app',
     ipAddress: opts?.ipAddress,
     sessionId: opts?.sessionId,
+    deviceId: opts?.deviceId,
   });
 }
 

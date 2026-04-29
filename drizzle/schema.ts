@@ -20,17 +20,20 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", [
     "user",
+    "customer",
     "admin",
+    "super_admin",
+    "ops_admin",
     "pharmacist",
     "store_manager",
+    "purchase_manager",
+    "accountant",
+    "cashier",
+    "salesman",
+    "rider",
     "inventory_operator",
     "delivery_operator",
     "auditor",
-    "cashier",
-    "salesman",
-    "purchase_manager",
-    "accountant",
-    "super_admin",
   ]).default("user").notNull(),
   // Building/flat identity for routing
   buildingId: int("buildingId"),
@@ -390,6 +393,7 @@ export const auditLogs = mysqlTable("audit_logs", {
   ipAddress: varchar("ipAddress", { length: 45 }),
   userAgent: text("userAgent"),
   sessionId: varchar("sessionId", { length: 200 }),
+  deviceId: varchar("deviceId", { length: 200 }),
   channel: varchar("channel", { length: 50 }).default("app"),  // app | whatsapp | admin | api
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

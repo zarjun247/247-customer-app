@@ -435,7 +435,40 @@ const printerRouter = router({
     }),
 });
 
-// ─── Compose masterDataRouter ─────────────────────────────────────────────────
+// ─── Customer / User listing ─────────────────────────────────────────────────────
+const customerListRouter = router({
+  list: protectedProcedure
+    .input(z.object({ search: z.string().optional(), limit: z.number().int().min(1).max(200).default(100) }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDbSafe();
+      const { users } = await import("../../drizzle/schema");
+      const { like, or, desc } = await import("drizzle-orm");
+      let where: any = undefined;
+      if (input.search) {
+        where = or(
+          like(users.name, `%${input.search}%`),
+          like(users.phone, `%${input.search}%`),
+          like(users.email, `%${input.search}%`),
+        );
+      }
+      return db.select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        role: users.role,
+        createdAt: users.createdAt,
+        lastSignedIn: users.lastSignedIn,
+      })
+        .from(users)
+        .where(where)
+        .orderBy(desc(users.createdAt))
+        .limit(input.limit);
+    }),
+});
+
+// ─── Compose masterDataRouter ─────────────────────────────────────────────────────
 export const masterDataRouter = router({
   suppliers: supplierRouter,
   manufacturers: manufacturerRouter,
@@ -447,4 +480,5 @@ export const masterDataRouter = router({
   financialYears: financialYearRouter,
   states: stateRouter,
   printers: printerRouter,
+  customers: customerListRouter,
 });

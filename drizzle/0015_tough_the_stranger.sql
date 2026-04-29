@@ -1,0 +1,2 @@
+ALTER TABLE `users` MODIFY COLUMN `role` enum('user','customer','admin','super_admin','ops_admin','pharmacist','store_manager','purchase_manager','accountant','cashier','salesman','rider','inventory_operator','delivery_operator','auditor') NOT NULL DEFAULT 'user';--> statement-breakpoint
+ALTER TABLE `audit_logs` ADD `deviceId` varchar(200);

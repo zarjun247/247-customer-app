@@ -39,6 +39,14 @@ import AdminOrders from "./pages/AdminOrders";
 import AdminPrescriptions from "./pages/AdminPrescriptions";
 import CounterSale from "./pages/CounterSale";
 import AdminReports from "./pages/AdminReports";
+import AdminInventory from "./pages/AdminInventory";
+import AdminCustomers from "./pages/AdminCustomers";
+import AdminRiders from "./pages/AdminRiders";
+import AdminWhatsApp from "./pages/AdminWhatsApp";
+import AdminRefills from "./pages/AdminRefills";
+import AdminAccounting from "./pages/AdminAccounting";
+import AdminUtilities from "./pages/AdminUtilities";
+import AdminSettings from "./pages/AdminSettings";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 
@@ -166,6 +174,16 @@ function Router() {
         <Route path="/admin/barcodes" component={BarcodePrint} />
         <Route path="/admin/gst-export" component={GstExport} />
         <Route path="/admin/medivision" component={MedivisionSync} />
+        <Route path="/admin/inventory">{() => <AdminInventory />}</Route>
+        <Route path="/admin/customers" component={AdminCustomers} />
+        <Route path="/admin/riders" component={AdminRiders} />
+        <Route path="/admin/whatsapp" component={AdminWhatsApp} />
+        <Route path="/admin/refills" component={AdminRefills} />
+        <Route path="/admin/accounting" component={AdminAccounting} />
+        <Route path="/admin/utilities" component={AdminUtilities} />
+        <Route path="/admin/settings" component={AdminSettings} />
+        <Route path="/admin/masters" component={MasterData} />
+        <Route path="/admin/sales" component={CounterSale} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
