@@ -30,6 +30,7 @@ import { consentRouter } from "./routers/consentRouter";
 import { paymentRouter } from "./routers/paymentRouter";
 import { medivisionRouter } from "./routers/medivisionRouter";
 import { masterDataRouter } from "./routers/masterDataRouter";
+import { inventoryLedgerRouter } from "./routers/inventoryRouter";
 import { purchaseRouter } from "./routers/purchaseRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
@@ -706,6 +707,7 @@ export const appRouter = router({
   payment: paymentRouter,
   medivision: medivisionRouter,
   masterData: masterDataRouter,
+  inventoryLedger: inventoryLedgerRouter,
   purchase: purchaseRouter,
   ocr: ocrIngestionRouter,
   reports: reportsRouter,

@@ -595,3 +595,33 @@
 - [x] App.tsx: registered all 7 new /admin/masters/* routes
 - [x] AdminLayout: added Patient Categories and Printers to Masters sidebar section
 - [x] TypeScript 0 errors
+
+## PART 4 — Batchwise Inventory + Stock Ledger
+
+- [x] Schema: upgrade batches table with 20+ new fields (mfgDate, purchaseRate, saleRate, schemeDiscount, cashDiscount, landingCost, margin, qtyQuarantined, qtyExpired, internalBarcode, manufacturerBarcode, storageCondition, coldChainFlag, expiryBucket, status)
+- [x] Schema: add batch_ledger table (per-batch movement log)
+- [x] Schema: add stock_reservations table
+- [x] Schema: add stock_transfers table
+- [x] Schema: add stock_audits + stock_audit_lines tables
+- [x] Schema: add batch_quarantine_logs table
+- [x] Schema: add expiry_actions table
+- [x] Migration 0018 applied (7 new tables)
+- [x] inventoryRouter: batch.list with FEFO sort, expiry bucket filter, status filter
+- [x] inventoryRouter: batch.create (GRN inward with expiryBucket calculation)
+- [x] inventoryRouter: batch.quarantine (quarantine qty with reason + audit log)
+- [x] inventoryRouter: batch.dispose (write-off with audit log)
+- [x] inventoryRouter: stock.currentStock (aggregated per product/store)
+- [x] inventoryRouter: stock.nearExpiry (bucketed expiry view)
+- [x] inventoryRouter: stock.movements (paginated ledger with type filter)
+- [x] inventoryRouter: adjustment.list/create/approve/reject (manager approval workflow)
+- [x] inventoryRouter: audit.list/create/getLines/submitCount/complete (full audit session)
+- [x] Frontend: /admin/inventory/current-stock — aggregated stock per product/store
+- [x] Frontend: /admin/inventory/batchwise — per-batch balance with quarantine/dispose actions
+- [x] Frontend: /admin/inventory/near-expiry — bucket summary cards + filterable table
+- [x] Frontend: /admin/inventory/movements — immutable ledger with type/store filter
+- [x] Frontend: /admin/inventory/adjustments — create/approve/reject adjustment workflow
+- [x] Frontend: /admin/inventory/audit — create session, count lines, complete with corrections
+- [x] AdminLayout sidebar: expanded Inventory section with 6 sub-links
+- [x] App.tsx: registered all 6 new /admin/inventory/* routes
+- [x] Fixed duplicate stockMovements/stockAdjustments exports in schema.ts
+- [x] TypeScript 0 errors, 73/73 tests passing

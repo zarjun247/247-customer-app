@@ -62,9 +62,12 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Inventory",
     items: [
       { label: "Stock Overview", href: "/admin/inventory", icon: Warehouse },
-      { label: "Expiry Board", href: "/admin/inventory/expiry", icon: AlertTriangle },
-      { label: "Barcodes & Labels", href: "/admin/inventory/barcodes", icon: Printer },
-      { label: "Adjustments", href: "/admin/inventory/adjustments", icon: Archive },
+      { label: "Current Stock", href: "/admin/inventory/current-stock", icon: Package },
+      { label: "Batchwise Balance", href: "/admin/inventory/batchwise", icon: Archive },
+      { label: "Near Expiry", href: "/admin/inventory/near-expiry", icon: AlertTriangle },
+      { label: "Stock Movements", href: "/admin/inventory/movements", icon: Activity },
+      { label: "Adjustments", href: "/admin/inventory/adjustments", icon: Wrench },
+      { label: "Stock Audit", href: "/admin/inventory/audit", icon: ClipboardList },
     ],
   },
   {

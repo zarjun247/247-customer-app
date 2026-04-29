@@ -8,6 +8,7 @@ import {
   decimal,
   boolean,
   bigint,
+  date,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -1294,7 +1295,6 @@ export type Generic = typeof generics.$inferSelect;
 export type Doctor = typeof doctors.$inferSelect;
 export type PurchaseInvoice = typeof purchaseInvoices.$inferSelect;
 export type PurchaseLine = typeof purchaseLines.$inferSelect;
-export type StockMovement = typeof stockMovements.$inferSelect;
 export type IngestionJob = typeof ingestionJobs.$inferSelect;
 export type OcrExtractedLine = typeof ocrExtractedLines.$inferSelect;
 export type ShiftClosing = typeof shiftClosings.$inferSelect;
@@ -1352,3 +1352,160 @@ export const productMarginRules = mysqlTable("product_margin_rules", {
 export type StaffMember = typeof staffMaster.$inferSelect;
 export type ProductBarcode = typeof productBarcodes.$inferSelect;
 export type ProductMarginRule = typeof productMarginRules.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PART 4 — Batchwise Inventory + Stock Ledger
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Upgraded Batch Ledger ────────────────────────────────────────────────────
+// NOTE: The original `batches` table is kept for backward compat.
+// This new table `batch_ledger` is the canonical PART 4 batch store.
+export const batchLedger = mysqlTable("batch_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  // Product linkage
+  productId: int("productId").notNull(),          // FK → products.id
+  variantId: int("variantId"),                    // FK → product_variants.id
+  storeId: int("storeId").notNull(),              // FK → stores.id
+  supplierId: int("supplierId"),                  // FK → suppliers.id
+  // Batch identity
+  batchNo: varchar("batchNo", { length: 100 }).notNull(),
+  mfgDate: date("mfgDate"),
+  expiryDate: date("expiryDate").notNull(),
+  // Pricing
+  mrp: decimal("mrp", { precision: 10, scale: 2 }).notNull(),
+  purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }).notNull(),
+  saleRate: decimal("saleRate", { precision: 10, scale: 2 }).notNull(),
+  schemeDiscount: decimal("schemeDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  cashDiscount: decimal("cashDiscount", { precision: 5, scale: 2 }).default("0.00"),
+  landingCost: decimal("landingCost", { precision: 10, scale: 2 }),
+  margin: decimal("margin", { precision: 5, scale: 2 }),
+  // Quantities
+  qtyOnHand: int("qtyOnHand").default(0).notNull(),
+  qtyReserved: int("qtyReserved").default(0).notNull(),
+  qtyQuarantined: int("qtyQuarantined").default(0).notNull(),
+  qtyExpired: int("qtyExpired").default(0).notNull(),
+  // Barcodes
+  internalBarcode: varchar("internalBarcode", { length: 100 }),
+  manufacturerBarcode: varchar("manufacturerBarcode", { length: 100 }),
+  // References
+  purchaseInvoiceId: int("purchaseInvoiceId"),    // FK → purchase_invoices.id (future)
+  grnId: int("grnId"),                            // FK → grn_records.id
+  // Storage
+  storageCondition: mysqlEnum("storageCondition", ["ambient", "cold_chain", "controlled", "frozen"]).default("ambient").notNull(),
+  coldChainFlag: boolean("coldChainFlag").default(false).notNull(),
+  // Expiry status (computed/cached)
+  expiryBucket: mysqlEnum("expiryBucket", ["normal", "warning", "critical", "quarantine_candidate", "expired"]).default("normal").notNull(),
+  // Batch status
+  status: mysqlEnum("status", [
+    "active", "quarantined", "depleted", "expired", "recalled", "damaged", "returned_to_supplier"
+  ]).default("active").notNull(),
+  // Audit
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Stock Reservations ───────────────────────────────────────────────────────
+export const stockReservations = mysqlTable("stock_reservations", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: int("batchId").notNull(),
+  orderId: int("orderId").notNull(),
+  productId: int("productId").notNull(),
+  storeId: int("storeId").notNull(),
+  qtyReserved: int("qtyReserved").notNull(),
+  status: mysqlEnum("status", ["active", "fulfilled", "cancelled", "expired"]).default("active").notNull(),
+  reservedAt: timestamp("reservedAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt"),
+  fulfilledAt: timestamp("fulfilledAt"),
+  cancelledAt: timestamp("cancelledAt"),
+});
+
+// ─── Stock Transfers ──────────────────────────────────────────────────────────
+export const stockTransfers = mysqlTable("stock_transfers", {
+  id: int("id").autoincrement().primaryKey(),
+  fromStoreId: int("fromStoreId").notNull(),
+  toStoreId: int("toStoreId").notNull(),
+  batchId: int("batchId").notNull(),
+  productId: int("productId").notNull(),
+  qtyTransferred: int("qtyTransferred").notNull(),
+  transferType: mysqlEnum("transferType", ["inter_store", "batch_to_batch", "return_to_supplier"]).default("inter_store").notNull(),
+  status: mysqlEnum("status", ["pending", "in_transit", "received", "cancelled"]).default("pending").notNull(),
+  initiatedBy: int("initiatedBy").notNull(),
+  receivedBy: int("receivedBy"),
+  initiatedAt: timestamp("initiatedAt").defaultNow().notNull(),
+  receivedAt: timestamp("receivedAt"),
+  note: text("note"),
+});
+
+// ─── Stock Audits ─────────────────────────────────────────────────────────────
+export const stockAudits = mysqlTable("stock_audits", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  auditType: mysqlEnum("auditType", ["full", "spot_check", "expiry_sweep", "scheduled"]).default("full").notNull(),
+  status: mysqlEnum("status", ["draft", "in_progress", "completed", "cancelled"]).default("draft").notNull(),
+  startedBy: int("startedBy").notNull(),
+  completedBy: int("completedBy"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  totalVariances: int("totalVariances").default(0),
+  note: text("note"),
+});
+
+export const stockAuditLines = mysqlTable("stock_audit_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  auditId: int("auditId").notNull(),
+  batchId: int("batchId").notNull(),
+  productId: int("productId").notNull(),
+  systemQty: int("systemQty").notNull(),
+  countedQty: int("countedQty"),
+  variance: int("variance"),                      // countedQty - systemQty
+  status: mysqlEnum("status", ["pending", "counted", "approved", "adjusted"]).default("pending").notNull(),
+  countedBy: int("countedBy"),
+  countedAt: timestamp("countedAt"),
+});
+
+// ─── Batch Quarantine Logs ────────────────────────────────────────────────────
+export const batchQuarantineLogs = mysqlTable("batch_quarantine_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: int("batchId").notNull(),
+  productId: int("productId").notNull(),
+  storeId: int("storeId").notNull(),
+  reason: mysqlEnum("reason", [
+    "near_expiry", "quality_issue", "recall", "damage", "cold_chain_breach", "manual"
+  ]).notNull(),
+  qtyQuarantined: int("qtyQuarantined").notNull(),
+  initiatedBy: int("initiatedBy").notNull(),
+  approvedBy: int("approvedBy"),
+  status: mysqlEnum("status", ["pending_review", "approved", "released", "disposed"]).default("pending_review").notNull(),
+  note: text("note"),
+  initiatedAt: timestamp("initiatedAt").defaultNow().notNull(),
+  resolvedAt: timestamp("resolvedAt"),
+});
+
+// ─── Expiry Actions ───────────────────────────────────────────────────────────
+export const expiryActions = mysqlTable("expiry_actions", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: int("batchId").notNull(),
+  productId: int("productId").notNull(),
+  storeId: int("storeId").notNull(),
+  expiryDate: date("expiryDate").notNull(),
+  daysToExpiry: int("daysToExpiry").notNull(),
+  expiryBucket: mysqlEnum("expiryBucket", ["normal", "warning", "critical", "quarantine_candidate", "expired"]).notNull(),
+  actionTaken: mysqlEnum("actionTaken", [
+    "flagged", "price_reduced", "quarantined", "returned_to_supplier",
+    "disposed", "sold_before_expiry", "no_action"
+  ]).default("flagged").notNull(),
+  actionBy: int("actionBy"),
+  actionAt: timestamp("actionAt").defaultNow().notNull(),
+  note: text("note"),
+});
+
+// ─── Type exports (PART 4) ────────────────────────────────────────────────────
+export type BatchLedger = typeof batchLedger.$inferSelect;
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type StockReservation = typeof stockReservations.$inferSelect;
+export type StockTransfer = typeof stockTransfers.$inferSelect;
+export type StockAudit = typeof stockAudits.$inferSelect;
+export type StockAuditLine = typeof stockAuditLines.$inferSelect;
+export type BatchQuarantineLog = typeof batchQuarantineLogs.$inferSelect;
+export type ExpiryAction = typeof expiryActions.$inferSelect;

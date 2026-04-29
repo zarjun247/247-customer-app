@@ -40,6 +40,12 @@ import AdminPrescriptions from "./pages/AdminPrescriptions";
 import CounterSale from "./pages/CounterSale";
 import AdminReports from "./pages/AdminReports";
 import AdminInventory from "./pages/AdminInventory";
+import AdminCurrentStock from "./pages/inventory/AdminCurrentStock";
+import AdminBatchwiseBalance from "./pages/inventory/AdminBatchwiseBalance";
+import AdminNearExpiry from "./pages/inventory/AdminNearExpiry";
+import AdminStockMovements from "./pages/inventory/AdminStockMovements";
+import AdminStockAdjustment from "./pages/inventory/AdminStockAdjustment";
+import AdminStockAudit from "./pages/inventory/AdminStockAudit";
 import AdminCustomers from "./pages/AdminCustomers";
 import AdminRiders from "./pages/AdminRiders";
 import AdminWhatsApp from "./pages/AdminWhatsApp";
@@ -189,6 +195,12 @@ function Router() {
         <Route path="/admin/gst-export" component={GstExport} />
         <Route path="/admin/medivision" component={MedivisionSync} />
         <Route path="/admin/inventory">{() => <AdminInventory />}</Route>
+        <Route path="/admin/inventory/current-stock">{() => <AdminCurrentStock />}</Route>
+        <Route path="/admin/inventory/batchwise">{() => <AdminBatchwiseBalance />}</Route>
+        <Route path="/admin/inventory/near-expiry">{() => <AdminNearExpiry />}</Route>
+        <Route path="/admin/inventory/movements">{() => <AdminStockMovements />}</Route>
+        <Route path="/admin/inventory/adjustments">{() => <AdminStockAdjustment />}</Route>
+        <Route path="/admin/inventory/audit">{() => <AdminStockAudit />}</Route>
         <Route path="/admin/customers" component={AdminCustomers} />
         <Route path="/admin/riders" component={AdminRiders} />
         <Route path="/admin/whatsapp" component={AdminWhatsApp} />

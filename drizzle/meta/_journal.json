@@ -127,6 +127,13 @@
       "when": 1777484713847,
       "tag": "0017_flawless_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1777486084280,
+      "tag": "0018_skinny_black_knight",
+      "breakpoints": true
     }
   ]
 }
