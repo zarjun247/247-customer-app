@@ -31,6 +31,7 @@ import SlaBoard from "./pages/SlaBoard";
 import MedivisionSync from "./pages/MedivisionSync";
 import PurchaseEntry from "./pages/PurchaseEntry";
 import OcrIngestion from "./pages/OcrIngestion";
+import AdminOcr from "./pages/ocr/AdminOcr";
 import Reports from "./pages/Reports";
 import MasterData from "./pages/MasterData";
 import ShiftClosing from "./pages/ShiftClosing";
@@ -194,7 +195,7 @@ function Router() {
         <Route path="/admin/purchase/returns">{() => <AdminPurchaseReturns />}</Route>
         <Route path="/admin/purchase/payments">{() => <AdminSupplierPayments />}</Route>
         <Route path="/admin/purchase/reports">{() => <AdminPurchaseReports />}</Route>
-        <Route path="/admin/ocr" component={OcrIngestion} />
+        <Route path="/admin/ocr" component={AdminOcr} />
         <Route path="/admin/master-data" component={MasterData} />
         <Route path="/admin/shift" component={ShiftClosing} />
         <Route path="/admin/expiry" component={ExpiryDashboard} />

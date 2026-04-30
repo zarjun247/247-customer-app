@@ -133,7 +133,7 @@ export default function OcrIngestion() {
 
             {/* Jobs list */}
             <div className="space-y-3">
-              {jobs?.map((job) => {
+              {jobs?.rows?.map((job) => {
                 const cfg = statusConfig[job.status] ?? statusConfig.queued;
                 const Icon = cfg.icon;
                 return (
@@ -158,7 +158,7 @@ export default function OcrIngestion() {
                   </Card>
                 );
               })}
-              {(!jobs || jobs.length === 0) && (
+              {(!jobs?.rows || jobs.rows.length === 0) && (
                 <div className="text-center py-16 text-white/40">
                   <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
                   <p>No bills uploaded yet</p>
@@ -174,9 +174,9 @@ export default function OcrIngestion() {
                   <div>
                     <p className="font-medium">{jobDetail.job.filename}</p>
                     <p className="text-sm text-white/50">
-                      {jobDetail.header?.supplierName ?? "Supplier extracting..."} ·
-                      Invoice: {jobDetail.header?.invoiceNo ?? "—"} ·
-                      Date: {jobDetail.header?.invoiceDate ?? "—"}
+                      {jobDetail.headers?.[0]?.supplierName ?? "Supplier extracting..."} ·
+                      Invoice: {jobDetail.headers?.[0]?.invoiceNo ?? "—"} ·
+                      Date: {jobDetail.headers?.[0]?.invoiceDate ?? "—"}
                     </p>
                   </div>
                   <Badge className={`${(statusConfig[jobDetail.job.status] ?? statusConfig.queued).color} border-0`}>
@@ -209,13 +209,13 @@ export default function OcrIngestion() {
                             <span className={`text-xs font-mono ${confidenceColor(line.confidence)}`}>{line.confidence}%</span>
                             {line.matchStatus === "review_required" && (
                               <Button size="sm" variant="outline" className="h-6 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                                onClick={() => reviewLine.mutate({ lineId: line.id, matchStatus: "auto_matched" })}>
+                                onClick={() => reviewLine.mutate({ lineId: line.id, action: "approve" })}>
                                 Approve
                               </Button>
                             )}
                             {line.matchStatus !== "rejected" && (
                               <Button size="sm" variant="ghost" className="h-6 text-xs text-red-400 hover:bg-red-500/10"
-                                onClick={() => reviewLine.mutate({ lineId: line.id, matchStatus: "rejected" })}>
+                                onClick={() => reviewLine.mutate({ lineId: line.id, action: "reject" })}>
                                 Reject
                               </Button>
                             )}

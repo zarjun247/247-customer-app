@@ -644,3 +644,32 @@
 - [x] AdminLayout: Purchase section expanded with 4 sub-links + OCR
 - [x] App.tsx: 5 new /admin/purchase/* routes registered
 - [x] TypeScript 0 errors, 73/73 tests passing
+
+## PART 6 — AI OCR Bill Ingestion V1
+
+- [x] Schema: add ingestion_files table (fileUrl, fileKey, filename, mimeType, fileSizeBytes, uploadedBy)
+- [x] Schema: add ocr_match_candidates table (ocrLineId, productId, matchScore, matchMethod, matchDetails, isSelected)
+- [x] Schema: add ocr_review_tasks table (ingestionJobId, taskType, priority, status, assignedTo, resolvedBy)
+- [x] Schema: add ai_decisions table (ingestionJobId, ocrLineId, decisionType, inputData, outputData, model, confidence)
+- [x] Schema: ALTER TABLE ocr_extracted_headers — add supplierGstin
+- [x] Schema: ALTER TABLE ocr_extracted_lines — add strength, dosageForm
+- [x] Schema: ALTER TABLE purchase_draft_lines — add saleRate, landingCost
+- [x] Schema: ALTER TABLE sku_creation_drafts — add scheduleFlag, coldChainFlag
+- [x] ocrIngestionRouter: uploadBill — create ingestion_job + ingestion_file, audit log
+- [x] ocrIngestionRouter: processJob — mock OCR parser (CSV + image mock) + LLM OCR path (invokeLLM with image_url)
+- [x] ocrIngestionRouter: product matching engine — exact name, fuzzy name, HSN+GST (3 methods, confidence-scored)
+- [x] ocrIngestionRouter: confidence rules — >=95 auto_matched, 70-95 review_required, <70 unknown_sku, H/H1/X always review
+- [x] ocrIngestionRouter: listJobs, getJob, getLines, reviewLine (approve/reject/reassign/edit)
+- [x] ocrIngestionRouter: generateDraft — creates purchase_draft + purchase_draft_lines from matched lines
+- [x] ocrIngestionRouter: listDrafts, getDraft, approveDraft, rejectDraft, commitDraft (creates purchase_invoice)
+- [x] ocrIngestionRouter: listSkuDrafts, reviewSkuDraft (approve/reject unknown SKU creation requests)
+- [x] Frontend: AdminOcr.tsx — 4-tab page (Upload, Jobs, SKU Queue, Drafts)
+- [x] Frontend: Upload panel — drag-drop file, CSV paste import, source type shells (email/WhatsApp/folder/legacy)
+- [x] Frontend: Job list — status filter (all/ocr_complete/under_review/committed/failed), refresh
+- [x] Frontend: Line reviewer — confidence badges, approve/reject/edit per line, candidate reassignment, generate draft CTA
+- [x] Frontend: EditLineDialog — manual field correction for any extracted line
+- [x] Frontend: SKU draft queue — approve/reject unknown SKU creation requests
+- [x] Frontend: Draft approval — line detail view, approve, commit to purchase invoice
+- [x] App.tsx: /admin/ocr route updated to AdminOcr
+- [x] AdminLayout sidebar: OCR Ingestion link already present at /admin/ocr
+- [x] TypeScript: 0 errors, 73/73 tests passing
