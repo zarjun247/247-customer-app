@@ -32,6 +32,7 @@ import { medivisionRouter } from "./routers/medivisionRouter";
 import { masterDataRouter } from "./routers/masterDataRouter";
 import { inventoryLedgerRouter } from "./routers/inventoryRouter";
 import { purchaseRouter } from "./routers/purchaseRouter";
+import { salesRouter } from "./routers/salesRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
@@ -709,6 +710,7 @@ export const appRouter = router({
   masterData: masterDataRouter,
   inventoryLedger: inventoryLedgerRouter,
   purchase: purchaseRouter,
+  sales: salesRouter,
   ocr: ocrIngestionRouter,
   reports: reportsRouter,
 });

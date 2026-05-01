@@ -57,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Sales",
     items: [
+      { label: "All Sales", href: "/admin/sales", icon: BarChart3 },
       { label: "Counter Billing", href: "/admin/sales/counter", icon: CreditCard },
       { label: "Sale Returns", href: "/admin/sales/returns", icon: RefreshCw },
     ],

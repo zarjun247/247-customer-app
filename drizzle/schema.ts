@@ -1632,3 +1632,111 @@ export type StockAudit = typeof stockAudits.$inferSelect;
 export type StockAuditLine = typeof stockAuditLines.$inferSelect;
 export type BatchQuarantineLog = typeof batchQuarantineLogs.$inferSelect;
 export type ExpiryAction = typeof expiryActions.$inferSelect;
+
+// ─── PART 7: Sales + Counter Billing ─────────────────────────────────────────
+
+export const sales = mysqlTable("sales", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  billNo: varchar("bill_no", { length: 50 }).notNull(),
+  saleType: mysqlEnum("sale_type", [
+    "counter", "medicine", "app", "whatsapp",
+    "phone_assisted", "prescription", "otc", "chronic_refill",
+  ]).notNull().default("counter"),
+  storeId: varchar("store_id", { length: 36 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }),
+  customerMobile: varchar("customer_mobile", { length: 20 }),
+  customerName: varchar("customer_name", { length: 200 }),
+  salesmanCode: varchar("salesman_code", { length: 50 }),
+  pharmacistCode: varchar("pharmacist_code", { length: 50 }),
+  pharmacistName: varchar("pharmacist_name", { length: 200 }),
+  pharmacistRegNo: varchar("pharmacist_reg_no", { length: 100 }),
+  prescriptionId: varchar("prescription_id", { length: 36 }),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull().default("0"),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  gstAmount: decimal("gst_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  total: decimal("total", { precision: 12, scale: 2 }).notNull().default("0"),
+  gstSummary: text("gst_summary"),
+  paymentMode: mysqlEnum("payment_mode", ["cash", "upi", "card", "credit", "mixed"]).notNull().default("cash"),
+  paymentRef: varchar("payment_ref", { length: 200 }),
+  status: mysqlEnum("status", ["draft", "confirmed", "returned", "cancelled"]).notNull().default("draft"),
+  billPrinted: int("bill_printed").notNull().default(0),
+  whatsappSent: int("whatsapp_sent").notNull().default(0),
+  emailSent: int("email_sent").notNull().default(0),
+  notes: text("notes"),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  confirmedAt: bigint("confirmed_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+
+export const saleLines = mysqlTable("sale_lines", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  saleId: varchar("sale_id", { length: 36 }).notNull(),
+  productId: varchar("product_id", { length: 36 }).notNull(),
+  batchLedgerId: varchar("batch_ledger_id", { length: 36 }),
+  batchNo: varchar("batch_no", { length: 100 }),
+  expiryDate: date("expiry_date"),
+  mrp: decimal("mrp", { precision: 10, scale: 2 }).notNull().default("0"),
+  saleRate: decimal("sale_rate", { precision: 10, scale: 2 }).notNull().default("0"),
+  qty: int("qty").notNull().default(1),
+  discountPct: decimal("discount_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  gstRate: decimal("gst_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+  gstAmount: decimal("gst_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  hsnCode: varchar("hsn_code", { length: 20 }),
+  lineTotal: decimal("line_total", { precision: 12, scale: 2 }).notNull().default("0"),
+  requiresPrescription: int("requires_prescription").notNull().default(0),
+  scheduleCode: varchar("schedule_code", { length: 10 }),
+  rxCleared: int("rx_cleared").notNull().default(0),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const saleReturns = mysqlTable("sale_returns", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  returnNo: varchar("return_no", { length: 50 }).notNull(),
+  saleId: varchar("sale_id", { length: 36 }).notNull(),
+  storeId: varchar("store_id", { length: 36 }).notNull(),
+  reason: text("reason").notNull(),
+  refundMode: mysqlEnum("refund_mode", ["cash", "upi", "card", "credit_note"]).notNull().default("cash"),
+  refundRef: varchar("refund_ref", { length: 200 }),
+  totalRefund: decimal("total_refund", { precision: 12, scale: 2 }).notNull().default("0"),
+  gstReversal: decimal("gst_reversal", { precision: 12, scale: 2 }).notNull().default("0"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).notNull().default("pending"),
+  approvedBy: varchar("approved_by", { length: 36 }),
+  approvedAt: bigint("approved_at", { mode: "number" }),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+});
+
+export const saleReturnLines = mysqlTable("sale_return_lines", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  returnId: varchar("return_id", { length: 36 }).notNull(),
+  saleLineId: varchar("sale_line_id", { length: 36 }).notNull(),
+  productId: varchar("product_id", { length: 36 }).notNull(),
+  batchLedgerId: varchar("batch_ledger_id", { length: 36 }),
+  returnQty: int("return_qty").notNull().default(1),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  refundAmount: decimal("refund_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  gstReversal: decimal("gst_reversal", { precision: 10, scale: 2 }).notNull().default("0"),
+  stockDisposition: mysqlEnum("stock_disposition", ["resaleable", "quarantine", "disposal"]).notNull().default("resaleable"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const counterPayments = mysqlTable("counter_payments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  saleId: varchar("sale_id", { length: 36 }).notNull(),
+  paymentMode: mysqlEnum("payment_mode", ["cash", "upi", "card", "credit", "mixed"]).notNull().default("cash"),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  paymentRef: varchar("payment_ref", { length: 200 }),
+  gatewayRef: varchar("gateway_ref", { length: 200 }),
+  status: mysqlEnum("status", ["pending", "confirmed", "failed", "refunded"]).notNull().default("confirmed"),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export type Sale = typeof sales.$inferSelect;
+export type SaleLine = typeof saleLines.$inferSelect;
+export type SaleReturn = typeof saleReturns.$inferSelect;
+export type SaleReturnLine = typeof saleReturnLines.$inferSelect;
+export type CounterPayment = typeof counterPayments.$inferSelect;

@@ -673,3 +673,28 @@
 - [x] App.tsx: /admin/ocr route updated to AdminOcr
 - [x] AdminLayout sidebar: OCR Ingestion link already present at /admin/ocr
 - [x] TypeScript: 0 errors, 73/73 tests passing
+
+## PART 7 — Sales + Counter Billing V1
+
+- [x] Schema: sales table (id/billNo/saleType/storeId/customerId/customerMobile/customerName/salesmanCode/pharmacistCode/pharmacistName/pharmacistRegNo/prescriptionId/subtotal/discountAmount/gstAmount/total/gstSummary/paymentMode/paymentRef/status/billPrinted/whatsappSent/emailSent/notes/createdBy/confirmedAt/createdAt/updatedAt)
+- [x] Schema: sale_lines table (id/saleId/productId/variantId/batchLedgerId/batchNo/expiryDate/productName/strength/packSize/scheduleCode/requiresPrescription/mrp/saleRate/qty/discountPct/discountAmount/gstRate/gstAmount/lineTotal/createdAt)
+- [x] Schema: sale_returns table (id/returnNo/saleId/storeId/reason/refundMode/refundRef/refundAmount/status/createdBy/reviewedBy/createdAt/updatedAt)
+- [x] Schema: sale_return_lines table (id/returnId/saleLineId/productId/batchLedgerId/batchNo/returnQty/unitPrice/gstRate/gstAmount/lineTotal/stockDisposition/createdAt)
+- [x] Schema: counter_payments table (id/saleId/paymentMode/amount/paymentRef/receivedBy/createdAt)
+- [x] salesRouter: searchProducts (barcode/name/brand/strength, returns scheduleId/prescriptionRequired/h1RegisterRequired)
+- [x] salesRouter: getFEFOBatches (FEFO-ordered, excludes expired/quarantine, shows daysToExpiry/expiryBucket)
+- [x] salesRouter: createDraft (creates sale in draft status, generates billNo)
+- [x] salesRouter: addLine (adds product line to draft, validates Rx gate, calculates GST)
+- [x] salesRouter: updateLine (update qty/discount on existing line)
+- [x] salesRouter: removeLine (remove line from draft)
+- [x] salesRouter: confirmSale (decrements batch_ledger.qtyOnHand, creates stock_movement sale_fulfilment, creates counter_payment, sets status=confirmed, audit log)
+- [x] salesRouter: createReturn (creates sale_return + return_lines, re-enters stock per disposition, audit log)
+- [x] salesRouter: listSales (paginated, filter by status/search)
+- [x] salesRouter: getDraft (sale + lines with product names)
+- [x] salesRouter: listReturns (paginated)
+- [x] salesRouter: reports (daily/supplier/product/batchwise sub-router)
+- [x] Frontend: /admin/sales/counter — AdminCounterBilling.tsx with barcode scan input, product search dropdown, FEFO batch selection with expiry bucket badges, Rx gate alert, discount field, payment mode selector, bill print (window.print), next sale button
+- [x] Frontend: /admin/sales — AdminSales.tsx with paginated sale list, status filter, sale detail dialog (lines/GST/payment), create return dialog (item selection/qty/disposition/refund mode)
+- [x] App.tsx: /admin/sales and /admin/sales/counter routes registered (replaced old CounterSale stub)
+- [x] AdminLayout: Sales section updated with All Sales + Counter Billing + Sale Returns links
+- [x] TypeScript: 0 errors, 73/73 tests passing

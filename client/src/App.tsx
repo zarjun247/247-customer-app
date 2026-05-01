@@ -38,7 +38,8 @@ import ShiftClosing from "./pages/ShiftClosing";
 import AdminCommandCenter from "./pages/AdminCommandCenter";
 import AdminOrders from "./pages/AdminOrders";
 import AdminPrescriptions from "./pages/AdminPrescriptions";
-import CounterSale from "./pages/CounterSale";
+import AdminCounterBilling from "./pages/sales/AdminCounterBilling";
+import AdminSales from "./pages/sales/AdminSales";
 import AdminReports from "./pages/AdminReports";
 import AdminInventory from "./pages/AdminInventory";
 import AdminCurrentStock from "./pages/inventory/AdminCurrentStock";
@@ -188,7 +189,7 @@ function Router() {
         <Route path="/admin/command-center" component={AdminCommandCenter} />
         <Route path="/admin/orders" component={AdminOrders} />
         <Route path="/admin/prescriptions" component={AdminPrescriptions} />
-        <Route path="/admin/sales/counter" component={CounterSale} />
+        <Route path="/admin/sales/counter" component={AdminCounterBilling} />
         <Route path="/admin/reports" component={AdminReports} />
         <Route path="/admin/purchase">{() => <AdminPurchaseInvoices />}</Route>
         <Route path="/admin/purchase/invoices">{() => <AdminPurchaseInvoices />}</Route>
@@ -231,7 +232,7 @@ function Router() {
         <Route path="/admin/masters/buildings" component={AdminBuildings} />
         <Route path="/admin/masters/printers" component={AdminPrinters} />
         <Route path="/admin/masters/products" component={AdminProducts} />
-        <Route path="/admin/sales" component={CounterSale} />
+        <Route path="/admin/sales" component={AdminSales} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
