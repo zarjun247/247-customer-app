@@ -1798,3 +1798,131 @@ export const prescriptionAccessLog = mysqlTable("prescription_access_log", {
 });
 
 export type PrescriptionAccessLog = typeof prescriptionAccessLog.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PART 9 — Customer Medicine Record + Refill Continuity
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Family members linked to a user account */
+export const familyMembers = mysqlTable("family_members", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),                          // owner account
+  name: varchar("name", { length: 200 }).notNull(),
+  relation: varchar("relation", { length: 50 }),            // self/spouse/child/parent/other
+  dateOfBirth: date("dateOfBirth"),
+  gender: mysqlEnum("gender", ["male", "female", "other"]),
+  phone: varchar("phone", { length: 20 }),
+  patientCategoryId: int("patientCategoryId"),              // FK patient_categories
+  chronicConditions: text("chronicConditions"),             // JSON array of condition strings
+  allergies: text("allergies"),                             // JSON array
+  bloodGroup: varchar("bloodGroup", { length: 10 }),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type FamilyMember = typeof familyMembers.$inferSelect;
+export type NewFamilyMember = typeof familyMembers.$inferInsert;
+
+/** Per-medicine purchase + prescription history for a customer/family member */
+export const customerMedicineRecords = mysqlTable("customer_medicine_records", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  familyMemberId: int("familyMemberId"),                    // null = self
+  productId: int("productId").notNull(),
+  batchId: int("batchId"),                                  // batch_ledger.id if available
+  orderId: int("orderId"),                                  // orders.id (app checkout)
+  saleId: int("saleId"),                                    // sales.id (counter billing)
+  prescriptionId: int("prescriptionId"),                    // prescriptions.id if Rx
+  purchaseType: mysqlEnum("purchaseType", ["prescribed", "otc", "chronic_refill", "counter", "whatsapp"]).default("otc").notNull(),
+  qty: int("qty").notNull(),
+  purchaseDate: timestamp("purchaseDate").notNull(),
+  doctorName: varchar("doctorName", { length: 200 }),
+  doctorReg: varchar("doctorReg", { length: 100 }),
+  isNewMedicine: boolean("isNewMedicine").default(false).notNull(), // first time buying this
+  isChronicFlag: boolean("isChronicFlag").default(false).notNull(),
+  discontinued: boolean("discontinued").default(false).notNull(),
+  discontinuedReason: varchar("discontinuedReason", { length: 500 }),
+  discontinuedAt: timestamp("discontinuedAt"),
+  pharmacistNote: text("pharmacistNote"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CustomerMedicineRecord = typeof customerMedicineRecords.$inferSelect;
+export type NewCustomerMedicineRecord = typeof customerMedicineRecords.$inferInsert;
+
+/** Refill plans — scheduled recurring medicine orders for chronic patients */
+export const refillPlans = mysqlTable("refill_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  familyMemberId: int("familyMemberId"),
+  productId: int("productId").notNull(),
+  prescriptionId: int("prescriptionId"),
+  frequencyDays: int("frequencyDays").notNull(),            // e.g. 30 for monthly
+  qty: int("qty").notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate"),                                 // null = indefinite
+  nextDueDate: date("nextDueDate").notNull(),
+  lastFulfilledDate: date("lastFulfilledDate"),
+  status: mysqlEnum("status", ["active", "paused", "completed", "cancelled"]).default("active").notNull(),
+  reminderDaysBefore: int("reminderDaysBefore").default(3).notNull(),
+  whatsappReminder: boolean("whatsappReminder").default(true).notNull(),
+  appReminder: boolean("appReminder").default(true).notNull(),
+  prescriptionExpiryDate: date("prescriptionExpiryDate"),
+  needsFreshRx: boolean("needsFreshRx").default(false).notNull(),
+  createdBy: int("createdBy"),                              // staff/pharmacist who created
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type RefillPlan = typeof refillPlans.$inferSelect;
+export type NewRefillPlan = typeof refillPlans.$inferInsert;
+
+/** Refill events — each time a refill is triggered, sent, acted on, or missed */
+export const refillEvents = mysqlTable("refill_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  refillPlanId: int("refillPlanId").notNull(),
+  userId: int("userId").notNull(),
+  eventType: mysqlEnum("eventType", [
+    "reminder_sent_app", "reminder_sent_whatsapp", "reminder_sent_sms",
+    "refill_ordered", "refill_missed", "refill_snoozed", "refill_cancelled",
+    "prescription_expired", "fresh_rx_required", "plan_paused", "plan_resumed",
+  ]).notNull(),
+  dueDate: date("dueDate").notNull(),
+  orderId: int("orderId"),
+  saleId: int("saleId"),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RefillEvent = typeof refillEvents.$inferSelect;
+export type NewRefillEvent = typeof refillEvents.$inferInsert;
+
+/** Customer consents — granular per-purpose consent tracking */
+export const customerConsents = mysqlTable("customer_consents", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  consentType: mysqlEnum("consentType", [
+    "medicine_record_storage", "family_profile", "refill_reminder_whatsapp",
+    "refill_reminder_app", "refill_reminder_sms", "prescription_data_processing",
+    "chronic_condition_tracking", "marketing_communications", "data_sharing_doctor",
+  ]).notNull(),
+  granted: boolean("granted").default(true).notNull(),
+  grantedAt: timestamp("grantedAt").defaultNow().notNull(),
+  revokedAt: timestamp("revokedAt"),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  version: varchar("version", { length: 20 }).default("1.0").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CustomerConsent = typeof customerConsents.$inferSelect;
+export type NewCustomerConsent = typeof customerConsents.$inferInsert;
+
+/** Customer medicine record access log — HIPAA-style audit */
+export const medicineRecordAccessLog = mysqlTable("medicine_record_access_log", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  targetUserId: int("targetUserId").notNull(),              // whose record was accessed
+  accessedBy: int("accessedBy").notNull(),                  // staff/pharmacist/admin
+  accessType: mysqlEnum("accessType", ["view", "export", "admin_view", "api_check"]).notNull(),
+  purpose: varchar("purpose", { length: 200 }),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MedicineRecordAccessLog = typeof medicineRecordAccessLog.$inferSelect;

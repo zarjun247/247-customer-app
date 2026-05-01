@@ -78,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Customers & Patients",
     items: [
       { label: "Customers", href: "/admin/customers", icon: Users },
+      { label: "Medicine Records", href: "/admin/customers/medicine-records", icon: Pill },
       { label: "Refill Reminders", href: "/admin/refills", icon: RefreshCw },
       { label: "WhatsApp", href: "/admin/whatsapp", icon: MessageSquare },
     ],

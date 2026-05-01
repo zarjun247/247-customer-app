@@ -724,3 +724,29 @@
 - [x] Frontend: AdminPrescriptionGov.tsx — 5-tab page (Queue, Viewer+Line Approval, H1 Register, Archive, Access Log)
 - [x] App.tsx: /admin/prescriptions route updated to AdminPrescriptionGov
 - [x] TypeScript: 0 errors, 73/73 tests passing
+
+## PART 9 — Customer Medicine Records + Refill Continuity
+
+- [x] Schema: create family_members table (userId, name, relation, dateOfBirth, gender, phone, patientCategoryId, chronicConditions JSON, allergies JSON, bloodGroup, active)
+- [x] Schema: create customer_medicine_records table (userId, familyMemberId, productId, batchId, orderId, saleId, prescriptionId, purchaseType enum, qty, purchaseDate, doctorName, doctorReg, isNewMedicine, isChronicFlag, discontinued, discontinuedReason, discontinuedAt, pharmacistNote)
+- [x] Schema: create refill_plans table (userId, familyMemberId, productId, prescriptionId, frequencyDays, qty, startDate, endDate, nextDueDate, lastFulfilledDate, status enum, reminderDaysBefore, whatsappReminder, appReminder, needsFreshRx, prescriptionExpiryDate, createdBy)
+- [x] Schema: create refill_events table (refillPlanId, userId, eventType enum, dueDate, orderId, saleId, reminderSentAt, reminderChannel)
+- [x] Schema: create customer_consents table (userId, consentType enum, granted, grantedAt, revokedAt, consentVersion, ipAddress, userAgent)
+- [x] Schema: create medicine_record_access_log table (targetUserId, accessedBy, accessType enum, purpose, ipAddress)
+- [x] DB: All 6 tables applied to live TiDB database
+- [x] customerMedicineRouter: family CRUD (list, create, update, deactivate) — scoped to ctx.user.id
+- [x] customerMedicineRouter: medicineRecord (list with pagination, create, discontinue, hasBoughtBefore)
+- [x] customerMedicineRouter: refillPlan (list, create, update, markFulfilled, events, dashboard with due/missed buckets)
+- [x] customerMedicineRouter: consent (list, upsert — 9 consent types)
+- [x] customerMedicineRouter: admin (list customers, getProfile with medicine history + plans + family + consents, accessLog, refillDashboard with 3 views)
+- [x] HIPAA-style access logging: every admin view of customer medicine records is logged to medicine_record_access_log
+- [x] customerMedicineRouter registered as customerMedicine in server/routers.ts
+- [x] Frontend: AdminCustomers.tsx (pages/customers/) — customer list + profile dialog with 5 tabs (Medicines, Refill Plans, Family, Consents, Access Log)
+- [x] Frontend: AdminCustomers refill dashboard — due this week / missed / needs fresh Rx views
+- [x] Frontend: FamilyProfiles.tsx — customer-facing family member management with add/edit/remove dialogs
+- [x] Frontend: RefillCalendar.tsx — customer-facing refill tracking (due soon, missed, all plans tabs) with pause/resume
+- [x] Frontend: MyMedicines.tsx — medicine history (active/discontinued toggle) + monthly chronic pack view
+- [x] Routes: /family, /refill-calendar, /my-medicines (customer app), /admin/customers/medicine-records (admin)
+- [x] AdminLayout sidebar: Medicine Records link added under Customers & Patients section
+- [x] Trust messaging: "Rx medicines are pharmacist-reviewed" displayed on all customer-facing pages
+- [x] TypeScript: 0 errors, 73/73 tests passing

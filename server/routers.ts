@@ -36,6 +36,7 @@ import { salesRouter } from "./routers/salesRouter";
 import { prescriptionGovRouter } from "./routers/prescriptionGovRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
+import { customerMedicineRouter } from "./routers/customerMedicineRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
@@ -715,6 +716,7 @@ export const appRouter = router({
   ocr: ocrIngestionRouter,
   reports: reportsRouter,
   prescriptionGov: prescriptionGovRouter,
+  customerMedicine: customerMedicineRouter,
 });
 
 export type AppRouter = typeof appRouter;

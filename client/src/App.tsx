@@ -49,6 +49,10 @@ import AdminStockMovements from "./pages/inventory/AdminStockMovements";
 import AdminStockAdjustment from "./pages/inventory/AdminStockAdjustment";
 import AdminStockAudit from "./pages/inventory/AdminStockAudit";
 import AdminCustomers from "./pages/AdminCustomers";
+import AdminCustomersNew from "./pages/customers/AdminCustomers";
+import FamilyProfiles from "./pages/FamilyProfiles";
+import RefillCalendar from "./pages/RefillCalendar";
+import MyMedicines from "./pages/MyMedicines";
 import AdminRiders from "./pages/AdminRiders";
 import AdminWhatsApp from "./pages/AdminWhatsApp";
 import AdminRefills from "./pages/AdminRefills";
@@ -167,6 +171,9 @@ function Router() {
         <Route path="/profile">{() => <ProtectedRoute><Profile /></ProtectedRoute>}</Route>
         <Route path="/invoices">{() => <ProtectedRoute><Invoices /></ProtectedRoute>}</Route>
         <Route path="/refills">{() => <ProtectedRoute><RefillReminders /></ProtectedRoute>}</Route>
+        <Route path="/family">{() => <ProtectedRoute><FamilyProfiles /></ProtectedRoute>}</Route>
+        <Route path="/refill-calendar">{() => <ProtectedRoute><RefillCalendar /></ProtectedRoute>}</Route>
+        <Route path="/my-medicines">{() => <ProtectedRoute><MyMedicines /></ProtectedRoute>}</Route>
         <Route path="/workbench" component={PharmacistWorkbench} />
         <Route path="/pharmacy-os" component={PharmacyOS} />
         <Route path="/dashboard" component={FounderDashboard} />
@@ -212,6 +219,7 @@ function Router() {
         <Route path="/admin/inventory/adjustments">{() => <AdminStockAdjustment />}</Route>
         <Route path="/admin/inventory/audit">{() => <AdminStockAudit />}</Route>
         <Route path="/admin/customers" component={AdminCustomers} />
+        <Route path="/admin/customers/medicine-records">{() => <AdminCustomersNew />}</Route>
         <Route path="/admin/riders" component={AdminRiders} />
         <Route path="/admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/admin/refills" component={AdminRefills} />
