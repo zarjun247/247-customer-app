@@ -750,3 +750,33 @@
 - [x] AdminLayout sidebar: Medicine Records link added under Customers & Patients section
 - [x] Trust messaging: "Rx medicines are pharmacist-reviewed" displayed on all customer-facing pages
 - [x] TypeScript: 0 errors, 73/73 tests passing
+
+## PART 10 — WhatsApp Full Channel
+
+- [x] Schema: whatsappLinks (phone↔userId, verification method, OTP support)
+- [x] Schema: whatsappMessages (full audit log — inbound/outbound, flow, state, media)
+- [x] Schema: whatsappCarts + whatsappCartLines (draft orders, requiresPrescription flag)
+- [x] Schema: staffHandoffs (reason, priority, assignedTo, resolutionNote)
+- [x] Schema: wabaMessageTemplates (WABA-approved templates, paramCount, wabaStatus lifecycle)
+- [x] DB: All 7 tables applied to live TiDB database via migration script
+- [x] whatsappRouter.ts: phone linking (create/remove/list/verify OTP)
+- [x] whatsappRouter.ts: webhook handler — full state machine (menu, search, status, rx_upload, reorder, handoff, delivery_exception, supplier_bill)
+- [x] whatsappRouter.ts: catalogue search from real products (getCatalog integration)
+- [x] whatsappRouter.ts: cart/order draft (add/remove/view/confirm → real order via createOrder, sourceChannel=whatsapp)
+- [x] whatsappRouter.ts: Rx upload attaches to linked customer — never userId 0 (createWhatsappPrescription)
+- [x] whatsappRouter.ts: reorder from history (getOrderItemsForReorder, rebuild cart, confirm)
+- [x] whatsappRouter.ts: refill reminder CTA (list upcoming refill plans)
+- [x] whatsappRouter.ts: live order status (getOrderById)
+- [x] whatsappRouter.ts: bill sharing placeholder (message template trigger)
+- [x] whatsappRouter.ts: staff handoff queue (create/assign/resolve/list)
+- [x] whatsappRouter.ts: delivery exception handling (dedicated flow)
+- [x] whatsappRouter.ts: supplier bill import via WhatsApp (OCR ingestion job creation)
+- [x] whatsappRouter.ts: message templates CRUD + seed (10 default templates seeded)
+- [x] whatsappRouter.ts: webhook validation helper (HMAC-SHA256 signature check)
+- [x] whatsappRouter.ts: message audit logs (every inbound/outbound logged to whatsappMessages)
+- [x] whatsappRouter.ts: admin stats, sessions, recent WA orders
+- [x] whatsappFull router registered in server/routers.ts
+- [x] AdminWhatsApp.tsx rebuilt as full 6-tab page (Overview, Messages, Linked Customers, Handoffs, Templates, Sessions)
+- [x] App.tsx updated to import new AdminWhatsApp from pages/admin/AdminWhatsApp
+- [x] AdminLayout sidebar already had WhatsApp entry — confirmed pointing to /admin/whatsapp
+- [x] TypeScript: 0 errors, Tests: 73/73 passing

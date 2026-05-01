@@ -1926,3 +1926,136 @@ export const medicineRecordAccessLog = mysqlTable("medicine_record_access_log", 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type MedicineRecordAccessLog = typeof medicineRecordAccessLog.$inferSelect;
+
+
+// ─── PART 10: WhatsApp Full Channel ──────────────────────────────────────────
+
+// whatsapp_links: verified phone ↔ userId mapping (ownership proven via OTP)
+export const whatsappLinks = mysqlTable("whatsapp_links", {
+  id: int("id").autoincrement().primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull().unique(),
+  userId: int("userId").notNull(),
+  verifiedAt: timestamp("verifiedAt").notNull(),
+  verificationMethod: mysqlEnum("verificationMethod", ["otp", "app_login", "staff_override"]).default("otp").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  linkedBy: int("linkedBy"),                 // staff userId if staff_override
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WhatsappLink = typeof whatsappLinks.$inferSelect;
+
+// whatsapp_messages: full audit log of every inbound/outbound message
+export const whatsappMessages = mysqlTable("whatsapp_messages", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  userId: int("userId"),                     // resolved after linking
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
+  messageType: mysqlEnum("messageType", ["text", "image", "document", "audio", "template", "button", "interactive"]).default("text").notNull(),
+  body: text("body"),
+  mediaUrl: text("mediaUrl"),
+  mediaKey: varchar("mediaKey", { length: 500 }),
+  templateName: varchar("templateName", { length: 100 }),
+  templateParams: text("templateParams"),    // JSON array of template variable values
+  externalMsgId: varchar("externalMsgId", { length: 200 }),   // WABA message ID
+  sessionId: int("sessionId"),               // FK to whatsapp_sessions
+  flow: varchar("flow", { length: 50 }),
+  status: mysqlEnum("status", ["received", "sent", "delivered", "read", "failed"]).default("received").notNull(),
+  errorCode: varchar("errorCode", { length: 50 }),
+  errorMessage: varchar("errorMessage", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+
+// whatsapp_carts: per-phone draft cart that converts to a real order on confirm
+export const whatsappCarts = mysqlTable("whatsapp_carts", {
+  id: int("id").autoincrement().primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  userId: int("userId"),
+  storeId: int("storeId"),
+  status: mysqlEnum("status", ["active", "confirmed", "expired", "abandoned"]).default("active").notNull(),
+  prescriptionId: int("prescriptionId"),
+  deliveryAddress: text("deliveryAddress"),
+  flatNumber: varchar("flatNumber", { length: 50 }),
+  buildingId: int("buildingId"),
+  convertedOrderId: int("convertedOrderId"),  // set when status = confirmed
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WhatsappCart = typeof whatsappCarts.$inferSelect;
+
+// whatsapp_cart_lines: items in a WhatsApp draft cart
+export const whatsappCartLines = mysqlTable("whatsapp_cart_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  cartId: int("cartId").notNull(),
+  productId: int("productId").notNull(),
+  variantId: int("variantId"),
+  storeSkuId: int("storeSkuId").notNull(),
+  qty: int("qty").notNull().default(1),
+  unitPrice: varchar("unitPrice", { length: 20 }).notNull(),
+  lineTotal: varchar("lineTotal", { length: 20 }).notNull(),
+  requiresPrescription: boolean("requiresPrescription").default(false).notNull(),
+  addedAt: timestamp("addedAt").defaultNow().notNull(),
+});
+export type WhatsappCartLine = typeof whatsappCartLines.$inferSelect;
+
+// waba_message_templates: WABA-approved WhatsApp templates with param support
+export const wabaMessageTemplates = mysqlTable("waba_message_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  category: mysqlEnum("category", [
+    "order_status", "refill_reminder", "rx_received", "delivery_otp",
+    "bill_share", "staff_handoff", "delivery_exception", "welcome",
+    "supplier_bill", "custom"
+  ]).notNull(),
+  language: varchar("language", { length: 10 }).default("en").notNull(),
+  body: text("body").notNull(),           // template text with {{1}} {{2}} placeholders
+  headerText: varchar("headerText", { length: 200 }),
+  footerText: varchar("footerText", { length: 200 }),
+  buttonLabels: text("buttonLabels"),     // JSON array of button labels
+  paramCount: int("paramCount").default(0).notNull(),
+  paramDescriptions: text("paramDescriptions"),  // JSON array of param descriptions
+  wabaTemplateId: varchar("wabaTemplateId", { length: 200 }),  // approved WABA template ID
+  wabaStatus: mysqlEnum("wabaStatus", ["draft", "pending", "approved", "rejected"]).default("draft").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WabaMessageTemplate = typeof wabaMessageTemplates.$inferSelect;
+
+// staff_handoffs: WhatsApp conversations escalated to human staff
+export const staffHandoffs = mysqlTable("staff_handoffs", {
+  id: int("id").autoincrement().primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  userId: int("userId"),
+  sessionId: int("sessionId"),
+  reason: mysqlEnum("reason", [
+    "customer_request", "bot_confused", "rx_clarification",
+    "delivery_exception", "complaint", "supplier_bill", "other"
+  ]).notNull(),
+  reasonNote: text("reasonNote"),
+  status: mysqlEnum("status", ["open", "assigned", "resolved", "closed"]).default("open").notNull(),
+  assignedTo: int("assignedTo"),           // staff userId
+  assignedAt: timestamp("assignedAt"),
+  resolvedAt: timestamp("resolvedAt"),
+  resolutionNote: text("resolutionNote"),
+  priority: mysqlEnum("priority", ["low", "normal", "high", "urgent"]).default("normal").notNull(),
+  relatedOrderId: int("relatedOrderId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StaffHandoff = typeof staffHandoffs.$inferSelect;
+
+// whatsapp_webhook_log: raw inbound webhook payloads for debugging
+export const whatsappWebhookLog = mysqlTable("whatsapp_webhook_log", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  source: varchar("source", { length: 50 }).default("waba").notNull(),  // waba | twilio | meta
+  payload: text("payload").notNull(),
+  signature: varchar("signature", { length: 500 }),
+  signatureValid: boolean("signatureValid"),
+  processedAt: timestamp("processedAt"),
+  errorMessage: varchar("errorMessage", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type WhatsappWebhookLog = typeof whatsappWebhookLog.$inferSelect;

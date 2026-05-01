@@ -54,7 +54,7 @@ import FamilyProfiles from "./pages/FamilyProfiles";
 import RefillCalendar from "./pages/RefillCalendar";
 import MyMedicines from "./pages/MyMedicines";
 import AdminRiders from "./pages/AdminRiders";
-import AdminWhatsApp from "./pages/AdminWhatsApp";
+import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
 import AdminRefills from "./pages/AdminRefills";
 import AdminAccounting from "./pages/AdminAccounting";
 import AdminUtilities from "./pages/AdminUtilities";

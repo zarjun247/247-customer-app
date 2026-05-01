@@ -134,6 +134,13 @@
       "when": 1777486084280,
       "tag": "0018_skinny_black_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1777631798299,
+      "tag": "0019_easy_korvac",
+      "breakpoints": true
     }
   ]
 }
