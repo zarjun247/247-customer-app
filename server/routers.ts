@@ -390,7 +390,7 @@ const orderRouter = router({
         // legacy compat
         "pharmacist_reviewing", "return_to_stock",
       ]),
-      reason: z.string().optional(),
+      reason: z.string().min(1).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const order = await getOrderById(input.orderId);
@@ -416,12 +416,18 @@ const orderRouter = router({
       requireOrderOwnershipOrStaff(ctx.user.id, order.userId, userRole);
       const before = { status: order.status };
       await updateOrderStatus(input.orderId, input.status, { reason: input.reason, changedBy: ctx.user.id });
-      await writeAuditLog(ctx.user.id, "order_status_changed", "order", input.orderId, undefined, {
-        actorRole: userRole,
-        beforeJson: before,
-        afterJson: { status: input.status },
+      await writeAuditLog({
+        actor: { id: ctx.user.id, role: userRole ?? undefined, type: userRole ?? "user" },
+        action: "order_status_changed",
+        entityType: "order",
+        entityId: input.orderId,
+        before,
+        after: { status: input.status },
         reason: input.reason,
-        channel: 'admin',
+        channel: "admin",
+        ipAddress: (ctx as any).ipAddress,
+        sessionId: (ctx as any).sessionId,
+        deviceId: (ctx as any).deviceId,
       });
       // Auto-generate invoice on delivery
       if (input.status === "delivered") {

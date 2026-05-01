@@ -220,7 +220,7 @@ export default function AdminBatchwiseBalance() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setQuarantineModal(null)}>Cancel</Button>
             <Button className="bg-orange-600 hover:bg-orange-700" disabled={quarantineMut.isPending}
-              onClick={() => quarantineModal && quarantineMut.mutate({ batchId: quarantineModal.batchId, qty, reason: reason as any, note: note || undefined })}>
+              onClick={() => quarantineModal && quarantineMut.mutate({ batchId: quarantineModal.batchId, qty, reason: reason as any, note: note })}>
               {quarantineMut.isPending ? "Processing..." : "Quarantine"}
             </Button>
           </DialogFooter>

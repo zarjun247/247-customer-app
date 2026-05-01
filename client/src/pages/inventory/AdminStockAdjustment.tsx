@@ -208,14 +208,14 @@ export default function AdminStockAdjustment() {
           <DialogHeader><DialogTitle>Reject Adjustment #{rejectModal?.id}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label>Reason for rejection (optional)</Label>
+              <Label>Reason for rejection (required)</Label>
               <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={2} placeholder="Explain why this adjustment is being rejected..." />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectModal(null)}>Cancel</Button>
             <Button variant="destructive" disabled={rejectMut.isPending}
-              onClick={() => rejectModal && rejectMut.mutate({ id: rejectModal.id, reason: rejectReason || undefined })}>
+              onClick={() => rejectModal && rejectMut.mutate({ id: rejectModal.id, reason: rejectReason })}>
               {rejectMut.isPending ? "Rejecting..." : "Reject"}
             </Button>
           </DialogFooter>

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
+import { writeAuditEvent } from "../services/audit";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -315,6 +316,7 @@ export const prescriptionGovRouter = router({
 
       const [rx] = await db.select().from(prescriptions).where(eq(prescriptions.id, input.id)).limit(1);
       if (!rx) throw new TRPCError({ code: "NOT_FOUND" });
+      if (input.decision === "rejected" && !input.pharmacistNote?.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "Rejection reason required" });
 
       // Update prescription status
       await db.update(prescriptions).set({
