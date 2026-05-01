@@ -6,6 +6,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { writeAuditLog } from "../db";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -50,13 +51,6 @@ function computeExpiryBucket(expiryDate: Date | string | null): "normal" | "warn
   if (days <= 60) return "critical";
   if (days <= 90) return "warning";
   return "normal";
-}
-
-async function writeAuditLog(db: Awaited<ReturnType<typeof getDbSafe>>, userId: number, entityType: string, entityId: number, action: string, before: unknown, after: unknown, reason?: string) {
-  try {
-    const { auditLogs } = await import("../../drizzle/schema");
-    await db.insert(auditLogs).values({ userId, entityType, entityId, action, beforeJson: before ? JSON.stringify(before) : null, afterJson: after ? JSON.stringify(after) : null, reason: reason ?? null });
-  } catch (_) { /* non-blocking */ }
 }
 
 async function recalcInvoiceTotals(db: Awaited<ReturnType<typeof getDbSafe>>, invoiceId: number) {
@@ -117,7 +111,7 @@ export const purchaseRouter = router({
       const { purchaseInvoices } = await import("../../drizzle/schema");
       const [result] = await db.insert(purchaseInvoices).values({ supplierId: input.supplierId, storeId: input.storeId, invoiceNo: input.invoiceNo, invoiceDate: input.invoiceDate, supplierGstin: input.supplierGstin ?? null, sourceType: input.sourceType, notes: input.notes ?? null, createdBy: ctx.user!.id, status: "draft" });
       const id = (result as { insertId: number }).insertId;
-      await writeAuditLog(db, ctx.user!.id, "purchase_invoice", id, "create", null, { invoiceNo: input.invoiceNo });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "create", entityType: "purchase_invoice", entityId: id, before: null, after: { invoiceNo: input.invoiceNo }, reason: "purchase invoice created", channel: "app" });
       return { id };
     }),
 
@@ -136,12 +130,12 @@ export const purchaseRouter = router({
       if (input.supplierGstin !== undefined) updates.supplierGstin = input.supplierGstin;
       if (input.notes !== undefined) updates.notes = input.notes;
       await db.update(purchaseInvoices).set(updates).where(eq(purchaseInvoices.id, input.id));
-      await writeAuditLog(db, ctx.user!.id, "purchase_invoice", input.id, "update", inv, updates);
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "update", entityType: "purchase_invoice", entityId: input.id, before: inv, after: updates, reason: "purchase invoice updated", channel: "app" });
       return { success: true };
     }),
 
   cancelInvoice: protectedProcedure
-    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .input(z.object({ id: z.number(), reason: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
@@ -150,7 +144,7 @@ export const purchaseRouter = router({
       if (!inv) throw new TRPCError({ code: "NOT_FOUND" });
       if (inv.status === "committed") throw new TRPCError({ code: "BAD_REQUEST", message: "Committed invoices cannot be cancelled — use purchase return" });
       await db.update(purchaseInvoices).set({ status: "cancelled" }).where(eq(purchaseInvoices.id, input.id));
-      await writeAuditLog(db, ctx.user!.id, "purchase_invoice", input.id, "cancel", inv, { status: "cancelled" }, input.reason);
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "cancel", entityType: "purchase_invoice", entityId: input.id, before: inv, after: { status: "cancelled" }, reason: input.reason, channel: "app" });
       return { success: true };
     }),
 
@@ -269,7 +263,7 @@ export const purchaseRouter = router({
         gstSummary[rateKey].total += taxableAmount + gstAmount;
       }
       await db.update(purchaseInvoices).set({ status: "committed", committedAt: new Date(), approvedBy: ctx.user!.id, approvedAt: new Date(), gstSummary: JSON.stringify(gstSummary) }).where(eq(purchaseInvoices.id, input.id));
-      await writeAuditLog(db, ctx.user!.id, "purchase_invoice", input.id, "commit", { status: "draft" }, { status: "committed", gstSummary });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "commit", entityType: "purchase_invoice", entityId: input.id, before: { status: "draft" }, after: { status: "committed", gstSummary }, reason: "purchase commit", channel: "app" });
       return { success: true, gstSummary };
     }),
 
@@ -289,19 +283,19 @@ export const purchaseRouter = router({
     }),
 
   createReturn: protectedProcedure
-    .input(z.object({ purchaseInvoiceId: z.number(), supplierId: z.number(), storeId: z.number(), reason: z.string().optional(), debitNoteNo: z.string().optional() }))
+    .input(z.object({ purchaseInvoiceId: z.number(), supplierId: z.number(), storeId: z.number(), reason: z.string().min(1), debitNoteNo: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       const db = await getDbSafe();
       const { purchaseReturns } = await import("../../drizzle/schema");
       const [result] = await db.insert(purchaseReturns).values({ purchaseInvoiceId: input.purchaseInvoiceId, supplierId: input.supplierId, storeId: input.storeId, reason: input.reason ?? null, debitNoteNo: input.debitNoteNo ?? null, createdBy: ctx.user!.id, status: "draft" });
       const id = (result as { insertId: number }).insertId;
-      await writeAuditLog(db, ctx.user!.id, "purchase_return", id, "create", null, { purchaseInvoiceId: input.purchaseInvoiceId });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "create", entityType: "purchase_return", entityId: id, before: null, after: { purchaseInvoiceId: input.purchaseInvoiceId }, reason: input.reason, channel: "app" });
       return { id };
     }),
 
   addReturnLine: protectedProcedure
-    .input(z.object({ purchaseReturnId: z.number(), purchaseLineId: z.number(), batchId: z.number(), qty: z.number().min(1), returnRate: z.string(), reason: z.string().optional() }))
+    .input(z.object({ purchaseReturnId: z.number(), purchaseLineId: z.number(), batchId: z.number(), qty: z.number().min(1), returnRate: z.string(), reason: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       const db = await getDbSafe();
@@ -339,7 +333,7 @@ export const purchaseRouter = router({
       }
       await db.update(purchaseReturns).set({ status: "committed", committedAt: new Date(), approvedBy: ctx.user!.id }).where(eq(purchaseReturns.id, input.id));
       await db.update(purchaseInvoices).set({ status: "partially_returned" }).where(eq(purchaseInvoices.id, ret.purchaseInvoiceId));
-      await writeAuditLog(db, ctx.user!.id, "purchase_return", input.id, "commit", { status: "draft" }, { status: "committed" });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "commit", entityType: "purchase_return", entityId: input.id, before: { status: "draft" }, after: { status: "committed" }, reason: "purchase return committed", channel: "app" });
       return { success: true };
     }),
 
@@ -394,7 +388,7 @@ export const purchaseRouter = router({
       const { supplierPayments } = await import("../../drizzle/schema");
       const [result] = await db.insert(supplierPayments).values({ supplierId: input.supplierId, storeId: input.storeId, purchaseInvoiceId: input.purchaseInvoiceId ?? null, amount: input.amount, paymentMode: input.paymentMode, referenceNo: input.referenceNo ?? null, voucherNo: input.voucherNo ?? null, bankRef: input.bankRef ?? null, paymentDate: input.paymentDate ?? new Date(), notes: input.notes ?? null, createdBy: ctx.user!.id });
       const id = (result as { insertId: number }).insertId;
-      await writeAuditLog(db, ctx.user!.id, "supplier_payment", id, "create", null, { supplierId: input.supplierId, amount: input.amount });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "create", entityType: "supplier_payment", entityId: id, before: null, after: { supplierId: input.supplierId, amount: input.amount }, reason: "supplier payment created", channel: "app" });
       return { id };
     }),
 

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
+import { writeAuditLog } from "../db";
 import { randomUUID } from "crypto";
 
 async function getDbSafe() {
@@ -23,28 +24,6 @@ function requireSales(role: string | null | undefined) {
 function requireManager(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "store_manager"];
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
-}
-
-async function writeAuditLog(
-  db: Awaited<ReturnType<typeof getDbSafe>>,
-  actorId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-  reason?: string
-) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
-    actorId: parseInt(actorId) || 0,
-    action,
-    entityType,
-    entityId: 0,
-    beforeJson: before ? JSON.stringify(before) : null,
-    afterJson: after ? JSON.stringify(after) : null,
-    reason: reason ?? null,
-  });
 }
 
 // Generate sequential bill number: BILL-YYYYMMDD-NNNN
@@ -212,7 +191,7 @@ export const salesRouter = router({
         createdAt: now,
         updatedAt: now,
       });
-      await writeAuditLog(db, ctx.user!.id.toString(), "create", "sale", id, null, { billNo, storeId: input.storeId });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "create", entityType: "sale", entityId: Number(id) || undefined, before: null, after: { billNo, storeId: input.storeId }, reason: "sale draft created", channel: "app" });
       return { id, billNo };
     }),
 
@@ -425,7 +404,7 @@ export const salesRouter = router({
         createdAt: now,
       });
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "confirm", "sale", input.saleId, { status: "draft" }, { status: "confirmed", paymentMode: input.paymentMode });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "confirm", entityType: "sale", entityId: Number(input.saleId) || undefined, before: { status: "draft" }, after: { status: "confirmed", paymentMode: input.paymentMode }, reason: "sale confirmed", channel: "app" });
       return { ok: true, billNo: sale.billNo, total: sale.total };
     }),
 
@@ -498,7 +477,7 @@ export const salesRouter = router({
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft sales can be cancelled" });
       await db.update(sales).set({ status: "cancelled", updatedAt: Date.now() }).where(eq(sales.id, input.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "cancel", "sale", input.saleId, { status: "draft" }, { status: "cancelled" }, input.reason);
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "cancel", entityType: "sale", entityId: Number(input.saleId) || undefined, before: { status: "draft" }, after: { status: "cancelled" }, reason: input.reason ?? "sale cancelled", channel: "app" });
       return { ok: true };
     }),
 
@@ -577,7 +556,7 @@ export const salesRouter = router({
         });
       }
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "create_return", "sale_return", returnId, null, { saleId: input.saleId, totalRefund, returnNo });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "create_return", entityType: "sale_return", entityId: Number(returnId) || undefined, before: null, after: { saleId: input.saleId, totalRefund, returnNo }, reason: input.reason, channel: "app" });
       return { returnId, returnNo, totalRefund: +totalRefund.toFixed(2) };
     }),
 
@@ -635,7 +614,7 @@ export const salesRouter = router({
 
       // Mark original sale as returned
       await db.update(sales).set({ status: "returned", updatedAt: now }).where(eq(sales.id, ret.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "approve_return", "sale_return", input.returnId, { status: "pending" }, { status: "approved" });
+      await writeAuditLog({ actor: { id: ctx.user!.id, role: ctx.user!.role ?? undefined, type: "user" }, action: "approve_return", entityType: "sale_return", entityId: Number(input.returnId) || undefined, before: { status: "pending" }, after: { status: "approved" }, reason: "sale return approved", channel: "app" });
       return { ok: true };
     }),
 

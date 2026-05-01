@@ -163,7 +163,7 @@ export default function AdminPurchaseReturns() {
                 <Button
                   onClick={() => {
                     if (!createForm.purchaseInvoiceId || !createForm.supplierId) { toast.error("Invoice ID and supplier required"); return; }
-                    createReturn.mutate({ purchaseInvoiceId: parseInt(createForm.purchaseInvoiceId), supplierId: parseInt(createForm.supplierId), storeId: parseInt(createForm.storeId), reason: createForm.reason || undefined, debitNoteNo: createForm.debitNoteNo || undefined });
+                    createReturn.mutate({ purchaseInvoiceId: parseInt(createForm.purchaseInvoiceId), supplierId: parseInt(createForm.supplierId), storeId: parseInt(createForm.storeId), reason: createForm.reason || "Return initiated", debitNoteNo: createForm.debitNoteNo || undefined });
                   }}
                   disabled={createReturn.isPending}
                 >
@@ -265,7 +265,7 @@ export default function AdminPurchaseReturns() {
               <Button
                 onClick={() => {
                   if (!lineForm.purchaseLineId || !lineForm.batchId || !lineForm.qty || !lineForm.returnRate) { toast.error("All required fields must be filled"); return; }
-                  addReturnLine.mutate({ purchaseReturnId: selectedId!, purchaseLineId: parseInt(lineForm.purchaseLineId), batchId: parseInt(lineForm.batchId), qty: parseInt(lineForm.qty), returnRate: lineForm.returnRate, reason: lineForm.reason || undefined });
+                  addReturnLine.mutate({ purchaseReturnId: selectedId!, purchaseLineId: parseInt(lineForm.purchaseLineId), batchId: parseInt(lineForm.batchId), qty: parseInt(lineForm.qty), returnRate: lineForm.returnRate, reason: lineForm.reason || "Line return adjustment" });
                 }}
                 disabled={addReturnLine.isPending}
               >

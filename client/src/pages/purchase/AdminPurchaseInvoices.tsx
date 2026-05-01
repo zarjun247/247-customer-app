@@ -551,7 +551,7 @@ export default function AdminPurchaseInvoices() {
               <Input value={cancelReason} onChange={e => setCancelReason(e.target.value)} className="mt-1" placeholder="e.g. Duplicate entry" />
             </div>
             <div className="flex gap-3 mt-4">
-              <Button variant="destructive" onClick={() => cancelInvoice.mutate({ id: selectedId!, reason: cancelReason || undefined })} disabled={cancelInvoice.isPending}>
+              <Button variant="destructive" onClick={() => cancelInvoice.mutate({ id: selectedId!, reason: cancelReason || "No reason provided" })} disabled={cancelInvoice.isPending}>
                 {cancelInvoice.isPending ? "Cancelling..." : "Confirm Cancel"}
               </Button>
               <Button variant="outline" onClick={() => setShowCancelDialog(false)}>Back</Button>
