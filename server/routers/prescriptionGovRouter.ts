@@ -38,8 +38,19 @@ async function writeAuditLog(
   after: unknown,
   reason?: string
 ) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
+  const { writeAuditLog: centralWriteAuditLog } = await import("../db");
+  await centralWriteAuditLog({
+    actor: { id: actorId, role: "pharmacist", type: "user" },
+    action,
+    entityType,
+    entityId: Number(entityId),
+    before,
+    after,
+    reason,
+    channel: "app",
+  });
+  return;
+  await db.insert((await import("../../drizzle/schema")).auditLogs).values({
     actorId: actorId,
     action,
     entityType,

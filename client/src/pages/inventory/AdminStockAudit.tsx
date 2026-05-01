@@ -25,6 +25,7 @@ export default function AdminStockAudit() {
   const [selectedAudit, setSelectedAudit] = useState<number | null>(null);
   const [completeModal, setCompleteModal] = useState<{ id: number; varianceCount?: number } | null>(null);
   const [applyCorrections, setApplyCorrections] = useState(false);
+  const [completeReason, setCompleteReason] = useState("");
 
   // Create form
   const [form, setForm] = useState({ storeId: "", auditType: "full" as "full" | "spot_check" | "expiry_sweep" | "scheduled", note: "" });
@@ -233,14 +234,15 @@ export default function AdminStockAudit() {
                 Apply variance corrections to live stock quantities
               </label>
             </div>
+            <div className="space-y-1"><Label>Completion reason</Label><Input value={completeReason} onChange={e=>setCompleteReason(e.target.value)} placeholder="Explain the audit completion action" /></div>
             {applyCorrections && (
               <p className="text-xs text-amber-700">⚠ This will write stock_adjustment movements for all variances. This action cannot be undone.</p>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCompleteModal(null)}>Cancel</Button>
-            <Button disabled={completeMut.isPending}
-              onClick={() => completeModal && completeMut.mutate({ auditId: completeModal.id, applyCorrections })}>
+            <Button disabled={completeMut.isPending || !completeReason.trim()}
+              onClick={() => completeModal && completeMut.mutate({ auditId: completeModal.id, applyCorrections, reason: completeReason })}>
               {completeMut.isPending ? "Completing..." : "Complete Audit"}
             </Button>
           </DialogFooter>

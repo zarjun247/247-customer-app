@@ -90,20 +90,21 @@ async function writeMovement(p: {
 // ─── Audit log writer ─────────────────────────────────────────────────────────
 
 async function writeAudit(p: {
-  actorId: number; entityType: string; entityId: number; action: string;
-  before?: unknown; after?: unknown; note?: string;
+  actorId: number; actorRole?: string | null; actorType?: string;
+  entityType: string; entityId: number; action: string;
+  before?: unknown; after?: unknown; note?: string; sourceChannel?: string;
 }) {
   try {
-    const db = await getDb();
-    const { auditLogs } = await schema();
-    await db.insert(auditLogs).values({
-      actorId: p.actorId,
+    const { writeAuditLog } = await import("../db");
+    await writeAuditLog({
+      actor: { id: p.actorId, role: p.actorRole ?? undefined, type: p.actorType ?? "user" },
+      action: p.action,
       entityType: p.entityType,
       entityId: p.entityId,
-      action: p.action,
-      beforeJson: p.before ? JSON.stringify(p.before) : null,
-      afterJson: p.after ? JSON.stringify(p.after) : null,
+      before: p.before,
+      after: p.after,
       reason: p.note,
+      channel: p.sourceChannel ?? "app",
     });
   } catch { /* non-critical */ }
 }
@@ -537,7 +538,7 @@ const adjustmentRouter = router({
     }),
 
   reject: protectedProcedure
-    .input(z.object({ id: z.number(), reason: z.string().optional() }))
+    .input(z.object({ id: z.number(), reason: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
       const db = await getDb();
@@ -705,7 +706,7 @@ const auditSessionRouter = router({
     }),
 
   complete: protectedProcedure
-    .input(z.object({ auditId: z.number(), applyCorrections: z.boolean().default(false) }))
+    .input(z.object({ auditId: z.number(), applyCorrections: z.boolean().default(false), reason: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
       const db = await getDb();
@@ -725,7 +726,7 @@ const auditSessionRouter = router({
         }
       }
       await db.update(stockAudits).set({ status: "completed", completedBy: ctx.user.id, completedAt: new Date(), totalVariances: variances.length }).where(eq(stockAudits.id, input.auditId));
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_audit", entityId: input.auditId, action: "complete", note: `${variances.length} variances. Corrections: ${input.applyCorrections}` });
+      await writeAudit({ actorId: ctx.user.id, entityType: "stock_audit", entityId: input.auditId, action: "complete", note: input.reason });
       return { ok: true, varianceCount: variances.length };
     }),
 });
