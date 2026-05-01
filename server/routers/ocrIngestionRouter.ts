@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { logAuditEvent } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 import { eq, and, desc, like, or, inArray } from "drizzle-orm";
 
@@ -19,23 +20,10 @@ function requirePurchaseRole(role: string) {
   if (!allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Purchase role required" });
 }
 
-async function writeAuditLog(db: any, params: {
-  actorId: number; actorRole: string; entityType: string;
-  entityId: number; action: string; before?: any; after?: any; reason?: string;
-}) {
-  try {
-    const { auditLogs } = await import("../../drizzle/schema");
-    await db.insert(auditLogs).values({
-      actorId: params.actorId, actorRole: params.actorRole,
-      entityType: params.entityType, entityId: params.entityId,
-      action: params.action,
-      beforeJson: params.before ? JSON.stringify(params.before) : null,
-      afterJson: params.after ? JSON.stringify(params.after) : null,
-      reason: params.reason ?? null,
-    });
-  } catch { /* non-fatal */ }
-}
 
+async function writeAuditLog(_db: any, params: { actorId: number; actorRole: string; entityType: string; entityId: number; action: string; before?: any; after?: any; reason?: string; }) {
+  await logAuditEvent({ actorId: params.actorId, actorRole: params.actorRole, action: params.action, entityType: params.entityType, entityId: params.entityId, before: params.before, after: params.after, reason: params.reason, sourceChannel: "ocr" });
+}
 const AUTO_MATCH_THRESHOLD = 95;
 const REVIEW_THRESHOLD = 70;
 const SCHEDULE_GATE_CODES = ["H", "H1", "X", "NRX"];

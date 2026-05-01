@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { logAuditEvent } from "../services/audit";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -63,6 +64,10 @@ function computeExpiryBucket(expiryDate: string | Date): "normal" | "warning" | 
   return "normal";
 }
 
+
+async function writeAudit(p: { actorId: number; entityType: string; entityId: number; action: string; before?: unknown; after?: unknown; note?: string; }) {
+  await logAuditEvent({ actorId: p.actorId, action: p.action, entityType: p.entityType, entityId: p.entityId, before: p.before, after: p.after, reason: p.note, sourceChannel: "admin" });
+}
 // ─── Movement writer ──────────────────────────────────────────────────────────
 
 async function writeMovement(p: {
@@ -88,25 +93,6 @@ async function writeMovement(p: {
 }
 
 // ─── Audit log writer ─────────────────────────────────────────────────────────
-
-async function writeAudit(p: {
-  actorId: number; entityType: string; entityId: number; action: string;
-  before?: unknown; after?: unknown; note?: string;
-}) {
-  try {
-    const db = await getDb();
-    const { auditLogs } = await schema();
-    await db.insert(auditLogs).values({
-      actorId: p.actorId,
-      entityType: p.entityType,
-      entityId: p.entityId,
-      action: p.action,
-      beforeJson: p.before ? JSON.stringify(p.before) : null,
-      afterJson: p.after ? JSON.stringify(p.after) : null,
-      reason: p.note,
-    });
-  } catch { /* non-critical */ }
-}
 
 // ─── Batch Router ─────────────────────────────────────────────────────────────
 

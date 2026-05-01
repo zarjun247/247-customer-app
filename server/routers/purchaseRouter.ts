@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { logAuditEvent } from "../services/audit";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -23,6 +24,10 @@ function requireManager(role: string | null | undefined) {
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
 }
 
+
+async function writeAuditLog(_db: Awaited<ReturnType<typeof getDbSafe>>, userId: number, entityType: string, entityId: number, action: string, before: unknown, after: unknown, reason?: string) {
+  await logAuditEvent({ actorId: userId, action, entityType, entityId, before, after, reason, sourceChannel: "admin" });
+}
 function calcGst(purchaseRate: number, gstRate: number, qty: number, schemeDiscount: number, cashDiscount: number) {
   const baseAmount = purchaseRate * qty;
   const schemeDis = baseAmount * (schemeDiscount / 100);
@@ -50,13 +55,6 @@ function computeExpiryBucket(expiryDate: Date | string | null): "normal" | "warn
   if (days <= 60) return "critical";
   if (days <= 90) return "warning";
   return "normal";
-}
-
-async function writeAuditLog(db: Awaited<ReturnType<typeof getDbSafe>>, userId: number, entityType: string, entityId: number, action: string, before: unknown, after: unknown, reason?: string) {
-  try {
-    const { auditLogs } = await import("../../drizzle/schema");
-    await db.insert(auditLogs).values({ userId, entityType, entityId, action, beforeJson: before ? JSON.stringify(before) : null, afterJson: after ? JSON.stringify(after) : null, reason: reason ?? null });
-  } catch (_) { /* non-blocking */ }
 }
 
 async function recalcInvoiceTotals(db: Awaited<ReturnType<typeof getDbSafe>>, invoiceId: number) {

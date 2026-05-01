@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { logAuditEvent } from "../services/audit";
 import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -25,28 +26,10 @@ function requireManager(role: string | null | undefined) {
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
 }
 
-async function writeAuditLog(
-  db: Awaited<ReturnType<typeof getDbSafe>>,
-  actorId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-  reason?: string
-) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
-    actorId: parseInt(actorId) || 0,
-    action,
-    entityType,
-    entityId: 0,
-    beforeJson: before ? JSON.stringify(before) : null,
-    afterJson: after ? JSON.stringify(after) : null,
-    reason: reason ?? null,
-  });
-}
 
+async function writeAuditLog(_db: Awaited<ReturnType<typeof getDbSafe>>, actorId: string, action: string, entityType: string, entityId: string, before: unknown, after: unknown, reason?: string) {
+  await logAuditEvent({ actorId: parseInt(actorId) || null, action, entityType, entityId: parseInt(entityId) || 0, before, after, reason, sourceChannel: "counter" });
+}
 // Generate sequential bill number: BILL-YYYYMMDD-NNNN
 async function generateBillNo(db: Awaited<ReturnType<typeof getDbSafe>>, storeId: string): Promise<string> {
   const { sales } = await import("../../drizzle/schema");
