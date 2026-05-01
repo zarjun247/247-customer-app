@@ -2228,3 +2228,48 @@ export const storeCapabilities = mysqlTable("store_capabilities", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type StoreCapability = typeof storeCapabilities.$inferSelect;
+
+// ─── PART 12: system_events — event bus persistence ──────────────────────────
+export const systemEvents = mysqlTable("system_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: mysqlEnum("eventType", [
+    "order_placed",
+    "rx_uploaded",
+    "rx_approved",
+    "rx_rejected",
+    "stock_reserved",
+    "picking_started",
+    "packed",
+    "rider_assigned",
+    "delivered",
+    "delivery_failed",
+    "refill_due",
+    "payment_received",
+    "payment_failed",
+    "purchase_committed",
+    "stock_adjusted",
+    "batch_quarantined",
+    "manual_override",
+    "sla_breach_risk",
+    "sync_stale",
+    "ocr_pending",
+    "order_cancelled",
+    "whatsapp_order",
+    "counter_sale",
+    "pharmacist_approved",
+    "out_for_delivery",
+  ]).notNull(),
+  entityType: varchar("entityType", { length: 50 }),   // "order" | "prescription" | "batch" | "refill_plan" etc
+  entityId: int("entityId"),
+  storeId: int("storeId"),
+  actorId: int("actorId"),
+  actorType: mysqlEnum("actorType", ["customer", "pharmacist", "rider", "system", "admin", "whatsapp"]).default("system").notNull(),
+  payload: text("payload"),   // JSON blob for event-specific data
+  severity: mysqlEnum("severity", ["info", "warning", "critical"]).default("info").notNull(),
+  channel: mysqlEnum("channel", ["app", "whatsapp", "counter", "system", "import"]).default("system").notNull(),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+  isProcessed: boolean("isProcessed").default(false).notNull(),
+});
+export type SystemEvent = typeof systemEvents.$inferSelect;
+export type InsertSystemEvent = typeof systemEvents.$inferInsert;

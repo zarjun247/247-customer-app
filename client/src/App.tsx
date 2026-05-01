@@ -35,7 +35,7 @@ import AdminOcr from "./pages/ocr/AdminOcr";
 import Reports from "./pages/Reports";
 import MasterData from "./pages/MasterData";
 import ShiftClosing from "./pages/ShiftClosing";
-import AdminCommandCenter from "./pages/AdminCommandCenter";
+import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminOrders from "./pages/AdminOrders";
 import AdminPrescriptionGov from "./pages/prescriptions/AdminPrescriptionGov";
 import AdminCounterBilling from "./pages/sales/AdminCounterBilling";

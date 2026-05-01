@@ -39,6 +39,7 @@ import { reportsRouter } from "./routers/reportsRouter";
 import { customerMedicineRouter } from "./routers/customerMedicineRouter";
 import { whatsappFullRouter } from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
+import { commandCenterRouter } from "./routers/commandCenterRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
@@ -721,6 +722,7 @@ export const appRouter = router({
   customerMedicine: customerMedicineRouter,
   whatsappFull: whatsappFullRouter,
   delivery: deliveryRouter,
+  commandCenter: commandCenterRouter,
 });
 
 export type AppRouter = typeof appRouter;

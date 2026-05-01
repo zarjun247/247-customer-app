@@ -793,3 +793,13 @@
 - [x] Route /admin/delivery registered in App.tsx
 - [x] AdminLayout sidebar updated with Delivery Dashboard link under Operations
 - [x] TypeScript: 0 errors, Tests: 73/73 passing
+
+## PART 12 — Command Center + Event Bus
+- [x] Schema: system_events table (event_type, payload, severity, source, actorId, orderId, storeId, customerId, acknowledged) — migrated to live DB
+- [x] eventBus.ts: 25 typed event types (order_placed, rx_uploaded, rx_approved, rx_rejected, stock_reserved, picking_started, packed, rider_assigned, delivered, delivery_failed, refill_due, payment_received, payment_failed, purchase_committed, stock_adjusted, batch_quarantined, manual_override, sla_breach_risk, sync_stale, ocr_pending, sla_breached, stockout_alert, near_expiry_alert, reorder_conversion, refill_missed), DB persistence, in-process subscriber hooks, emit/subscribe/unsubscribe API
+- [x] commandCenterRouter.ts: snapshot (21 cards in one parallel Promise.all), slaDashboard, expiryDashboard, refillDashboard, syncComplianceDashboard, recentEvents, acknowledgeEvent
+- [x] commandCenterRouter registered in server/routers.ts
+- [x] AdminCommandCenter.tsx: 21 live cards with 3-level severity colouring (ok/warn/critical), 4 sub-dashboard tabs (SLA, Expiry, Refill, Sync/Compliance), auto-refresh every 30s, critical events banner, building demand heatmap, store performance table, node capacity grid, order status breakdown
+- [x] Route /admin/command-center updated to new PART 12 page in App.tsx
+- [x] Command Center already in AdminLayout sidebar under /admin/command-center
+- [x] TypeScript: 0 errors, Tests: 73/73 passing
