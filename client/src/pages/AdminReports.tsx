@@ -62,6 +62,12 @@ export default function AdminReports() {
     enabled: tab === "sla",
   });
 
+  const dailyRows = Array.isArray(dailyReport.data?.rows) ? dailyReport.data.rows : [];
+  const gstRows = Array.isArray(gstReport.data?.rows) ? gstReport.data.rows : [];
+  const stockRows = Array.isArray(stockReport.data?.rows) ? stockReport.data.rows : [];
+  const expiryRows = Array.isArray(expiryReport.data?.rows) ? expiryReport.data.rows : [];
+  const h1Rows = Array.isArray(h1Report.data?.rows) ? h1Report.data.rows : [];
+
   function downloadCsv(data: any[], filename: string) {
     if (!data || data.length === 0) { toast.error("No data to export"); return; }
     const keys = Object.keys(data[0]);
@@ -127,7 +133,7 @@ export default function AdminReports() {
                 size="sm"
                 variant="outline"
                 className="gap-2 border-white/10 text-zinc-400 hover:text-zinc-100 h-8"
-                onClick={() => downloadCsv(dailyReport.data?.byCategory ?? [], `daily-sales-${from}-to-${to}.csv`)}
+                onClick={() => downloadCsv(dailyRows, `daily-sales-${from}-to-${to}.csv`)}
               >
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
@@ -149,13 +155,13 @@ export default function AdminReports() {
                     <>
                       <tr className="border-b border-white/5 bg-zinc-800/50">
                         <td className="px-4 py-2.5 text-zinc-300 font-medium">{from} – {to}</td>
-                        <td className="px-4 py-2.5 text-right text-zinc-200 font-medium">{dailyReport.data.summary?.totalOrders ?? 0}</td>
-                        <td className="px-4 py-2.5 text-right text-zinc-200 font-medium">₹{Number(dailyReport.data.summary?.totalRevenue ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="px-4 py-2.5 text-right text-zinc-200 font-medium">{dailyReport.data?.totals?.totalOrders ?? 0}</td>
+                        <td className="px-4 py-2.5 text-right text-zinc-200 font-medium">₹{Number(dailyReport.data?.totals?.totalRevenue ?? 0).toLocaleString("en-IN")}</td>
                         <td className="px-4 py-2.5 text-right text-zinc-400">
-                          ₹{dailyReport.data.summary?.totalOrders > 0 ? (Number(dailyReport.data.summary?.totalRevenue ?? 0) / dailyReport.data.summary.totalOrders).toFixed(0) : "—"}
+                          ₹{dailyReport.data?.totals?.totalOrders > 0 ? (Number(dailyReport.data?.totals?.totalRevenue ?? 0) / Number(dailyReport.data?.totals?.totalOrders ?? 1)).toFixed(0) : "—"}
                         </td>
                       </tr>
-                      {(dailyReport.data.byCategory ?? []).map((row: any, i: number) => (
+                      {dailyRows.map((row: any, i: number) => (
                         <tr key={i} className="border-b border-white/5 hover:bg-white/2">
                           <td className="px-4 py-2.5 text-zinc-400 capitalize">{row.category ?? "Other"}</td>
                           <td className="px-4 py-2.5 text-right text-zinc-400">{row.units ?? 0} units</td>
@@ -179,7 +185,7 @@ export default function AdminReports() {
                 size="sm"
                 variant="outline"
                 className="gap-2 border-white/10 text-zinc-400 hover:text-zinc-100 h-8"
-                onClick={() => downloadCsv(gstReport.data?.hsnRows ?? [], `gst-report-${from}-to-${to}.csv`)}
+                onClick={() => downloadCsv(gstReport.data?.csvData ?? gstRows, `gst-report-${from}-to-${to}.csv`)}
               >
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
@@ -198,10 +204,10 @@ export default function AdminReports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(gstReport.data?.hsnRows ?? []).length === 0 ? (
+                  {(gstReport.data?.csvData ?? gstRows).length === 0 ? (
                     <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">No data for selected range</td></tr>
                   ) : (
-                    (gstReport.data?.hsnRows ?? []).map((row: any, i: number) => {
+                    (gstReport.data?.csvData ?? gstRows).map((row: any, i: number) => {
                       const gst = Number(row.gstAmount ?? 0);
                       const cgst = gst / 2;
                       const sgst = gst / 2;
@@ -232,7 +238,7 @@ export default function AdminReports() {
                 size="sm"
                 variant="outline"
                 className="gap-2 border-white/10 text-zinc-400 hover:text-zinc-100 h-8"
-                onClick={() => downloadCsv(stockReport.data?.rows ?? [], `stock-valuation-${formatDate(today)}.csv`)}
+                onClick={() => downloadCsv(stockReport.data?.csvData ?? stockRows, `stock-valuation-${formatDate(today)}.csv`)}
               >
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
@@ -250,10 +256,10 @@ export default function AdminReports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(stockReport.data?.rows ?? []).length === 0 ? (
+                  {(stockReport.data?.csvData ?? stockRows).length === 0 ? (
                     <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">No stock data</td></tr>
                   ) : (
-                    (stockReport.data?.rows ?? []).map((row: any, i: number) => (
+                    (stockReport.data?.csvData ?? stockRows).map((row: any, i: number) => (
                       <tr key={i} className="border-b border-white/5 hover:bg-white/2">
                         <td className="px-4 py-2.5 text-zinc-200">{row.productName}</td>
                         <td className="px-4 py-2.5 font-mono text-zinc-500 text-xs">{row.batchNumber}</td>
@@ -285,10 +291,10 @@ export default function AdminReports() {
                 </tr>
               </thead>
               <tbody>
-                  {(expiryReport.data ?? []).length === 0 ? (
+                  {expiryRows.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">No near-expiry items</td></tr>
                 ) : (
-                    (expiryReport.data ?? []).map((item: any, i: number) => {
+                    expiryRows.map((item: any, i: number) => {
                       const expiry = new Date(item.batch?.expiryDate ?? item.expiryDate);
                       const daysLeft = Math.round((expiry.getTime() - Date.now()) / 86400000);
                       const zone = daysLeft <= 30 ? "Quarantine" : daysLeft <= 60 ? "Critical" : "Warning";
@@ -318,7 +324,7 @@ export default function AdminReports() {
                 size="sm"
                 variant="outline"
                 className="gap-2 border-white/10 text-zinc-400 hover:text-zinc-100 h-8"
-                onClick={() => downloadCsv(h1Report.data ?? [], `h1-register-${from}-to-${to}.csv`)}
+                onClick={() => downloadCsv(h1Report.data?.csvData ?? h1Rows, `h1-register-${from}-to-${to}.csv`)}
               >
                 <Download className="w-3.5 h-3.5" /> Export CSV
               </Button>
@@ -335,10 +341,10 @@ export default function AdminReports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(h1Report.data ?? []).length === 0 ? (
+                  {(h1Report.data?.csvData ?? h1Rows).length === 0 ? (
                     <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-500">No H1 dispensing records</td></tr>
                   ) : (
-                    (h1Report.data ?? []).map((row: any, i: number) => (
+                    (h1Report.data?.csvData ?? h1Rows).map((row: any, i: number) => (
                       <tr key={i} className="border-b border-white/5 hover:bg-white/2">
                         <td className="px-4 py-2.5 text-zinc-400 text-xs">{String(row.dispensedAt).slice(0, 10)}</td>
                         <td className="px-4 py-2.5 text-zinc-200">{row.productName}</td>

@@ -45,6 +45,13 @@ export default function Reports() {
   const nearExpiry = trpc.reports.nearExpiry.useQuery({ days: 90 }, { enabled: tab === "near_expiry" });
   const slaPerf = trpc.reports.slaPerformance.useQuery({ fromDate: from, toDate: to }, { enabled: tab === "sla" });
 
+  const dailySaleRows = Array.isArray(dailySale.data?.rows) ? dailySale.data.rows : [];
+  const dailyPurchaseRows = Array.isArray(dailyPurchase.data?.rows) ? dailyPurchase.data.rows : [];
+  const gstRows = Array.isArray(gstSummary.data?.rows) ? gstSummary.data.rows : [];
+  const stockRows = Array.isArray(stockVal.data?.rows) ? stockVal.data.rows : [];
+  const nearExpiryRows = Array.isArray(nearExpiry.data?.rows) ? nearExpiry.data.rows : [];
+  const slaTotals = slaPerf.data?.totals;
+
   const fmt = (v: unknown) => v != null ? `₹${parseFloat(String(v)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—";
   const fmtN = (v: unknown) => v != null ? parseFloat(String(v)).toLocaleString("en-IN") : "—";
 
@@ -97,9 +104,9 @@ export default function Reports() {
               <>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: "Orders Delivered", value: fmtN(dailySale.data.summary?.totalOrders) },
-                    { label: "Revenue", value: fmt(dailySale.data.summary?.totalRevenue) },
-                    { label: "Units Sold", value: fmtN(dailySale.data.summary?.totalItems) },
+                    { label: "Orders Delivered", value: fmtN(dailySale.data?.totals?.totalOrders) },
+                    { label: "Revenue", value: fmt(dailySale.data?.totals?.totalRevenue) },
+                    { label: "Units Sold", value: fmtN(dailySale.data?.totals?.totalItems) },
                   ].map(m => (
                     <Card key={m.label} className="bg-white/5 border-white/10">
                       <CardContent className="p-4">
@@ -112,7 +119,7 @@ export default function Reports() {
                 <Card className="bg-white/5 border-white/10">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
                     <CardTitle className="text-white text-base">By Category</CardTitle>
-                    <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv(dailySale.data.byCategory as Record<string, unknown>[], `daily-sale-${from}-${to}.csv`)}>
+                    <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv((dailySale.data?.csvData as Record<string, unknown>[] | undefined) ?? [], `daily-sale-${from}-${to}.csv`)}>
                       <Download className="w-3.5 h-3.5" /> Export
                     </Button>
                   </CardHeader>
@@ -126,7 +133,7 @@ export default function Reports() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {dailySale.data.byCategory.map((row, i) => (
+                        {dailySaleRows.map((row, i) => (
                           <TableRow key={i} className="border-white/5">
                             <TableCell className="text-white capitalize">{row.category ?? "Unknown"}</TableCell>
                             <TableCell className="text-right text-white/70">{fmt(row.revenue)}</TableCell>
@@ -165,7 +172,7 @@ export default function Reports() {
                 <Card className="bg-white/5 border-white/10">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
                     <CardTitle className="text-white text-base">Invoices</CardTitle>
-                    <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv(dailyPurchase.data.invoices.map(r => ({ ...r.invoice, supplierName: r.supplierName })), `purchase-${from}-${to}.csv`)}>
+                    <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv((dailyPurchase.data?.csvData as Record<string, unknown>[] | undefined) ?? [], `purchase-${from}-${to}.csv`)}>
                       <Download className="w-3.5 h-3.5" /> Export
                     </Button>
                   </CardHeader>
@@ -180,12 +187,12 @@ export default function Reports() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {dailyPurchase.data.invoices.map((row) => (
-                          <TableRow key={row.invoice.id} className="border-white/5">
-                            <TableCell className="text-white font-mono text-xs">{row.invoice.invoiceNo}</TableCell>
+                        {dailyPurchaseRows.map((row: any) => (
+                          <TableRow key={row.id} className="border-white/5">
+                            <TableCell className="text-white font-mono text-xs">{row.invoiceNo}</TableCell>
                             <TableCell className="text-white/70">{row.supplierName ?? "—"}</TableCell>
-                            <TableCell className="text-white/50 text-xs">{new Date(row.invoice.invoiceDate).toLocaleDateString()}</TableCell>
-                            <TableCell className="text-right text-white/70">{fmt(row.invoice.netAmount)}</TableCell>
+                            <TableCell className="text-white/50 text-xs">{new Date(row.invoiceDate).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-right text-white/70">{fmt(row.netAmount)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -204,7 +211,7 @@ export default function Reports() {
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-white text-base">HSN-wise GST Summary</CardTitle>
               {gstSummary.data && (
-                <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv(gstSummary.data.hsnRows as Record<string, unknown>[], `gst-${from}-${to}.csv`)}>
+                <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv((gstSummary.data?.csvData as Record<string, unknown>[] | undefined) ?? [], `gst-${from}-${to}.csv`)}>
                   <Download className="w-3.5 h-3.5" /> Export CSV
                 </Button>
               )}
@@ -223,7 +230,7 @@ export default function Reports() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {gstSummary.data.hsnRows.map((row, i) => (
+                    {gstRows.map((row, i) => (
                       <TableRow key={i} className="border-white/5">
                         <TableCell className="text-white font-mono text-xs">{row.hsnCode ?? "—"}</TableCell>
                         <TableCell className="text-right text-white/70">{row.gstRate}%</TableCell>
@@ -262,7 +269,7 @@ export default function Reports() {
                 <Card className="bg-white/5 border-white/10">
                   <CardHeader className="pb-2 flex flex-row items-center justify-between">
                     <CardTitle className="text-white text-base">Batch-wise Stock</CardTitle>
-                    <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv(stockVal.data.rows as Record<string, unknown>[], "stock-valuation.csv")}>
+                    <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv((stockVal.data?.csvData as Record<string, unknown>[] | undefined) ?? [], "stock-valuation.csv")}>
                       <Download className="w-3.5 h-3.5" /> Export
                     </Button>
                   </CardHeader>
@@ -279,7 +286,7 @@ export default function Reports() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {stockVal.data.rows.slice(0, 100).map((row, i) => (
+                        {stockRows.slice(0, 100).map((row, i) => (
                           <TableRow key={i} className="border-white/5">
                             <TableCell className="text-white text-sm">{String(row.productName ?? "—")}</TableCell>
                             <TableCell className="text-white/60 font-mono text-xs">{String(row.batchNumber ?? "—")}</TableCell>
@@ -291,7 +298,7 @@ export default function Reports() {
                         ))}
                       </TableBody>
                     </Table>
-                    {stockVal.data.rows.length > 100 && <p className="text-center text-xs text-white/40 mt-3">Showing first 100 rows. Export CSV for full data.</p>}
+                    {stockRows.length > 100 && <p className="text-center text-xs text-white/40 mt-3">Showing first 100 rows. Export CSV for full data.</p>}
                   </CardContent>
                 </Card>
               </>
@@ -306,7 +313,7 @@ export default function Reports() {
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-white text-base">Near-Expiry Stock (next 90 days)</CardTitle>
               {nearExpiry.data && (
-                <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv(nearExpiry.data as Record<string, unknown>[], "near-expiry.csv")}>
+                <Button size="sm" variant="ghost" className="text-white/60 gap-1" onClick={() => downloadCsv((nearExpiry.data?.csvData as Record<string, unknown>[] | undefined) ?? [], "near-expiry.csv")}>
                   <Download className="w-3.5 h-3.5" /> Export
                 </Button>
               )}
@@ -325,16 +332,16 @@ export default function Reports() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {nearExpiry.data.map((row, i) => {
-                      const daysLeft = Math.ceil((new Date(row.batch.expiryDate).getTime() - Date.now()) / 86400000);
+                    {nearExpiryRows.map((row: any, i: number) => {
+                      const daysLeft = Math.ceil((new Date(row.batch?.expiryDate ?? row.expiryDate).getTime() - Date.now()) / 86400000);
                       const color = daysLeft <= 30 ? "text-red-400" : daysLeft <= 60 ? "text-amber-400" : "text-yellow-400";
                       return (
                         <TableRow key={i} className="border-white/5">
                           <TableCell className="text-white text-sm">{row.productName ?? "—"}</TableCell>
                           <TableCell className="text-white/50 text-xs">{row.schedule ?? "OTC"}</TableCell>
-                          <TableCell className="text-white/60 font-mono text-xs">{row.batch.batchNumber}</TableCell>
-                          <TableCell className="text-white/70 text-xs">{new Date(row.batch.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</TableCell>
-                          <TableCell className="text-right text-white/70">{row.batch.quantity}</TableCell>
+                          <TableCell className="text-white/60 font-mono text-xs">{row.batch?.batchNumber ?? row.batchNumber}</TableCell>
+                          <TableCell className="text-white/70 text-xs">{new Date(row.batch?.expiryDate ?? row.expiryDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</TableCell>
+                          <TableCell className="text-right text-white/70">{row.batch?.quantity ?? row.quantity}</TableCell>
                           <TableCell className={`text-right font-semibold ${color}`}>{daysLeft}d</TableCell>
                         </TableRow>
                       );
@@ -352,10 +359,10 @@ export default function Reports() {
             {slaPerf.data && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: "Total Orders", value: fmtN(slaPerf.data.total) },
-                  { label: "On Time", value: fmtN(slaPerf.data.onTime), color: "text-emerald-400" },
-                  { label: "Breached", value: fmtN(slaPerf.data.breached), color: "text-red-400" },
-                  { label: "Avg Delivery", value: slaPerf.data.avgDeliveryMins ? `${parseFloat(String(slaPerf.data.avgDeliveryMins)).toFixed(0)} min` : "—" },
+                  { label: "Total Orders", value: fmtN(slaTotals?.total) },
+                  { label: "On Time", value: fmtN(slaTotals?.onTime), color: "text-emerald-400" },
+                  { label: "Breached", value: fmtN(slaTotals?.breached), color: "text-red-400" },
+                  { label: "Avg Delivery", value: slaTotals?.avgDeliveryMins ? `${parseFloat(String(slaTotals?.avgDeliveryMins)).toFixed(0)} min` : "—" },
                 ].map(m => (
                   <Card key={m.label} className="bg-white/5 border-white/10">
                     <CardContent className="p-4">

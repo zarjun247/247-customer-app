@@ -134,6 +134,50 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function StaffRoute({ children }: { children: React.ReactNode }) {
+  const [location, navigate] = useLocation();
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      navigate(`/login?return=${encodeURIComponent(location)}`);
+      return;
+    }
+
+    const role = user?.role;
+    if (!role || role === "user" || role === "customer") {
+      navigate("/");
+    }
+  }, [authLoading, isAuthenticated, location, navigate, user?.role]);
+
+  if (authLoading || !isAuthenticated) return null;
+  if (!user?.role || user.role === "user" || user.role === "customer") return null;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const [location, navigate] = useLocation();
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      navigate(`/login?return=${encodeURIComponent(location)}`);
+      return;
+    }
+
+    const role = user?.role;
+    if (!role || role === "user" || role === "customer") {
+      navigate("/");
+    }
+  }, [authLoading, isAuthenticated, location, navigate, user?.role]);
+
+  if (authLoading || !isAuthenticated) return null;
+  if (!user?.role || user.role === "user" || user.role === "customer") return null;
+  return <>{children}</>;
+}
+
 /**
  * OnboardingGuard (legacy wrapper — kept for non-route-level usage)
  * Wraps the entire router and handles the onboarding redirect for authenticated users.
@@ -175,87 +219,87 @@ function Router() {
         <Route path="/family">{() => <ProtectedRoute><FamilyProfiles /></ProtectedRoute>}</Route>
         <Route path="/refill-calendar">{() => <ProtectedRoute><RefillCalendar /></ProtectedRoute>}</Route>
         <Route path="/my-medicines">{() => <ProtectedRoute><MyMedicines /></ProtectedRoute>}</Route>
-        <Route path="/workbench" component={PharmacistWorkbench} />
-        <Route path="/pharmacy-os" component={PharmacyOS} />
-        <Route path="/dashboard" component={FounderDashboard} />
+        <Route path="/workbench">{() => <StaffRoute><PharmacistWorkbench /></StaffRoute>}</Route>
+        <Route path="/pharmacy-os">{() => <StaffRoute><PharmacyOS /></StaffRoute>}</Route>
+        <Route path="/dashboard">{() => <StaffRoute><FounderDashboard /></StaffRoute>}</Route>
         <Route path="/ingestion">{() => <ProtectedRoute><InvoiceIngestion /></ProtectedRoute>}</Route>
         <Route path="/helpdesk">{() => <ProtectedRoute><Helpdesk /></ProtectedRoute>}</Route>
         <Route path="/consent">{() => <ProtectedRoute><Consent /></ProtectedRoute>}</Route>
         <Route path="/doctor-consult">{() => <ProtectedRoute><DoctorConsult /></ProtectedRoute>}</Route>
-        <Route path="/pharmacy/expiry" component={ExpiryDashboard} />
-        <Route path="/pharmacy/barcodes" component={BarcodePrint} />
-        <Route path="/pharmacy/gst-export" component={GstExport} />
-        <Route path="/pharmacy/sla" component={SlaBoard} />
-        <Route path="/pharmacy/medivision" component={MedivisionSync} />
-        <Route path="/pharmacy/purchase" component={PurchaseEntry} />
-        <Route path="/pharmacy/ocr" component={OcrIngestion} />
-        <Route path="/pharmacy/reports" component={Reports} />
-        <Route path="/pharmacy/master-data" component={MasterData} />
-        <Route path="/pharmacy/shift" component={ShiftClosing} />
+        <Route path="/pharmacy/expiry">{() => <StaffRoute><ExpiryDashboard /></StaffRoute>}</Route>
+        <Route path="/pharmacy/barcodes">{() => <StaffRoute><BarcodePrint /></StaffRoute>}</Route>
+        <Route path="/pharmacy/gst-export">{() => <StaffRoute><GstExport /></StaffRoute>}</Route>
+        <Route path="/pharmacy/sla">{() => <StaffRoute><SlaBoard /></StaffRoute>}</Route>
+        <Route path="/pharmacy/medivision">{() => <StaffRoute><MedivisionSync /></StaffRoute>}</Route>
+        <Route path="/pharmacy/purchase">{() => <StaffRoute><PurchaseEntry /></StaffRoute>}</Route>
+        <Route path="/pharmacy/ocr">{() => <StaffRoute><OcrIngestion /></StaffRoute>}</Route>
+        <Route path="/pharmacy/reports">{() => <StaffRoute><Reports /></StaffRoute>}</Route>
+        <Route path="/pharmacy/master-data">{() => <StaffRoute><MasterData /></StaffRoute>}</Route>
+        <Route path="/pharmacy/shift">{() => <StaffRoute><ShiftClosing /></StaffRoute>}</Route>
         {/* Admin area */}
-        <Route path="/admin" component={AdminCommandCenter} />
-        <Route path="/admin/command-center" component={AdminCommandCenter} />
-        <Route path="/admin/orders" component={AdminOrders} />
-        <Route path="/admin/prescriptions" component={AdminPrescriptionGov} />
-        <Route path="/admin/sales/counter" component={AdminCounterBilling} />
-        <Route path="/admin/reports" component={AdminReports} />
-        <Route path="/admin/reports/daily-sales" component={AdminReports} />
-        <Route path="/admin/reports/stock" component={AdminReports} />
-        <Route path="/admin/reports/expiry" component={ExpiryDashboard} />
-        <Route path="/admin/reports/purchase" component={AdminReports} />
-        <Route path="/admin/reports/h1" component={AdminReports} />
-        <Route path="/admin/reports/gst" component={GstExport} />
-        <Route path="/admin/reports/sla" component={SlaBoard} />
-        <Route path="/admin/purchase">{() => <AdminPurchaseInvoices />}</Route>
-        <Route path="/admin/purchase/invoices">{() => <AdminPurchaseInvoices />}</Route>
-        <Route path="/admin/purchase/returns">{() => <AdminPurchaseReturns />}</Route>
-        <Route path="/admin/purchase/payments">{() => <AdminSupplierPayments />}</Route>
-        <Route path="/admin/purchase/reports">{() => <AdminPurchaseReports />}</Route>
-        <Route path="/admin/ocr" component={AdminOcr} />
-        <Route path="/admin/master-data" component={MasterData} />
-        <Route path="/admin/shift" component={ShiftClosing} />
-        <Route path="/admin/expiry" component={ExpiryDashboard} />
-        <Route path="/admin/sla" component={SlaBoard} />
-        <Route path="/admin/barcodes" component={BarcodePrint} />
-        <Route path="/admin/gst-export" component={GstExport} />
-        <Route path="/admin/medivision" component={MedivisionSync} />
-        <Route path="/admin/imports/medivision" component={MedivisionSync} />
-        <Route path="/admin/inventory">{() => <AdminInventory />}</Route>
-        <Route path="/admin/inventory/current-stock">{() => <AdminCurrentStock />}</Route>
-        <Route path="/admin/inventory/batchwise">{() => <AdminBatchwiseBalance />}</Route>
-        <Route path="/admin/inventory/near-expiry">{() => <AdminNearExpiry />}</Route>
-        <Route path="/admin/inventory/movements">{() => <AdminStockMovements />}</Route>
-        <Route path="/admin/inventory/adjustments">{() => <AdminStockAdjustment />}</Route>
-        <Route path="/admin/inventory/audit">{() => <AdminStockAudit />}</Route>
-        <Route path="/admin/customers" component={AdminCustomers} />
-        <Route path="/admin/customers/medicine-records">{() => <AdminCustomersNew />}</Route>
-        <Route path="/admin/riders" component={AdminRiders} />
-        <Route path="/admin/delivery" component={AdminDelivery} />
-        <Route path="/admin/whatsapp" component={AdminWhatsApp} />
-        <Route path="/admin/refills" component={AdminRefills} />
-        <Route path="/admin/accounting" component={AdminAccounting} />
-        <Route path="/admin/accounting/shift" component={ShiftClosing} />
-        <Route path="/admin/accounting/gst-export" component={GstExport} />
-        <Route path="/admin/accounting/tally" component={AdminAccounting} />
-        <Route path="/admin/utilities" component={AdminUtilities} />
-        <Route path="/admin/settings" component={AdminSettings} />
-        <Route path="/admin/masters" component={AdminMastersIndex} />
-        <Route path="/admin/masters/suppliers" component={AdminSuppliers} />
-        <Route path="/admin/masters/manufacturers" component={AdminManufacturers} />
-        <Route path="/admin/masters/categories" component={AdminCategories} />
-        <Route path="/admin/masters/generics" component={AdminGenerics} />
-        <Route path="/admin/masters/schedules" component={AdminSchedules} />
-        <Route path="/admin/masters/discount-categories" component={AdminDiscountCategories} />
-        <Route path="/admin/masters/discounts" component={AdminDiscountCategories} />
-        <Route path="/admin/masters/doctors" component={AdminDoctors} />
-        <Route path="/admin/masters/patient-categories" component={AdminPatientCategories} />
-        <Route path="/admin/masters/customers" component={AdminPatientCategories} />
-        <Route path="/admin/masters/staff" component={AdminStaff} />
-        <Route path="/admin/masters/stores" component={AdminStores} />
-        <Route path="/admin/masters/buildings" component={AdminBuildings} />
-        <Route path="/admin/masters/printers" component={AdminPrinters} />
-        <Route path="/admin/masters/products" component={AdminProducts} />
-        <Route path="/admin/sales" component={AdminSales} />
+        <Route path="/admin">{() => <AdminRoute><AdminCommandCenter /></AdminRoute>}</Route>
+        <Route path="/admin/command-center">{() => <AdminRoute><AdminCommandCenter /></AdminRoute>}</Route>
+        <Route path="/admin/orders">{() => <AdminRoute><AdminOrders /></AdminRoute>}</Route>
+        <Route path="/admin/prescriptions">{() => <AdminRoute><AdminPrescriptionGov /></AdminRoute>}</Route>
+        <Route path="/admin/sales/counter">{() => <AdminRoute><AdminCounterBilling /></AdminRoute>}</Route>
+        <Route path="/admin/reports">{() => <AdminRoute><AdminReports /></AdminRoute>}</Route>
+        <Route path="/admin/reports/daily-sales">{() => <AdminRoute><AdminReports /></AdminRoute>}</Route>
+        <Route path="/admin/reports/stock">{() => <AdminRoute><AdminReports /></AdminRoute>}</Route>
+        <Route path="/admin/reports/expiry">{() => <AdminRoute><ExpiryDashboard /></AdminRoute>}</Route>
+        <Route path="/admin/reports/purchase">{() => <AdminRoute><AdminReports /></AdminRoute>}</Route>
+        <Route path="/admin/reports/h1">{() => <AdminRoute><AdminReports /></AdminRoute>}</Route>
+        <Route path="/admin/reports/gst">{() => <AdminRoute><GstExport /></AdminRoute>}</Route>
+        <Route path="/admin/reports/sla">{() => <AdminRoute><SlaBoard /></AdminRoute>}</Route>
+        <Route path="/admin/purchase">{() => <AdminRoute><AdminPurchaseInvoices /></AdminRoute>}</Route>
+        <Route path="/admin/purchase/invoices">{() => <AdminRoute><AdminPurchaseInvoices /></AdminRoute>}</Route>
+        <Route path="/admin/purchase/returns">{() => <AdminRoute><AdminPurchaseReturns /></AdminRoute>}</Route>
+        <Route path="/admin/purchase/payments">{() => <AdminRoute><AdminSupplierPayments /></AdminRoute>}</Route>
+        <Route path="/admin/purchase/reports">{() => <AdminRoute><AdminPurchaseReports /></AdminRoute>}</Route>
+        <Route path="/admin/ocr">{() => <AdminRoute><AdminOcr /></AdminRoute>}</Route>
+        <Route path="/admin/master-data">{() => <AdminRoute><MasterData /></AdminRoute>}</Route>
+        <Route path="/admin/shift">{() => <AdminRoute><ShiftClosing /></AdminRoute>}</Route>
+        <Route path="/admin/expiry">{() => <AdminRoute><ExpiryDashboard /></AdminRoute>}</Route>
+        <Route path="/admin/sla">{() => <AdminRoute><SlaBoard /></AdminRoute>}</Route>
+        <Route path="/admin/barcodes">{() => <AdminRoute><BarcodePrint /></AdminRoute>}</Route>
+        <Route path="/admin/gst-export">{() => <AdminRoute><GstExport /></AdminRoute>}</Route>
+        <Route path="/admin/medivision">{() => <AdminRoute><MedivisionSync /></AdminRoute>}</Route>
+        <Route path="/admin/imports/medivision">{() => <AdminRoute><MedivisionSync /></AdminRoute>}</Route>
+        <Route path="/admin/inventory">{() => <AdminRoute><AdminInventory /></AdminRoute>}</Route>
+        <Route path="/admin/inventory/current-stock">{() => <AdminRoute><AdminCurrentStock /></AdminRoute>}</Route>
+        <Route path="/admin/inventory/batchwise">{() => <AdminRoute><AdminBatchwiseBalance /></AdminRoute>}</Route>
+        <Route path="/admin/inventory/near-expiry">{() => <AdminRoute><AdminNearExpiry /></AdminRoute>}</Route>
+        <Route path="/admin/inventory/movements">{() => <AdminRoute><AdminStockMovements /></AdminRoute>}</Route>
+        <Route path="/admin/inventory/adjustments">{() => <AdminRoute><AdminStockAdjustment /></AdminRoute>}</Route>
+        <Route path="/admin/inventory/audit">{() => <AdminRoute><AdminStockAudit /></AdminRoute>}</Route>
+        <Route path="/admin/customers">{() => <AdminRoute><AdminCustomers /></AdminRoute>}</Route>
+        <Route path="/admin/customers/medicine-records">{() => <AdminRoute><AdminCustomersNew /></AdminRoute>}</Route>
+        <Route path="/admin/riders">{() => <AdminRoute><AdminRiders /></AdminRoute>}</Route>
+        <Route path="/admin/delivery">{() => <AdminRoute><AdminDelivery /></AdminRoute>}</Route>
+        <Route path="/admin/whatsapp">{() => <AdminRoute><AdminWhatsApp /></AdminRoute>}</Route>
+        <Route path="/admin/refills">{() => <AdminRoute><AdminRefills /></AdminRoute>}</Route>
+        <Route path="/admin/accounting">{() => <AdminRoute><AdminAccounting /></AdminRoute>}</Route>
+        <Route path="/admin/accounting/shift">{() => <AdminRoute><ShiftClosing /></AdminRoute>}</Route>
+        <Route path="/admin/accounting/gst-export">{() => <AdminRoute><GstExport /></AdminRoute>}</Route>
+        <Route path="/admin/accounting/tally">{() => <AdminRoute><AdminAccounting /></AdminRoute>}</Route>
+        <Route path="/admin/utilities">{() => <AdminRoute><AdminUtilities /></AdminRoute>}</Route>
+        <Route path="/admin/settings">{() => <AdminRoute><AdminSettings /></AdminRoute>}</Route>
+        <Route path="/admin/masters">{() => <AdminRoute><AdminMastersIndex /></AdminRoute>}</Route>
+        <Route path="/admin/masters/suppliers">{() => <AdminRoute><AdminSuppliers /></AdminRoute>}</Route>
+        <Route path="/admin/masters/manufacturers">{() => <AdminRoute><AdminManufacturers /></AdminRoute>}</Route>
+        <Route path="/admin/masters/categories">{() => <AdminRoute><AdminCategories /></AdminRoute>}</Route>
+        <Route path="/admin/masters/generics">{() => <AdminRoute><AdminGenerics /></AdminRoute>}</Route>
+        <Route path="/admin/masters/schedules">{() => <AdminRoute><AdminSchedules /></AdminRoute>}</Route>
+        <Route path="/admin/masters/discount-categories">{() => <AdminRoute><AdminDiscountCategories /></AdminRoute>}</Route>
+        <Route path="/admin/masters/discounts">{() => <AdminRoute><AdminDiscountCategories /></AdminRoute>}</Route>
+        <Route path="/admin/masters/doctors">{() => <AdminRoute><AdminDoctors /></AdminRoute>}</Route>
+        <Route path="/admin/masters/patient-categories">{() => <AdminRoute><AdminPatientCategories /></AdminRoute>}</Route>
+        <Route path="/admin/masters/customers">{() => <AdminRoute><AdminCustomers /></AdminRoute>}</Route>
+        <Route path="/admin/masters/staff">{() => <AdminRoute><AdminStaff /></AdminRoute>}</Route>
+        <Route path="/admin/masters/stores">{() => <AdminRoute><AdminStores /></AdminRoute>}</Route>
+        <Route path="/admin/masters/buildings">{() => <AdminRoute><AdminBuildings /></AdminRoute>}</Route>
+        <Route path="/admin/masters/printers">{() => <AdminRoute><AdminPrinters /></AdminRoute>}</Route>
+        <Route path="/admin/masters/products">{() => <AdminRoute><AdminProducts /></AdminRoute>}</Route>
+        <Route path="/admin/sales">{() => <AdminRoute><AdminSales /></AdminRoute>}</Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

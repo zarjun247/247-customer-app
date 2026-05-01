@@ -69,7 +69,7 @@ export const reportsRouter = router({
         ))
         .groupBy(products.category);
 
-      return { summary: summary[0], byCategory };
+      return { rows: byCategory, csvData: byCategory, totals: summary[0] };
     }),
 
   // ── Daily Purchase Summary ────────────────────────────────────────────────
@@ -106,7 +106,8 @@ export const reportsRouter = router({
         .from(purchaseInvoices)
         .where(and(...conditions));
 
-      return { invoices, totals: totals[0] };
+      const rows = invoices.map((r) => ({ ...r.invoice, supplierName: r.supplierName }));
+      return { rows, csvData: rows, totals: totals[0] };
     }),
 
   // ── GST Summary (GSTR-style) ──────────────────────────────────────────────
@@ -139,7 +140,7 @@ export const reportsRouter = router({
         ))
         .groupBy(products.hsnCode, products.gstRate);
 
-      return { hsnRows };
+      return { rows: hsnRows, csvData: hsnRows };
     }),
 
   // ── Stock Valuation ───────────────────────────────────────────────────────
@@ -181,7 +182,7 @@ export const reportsRouter = router({
         .leftJoin(storeSkus, and(eq(storeSkus.productId, batches.productId), eq(storeSkus.storeId, batches.storeId)))
         .where(and(...conditions));
 
-      return { rows, totals: totals[0] };
+      return { rows, csvData: rows, totals: totals[0] };
     }),
 
   // ── H1 Register ───────────────────────────────────────────────────────────
@@ -202,7 +203,8 @@ export const reportsRouter = router({
       const to = new Date(input.toDate); to.setHours(23, 59, 59, 999);
       const conditions = [gte(h1Register.dispensedAt, from), lte(h1Register.dispensedAt, to)];
       if (input.storeId) conditions.push(eq(h1Register.storeId, input.storeId));
-      return db.select().from(h1Register).where(and(...conditions)).orderBy(desc(h1Register.dispensedAt));
+      const rows = await db.select().from(h1Register).where(and(...conditions)).orderBy(desc(h1Register.dispensedAt));
+      return { rows, csvData: rows };
     }),
 
   // ── SLA Performance Report ────────────────────────────────────────────────
@@ -227,7 +229,7 @@ export const reportsRouter = router({
         .from(slaEvents)
         .where(and(...conditions));
 
-      return rows[0];
+      return { rows: [rows[0]], csvData: [rows[0]], totals: rows[0] };
     }),
 
   // ── Near-Expiry Stock Report ──────────────────────────────────────────────
@@ -242,7 +244,7 @@ export const reportsRouter = router({
       cutoff.setDate(cutoff.getDate() + input.days);
       const conditions = [lte(batches.expiryDate, cutoff), gt(batches.quantity, 0)];
       if (input.storeId) conditions.push(eq(batches.storeId, input.storeId));
-      return db.select({
+      const rows = await db.select({
         batch: batches,
         productName: products.name,
         category: products.category,
@@ -252,6 +254,7 @@ export const reportsRouter = router({
         .leftJoin(products, eq(batches.productId, products.id))
         .where(and(...conditions))
         .orderBy(asc(batches.expiryDate));
+      return { rows, csvData: rows };
     }),
 
   // ── Non-Moving Stock ──────────────────────────────────────────────────────

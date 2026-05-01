@@ -57,7 +57,7 @@ function StockOverview() {
     },
     {
       label: "Near Expiry (90d)",
-      value: expiryData?.length ?? "—",
+      value: (Array.isArray(expiryData?.rows) ? expiryData?.rows.length : 0) || "—",
       icon: AlertTriangle,
       color: "text-orange-400",
     },
@@ -139,7 +139,7 @@ function StockOverview() {
 
 function ExpiryBoard() {
   const { data } = trpc.reports.nearExpiry.useQuery({ days: 90 });
-  const rows = data ?? [];
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
 
   const zone = (daysLeft: number) => {
     if (daysLeft < 0) return { label: "Expired", color: "bg-red-500/20 text-red-400 border-red-500/30" };
@@ -169,15 +169,15 @@ function ExpiryBoard() {
             {rows.length === 0 ? (
               <tr><td colSpan={5} className="text-center py-10 text-zinc-600">No near-expiry batches</td></tr>
             ) : rows.map((row: any, i: number) => {
-              const exp = new Date(row.expiryDate);
+              const exp = new Date(row.batch?.expiryDate ?? row.expiryDate);
               const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86400000);
               const z = zone(daysLeft);
               return (
                 <tr key={i} className="border-b border-white/5 hover:bg-white/2">
                   <td className="px-4 py-3 text-zinc-200">{row.productName}</td>
-                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">{row.batchNumber}</td>
+                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">{row.batch?.batchNumber ?? row.batchNumber}</td>
                   <td className="px-4 py-3 text-zinc-400">{exp.toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-right text-zinc-300">{row.quantity}</td>
+                  <td className="px-4 py-3 text-right text-zinc-300">{row.batch?.quantity ?? row.quantity}</td>
                   <td className="px-4 py-3">
                     <Badge variant="outline" className={cn("text-[10px]", z.color)}>
                       {z.label} ({daysLeft}d)
