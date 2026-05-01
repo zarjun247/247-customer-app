@@ -239,6 +239,19 @@ export const prescriptions = mysqlTable("prescriptions", {
   dispensedAt: timestamp("dispensedAt"),
   // Retention flag (5-year regulatory requirement)
   retainUntil: timestamp("retainUntil"),
+  // Patient details
+  patientName: varchar("patientName", { length: 300 }),
+  patientPhone: varchar("patientPhone", { length: 20 }),
+  patientAddress: text("patientAddress"),
+  // Clarification workflow
+  clarificationNote: text("clarificationNote"),
+  clarificationRequestedAt: timestamp("clarificationRequestedAt"),
+  // Repeat dispense
+  repeatDispenseCount: int("repeatDispenseCount").default(0),
+  repeatDispenseMax: int("repeatDispenseMax").default(1),
+  // Links to sale/order
+  linkedSaleId: int("linkedSaleId"),
+  linkedOrderId: int("linkedOrderId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1317,6 +1330,8 @@ export const h1Register = mysqlTable("h1_register", {
   prescriptionRef: varchar("prescriptionRef", { length: 100 }),
   pharmacistId: int("pharmacistId").notNull(),
   billNo: varchar("billNo", { length: 100 }),
+  saleId: int("saleId"),
+  prescriptionLineId: int("prescriptionLineId"),
   dispensedAt: timestamp("dispensedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -1740,3 +1755,46 @@ export type SaleLine = typeof saleLines.$inferSelect;
 export type SaleReturn = typeof saleReturns.$inferSelect;
 export type SaleReturnLine = typeof saleReturnLines.$inferSelect;
 export type CounterPayment = typeof counterPayments.$inferSelect;
+
+// ─── PART 8: Prescription Governance ─────────────────────────────────────────
+
+export const prescriptionLines = mysqlTable("prescription_lines", {
+  id: int("id").autoincrement().primaryKey(),
+  prescriptionId: int("prescriptionId").notNull(),
+  lineNo: int("lineNo").notNull().default(1),
+  drugName: varchar("drugName", { length: 300 }).notNull(),
+  genericName: varchar("genericName", { length: 300 }),
+  strength: varchar("strength", { length: 100 }),
+  dosageForm: varchar("dosageForm", { length: 100 }),
+  qty: int("qty"),
+  duration: varchar("duration", { length: 100 }),
+  frequency: varchar("frequency", { length: 100 }),
+  instructions: text("instructions"),
+  scheduleCode: mysqlEnum("scheduleCode", ["OTC", "Rx", "H", "H1", "X", "NRX"]).default("Rx"),
+  requiresH1: int("requiresH1").default(0),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "clarification_needed"]).default("pending"),
+  pharmacistNote: text("pharmacistNote"),
+  reviewedBy: int("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt"),
+  linkedProductId: int("linkedProductId"),
+  linkedBatchNo: varchar("linkedBatchNo", { length: 100 }),
+  linkedSaleLineId: int("linkedSaleLineId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PrescriptionLine = typeof prescriptionLines.$inferSelect;
+export type NewPrescriptionLine = typeof prescriptionLines.$inferInsert;
+
+export const prescriptionAccessLog = mysqlTable("prescription_access_log", {
+  id: int("id").autoincrement().primaryKey(),
+  prescriptionId: int("prescriptionId").notNull(),
+  accessedBy: int("accessedBy").notNull(),
+  accessType: mysqlEnum("accessType", ["view", "download", "print", "api_check", "audit"]).default("view"),
+  ipAddress: varchar("ipAddress", { length: 50 }),
+  userAgent: text("userAgent"),
+  purpose: text("purpose"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PrescriptionAccessLog = typeof prescriptionAccessLog.$inferSelect;

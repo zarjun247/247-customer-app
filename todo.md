@@ -698,3 +698,29 @@
 - [x] App.tsx: /admin/sales and /admin/sales/counter routes registered (replaced old CounterSale stub)
 - [x] AdminLayout: Sales section updated with All Sales + Counter Billing + Sale Returns links
 - [x] TypeScript: 0 errors, 73/73 tests passing
+
+## PART 8 — Prescription Governance
+
+- [x] Schema: add patientName, patientPhone, patientAddress, clarificationNote, clarificationRequestedAt, repeatDispenseCount, repeatDispenseMax to prescriptions table
+- [x] Schema: create prescription_lines table (lineNo, drugName, genericName, strength, dosageForm, qty, duration, frequency, instructions, scheduleCode, requiresH1, linkedProductId, linkedBatchNo, status, pharmacistNote, reviewedBy, reviewedAt)
+- [x] Schema: create prescription_access_log table (prescriptionId, accessedBy, accessType, purpose, ipAddress, createdAt)
+- [x] Schema: add saleId, prescriptionLineId to h1_register table
+- [x] DB: ALTER TABLE applied for all new columns and tables in live database
+- [x] prescriptionGovRouter: queue (paginated, filterable by status/store/search, access log on view)
+- [x] prescriptionGovRouter: get (single prescription with lines + auto-log access)
+- [x] prescriptionGovRouter: updateMetadata (patient/doctor details, repeatDispenseMax, audit log)
+- [x] prescriptionGovRouter: upsertLine (add/edit prescription line items, requiresH1 flag)
+- [x] prescriptionGovRouter: approveLine (pharmacist approves individual line, links product/batch)
+- [x] prescriptionGovRouter: rejectLine (pharmacist rejects individual line with reason)
+- [x] prescriptionGovRouter: review (approve/reject entire prescription with pharmacist note, pharmacistId, reviewedAt)
+- [x] prescriptionGovRouter: requestClarification (send clarification note, log timestamp)
+- [x] prescriptionGovRouter: h1Register (list/create H1 register entries with patient/prescriber/drug/batch/bill/pharmacist)
+- [x] prescriptionGovRouter: accessLog (paginated access log for audit trail)
+- [x] prescriptionGovRouter: archive (approved/rejected/on-file prescriptions, date range filter)
+- [x] prescriptionGovRouter: checkRxClearance (called by counter billing — H1/X require prescriptionId, Rx/H allow pharmacist override, logs api_check access)
+- [x] prescriptionGovRouter registered as prescriptionGov in server/routers.ts
+- [x] Hard Rx gate verified in salesRouter (blocks addLine for H/H1/X/Rx/NRX without rxCleared)
+- [x] Hard Rx gate verified in checkout (routers.ts blocks order commit without approved prescriptionId for Rx items)
+- [x] Frontend: AdminPrescriptionGov.tsx — 5-tab page (Queue, Viewer+Line Approval, H1 Register, Archive, Access Log)
+- [x] App.tsx: /admin/prescriptions route updated to AdminPrescriptionGov
+- [x] TypeScript: 0 errors, 73/73 tests passing

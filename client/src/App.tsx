@@ -37,7 +37,7 @@ import MasterData from "./pages/MasterData";
 import ShiftClosing from "./pages/ShiftClosing";
 import AdminCommandCenter from "./pages/AdminCommandCenter";
 import AdminOrders from "./pages/AdminOrders";
-import AdminPrescriptions from "./pages/AdminPrescriptions";
+import AdminPrescriptionGov from "./pages/prescriptions/AdminPrescriptionGov";
 import AdminCounterBilling from "./pages/sales/AdminCounterBilling";
 import AdminSales from "./pages/sales/AdminSales";
 import AdminReports from "./pages/AdminReports";
@@ -188,7 +188,7 @@ function Router() {
         <Route path="/admin" component={AdminCommandCenter} />
         <Route path="/admin/command-center" component={AdminCommandCenter} />
         <Route path="/admin/orders" component={AdminOrders} />
-        <Route path="/admin/prescriptions" component={AdminPrescriptions} />
+        <Route path="/admin/prescriptions" component={AdminPrescriptionGov} />
         <Route path="/admin/sales/counter" component={AdminCounterBilling} />
         <Route path="/admin/reports" component={AdminReports} />
         <Route path="/admin/purchase">{() => <AdminPurchaseInvoices />}</Route>

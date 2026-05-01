@@ -33,6 +33,7 @@ import { masterDataRouter } from "./routers/masterDataRouter";
 import { inventoryLedgerRouter } from "./routers/inventoryRouter";
 import { purchaseRouter } from "./routers/purchaseRouter";
 import { salesRouter } from "./routers/salesRouter";
+import { prescriptionGovRouter } from "./routers/prescriptionGovRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
@@ -713,6 +714,7 @@ export const appRouter = router({
   sales: salesRouter,
   ocr: ocrIngestionRouter,
   reports: reportsRouter,
+  prescriptionGov: prescriptionGovRouter,
 });
 
 export type AppRouter = typeof appRouter;
