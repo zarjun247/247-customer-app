@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { writeAuditLog } from "../services/audit";
 import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -25,26 +26,12 @@ function requireManager(role: string | null | undefined) {
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
 }
 
-async function writeAuditLog(
-  db: Awaited<ReturnType<typeof getDbSafe>>,
-  actorId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-  reason?: string
-) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
-    actorId: parseInt(actorId) || 0,
-    action,
-    entityType,
-    entityId: 0,
-    beforeJson: before ? JSON.stringify(before) : null,
-    afterJson: after ? JSON.stringify(after) : null,
-    reason: reason ?? null,
-  });
+function uuidToEntityId(id: string): number {
+  // sales/sale_return IDs are UUID strings; audit schema stores numeric entityId.
+  // Use a deterministic 31-bit hash as the best stable reference in this router.
+  let h = 0;
+  for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(h) || 1;
 }
 
 // Generate sequential bill number: BILL-YYYYMMDD-NNNN
@@ -212,7 +199,7 @@ export const salesRouter = router({
         createdAt: now,
         updatedAt: now,
       });
-      await writeAuditLog(db, ctx.user!.id.toString(), "create", "sale", id, null, { billNo, storeId: input.storeId });
+      await writeAuditLog({ actorId: ctx.user!.id, actorRole: ctx.user!.role, action: "create", entityType: "sale", entityId: uuidToEntityId(id), before: null, after: { billNo, storeId: input.storeId }, sourceChannel: input.saleType === "whatsapp" ? "whatsapp" : "app" });
       return { id, billNo };
     }),
 
@@ -425,7 +412,7 @@ export const salesRouter = router({
         createdAt: now,
       });
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "confirm", "sale", input.saleId, { status: "draft" }, { status: "confirmed", paymentMode: input.paymentMode });
+      await writeAuditLog({ actorId: ctx.user!.id, actorRole: ctx.user!.role, action: "confirm", entityType: "sale", entityId: uuidToEntityId(input.saleId), before: { status: "draft" }, after: { status: "confirmed", paymentMode: input.paymentMode }, sourceChannel: sale.saleType === "whatsapp" ? "whatsapp" : "app" });
       return { ok: true, billNo: sale.billNo, total: sale.total };
     }),
 
@@ -497,8 +484,10 @@ export const salesRouter = router({
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft sales can be cancelled" });
+      const reason = input.reason?.trim();
+      if (!reason) throw new TRPCError({ code: "BAD_REQUEST", message: "Cancellation reason is required" });
       await db.update(sales).set({ status: "cancelled", updatedAt: Date.now() }).where(eq(sales.id, input.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "cancel", "sale", input.saleId, { status: "draft" }, { status: "cancelled" }, input.reason);
+      await writeAuditLog({ actorId: ctx.user!.id, actorRole: ctx.user!.role, action: "cancel", entityType: "sale", entityId: uuidToEntityId(input.saleId), before: { status: "draft" }, after: { status: "cancelled" }, reason, sourceChannel: sale.saleType === "whatsapp" ? "whatsapp" : "app" });
       return { ok: true };
     }),
 
@@ -577,7 +566,7 @@ export const salesRouter = router({
         });
       }
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "create_return", "sale_return", returnId, null, { saleId: input.saleId, totalRefund, returnNo });
+      await writeAuditLog({ actorId: ctx.user!.id, actorRole: ctx.user!.role, action: "create_return", entityType: "sale_return", entityId: uuidToEntityId(returnId), before: null, after: { saleId: input.saleId, totalRefund, returnNo }, reason: input.reason, sourceChannel: sale.saleType === "whatsapp" ? "whatsapp" : "app" });
       return { returnId, returnNo, totalRefund: +totalRefund.toFixed(2) };
     }),
 
@@ -635,7 +624,7 @@ export const salesRouter = router({
 
       // Mark original sale as returned
       await db.update(sales).set({ status: "returned", updatedAt: now }).where(eq(sales.id, ret.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "approve_return", "sale_return", input.returnId, { status: "pending" }, { status: "approved" });
+      await writeAuditLog({ actorId: ctx.user!.id, actorRole: ctx.user!.role, action: "approve_return", entityType: "sale_return", entityId: uuidToEntityId(input.returnId), before: { status: "pending" }, after: { status: "approved" }, reason: ret.reason ?? undefined, sourceChannel: sale?.saleType === "whatsapp" ? "whatsapp" : "app" });
       return { ok: true };
     }),
 

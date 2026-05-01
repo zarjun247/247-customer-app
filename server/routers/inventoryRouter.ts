@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { writeAuditLog } from "../services/audit";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -85,27 +86,6 @@ async function writeMovement(p: {
     reason: p.note,
     performedBy: p.performedBy,
   });
-}
-
-// ─── Audit log writer ─────────────────────────────────────────────────────────
-
-async function writeAudit(p: {
-  actorId: number; entityType: string; entityId: number; action: string;
-  before?: unknown; after?: unknown; note?: string;
-}) {
-  try {
-    const db = await getDb();
-    const { auditLogs } = await schema();
-    await db.insert(auditLogs).values({
-      actorId: p.actorId,
-      entityType: p.entityType,
-      entityId: p.entityId,
-      action: p.action,
-      beforeJson: p.before ? JSON.stringify(p.before) : null,
-      afterJson: p.after ? JSON.stringify(p.after) : null,
-      reason: p.note,
-    });
-  } catch { /* non-critical */ }
 }
 
 // ─── Batch Router ─────────────────────────────────────────────────────────────
@@ -196,7 +176,7 @@ const batchRouter = router({
         note: `Batch ${input.batchNo} inward`,
         performedBy: ctx.user.id,
       });
-      await writeAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: batchId, action: "create", after: { ...input, expiryBucket: bucket } });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "create", entityType: "batch_ledger", entityId: batchId, after: { ...input, expiryBucket: bucket }, sourceChannel: "app" });
       return { batchId };
     }),
 
@@ -222,7 +202,7 @@ const batchRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       const { id, ...updates } = input;
       await db.update(batchLedger).set(updates).where(eq(batchLedger.id, id));
-      await writeAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: id, action: "update", before, after: updates });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "update", entityType: "batch_ledger", entityId: id, before, after: updates, sourceChannel: "app" });
       return { ok: true };
     }),
 
@@ -239,13 +219,15 @@ const batchRouter = router({
       const { batchLedger, batchQuarantineLogs } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND" });
+      const note = input.note?.trim();
+      if (!note) throw new TRPCError({ code: "BAD_REQUEST", message: "Quarantine note is required" });
       if (batch.qtyOnHand < input.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Only ${batch.qtyOnHand} units available` });
       const newOnHand = batch.qtyOnHand - input.qty;
       const newQuarantined = batch.qtyQuarantined + input.qty;
       await db.update(batchLedger).set({ qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, status: newOnHand === 0 ? "quarantined" : batch.status }).where(eq(batchLedger.id, input.batchId));
       await writeMovement({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, movementType: "quarantine", qtyChange: -input.qty, qtyBefore: batch.qtyOnHand, qtyAfter: newOnHand, note: `Quarantine: ${input.reason}. ${input.note ?? ""}`, performedBy: ctx.user.id });
-      await db.insert(batchQuarantineLogs).values({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, reason: input.reason, qtyQuarantined: input.qty, initiatedBy: ctx.user.id, note: input.note });
-      await writeAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "quarantine", before: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, after: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined }, note: `Reason: ${input.reason}` });
+      await db.insert(batchQuarantineLogs).values({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, reason: input.reason, qtyQuarantined: input.qty, initiatedBy: ctx.user.id, note });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "quarantine", entityType: "batch_ledger", entityId: input.batchId, before: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, after: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined }, reason: `${input.reason}: ${note}`, sourceChannel: "app" });
       return { ok: true };
     }),
 
@@ -262,7 +244,7 @@ const batchRouter = router({
       const newQuarantined = batch.qtyQuarantined - input.qty;
       await db.update(batchLedger).set({ qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, status: "active" }).where(eq(batchLedger.id, input.batchId));
       await writeMovement({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, movementType: "audit_correction", qtyChange: input.qty, qtyBefore: batch.qtyOnHand, qtyAfter: newOnHand, note: `Release from quarantine. ${input.note ?? ""}`, performedBy: ctx.user.id });
-      await writeAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "release_quarantine", before: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, after: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined }, note: input.note });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "release_quarantine", entityType: "batch_ledger", entityId: input.batchId, before: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, after: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined }, reason: input.note, sourceChannel: "app" });
       return { ok: true };
     }),
 
@@ -283,7 +265,7 @@ const batchRouter = router({
       const newExpired = batch.qtyExpired + input.qty;
       await db.update(batchLedger).set({ qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, qtyExpired: newExpired, status: newOnHand === 0 && newQuarantined === 0 ? "depleted" : batch.status }).where(eq(batchLedger.id, input.batchId));
       await writeMovement({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, movementType: "disposal", qtyChange: -input.qty, qtyBefore: batch.qtyOnHand, qtyAfter: newOnHand, note: input.note, performedBy: ctx.user.id });
-      await writeAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "dispose", before: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, after: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, qtyExpired: newExpired }, note: input.note });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "dispose", entityType: "batch_ledger", entityId: input.batchId, before: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, after: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, qtyExpired: newExpired }, reason: input.note, sourceChannel: "app" });
       return { ok: true };
     }),
 
@@ -512,18 +494,20 @@ const adjustmentRouter = router({
         status: "pending_approval",
         requestedBy: ctx.user.id,
       });
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: result.insertId, action: "create", after: input, note: `Pending approval. Qty: ${input.adjustmentType} ${input.qty}` });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "create", entityType: "stock_adjustment", entityId: result.insertId, after: input, reason: `Pending approval. Qty: ${input.adjustmentType} ${input.qty}`, sourceChannel: "app" });
       return { adjustmentId: result.insertId };
     }),
 
   approve: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
       const db = await getDb();
       const { stockAdjustments, batchLedger } = await schema();
       const [adj] = await db.select().from(stockAdjustments).where(eq(stockAdjustments.id, input.id));
       if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
+      const reason = input.reason?.trim();
+      if (!reason) throw new TRPCError({ code: "BAD_REQUEST", message: "Approval reason is required" });
       if (adj.status !== "pending_approval") throw new TRPCError({ code: "BAD_REQUEST", message: "Adjustment is not pending" });
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, adj.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND", message: "Batch not found" });
@@ -532,7 +516,7 @@ const adjustmentRouter = router({
       await db.update(batchLedger).set({ qtyOnHand: qtyAfter }).where(eq(batchLedger.id, adj.batchId));
       await db.update(stockAdjustments).set({ status: "approved", approvedBy: ctx.user.id, approvedAt: new Date() }).where(eq(stockAdjustments.id, input.id));
       await writeMovement({ batchId: adj.batchId, productId: batch.productId, storeId: adj.storeId, movementType: "stock_adjustment", qtyChange, qtyBefore: batch.qtyOnHand, qtyAfter, referenceType: "stock_adjustment", referenceId: input.id, note: adj.reason, performedBy: ctx.user.id });
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: input.id, action: "approve", note: `Qty changed from ${batch.qtyOnHand} to ${qtyAfter}` });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "approve", entityType: "stock_adjustment", entityId: input.id, before: { qtyOnHand: batch.qtyOnHand, status: adj.status }, after: { qtyOnHand: qtyAfter, status: "approved" }, reason, sourceChannel: "app" });
       return { ok: true };
     }),
 
@@ -544,9 +528,11 @@ const adjustmentRouter = router({
       const { stockAdjustments } = await schema();
       const [adj] = await db.select().from(stockAdjustments).where(eq(stockAdjustments.id, input.id));
       if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
+      const reason = input.reason?.trim();
+      if (!reason) throw new TRPCError({ code: "BAD_REQUEST", message: "Rejection reason is required" });
       if (adj.status !== "pending_approval") throw new TRPCError({ code: "BAD_REQUEST", message: "Adjustment is not pending" });
       await db.update(stockAdjustments).set({ status: "rejected", approvedBy: ctx.user.id, approvedAt: new Date() }).where(eq(stockAdjustments.id, input.id));
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: input.id, action: "reject", note: input.reason ?? "Rejected by manager" });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "reject", entityType: "stock_adjustment", entityId: input.id, before: { status: adj.status }, after: { status: "rejected" }, reason, sourceChannel: "app" });
       return { ok: true };
     }),
 });
@@ -605,7 +591,7 @@ const transferRouter = router({
         productId: input.productId, qtyTransferred: input.qty, status: "in_transit",
         initiatedBy: ctx.user.id, note: input.note,
       });
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_transfer", entityId: result.insertId, action: "initiate", after: input });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "initiate", entityType: "stock_transfer", entityId: result.insertId, after: input, sourceChannel: "app" });
       return { transferId: result.insertId };
     }),
 
@@ -634,7 +620,7 @@ const transferRouter = router({
       await writeMovement({ batchId: transfer.batchId, productId: transfer.productId, storeId: transfer.fromStoreId, movementType: "stock_transfer", qtyChange: -transfer.qtyTransferred, qtyBefore: src.qtyOnHand, qtyAfter: src.qtyOnHand - transfer.qtyTransferred, referenceType: "stock_transfer", referenceId: input.transferId, performedBy: ctx.user.id });
       await writeMovement({ batchId: destResult.insertId, productId: transfer.productId, storeId: transfer.toStoreId, movementType: "stock_transfer", qtyChange: transfer.qtyTransferred, qtyBefore: 0, qtyAfter: transfer.qtyTransferred, referenceType: "stock_transfer", referenceId: input.transferId, performedBy: ctx.user.id });
       await db.update(stockTransfers).set({ status: "received", receivedBy: ctx.user.id, receivedAt: new Date() }).where(eq(stockTransfers.id, input.transferId));
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_transfer", entityId: input.transferId, action: "receive", note: `Received ${transfer.qtyTransferred} units at store ${transfer.toStoreId}` });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "receive", entityType: "stock_transfer", entityId: input.transferId, reason: `Received ${transfer.qtyTransferred} units at store ${transfer.toStoreId}`, sourceChannel: "app" });
       return { ok: true, destBatchId: destResult.insertId };
     }),
 });
@@ -673,7 +659,7 @@ const auditSessionRouter = router({
       if (batches.length > 0) {
         await db.insert(stockAuditLines).values(batches.map(b => ({ auditId: result.insertId, batchId: b.id, productId: b.productId, systemQty: b.qtyOnHand, status: "pending" as const })));
       }
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_audit", entityId: result.insertId, action: "create", after: { ...input, lineCount: batches.length } });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "create", entityType: "stock_audit", entityId: result.insertId, after: { ...input, lineCount: batches.length }, sourceChannel: "app" });
       return { auditId: result.insertId, lineCount: batches.length };
     }),
 
@@ -705,13 +691,15 @@ const auditSessionRouter = router({
     }),
 
   complete: protectedProcedure
-    .input(z.object({ auditId: z.number(), applyCorrections: z.boolean().default(false) }))
+    .input(z.object({ auditId: z.number(), applyCorrections: z.boolean().default(false), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
       const db = await getDb();
       const { stockAudits, stockAuditLines, batchLedger } = await schema();
       const [audit] = await db.select().from(stockAudits).where(eq(stockAudits.id, input.auditId));
       if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      const reason = input.reason?.trim();
+      if (!reason) throw new TRPCError({ code: "BAD_REQUEST", message: "Audit completion reason is required" });
       const lines = await db.select().from(stockAuditLines).where(and(eq(stockAuditLines.auditId, input.auditId), eq(stockAuditLines.status, "counted")));
       const variances = lines.filter(l => l.variance !== 0 && l.variance !== null);
       if (input.applyCorrections) {
@@ -725,7 +713,7 @@ const auditSessionRouter = router({
         }
       }
       await db.update(stockAudits).set({ status: "completed", completedBy: ctx.user.id, completedAt: new Date(), totalVariances: variances.length }).where(eq(stockAudits.id, input.auditId));
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_audit", entityId: input.auditId, action: "complete", note: `${variances.length} variances. Corrections: ${input.applyCorrections}` });
+      await writeAuditLog({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "complete", entityType: "stock_audit", entityId: input.auditId, before: { status: audit.status }, after: { status: "completed", totalVariances: variances.length, applyCorrections: input.applyCorrections }, reason, sourceChannel: "app" });
       return { ok: true, varianceCount: variances.length };
     }),
 });
