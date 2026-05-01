@@ -2213,6 +2213,7 @@ export const storeCapabilities = mysqlTable("store_capabilities", {
   id: int("id").autoincrement().primaryKey(),
   storeId: int("storeId").notNull().unique(),
   licenceNumber: varchar("licenceNumber", { length: 100 }),
+  gstin: varchar("gstin", { length: 20 }),
   licenceExpiryDate: timestamp("licenceExpiryDate"),
   licenceActive: boolean("licenceActive").default(true).notNull(),
   serviceActive: boolean("serviceActive").default(true).notNull(),

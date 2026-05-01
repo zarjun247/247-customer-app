@@ -94,6 +94,11 @@ function shouldShowSplash(): boolean {
 
 // ── Public routes that bypass the onboarding guard ───────────────────────────
 const PUBLIC_ROUTES = ["/login", "/onboarding"];
+const ADMIN_ROLES = new Set(["admin", "super_admin", "ops_admin"]);
+const STAFF_ROLES = new Set([
+  "admin", "super_admin", "ops_admin", "pharmacist", "store_manager", "purchase_manager",
+  "accountant", "cashier", "salesman", "rider", "inventory_operator", "delivery_operator", "auditor",
+]);
 
 /**
  * OnboardingGuard
@@ -131,6 +136,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   // Show nothing while resolving — individual pages show their own skeletons via useOnboardingGuard
   if (authLoading || (!isAuthenticated && !authLoading)) return null;
+  return <>{children}</>;
+}
+
+function RestrictedRoute({ children, allow }: { children: React.ReactNode; allow: Set<string> }) {
+  const [location, navigate] = useLocation();
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      navigate(`/login?return=${encodeURIComponent(location)}`);
+      return;
+    }
+    if (!user || !allow.has(user.role)) {
+      navigate("/404");
+    }
+  }, [allow, authLoading, isAuthenticated, location, navigate, user]);
+
+  if (authLoading || !isAuthenticated || !user || !allow.has(user.role)) return null;
   return <>{children}</>;
 }
 
@@ -175,51 +199,51 @@ function Router() {
         <Route path="/family">{() => <ProtectedRoute><FamilyProfiles /></ProtectedRoute>}</Route>
         <Route path="/refill-calendar">{() => <ProtectedRoute><RefillCalendar /></ProtectedRoute>}</Route>
         <Route path="/my-medicines">{() => <ProtectedRoute><MyMedicines /></ProtectedRoute>}</Route>
-        <Route path="/workbench" component={PharmacistWorkbench} />
-        <Route path="/pharmacy-os" component={PharmacyOS} />
-        <Route path="/dashboard" component={FounderDashboard} />
+        <Route path="/workbench">{() => <RestrictedRoute allow={STAFF_ROLES}><PharmacistWorkbench /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy-os">{() => <RestrictedRoute allow={STAFF_ROLES}><PharmacyOS /></RestrictedRoute>}</Route>
+        <Route path="/dashboard">{() => <RestrictedRoute allow={ADMIN_ROLES}><FounderDashboard /></RestrictedRoute>}</Route>
         <Route path="/ingestion">{() => <ProtectedRoute><InvoiceIngestion /></ProtectedRoute>}</Route>
         <Route path="/helpdesk">{() => <ProtectedRoute><Helpdesk /></ProtectedRoute>}</Route>
         <Route path="/consent">{() => <ProtectedRoute><Consent /></ProtectedRoute>}</Route>
         <Route path="/doctor-consult">{() => <ProtectedRoute><DoctorConsult /></ProtectedRoute>}</Route>
-        <Route path="/pharmacy/expiry" component={ExpiryDashboard} />
-        <Route path="/pharmacy/barcodes" component={BarcodePrint} />
-        <Route path="/pharmacy/gst-export" component={GstExport} />
-        <Route path="/pharmacy/sla" component={SlaBoard} />
-        <Route path="/pharmacy/medivision" component={MedivisionSync} />
-        <Route path="/pharmacy/purchase" component={PurchaseEntry} />
-        <Route path="/pharmacy/ocr" component={OcrIngestion} />
-        <Route path="/pharmacy/reports" component={Reports} />
-        <Route path="/pharmacy/master-data" component={MasterData} />
-        <Route path="/pharmacy/shift" component={ShiftClosing} />
+        <Route path="/pharmacy/expiry">{() => <RestrictedRoute allow={STAFF_ROLES}><ExpiryDashboard /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/barcodes">{() => <RestrictedRoute allow={STAFF_ROLES}><BarcodePrint /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/gst-export">{() => <RestrictedRoute allow={STAFF_ROLES}><GstExport /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/sla">{() => <RestrictedRoute allow={STAFF_ROLES}><SlaBoard /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/medivision">{() => <RestrictedRoute allow={STAFF_ROLES}><MedivisionSync /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/purchase">{() => <RestrictedRoute allow={STAFF_ROLES}><PurchaseEntry /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/ocr">{() => <RestrictedRoute allow={STAFF_ROLES}><OcrIngestion /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/reports">{() => <RestrictedRoute allow={STAFF_ROLES}><Reports /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/master-data">{() => <RestrictedRoute allow={STAFF_ROLES}><MasterData /></RestrictedRoute>}</Route>
+        <Route path="/pharmacy/shift">{() => <RestrictedRoute allow={STAFF_ROLES}><ShiftClosing /></RestrictedRoute>}</Route>
         {/* Admin area */}
-        <Route path="/admin" component={AdminCommandCenter} />
-        <Route path="/admin/command-center" component={AdminCommandCenter} />
-        <Route path="/admin/orders" component={AdminOrders} />
-        <Route path="/admin/prescriptions" component={AdminPrescriptionGov} />
-        <Route path="/admin/sales/counter" component={AdminCounterBilling} />
-        <Route path="/admin/reports" component={AdminReports} />
-        <Route path="/admin/reports/daily-sales" component={AdminReports} />
-        <Route path="/admin/reports/stock" component={AdminReports} />
-        <Route path="/admin/reports/expiry" component={ExpiryDashboard} />
-        <Route path="/admin/reports/purchase" component={AdminReports} />
-        <Route path="/admin/reports/h1" component={AdminReports} />
-        <Route path="/admin/reports/gst" component={GstExport} />
-        <Route path="/admin/reports/sla" component={SlaBoard} />
+        <Route path="/admin">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminCommandCenter /></RestrictedRoute>}</Route>
+        <Route path="/admin/command-center">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminCommandCenter /></RestrictedRoute>}</Route>
+        <Route path="/admin/orders">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminOrders /></RestrictedRoute>}</Route>
+        <Route path="/admin/prescriptions">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminPrescriptionGov /></RestrictedRoute>}</Route>
+        <Route path="/admin/sales/counter">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminCounterBilling /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminReports /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/daily-sales">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminReports /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/stock">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminReports /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/expiry">{() => <RestrictedRoute allow={ADMIN_ROLES}><ExpiryDashboard /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/purchase">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminReports /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/h1">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminReports /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/gst">{() => <RestrictedRoute allow={ADMIN_ROLES}><GstExport /></RestrictedRoute>}</Route>
+        <Route path="/admin/reports/sla">{() => <RestrictedRoute allow={ADMIN_ROLES}><SlaBoard /></RestrictedRoute>}</Route>
         <Route path="/admin/purchase">{() => <AdminPurchaseInvoices />}</Route>
         <Route path="/admin/purchase/invoices">{() => <AdminPurchaseInvoices />}</Route>
         <Route path="/admin/purchase/returns">{() => <AdminPurchaseReturns />}</Route>
         <Route path="/admin/purchase/payments">{() => <AdminSupplierPayments />}</Route>
         <Route path="/admin/purchase/reports">{() => <AdminPurchaseReports />}</Route>
-        <Route path="/admin/ocr" component={AdminOcr} />
-        <Route path="/admin/master-data" component={MasterData} />
-        <Route path="/admin/shift" component={ShiftClosing} />
-        <Route path="/admin/expiry" component={ExpiryDashboard} />
-        <Route path="/admin/sla" component={SlaBoard} />
-        <Route path="/admin/barcodes" component={BarcodePrint} />
-        <Route path="/admin/gst-export" component={GstExport} />
-        <Route path="/admin/medivision" component={MedivisionSync} />
-        <Route path="/admin/imports/medivision" component={MedivisionSync} />
+        <Route path="/admin/ocr">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminOcr /></RestrictedRoute>}</Route>
+        <Route path="/admin/master-data">{() => <RestrictedRoute allow={ADMIN_ROLES}><MasterData /></RestrictedRoute>}</Route>
+        <Route path="/admin/shift">{() => <RestrictedRoute allow={ADMIN_ROLES}><ShiftClosing /></RestrictedRoute>}</Route>
+        <Route path="/admin/expiry">{() => <RestrictedRoute allow={ADMIN_ROLES}><ExpiryDashboard /></RestrictedRoute>}</Route>
+        <Route path="/admin/sla">{() => <RestrictedRoute allow={ADMIN_ROLES}><SlaBoard /></RestrictedRoute>}</Route>
+        <Route path="/admin/barcodes">{() => <RestrictedRoute allow={ADMIN_ROLES}><BarcodePrint /></RestrictedRoute>}</Route>
+        <Route path="/admin/gst-export">{() => <RestrictedRoute allow={ADMIN_ROLES}><GstExport /></RestrictedRoute>}</Route>
+        <Route path="/admin/medivision">{() => <RestrictedRoute allow={ADMIN_ROLES}><MedivisionSync /></RestrictedRoute>}</Route>
+        <Route path="/admin/imports/medivision">{() => <RestrictedRoute allow={ADMIN_ROLES}><MedivisionSync /></RestrictedRoute>}</Route>
         <Route path="/admin/inventory">{() => <AdminInventory />}</Route>
         <Route path="/admin/inventory/current-stock">{() => <AdminCurrentStock />}</Route>
         <Route path="/admin/inventory/batchwise">{() => <AdminBatchwiseBalance />}</Route>
@@ -227,35 +251,35 @@ function Router() {
         <Route path="/admin/inventory/movements">{() => <AdminStockMovements />}</Route>
         <Route path="/admin/inventory/adjustments">{() => <AdminStockAdjustment />}</Route>
         <Route path="/admin/inventory/audit">{() => <AdminStockAudit />}</Route>
-        <Route path="/admin/customers" component={AdminCustomers} />
+        <Route path="/admin/customers">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminCustomers /></RestrictedRoute>}</Route>
         <Route path="/admin/customers/medicine-records">{() => <AdminCustomersNew />}</Route>
-        <Route path="/admin/riders" component={AdminRiders} />
-        <Route path="/admin/delivery" component={AdminDelivery} />
-        <Route path="/admin/whatsapp" component={AdminWhatsApp} />
-        <Route path="/admin/refills" component={AdminRefills} />
-        <Route path="/admin/accounting" component={AdminAccounting} />
-        <Route path="/admin/accounting/shift" component={ShiftClosing} />
-        <Route path="/admin/accounting/gst-export" component={GstExport} />
-        <Route path="/admin/accounting/tally" component={AdminAccounting} />
-        <Route path="/admin/utilities" component={AdminUtilities} />
-        <Route path="/admin/settings" component={AdminSettings} />
-        <Route path="/admin/masters" component={AdminMastersIndex} />
-        <Route path="/admin/masters/suppliers" component={AdminSuppliers} />
-        <Route path="/admin/masters/manufacturers" component={AdminManufacturers} />
-        <Route path="/admin/masters/categories" component={AdminCategories} />
-        <Route path="/admin/masters/generics" component={AdminGenerics} />
-        <Route path="/admin/masters/schedules" component={AdminSchedules} />
-        <Route path="/admin/masters/discount-categories" component={AdminDiscountCategories} />
-        <Route path="/admin/masters/discounts" component={AdminDiscountCategories} />
-        <Route path="/admin/masters/doctors" component={AdminDoctors} />
-        <Route path="/admin/masters/patient-categories" component={AdminPatientCategories} />
-        <Route path="/admin/masters/customers" component={AdminPatientCategories} />
-        <Route path="/admin/masters/staff" component={AdminStaff} />
-        <Route path="/admin/masters/stores" component={AdminStores} />
-        <Route path="/admin/masters/buildings" component={AdminBuildings} />
-        <Route path="/admin/masters/printers" component={AdminPrinters} />
-        <Route path="/admin/masters/products" component={AdminProducts} />
-        <Route path="/admin/sales" component={AdminSales} />
+        <Route path="/admin/riders">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminRiders /></RestrictedRoute>}</Route>
+        <Route path="/admin/delivery">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminDelivery /></RestrictedRoute>}</Route>
+        <Route path="/admin/whatsapp">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminWhatsApp /></RestrictedRoute>}</Route>
+        <Route path="/admin/refills">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminRefills /></RestrictedRoute>}</Route>
+        <Route path="/admin/accounting">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminAccounting /></RestrictedRoute>}</Route>
+        <Route path="/admin/accounting/shift">{() => <RestrictedRoute allow={ADMIN_ROLES}><ShiftClosing /></RestrictedRoute>}</Route>
+        <Route path="/admin/accounting/gst-export">{() => <RestrictedRoute allow={ADMIN_ROLES}><GstExport /></RestrictedRoute>}</Route>
+        <Route path="/admin/accounting/tally">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminAccounting /></RestrictedRoute>}</Route>
+        <Route path="/admin/utilities">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminUtilities /></RestrictedRoute>}</Route>
+        <Route path="/admin/settings">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminSettings /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminMastersIndex /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/suppliers">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminSuppliers /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/manufacturers">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminManufacturers /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/categories">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminCategories /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/generics">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminGenerics /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/schedules">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminSchedules /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/discount-categories">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminDiscountCategories /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/discounts">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminDiscountCategories /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/doctors">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminDoctors /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/patient-categories">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminPatientCategories /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/customers">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminPatientCategories /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/staff">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminStaff /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/stores">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminStores /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/buildings">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminBuildings /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/printers">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminPrinters /></RestrictedRoute>}</Route>
+        <Route path="/admin/masters/products">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminProducts /></RestrictedRoute>}</Route>
+        <Route path="/admin/sales">{() => <RestrictedRoute allow={ADMIN_ROLES}><AdminSales /></RestrictedRoute>}</Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
