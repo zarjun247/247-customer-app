@@ -382,16 +382,26 @@ export const salesRouter = router({
       // Decrement batch qty and create stock movements
       for (const line of lines) {
         if (line.batchLedgerId) {
+          const batchId = parseInt(line.batchLedgerId ?? "0") || 0;
+          const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, batchId)).limit(1);
+          if (!batch) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Batch not found for line ${line.id}` });
+          }
+          if ((batch.qtyOnHand ?? 0) < line.qty) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient stock for batch ${batch.batchNo}` });
+          }
+          const qtyBefore = batch.qtyOnHand ?? 0;
+          const qtyAfter = qtyBefore - line.qty;
           await db.update(batchLedger)
-            .set({ qtyOnHand: sql`${batchLedger.qtyOnHand} - ${line.qty}` })
-            .where(eq(batchLedger.id, parseInt(line.batchLedgerId ?? "0") || 0));
+            .set({ qtyOnHand: qtyAfter })
+            .where(eq(batchLedger.id, batchId));
           await db.insert(stockMovements).values({
             movementType: "sale_fulfil",
-            batchId: parseInt(line.batchLedgerId ?? "0") || 0,
+            batchId,
             storeId: parseInt(sale.storeId) || 0,
             qty: -line.qty,
-            qtyBefore: 0,
-            qtyAfter: 0,
+            qtyBefore,
+            qtyAfter,
             referenceType: "sale",
             referenceId: parseInt(sale.id) || 0,
             reason: `Bill ${sale.billNo}`,
@@ -601,26 +611,45 @@ export const salesRouter = router({
       // Re-enter stock for resaleable items
       for (const l of lines) {
         if (l.batchLedgerId) {
+          const batchId = parseInt(l.batchLedgerId ?? "0") || 0;
+          const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, batchId)).limit(1);
+          if (!batch) continue;
           if (l.stockDisposition === "resaleable") {
+            const qtyBefore = batch.qtyOnHand ?? 0;
+            const qtyAfter = qtyBefore + l.returnQty;
             await db.update(batchLedger)
-              .set({ qtyOnHand: sql`${batchLedger.qtyOnHand} + ${l.returnQty}` })
-              .where(eq(batchLedger.id, parseInt(l.batchLedgerId ?? "0") || 0));
+              .set({ qtyOnHand: qtyAfter })
+              .where(eq(batchLedger.id, batchId));
             await db.insert(stockMovements).values({
               movementType: "sale_return",
-              batchId: parseInt(l.batchLedgerId ?? "0") || 0,
+              batchId,
               storeId: parseInt(sale?.storeId ?? "0") || 0,
               qty: l.returnQty,
-              qtyBefore: 0,
-              qtyAfter: 0,
+              qtyBefore,
+              qtyAfter,
               referenceType: "sale_return",
-              referenceId: parseInt(input.returnId) || 0,
+              referenceId: 0,
               reason: `Return ${ret.returnNo}`,
               performedBy: ctx.user!.id,
             });
           } else if (l.stockDisposition === "quarantine") {
+            const qtyBefore = batch.qtyQuarantined ?? 0;
+            const qtyAfter = qtyBefore + l.returnQty;
             await db.update(batchLedger)
-              .set({ qtyQuarantined: sql`${batchLedger.qtyQuarantined} + ${l.returnQty}` })
-              .where(eq(batchLedger.id, parseInt(l.batchLedgerId ?? "0") || 0));
+              .set({ qtyQuarantined: qtyAfter })
+              .where(eq(batchLedger.id, batchId));
+            await db.insert(stockMovements).values({
+              movementType: "quarantine",
+              batchId,
+              storeId: parseInt(sale?.storeId ?? "0") || 0,
+              qty: l.returnQty,
+              qtyBefore,
+              qtyAfter,
+              referenceType: "sale_return",
+              referenceId: 0,
+              reason: `Return quarantine ${ret.returnNo}`,
+              performedBy: ctx.user!.id,
+            });
           }
           // disposal: no stock re-entry
         }

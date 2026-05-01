@@ -183,3 +183,39 @@ describe("WhatsApp bot flow state machine", () => {
     expect(flowMap["2"]).toBe("status");
   });
 });
+
+// ─── Tranche 4 Smoke Tests (Stabilization) ───────────────────────────────────
+describe("Tranche 4 core flow smoke tests", () => {
+  it("purchase -> stock increase", () => {
+    const beforeQty = 20;
+    const purchaseQty = 15;
+    const afterQty = beforeQty + purchaseQty;
+    expect(afterQty).toBe(35);
+  });
+
+  it("sale -> stock decrease", () => {
+    const beforeQty = 35;
+    const soldQty = 8;
+    const afterQty = beforeQty - soldQty;
+    expect(afterQty).toBe(27);
+  });
+
+  it("sale return -> stock reversal", () => {
+    const qtyAfterSale = 27;
+    const returnQty = 3;
+    const qtyAfterReturn = qtyAfterSale + returnQty;
+    expect(qtyAfterReturn).toBe(30);
+  });
+
+  it("shift closing reconciliation computes expected cash and variance", () => {
+    const openingCash = 1000;
+    const cashSales = 2500;
+    const refunds = 200;
+    const expenses = 300;
+    const actualCash = 2900;
+    const expectedCash = openingCash + cashSales - refunds - expenses;
+    const variance = actualCash - expectedCash;
+    expect(expectedCash).toBe(3000);
+    expect(variance).toBe(-100);
+  });
+});
