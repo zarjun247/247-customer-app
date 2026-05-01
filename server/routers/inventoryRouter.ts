@@ -91,6 +91,12 @@ async function writeMovement(p: {
 
 async function writeAudit(p: {
   actorId: number; entityType: string; entityId: number; action: string;
+  actorRole?: string | null;
+  actorType?: string;
+  channel?: "app" | "whatsapp" | "admin" | "api" | "system";
+  ipAddress?: string | null;
+  sessionId?: string | null;
+  deviceId?: string | null;
   before?: unknown; after?: unknown; note?: string;
 }) {
   try {
@@ -98,12 +104,19 @@ async function writeAudit(p: {
     const { auditLogs } = await schema();
     await db.insert(auditLogs).values({
       actorId: p.actorId,
+      userId: p.actorId,
+      actorRole: p.actorRole ?? undefined,
+      actorType: p.actorType ?? "user",
       entityType: p.entityType,
       entityId: p.entityId,
       action: p.action,
       beforeJson: p.before ? JSON.stringify(p.before) : null,
       afterJson: p.after ? JSON.stringify(p.after) : null,
       reason: p.note,
+      channel: p.channel ?? "admin",
+      ipAddress: p.ipAddress ?? undefined,
+      sessionId: p.sessionId ?? undefined,
+      deviceId: p.deviceId ?? undefined,
     });
   } catch { /* non-critical */ }
 }
