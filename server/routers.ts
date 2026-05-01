@@ -38,6 +38,7 @@ import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
 import { customerMedicineRouter } from "./routers/customerMedicineRouter";
 import { whatsappFullRouter } from "./routers/whatsappRouter";
+import { deliveryRouter } from "./routers/deliveryRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
@@ -719,6 +720,7 @@ export const appRouter = router({
   prescriptionGov: prescriptionGovRouter,
   customerMedicine: customerMedicineRouter,
   whatsappFull: whatsappFullRouter,
+  delivery: deliveryRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -2059,3 +2059,172 @@ export const whatsappWebhookLog = mysqlTable("whatsapp_webhook_log", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type WhatsappWebhookLog = typeof whatsappWebhookLog.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PART 11 — Building-First Routing, SLA, Rider Module
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── routing_decisions: full audit trail of every node resolution ─────────────
+export const routingDecisions = mysqlTable("routing_decisions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  orderId: int("orderId"),                        // null during pre-order routing checks
+  buildingId: int("buildingId"),
+  requestedSkuIds: text("requestedSkuIds"),       // JSON array of storeSkuIds requested
+  // Resolution outcome
+  resolvedStoreId: int("resolvedStoreId"),
+  resolutionPath: mysqlEnum("resolutionPath", [
+    "primary_assignment",
+    "geo_nearest",
+    "geo_nearest_with_stock",
+    "pincode_fallback",
+    "manual_override",
+    "no_store_found",
+  ]).notNull(),
+  // 12-step check results (JSON object per step)
+  stepResults: text("stepResults"),               // JSON: { step: string, passed: boolean, reason?: string }[]
+  // Fallback chain
+  primaryStoreId: int("primaryStoreId"),
+  primaryStoreRejectedReason: varchar("primaryStoreRejectedReason", { length: 500 }),
+  secondaryStoreId: int("secondaryStoreId"),
+  secondaryStoreRejectedReason: varchar("secondaryStoreRejectedReason", { length: 500 }),
+  pincodeUsed: varchar("pincodeUsed", { length: 10 }),
+  // ETA
+  etaMins: int("etaMins"),
+  etaSource: mysqlEnum("etaSource", ["google_maps", "sla_fallback", "manual"]).default("sla_fallback"),
+  // Context flags
+  requiresColdChain: boolean("requiresColdChain").default(false).notNull(),
+  requiresControlledDrug: boolean("requiresControlledDrug").default(false).notNull(),
+  // Actor
+  triggeredBy: mysqlEnum("triggeredBy", ["checkout", "whatsapp", "admin_override", "reallocation", "system"]).default("checkout").notNull(),
+  triggeredByUserId: int("triggeredByUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RoutingDecision = typeof routingDecisions.$inferSelect;
+
+// ─── delivery_tasks: one task per order-rider assignment ─────────────────────
+export const deliveryTasks = mysqlTable("delivery_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  riderId: int("riderId").notNull(),
+  storeId: int("storeId").notNull(),
+  status: mysqlEnum("status", [
+    "assigned",
+    "pickup_confirmed",
+    "out_for_delivery",
+    "delivered",
+    "failed_attempt",
+    "returned",
+    "cancelled",
+  ]).default("assigned").notNull(),
+  // Timestamps
+  assignedAt: timestamp("assignedAt").defaultNow().notNull(),
+  pickupConfirmedAt: timestamp("pickupConfirmedAt"),
+  outForDeliveryAt: timestamp("outForDeliveryAt"),
+  deliveredAt: timestamp("deliveredAt"),
+  failedAt: timestamp("failedAt"),
+  returnedAt: timestamp("returnedAt"),
+  // Proof of delivery
+  podType: mysqlEnum("podType", ["otp", "signature", "photo", "none"]).default("otp"),
+  podOtp: varchar("podOtp", { length: 10 }),
+  podOtpVerifiedAt: timestamp("podOtpVerifiedAt"),
+  podPhotoUrl: text("podPhotoUrl"),
+  podPhotoKey: varchar("podPhotoKey", { length: 500 }),
+  podNote: text("podNote"),
+  // Failed delivery
+  failedReason: mysqlEnum("failedReason", [
+    "customer_unavailable",
+    "wrong_address",
+    "customer_refused",
+    "payment_issue",
+    "damaged_package",
+    "other",
+  ]),
+  failedNote: text("failedNote"),
+  failedLat: decimal("failedLat", { precision: 10, scale: 8 }),
+  failedLng: decimal("failedLng", { precision: 11, scale: 8 }),
+  attemptCount: int("attemptCount").default(1).notNull(),
+  // COD
+  isCod: boolean("isCod").default(false).notNull(),
+  codAmount: decimal("codAmount", { precision: 10, scale: 2 }),
+  codCollectedAt: timestamp("codCollectedAt"),
+  codCollectedAmount: decimal("codCollectedAmount", { precision: 10, scale: 2 }),
+  codReconciled: boolean("codReconciled").default(false).notNull(),
+  codReconciledAt: timestamp("codReconciledAt"),
+  codReconciledBy: int("codReconciledBy"),
+  // Delivery location
+  deliveryLat: decimal("deliveryLat", { precision: 10, scale: 8 }),
+  deliveryLng: decimal("deliveryLng", { precision: 11, scale: 8 }),
+  // SLA breach
+  slaBreached: boolean("slaBreached").default(false).notNull(),
+  slaBreachReason: varchar("slaBreachReason", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DeliveryTask = typeof deliveryTasks.$inferSelect;
+
+// ─── rider_locations: heartbeat/manual location history ──────────────────────
+export const riderLocations = mysqlTable("rider_locations", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  riderId: int("riderId").notNull(),
+  lat: decimal("lat", { precision: 10, scale: 8 }).notNull(),
+  lng: decimal("lng", { precision: 11, scale: 8 }).notNull(),
+  accuracy: decimal("accuracy", { precision: 8, scale: 2 }),  // metres
+  source: mysqlEnum("source", ["gps", "manual", "network"]).default("gps").notNull(),
+  activeTaskId: int("activeTaskId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RiderLocation = typeof riderLocations.$inferSelect;
+
+// ─── order_timestamps: per-order lifecycle timestamp log ─────────────────────
+export const orderTimestamps = mysqlTable("order_timestamps", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  event: mysqlEnum("event", [
+    "order_placed",
+    "prescription_uploaded",
+    "pharmacist_approved",
+    "allocation_completed",
+    "reservation_confirmed",
+    "picking_started",
+    "packed",
+    "rider_assigned",
+    "pickup_confirmed",
+    "out_for_delivery",
+    "delivered",
+    "failed_attempt",
+    "returned",
+    "cancelled",
+    "sla_breached",
+    "clarification_requested",
+    "rejected",
+  ]).notNull(),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  actorId: int("actorId"),
+  actorType: mysqlEnum("actorType", ["customer", "pharmacist", "rider", "system", "admin"]).default("system").notNull(),
+  note: varchar("note", { length: 500 }),
+  // SLA breach context
+  breachReason: varchar("breachReason", { length: 500 }),
+  minutesLate: int("minutesLate"),
+});
+export type OrderTimestamp = typeof orderTimestamps.$inferSelect;
+
+// ─── store_capabilities: licence/service/cold-chain/controlled-drug per store ─
+export const storeCapabilities = mysqlTable("store_capabilities", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull().unique(),
+  licenceNumber: varchar("licenceNumber", { length: 100 }),
+  licenceExpiryDate: timestamp("licenceExpiryDate"),
+  licenceActive: boolean("licenceActive").default(true).notNull(),
+  serviceActive: boolean("serviceActive").default(true).notNull(),
+  serviceInactiveReason: varchar("serviceInactiveReason", { length: 300 }),
+  pharmacistCoverage: boolean("pharmacistCoverage").default(true).notNull(),
+  pharmacistName: varchar("pharmacistName", { length: 200 }),
+  pharmacistRegNumber: varchar("pharmacistRegNumber", { length: 100 }),
+  coldChainCapable: boolean("coldChainCapable").default(false).notNull(),
+  controlledDrugCapable: boolean("controlledDrugCapable").default(false).notNull(),
+  maxRiderCapacity: int("maxRiderCapacity").default(5).notNull(),
+  currentRiderCount: int("currentRiderCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StoreCapability = typeof storeCapabilities.$inferSelect;

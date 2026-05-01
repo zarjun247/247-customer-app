@@ -780,3 +780,16 @@
 - [x] App.tsx updated to import new AdminWhatsApp from pages/admin/AdminWhatsApp
 - [x] AdminLayout sidebar already had WhatsApp entry — confirmed pointing to /admin/whatsapp
 - [x] TypeScript: 0 errors, Tests: 73/73 passing
+
+## PART 11 — Building-First Routing, SLA, Rider Module
+- [x] Schema: routingDecisions, deliveryTasks, riderLocations, orderTimestamps, deliveryEvents, storeCapabilities (upgraded), deliveryOtps — all applied to live DB
+- [x] routingEngine.ts: 12-step building-first node resolver (building→primary store→licence→service→pharmacist→stock→batch→cold-chain→controlled-drug→rider-capacity→ETA→fallback→pincode), allocation decision logged to routing_decisions
+- [x] deliveryRouter.ts: routing.resolveNode, routing.decisions, routing.getStoreCapabilities, routing.upsertStoreCapabilities
+- [x] deliveryRouter.ts: rider.list, rider.create, rider.update, rider.locationHeartbeat, rider.locationHistory
+- [x] deliveryRouter.ts: task.assign, task.confirmPickup, task.outForDelivery, task.deliverWithOtp (OTP verified), task.deliverWithPhoto (photo POD), task.recordFailed (6 failure reasons), task.recordReturned, task.collectCod, task.reconcileCod, task.list, task.get, task.stats
+- [x] deliveryRouter.ts: sla.list, sla.checkBreaches (scans for overdue SLA events); timestamps.list (full order lifecycle)
+- [x] deliveryRouter registered in server/routers.ts
+- [x] AdminDelivery.tsx: 6-tab dashboard (Overview with stats+breach alerts, Delivery Tasks with status filter+COD reconcile, Riders with add/status update, Routing Decisions with step-by-step dialog, SLA Events with breach scan, Store Capabilities CRUD)
+- [x] Route /admin/delivery registered in App.tsx
+- [x] AdminLayout sidebar updated with Delivery Dashboard link under Operations
+- [x] TypeScript: 0 errors, Tests: 73/73 passing

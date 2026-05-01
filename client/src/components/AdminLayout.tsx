@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
       { label: "Prescriptions", href: "/admin/prescriptions", icon: ClipboardList },
       { label: "Riders & Delivery", href: "/admin/riders", icon: Bike },
+      { label: "Delivery Dashboard", href: "/admin/delivery", icon: Truck },
     ],
   },
   {

@@ -54,6 +54,7 @@ import FamilyProfiles from "./pages/FamilyProfiles";
 import RefillCalendar from "./pages/RefillCalendar";
 import MyMedicines from "./pages/MyMedicines";
 import AdminRiders from "./pages/AdminRiders";
+import AdminDelivery from "./pages/admin/AdminDelivery";
 import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
 import AdminRefills from "./pages/AdminRefills";
 import AdminAccounting from "./pages/AdminAccounting";
@@ -221,6 +222,7 @@ function Router() {
         <Route path="/admin/customers" component={AdminCustomers} />
         <Route path="/admin/customers/medicine-records">{() => <AdminCustomersNew />}</Route>
         <Route path="/admin/riders" component={AdminRiders} />
+        <Route path="/admin/delivery" component={AdminDelivery} />
         <Route path="/admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/admin/refills" component={AdminRefills} />
         <Route path="/admin/accounting" component={AdminAccounting} />
