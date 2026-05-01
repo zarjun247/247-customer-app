@@ -163,7 +163,7 @@ export default function AdminPurchaseReturns() {
                 <Button
                   onClick={() => {
                     if (!createForm.purchaseInvoiceId || !createForm.supplierId) { toast.error("Invoice ID and supplier required"); return; }
-                    createReturn.mutate({ purchaseInvoiceId: parseInt(createForm.purchaseInvoiceId), supplierId: parseInt(createForm.supplierId), storeId: parseInt(createForm.storeId), reason: createForm.reason || undefined, debitNoteNo: createForm.debitNoteNo || undefined });
+                    createReturn.mutate({ purchaseInvoiceId: parseInt(createForm.purchaseInvoiceId), supplierId: parseInt(createForm.supplierId), storeId: parseInt(createForm.storeId), reason: createForm.reason, debitNoteNo: createForm.debitNoteNo || undefined });
                   }}
                   disabled={createReturn.isPending}
                 >

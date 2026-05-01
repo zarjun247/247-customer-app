@@ -89,24 +89,8 @@ async function writeMovement(p: {
 
 // ─── Audit log writer ─────────────────────────────────────────────────────────
 
-async function writeAudit(p: {
-  actorId: number; entityType: string; entityId: number; action: string;
-  before?: unknown; after?: unknown; note?: string;
-}) {
-  try {
-    const db = await getDb();
-    const { auditLogs } = await schema();
-    await db.insert(auditLogs).values({
-      actorId: p.actorId,
-      entityType: p.entityType,
-      entityId: p.entityId,
-      action: p.action,
-      beforeJson: p.before ? JSON.stringify(p.before) : null,
-      afterJson: p.after ? JSON.stringify(p.after) : null,
-      reason: p.note,
-    });
-  } catch { /* non-critical */ }
-}
+import { writeAudit as writeAuditSvc } from "../services/audit";
+const writeAudit = async (p:any) => writeAuditSvc({ user:{ id:p.actorId, role:"system" as any }, req:{} as any, res:{} as any } as any, { action:p.action, entityType:p.entityType, entityId:p.entityId, before:p.before, after:p.after, reason:p.note });
 
 // ─── Batch Router ─────────────────────────────────────────────────────────────
 
@@ -532,7 +516,7 @@ const adjustmentRouter = router({
       await db.update(batchLedger).set({ qtyOnHand: qtyAfter }).where(eq(batchLedger.id, adj.batchId));
       await db.update(stockAdjustments).set({ status: "approved", approvedBy: ctx.user.id, approvedAt: new Date() }).where(eq(stockAdjustments.id, input.id));
       await writeMovement({ batchId: adj.batchId, productId: batch.productId, storeId: adj.storeId, movementType: "stock_adjustment", qtyChange, qtyBefore: batch.qtyOnHand, qtyAfter, referenceType: "stock_adjustment", referenceId: input.id, note: adj.reason, performedBy: ctx.user.id });
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: input.id, action: "approve", note: `Qty changed from ${batch.qtyOnHand} to ${qtyAfter}` });
+      await writeAuditSvc(ctx, { action: "approve", entityType: "stock_adjustment", entityId: input.id, reason: adj.reason, before: { qtyOnHand: batch.qtyOnHand }, after: { qtyOnHand: qtyAfter } });
       return { ok: true };
     }),
 
@@ -546,7 +530,7 @@ const adjustmentRouter = router({
       if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
       if (adj.status !== "pending_approval") throw new TRPCError({ code: "BAD_REQUEST", message: "Adjustment is not pending" });
       await db.update(stockAdjustments).set({ status: "rejected", approvedBy: ctx.user.id, approvedAt: new Date() }).where(eq(stockAdjustments.id, input.id));
-      await writeAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: input.id, action: "reject", note: input.reason ?? "Rejected by manager" });
+      await writeAuditSvc(ctx, { action: "reject", entityType: "stock_adjustment", entityId: input.id, reason: input.reason });
       return { ok: true };
     }),
 });

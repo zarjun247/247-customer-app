@@ -25,27 +25,8 @@ function requireManager(role: string | null | undefined) {
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
 }
 
-async function writeAuditLog(
-  db: Awaited<ReturnType<typeof getDbSafe>>,
-  actorId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-  reason?: string
-) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
-    actorId: parseInt(actorId) || 0,
-    action,
-    entityType,
-    entityId: 0,
-    beforeJson: before ? JSON.stringify(before) : null,
-    afterJson: after ? JSON.stringify(after) : null,
-    reason: reason ?? null,
-  });
-}
+import { writeAudit } from "../services/audit";
+async function writeAuditLog(_db:any, actorId:string, action:string, entityType:string, _entityId:string, before:unknown, after:unknown, reason?:string){ await writeAudit({ user:{ id: Number(actorId), role: "system" as any }, req: {} as any, res: {} as any } as any, { action, entityType, before, after, reason }); }
 
 // Generate sequential bill number: BILL-YYYYMMDD-NNNN
 async function generateBillNo(db: Awaited<ReturnType<typeof getDbSafe>>, storeId: string): Promise<string> {
@@ -498,7 +479,7 @@ export const salesRouter = router({
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft sales can be cancelled" });
       await db.update(sales).set({ status: "cancelled", updatedAt: Date.now() }).where(eq(sales.id, input.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "cancel", "sale", input.saleId, { status: "draft" }, { status: "cancelled" }, input.reason);
+      await writeAudit(ctx, { action: "cancel", entityType: "sale", reason: input.reason, before: { status: "draft" }, after: { status: "cancelled" } });
       return { ok: true };
     }),
 
@@ -577,7 +558,7 @@ export const salesRouter = router({
         });
       }
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "create_return", "sale_return", returnId, null, { saleId: input.saleId, totalRefund, returnNo });
+      await writeAudit(ctx, { action: "create_return", entityType: "sale_return", reason: input.reason, after: { saleId: input.saleId, totalRefund, returnNo } });
       return { returnId, returnNo, totalRefund: +totalRefund.toFixed(2) };
     }),
 
@@ -635,7 +616,7 @@ export const salesRouter = router({
 
       // Mark original sale as returned
       await db.update(sales).set({ status: "returned", updatedAt: now }).where(eq(sales.id, ret.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "approve_return", "sale_return", input.returnId, { status: "pending" }, { status: "approved" });
+      await writeAudit(ctx, { action: "approve_return", entityType: "sale_return", reason: "sale return approval", before: { status: "pending" }, after: { status: "approved" } });
       return { ok: true };
     }),
 

@@ -52,12 +52,8 @@ function computeExpiryBucket(expiryDate: Date | string | null): "normal" | "warn
   return "normal";
 }
 
-async function writeAuditLog(db: Awaited<ReturnType<typeof getDbSafe>>, userId: number, entityType: string, entityId: number, action: string, before: unknown, after: unknown, reason?: string) {
-  try {
-    const { auditLogs } = await import("../../drizzle/schema");
-    await db.insert(auditLogs).values({ userId, entityType, entityId, action, beforeJson: before ? JSON.stringify(before) : null, afterJson: after ? JSON.stringify(after) : null, reason: reason ?? null });
-  } catch (_) { /* non-blocking */ }
-}
+import { writeAudit } from "../services/audit";
+async function writeAuditLog(_db:any, userId:number, entityType:string, entityId:number, action:string, before:unknown, after:unknown, reason?:string){ await writeAudit({ user:{ id:userId, role:"system" as any }, req:{} as any, res:{} as any } as any, { action, entityType, entityId, before, after, reason }); }
 
 async function recalcInvoiceTotals(db: Awaited<ReturnType<typeof getDbSafe>>, invoiceId: number) {
   const { purchaseLines, purchaseInvoices } = await import("../../drizzle/schema");
@@ -150,7 +146,7 @@ export const purchaseRouter = router({
       if (!inv) throw new TRPCError({ code: "NOT_FOUND" });
       if (inv.status === "committed") throw new TRPCError({ code: "BAD_REQUEST", message: "Committed invoices cannot be cancelled — use purchase return" });
       await db.update(purchaseInvoices).set({ status: "cancelled" }).where(eq(purchaseInvoices.id, input.id));
-      await writeAuditLog(db, ctx.user!.id, "purchase_invoice", input.id, "cancel", inv, { status: "cancelled" }, input.reason);
+      await writeAudit(ctx, { action: "cancel", entityType: "purchase_invoice", entityId: input.id, before: inv, after: { status: "cancelled" }, reason: input.reason });
       return { success: true };
     }),
 
@@ -289,12 +285,12 @@ export const purchaseRouter = router({
     }),
 
   createReturn: protectedProcedure
-    .input(z.object({ purchaseInvoiceId: z.number(), supplierId: z.number(), storeId: z.number(), reason: z.string().optional(), debitNoteNo: z.string().optional() }))
+    .input(z.object({ purchaseInvoiceId: z.number(), supplierId: z.number(), storeId: z.number(), reason: z.string().min(1), debitNoteNo: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       const db = await getDbSafe();
       const { purchaseReturns } = await import("../../drizzle/schema");
-      const [result] = await db.insert(purchaseReturns).values({ purchaseInvoiceId: input.purchaseInvoiceId, supplierId: input.supplierId, storeId: input.storeId, reason: input.reason ?? null, debitNoteNo: input.debitNoteNo ?? null, createdBy: ctx.user!.id, status: "draft" });
+      const [result] = await db.insert(purchaseReturns).values({ purchaseInvoiceId: input.purchaseInvoiceId, supplierId: input.supplierId, storeId: input.storeId, reason: input.reason, debitNoteNo: input.debitNoteNo ?? null, createdBy: ctx.user!.id, status: "draft" });
       const id = (result as { insertId: number }).insertId;
       await writeAuditLog(db, ctx.user!.id, "purchase_return", id, "create", null, { purchaseInvoiceId: input.purchaseInvoiceId });
       return { id };
@@ -308,7 +304,7 @@ export const purchaseRouter = router({
       const { purchaseReturnLines, purchaseReturns } = await import("../../drizzle/schema");
       const [ret] = await db.select().from(purchaseReturns).where(eq(purchaseReturns.id, input.purchaseReturnId));
       if (!ret || ret.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Return not in draft state" });
-      const [result] = await db.insert(purchaseReturnLines).values({ purchaseReturnId: input.purchaseReturnId, purchaseLineId: input.purchaseLineId, batchId: input.batchId, qty: input.qty, returnRate: input.returnRate, reason: input.reason ?? null });
+      const [result] = await db.insert(purchaseReturnLines).values({ purchaseReturnId: input.purchaseReturnId, purchaseLineId: input.purchaseLineId, batchId: input.batchId, qty: input.qty, returnRate: input.returnRate, reason: input.reason });
       const lines = await db.select().from(purchaseReturnLines).where(eq(purchaseReturnLines.purchaseReturnId, input.purchaseReturnId));
       const total = lines.reduce((s, l) => s + parseFloat(l.returnRate ?? "0") * l.qty, 0);
       await db.update(purchaseReturns).set({ totalAmount: total.toFixed(2) }).where(eq(purchaseReturns.id, input.purchaseReturnId));

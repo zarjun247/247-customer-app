@@ -295,7 +295,7 @@ export const prescriptionGovRouter = router({
         reviewedAt: new Date(),
       }).where(eq(prescriptionLines.id, input.lineId));
 
-      await writeAuditLog(db, ctx.user.id as number, "reject_line", "prescription_line", String(input.lineId), line, { status: "rejected", reason: input.pharmacistNote });
+      await writeAuditLog(db, ctx.user.id as number, "reject_line", "prescription_line", String(input.lineId), line, { status: "rejected" }, input.pharmacistNote);
       return { success: true };
     }),
 
