@@ -199,6 +199,13 @@ function Router() {
         <Route path="/admin/prescriptions" component={AdminPrescriptionGov} />
         <Route path="/admin/sales/counter" component={AdminCounterBilling} />
         <Route path="/admin/reports" component={AdminReports} />
+        <Route path="/admin/reports/daily-sales" component={AdminReports} />
+        <Route path="/admin/reports/stock" component={AdminReports} />
+        <Route path="/admin/reports/expiry" component={ExpiryDashboard} />
+        <Route path="/admin/reports/purchase" component={AdminReports} />
+        <Route path="/admin/reports/h1" component={AdminReports} />
+        <Route path="/admin/reports/gst" component={GstExport} />
+        <Route path="/admin/reports/sla" component={SlaBoard} />
         <Route path="/admin/purchase">{() => <AdminPurchaseInvoices />}</Route>
         <Route path="/admin/purchase/invoices">{() => <AdminPurchaseInvoices />}</Route>
         <Route path="/admin/purchase/returns">{() => <AdminPurchaseReturns />}</Route>
@@ -212,6 +219,7 @@ function Router() {
         <Route path="/admin/barcodes" component={BarcodePrint} />
         <Route path="/admin/gst-export" component={GstExport} />
         <Route path="/admin/medivision" component={MedivisionSync} />
+        <Route path="/admin/imports/medivision" component={MedivisionSync} />
         <Route path="/admin/inventory">{() => <AdminInventory />}</Route>
         <Route path="/admin/inventory/current-stock">{() => <AdminCurrentStock />}</Route>
         <Route path="/admin/inventory/batchwise">{() => <AdminBatchwiseBalance />}</Route>
@@ -226,6 +234,9 @@ function Router() {
         <Route path="/admin/whatsapp" component={AdminWhatsApp} />
         <Route path="/admin/refills" component={AdminRefills} />
         <Route path="/admin/accounting" component={AdminAccounting} />
+        <Route path="/admin/accounting/shift" component={ShiftClosing} />
+        <Route path="/admin/accounting/gst-export" component={GstExport} />
+        <Route path="/admin/accounting/tally" component={AdminAccounting} />
         <Route path="/admin/utilities" component={AdminUtilities} />
         <Route path="/admin/settings" component={AdminSettings} />
         <Route path="/admin/masters" component={AdminMastersIndex} />
@@ -235,8 +246,10 @@ function Router() {
         <Route path="/admin/masters/generics" component={AdminGenerics} />
         <Route path="/admin/masters/schedules" component={AdminSchedules} />
         <Route path="/admin/masters/discount-categories" component={AdminDiscountCategories} />
+        <Route path="/admin/masters/discounts" component={AdminDiscountCategories} />
         <Route path="/admin/masters/doctors" component={AdminDoctors} />
         <Route path="/admin/masters/patient-categories" component={AdminPatientCategories} />
+        <Route path="/admin/masters/customers" component={AdminPatientCategories} />
         <Route path="/admin/masters/staff" component={AdminStaff} />
         <Route path="/admin/masters/stores" component={AdminStores} />
         <Route path="/admin/masters/buildings" component={AdminBuildings} />
