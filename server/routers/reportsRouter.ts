@@ -69,7 +69,7 @@ export const reportsRouter = router({
         ))
         .groupBy(products.category);
 
-      return { summary: summary[0], byCategory };
+      return { summary: summary[0], byCategory, rows: byCategory, totals: summary[0], csvData: byCategory };
     }),
 
   // ── Daily Purchase Summary ────────────────────────────────────────────────
@@ -139,7 +139,7 @@ export const reportsRouter = router({
         ))
         .groupBy(products.hsnCode, products.gstRate);
 
-      return { hsnRows };
+      return { hsnRows, rows: hsnRows, totals: { count: hsnRows.length }, csvData: hsnRows };
     }),
 
   // ── Stock Valuation ───────────────────────────────────────────────────────
