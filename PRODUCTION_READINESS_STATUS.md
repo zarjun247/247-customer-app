@@ -205,3 +205,10 @@ The system is 10/10 only when it is:
 - pnpm run build: pass (non-blocking warnings on analytics env/chunk size)
 
 - 2026-05-03: Red-alert security lockdown updates applied (env fail-hard, worker auth, storage proxy hardening, OTP hardening, security guard tests). Next: chore/github-ci-branch-protection.
+
+
+## 2026-05-03 CI and unsafe-merge blocking update
+- Phase 2 (GitHub CI + unsafe-merge blocking): **in progress** (workflows and guards added in PR branch, pending branch-protection settings in GitHub).
+- CI score: **7.0 / 10** (up from 6.8 after CI workflow + migration/placeholder/security guard automation).
+- Remaining CI gaps: branch protection enforcement, ephemeral DB-backed migration smoke, strict required check wiring in repository settings.
+- Next PR: `feat/store-isolation-rbac`.

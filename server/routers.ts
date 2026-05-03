@@ -81,7 +81,6 @@ const authRouter = router({
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
       await createOtp(input.phone, code, expiresAt);
-      if (!ENV.isProduction) console.log(`[OTP] ${redactSensitive(`phone=${input.phone} code=${code}`)}`);
       console.info("auth.otp_requested");
       return { success: true, devCode: !ENV.isProduction ? code : undefined };
     }),
