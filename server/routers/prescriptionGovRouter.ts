@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { logAudit as logAuditEvent } from "../services/audit";
+import { logAudit } from "../services/audit";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -27,19 +27,6 @@ function requireManager(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "store_manager", "pharmacist"];
   if (!role || !allowed.includes(role))
     throw new TRPCError({ code: "FORBIDDEN", message: "Manager or pharmacist role required" });
-}
-
-async function writeAuditLog(
-  db: Awaited<ReturnType<typeof getDbSafe>>,
-  actorId: number,
-  action: string,
-  entityType: string,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-  reason?: string
-) {
-  await logAuditEvent({ actorId, action: action.startsWith("prescription.") || action.startsWith("h1.") ? action : `prescription.${action}`, entityType, entityId: Number(entityId) || undefined, beforeJson: before, afterJson: after, reason, source: "admin" });
 }
 
 async function logAccess(
@@ -190,7 +177,7 @@ export const prescriptionGovRouter = router({
       if (input.repeatDispenseMax !== undefined) updateData.repeatDispenseMax = input.repeatDispenseMax;
 
       await db.update(prescriptions).set(updateData).where(eq(prescriptions.id, input.id));
-      await writeAuditLog(db, ctx.user.id as number, "update_metadata", "prescription", String(input.id), before, updateData);
+      await logAudit({ actorId: ctx.user.id as number, action: "prescription.update_metadata", entityType: "prescription", entityId: input.id, beforeJson: before, afterJson: updateData, source: "admin" });
       return { success: true };
     }),
 
@@ -223,7 +210,7 @@ export const prescriptionGovRouter = router({
         await db.update(prescriptionLines)
           .set({ ...lineData, requiresH1 })
           .where(eq(prescriptionLines.id, lineId));
-        await writeAuditLog(db, ctx.user.id as number, "update_line", "prescription_line", String(lineId), null, lineData);
+        await logAudit({ actorId: ctx.user.id as number, action: "prescription.update_line", entityType: "prescription_line", entityId: lineId, beforeJson: null, afterJson: lineData, source: "admin" });
         return { success: true, lineId };
       } else {
         const [result] = await db.insert(prescriptionLines).values({
@@ -232,7 +219,7 @@ export const prescriptionGovRouter = router({
           requiresH1,
           status: "pending",
         });
-        await writeAuditLog(db, ctx.user.id as number, "add_line", "prescription_line", String((result as { insertId: number }).insertId), null, lineData);
+        await logAudit({ actorId: ctx.user.id as number, action: "prescription.add_line", entityType: "prescription_line", entityId: (result as { insertId: number }).insertId, beforeJson: null, afterJson: lineData, source: "admin" });
         return { success: true, lineId: (result as { insertId: number }).insertId };
       }
     }),
@@ -262,7 +249,7 @@ export const prescriptionGovRouter = router({
         linkedBatchNo: input.linkedBatchNo ?? line.linkedBatchNo,
       }).where(eq(prescriptionLines.id, input.lineId));
 
-      await writeAuditLog(db, ctx.user.id as number, "approve_line", "prescription_line", String(input.lineId), line, { status: "approved" });
+      await logAudit({ actorId: ctx.user.id as number, action: "prescription.approve_line", entityType: "prescription_line", entityId: input.lineId, beforeJson: line, afterJson: { status: "approved" }, source: "admin" });
       return { success: true };
     }),
 
@@ -287,7 +274,7 @@ export const prescriptionGovRouter = router({
         reviewedAt: new Date(),
       }).where(eq(prescriptionLines.id, input.lineId));
 
-      await writeAuditLog(db, ctx.user.id as number, "reject_line", "prescription_line", String(input.lineId), line, { status: "rejected", reason: input.pharmacistNote });
+      await logAudit({ actorId: ctx.user.id as number, action: "prescription.reject_line", entityType: "prescription_line", entityId: input.lineId, beforeJson: line, afterJson: { status: "rejected", reason: input.pharmacistNote }, source: "admin" });
       return { success: true };
     }),
 
@@ -330,7 +317,7 @@ export const prescriptionGovRouter = router({
         ));
       }
 
-      await writeAuditLog(db, ctx.user.id as number, `rx_${input.decision}`, "prescription", String(input.id), rx, { status: input.decision, note: input.pharmacistNote });
+      await logAudit({ actorId: ctx.user.id as number, action: `prescription.rx_${input.decision}`, entityType: "prescription", entityId: input.id, beforeJson: rx, afterJson: { status: input.decision, note: input.pharmacistNote }, source: "admin" });
       await logAccess(db, input.id, ctx.user.id as number, "audit", `rx_${input.decision}`);
       return { success: true };
     }),
@@ -356,7 +343,7 @@ export const prescriptionGovRouter = router({
         pharmacistId: ctx.user.id as number,
       }).where(eq(prescriptions.id, input.id));
 
-      await writeAuditLog(db, ctx.user.id as number, "request_clarification", "prescription", String(input.id), rx, { status: "additional_verification", note: input.clarificationNote });
+      await logAudit({ actorId: ctx.user.id as number, action: "prescription.request_clarification", entityType: "prescription", entityId: input.id, beforeJson: rx, afterJson: { status: "additional_verification", note: input.clarificationNote }, source: "admin" });
       return { success: true };
     }),
 
@@ -432,7 +419,7 @@ export const prescriptionGovRouter = router({
           dispensedAt: new Date(),
         });
 
-        await writeAuditLog(db, ctx.user.id as number, "h1_entry_created", "h1_register", String((result as { insertId: number }).insertId), null, input);
+        await logAudit({ actorId: ctx.user.id as number, action: "h1.h1_entry_created", entityType: "h1_register", entityId: (result as { insertId: number }).insertId, beforeJson: null, afterJson: input, source: "admin" });
         return { success: true, id: (result as { insertId: number }).insertId };
       }),
 
