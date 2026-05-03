@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { logAudit as logAuditEvent } from "../services/audit";
+import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
 function requireStaff(role: string) {
@@ -25,12 +25,6 @@ async function getDb() {
   const db = await _getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
   return db;
-}
-async function logAudit(userId: number, action: string, entityType: string, entityId: number, before?: unknown, after?: unknown, reason?: string) {
-  try {
-    const db = await getDb();
-    await logAuditEvent({ actorId: userId, actorType: "user", action: action.startsWith("master.") ? action : `master.${entityType}.${action}`, entityType, entityId, beforeJson: before, afterJson: after, reason: reason ?? undefined, source: "admin" });
-  } catch { /* non-critical */ }
 }
 function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
@@ -64,7 +58,7 @@ export const doctorMasterRouter = router({
       const { doctors } = await import("../../drizzle/schema");
       const [r] = await db.insert(doctors).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "doctor", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.doctor.create", entityType: "doctor", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   update: protectedProcedure
@@ -77,7 +71,7 @@ export const doctorMasterRouter = router({
       const { id, ...data } = input;
       const [before] = await db.select().from(doctors).where(eq(doctors.id, id));
       await db.update(doctors).set(data).where(eq(doctors.id, id));
-      await logAudit(ctx.user!.id, "update", "doctor", id, before, data);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.doctor.update", entityType: "doctor", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
       return { success: true };
     }),
   deactivate: protectedProcedure
@@ -88,7 +82,7 @@ export const doctorMasterRouter = router({
       const { doctors } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(doctors).set({ isActive: false }).where(eq(doctors.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "doctor", input.id, null, null, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.doctor.deactivate", entityType: "doctor", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
     }),
   reactivate: protectedProcedure
@@ -99,7 +93,7 @@ export const doctorMasterRouter = router({
       const { doctors } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(doctors).set({ isActive: true }).where(eq(doctors.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "doctor", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.doctor.reactivate", entityType: "doctor", entityId: input.id, source: "admin" });
       return { success: true };
     }),
   exportCsv: protectedProcedure
@@ -137,7 +131,7 @@ export const patientCategoryRouter = router({
       const { patientCategories } = await import("../../drizzle/schema");
       const [r] = await db.insert(patientCategories).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "patient_category", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.patient_category.create", entityType: "patient_category", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   update: protectedProcedure
@@ -150,7 +144,7 @@ export const patientCategoryRouter = router({
       const { id, ...data } = input;
       const [before] = await db.select().from(patientCategories).where(eq(patientCategories.id, id));
       await db.update(patientCategories).set(data).where(eq(patientCategories.id, id));
-      await logAudit(ctx.user!.id, "update", "patient_category", id, before, data);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.patient_category.update", entityType: "patient_category", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
       return { success: true };
     }),
   deactivate: protectedProcedure
@@ -161,7 +155,7 @@ export const patientCategoryRouter = router({
       const { patientCategories } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(patientCategories).set({ isActive: false }).where(eq(patientCategories.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "patient_category", input.id, null, null, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.patient_category.deactivate", entityType: "patient_category", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
     }),
   reactivate: protectedProcedure
@@ -172,7 +166,7 @@ export const patientCategoryRouter = router({
       const { patientCategories } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(patientCategories).set({ isActive: true }).where(eq(patientCategories.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "patient_category", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.patient_category.reactivate", entityType: "patient_category", entityId: input.id, source: "admin" });
       return { success: true };
     }),
 });
@@ -213,7 +207,7 @@ export const staffMasterRouter = router({
       const { staffMaster } = await import("../../drizzle/schema");
       const [r] = await db.insert(staffMaster).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "staff", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.staff.create", entityType: "staff", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   update: protectedProcedure
@@ -236,7 +230,7 @@ export const staffMasterRouter = router({
       const { id, ...data } = input;
       const [before] = await db.select().from(staffMaster).where(eq(staffMaster.id, id));
       await db.update(staffMaster).set(data).where(eq(staffMaster.id, id));
-      await logAudit(ctx.user!.id, "update", "staff", id, before, data);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.staff.update", entityType: "staff", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
       return { success: true };
     }),
   deactivate: protectedProcedure
@@ -247,7 +241,7 @@ export const staffMasterRouter = router({
       const { staffMaster } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(staffMaster).set({ isActive: false }).where(eq(staffMaster.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "staff", input.id, null, null, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.staff.deactivate", entityType: "staff", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
     }),
   reactivate: protectedProcedure
@@ -258,7 +252,7 @@ export const staffMasterRouter = router({
       const { staffMaster } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(staffMaster).set({ isActive: true }).where(eq(staffMaster.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "staff", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.staff.reactivate", entityType: "staff", entityId: input.id, source: "admin" });
       return { success: true };
     }),
   exportCsv: protectedProcedure
@@ -309,7 +303,7 @@ export const storeMasterRouter = router({
       const { stores } = await import("../../drizzle/schema");
       const [r] = await db.insert(stores).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "store", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.store.create", entityType: "store", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   update: protectedProcedure
@@ -336,7 +330,7 @@ export const storeMasterRouter = router({
       const { id, ...data } = input;
       const [before] = await db.select().from(stores).where(eq(stores.id, id));
       await db.update(stores).set(data).where(eq(stores.id, id));
-      await logAudit(ctx.user!.id, "update", "store", id, before, data);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.store.update", entityType: "store", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
       return { success: true };
     }),
   deactivate: protectedProcedure
@@ -347,7 +341,7 @@ export const storeMasterRouter = router({
       const { stores } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(stores).set({ isActive: false }).where(eq(stores.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "store", input.id, null, null, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.store.deactivate", entityType: "store", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
     }),
   reactivate: protectedProcedure
@@ -358,7 +352,7 @@ export const storeMasterRouter = router({
       const { stores } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(stores).set({ isActive: true }).where(eq(stores.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "store", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.store.reactivate", entityType: "store", entityId: input.id, source: "admin" });
       return { success: true };
     }),
   exportCsv: protectedProcedure
@@ -405,7 +399,7 @@ export const buildingMasterRouter = router({
       const { buildings } = await import("../../drizzle/schema");
       const [r] = await db.insert(buildings).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "building", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.building.create", entityType: "building", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   update: protectedProcedure
@@ -430,7 +424,7 @@ export const buildingMasterRouter = router({
       const { id, ...data } = input;
       const [before] = await db.select().from(buildings).where(eq(buildings.id, id));
       await db.update(buildings).set(data).where(eq(buildings.id, id));
-      await logAudit(ctx.user!.id, "update", "building", id, before, data);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.building.update", entityType: "building", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
       return { success: true };
     }),
   exportCsv: protectedProcedure
@@ -476,12 +470,12 @@ export const printerMasterRouter = router({
       if (input.id) {
         const [before] = await db.select().from(printers).where(eq(printers.id, input.id));
         await db.update(printers).set(input).where(eq(printers.id, input.id));
-        await logAudit(ctx.user!.id, "update", "printer", input.id, before, input);
+        await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.printer.update", entityType: "printer", entityId: input.id, beforeJson: before, afterJson: input, source: "admin" });
         return { id: input.id };
       }
       const [r] = await db.insert(printers).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "printer", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.printer.create", entityType: "printer", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   deactivate: protectedProcedure
@@ -492,7 +486,7 @@ export const printerMasterRouter = router({
       const { printers } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(printers).set({ isActive: false }).where(eq(printers.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "printer", input.id, null, null, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.printer.deactivate", entityType: "printer", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
     }),
   reactivate: protectedProcedure
@@ -503,7 +497,7 @@ export const printerMasterRouter = router({
       const { printers } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(printers).set({ isActive: true }).where(eq(printers.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "printer", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.printer.reactivate", entityType: "printer", entityId: input.id, source: "admin" });
       return { success: true };
     }),
 });
@@ -597,7 +591,7 @@ export const productMasterRouter = router({
       const { products } = await import("../../drizzle/schema");
       const [r] = await db.insert(products).values(input);
       const id = (r as any).insertId;
-      await logAudit(ctx.user!.id, "create", "product", id, null, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.product.create", entityType: "product", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
       return { id };
     }),
   update: protectedProcedure
@@ -628,7 +622,7 @@ export const productMasterRouter = router({
       const { id, ...data } = input;
       const [before] = await db.select().from(products).where(eq(products.id, id));
       await db.update(products).set(data).where(eq(products.id, id));
-      await logAudit(ctx.user!.id, "update", "product", id, before, data);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.product.update", entityType: "product", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
       return { success: true };
     }),
   deactivate: protectedProcedure
@@ -638,7 +632,7 @@ export const productMasterRouter = router({
       const db = await getDb();
       // products table doesn't have isActive yet — we use a soft-delete via canonicalName marker
       // Instead, we log the deactivation as an audit event for now
-      await logAudit(ctx.user!.id, "deactivate", "product", input.id, null, null, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.product.deactivate", entityType: "product", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
     }),
   addAlias: protectedProcedure
