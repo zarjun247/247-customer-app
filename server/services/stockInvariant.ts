@@ -50,3 +50,54 @@ export const decreaseStockForSaleConfirmation = (i: Omit<Parameters<typeof apply
 export const reverseStockForSaleReturn = (i: Omit<Parameters<typeof applyStockMovement>[0], "movementType">) => applyStockMovement({ ...i, movementType: "sale_return" });
 export const decreaseStockForPurchaseReturn = (i: Omit<Parameters<typeof applyStockMovement>[0], "movementType">) => applyStockMovement({ ...i, movementType: "purchase_return" });
 export const adjustStock = (i: Omit<Parameters<typeof applyStockMovement>[0], "movementType"> & { adjustmentType: "increase"|"decrease" }) => applyStockMovement({ ...i, qtyDelta: i.adjustmentType === "increase" ? Math.abs(i.qtyDelta) : -Math.abs(i.qtyDelta), movementType: "stock_adjustment" });
+export const quarantineBatch = (i: Omit<Parameters<typeof applyStockMovement>[0], "movementType">) => applyStockMovement({ ...i, movementType: "quarantine", qtyDelta: -Math.abs(i.qtyDelta) });
+export const disposeBatch = (i: Omit<Parameters<typeof applyStockMovement>[0], "movementType">) => applyStockMovement({ ...i, movementType: "disposal", qtyDelta: -Math.abs(i.qtyDelta) });
+
+export async function transferStock(input: {
+  sourceBatchId: number;
+  sourceStoreId: number;
+  destinationBatchId: number;
+  destinationStoreId: number;
+  qty: number;
+  referenceId: number;
+  reason?: string;
+  actor: StockActor;
+  productId?: number;
+}) {
+  const qty = Math.abs(input.qty);
+  const sourceMovement = await applyStockMovement({
+    batchId: input.sourceBatchId,
+    storeId: input.sourceStoreId,
+    qtyDelta: -qty,
+    movementType: "stock_adjustment",
+    referenceType: "stock_transfer",
+    referenceId: input.referenceId,
+    reason: input.reason ?? "Transfer out",
+    actor: input.actor,
+    productId: input.productId,
+  });
+  const destinationMovement = await applyStockMovement({
+    batchId: input.destinationBatchId,
+    storeId: input.destinationStoreId,
+    qtyDelta: qty,
+    movementType: "stock_adjustment",
+    referenceType: "stock_transfer",
+    referenceId: input.referenceId,
+    reason: input.reason ?? "Transfer in",
+    actor: input.actor,
+    productId: input.productId,
+  });
+  await logAudit({
+    action: "inventory.transfer.completed",
+    entityType: "stock_transfer",
+    entityId: input.referenceId,
+    actorId: input.actor.actorId ?? undefined,
+    actorRole: input.actor.actorRole ?? undefined,
+    source: input.actor.source ?? "admin",
+    beforeJson: { sourceQtyBefore: sourceMovement.qtyBefore, destinationQtyBefore: destinationMovement.qtyBefore },
+    afterJson: { sourceQtyAfter: sourceMovement.qtyAfter, destinationQtyAfter: destinationMovement.qtyAfter, qty },
+    reason: input.reason,
+    metadata: { sourceBatchId: input.sourceBatchId, destinationBatchId: input.destinationBatchId, sourceStoreId: input.sourceStoreId, destinationStoreId: input.destinationStoreId, productId: input.productId },
+  });
+  return { sourceMovement, destinationMovement };
+}

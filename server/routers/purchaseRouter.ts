@@ -314,19 +314,20 @@ export const purchaseRouter = router({
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
-      const { purchaseReturns, purchaseReturnLines, batchLedger, batches, storeSkus, stockMovements, purchaseInvoices } = await import("../../drizzle/schema");
+      const { purchaseReturns, purchaseReturnLines, batchLedger, batches, storeSkus, purchaseInvoices } = await import("../../drizzle/schema");
       const [ret] = await db.select().from(purchaseReturns).where(eq(purchaseReturns.id, input.id));
       if (!ret || ret.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Return not in draft state" });
       const lines = await db.select().from(purchaseReturnLines).where(eq(purchaseReturnLines.purchaseReturnId, input.id));
       if (!lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No return lines" });
       for (const line of lines) {
-        const [bl] = await db.select().from(batchLedger).where(eq(batchLedger.id, line.batchId)).limit(1);
-        if (bl) await db.update(batchLedger).set({ qtyOnHand: Math.max(0, (bl.qtyOnHand ?? 0) - line.qty) }).where(eq(batchLedger.id, bl.id));
         const [b] = await db.select().from(batches).where(eq(batches.id, line.batchId)).limit(1);
         if (b) {
-          const newQty = Math.max(0, (b.quantity ?? 0) - line.qty);
+          if ((b.quantity ?? 0) < line.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient stock in batch ${b.batchNumber}` });
+          const movement = await decreaseStockForPurchaseReturn({ batchId: b.id, storeId: ret.storeId, qtyDelta: line.qty, referenceType: "purchase_return", referenceId: ret.id, reason: line.reason ?? `Purchase return ${ret.id}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: b.productId });
+          const [bl] = await db.select().from(batchLedger).where(eq(batchLedger.id, line.batchId)).limit(1);
+          if (bl) await db.update(batchLedger).set({ qtyOnHand: movement.qtyAfter }).where(eq(batchLedger.id, bl.id));
+          const newQty = movement.qtyAfter;
           await db.update(batches).set({ quantity: newQty }).where(eq(batches.id, b.id));
-          await db.insert(stockMovements).values({ batchId: line.batchId, storeId: ret.storeId, movementType: "purchase_return", qty: line.qty, qtyBefore: b.quantity ?? 0, qtyAfter: newQty, referenceType: "purchase_return", referenceId: ret.id, performedBy: ctx.user!.id });
           const [sku] = await db.select().from(storeSkus).where(eq(storeSkus.productId, b.productId)).limit(1);
           if (sku) await db.update(storeSkus).set({ stockQty: Math.max(0, (sku.stockQty ?? 0) - line.qty) }).where(eq(storeSkus.id, sku.id));
         }
