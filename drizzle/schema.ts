@@ -2117,6 +2117,26 @@ export const whatsappWebhookLog = mysqlTable("whatsapp_webhook_log", {
   errorMessage: varchar("errorMessage", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+export const idempotencyKeys = mysqlTable("idempotency_keys", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  key: varchar("key", { length: 191 }).notNull(),
+  scope: varchar("scope", { length: 100 }).notNull(),
+  operationType: varchar("operationType", { length: 120 }).notNull(),
+  actorId: int("actorId"),
+  storeId: int("storeId"),
+  entityType: varchar("entityType", { length: 100 }),
+  entityId: varchar("entityId", { length: 120 }),
+  status: mysqlEnum("status", ["started", "completed", "failed"]).notNull().default("started"),
+  requestHash: varchar("requestHash", { length: 255 }),
+  resultJson: json("resultJson"),
+  errorJson: json("errorJson"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uniqKeyScope: uniqueIndex("idempotency_keys_key_scope_uidx").on(t.key, t.scope),
+}));
 export type WhatsappWebhookLog = typeof whatsappWebhookLog.$inferSelect;
 
 // ═══════════════════════════════════════════════════════════════════════════════

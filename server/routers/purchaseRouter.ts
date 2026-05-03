@@ -11,6 +11,7 @@ import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
+import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -255,8 +256,22 @@ export const purchaseRouter = router({
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices, purchaseLines, batchLedger, batches, storeSkus } = await import("../../drizzle/schema");
+      const idemKey = buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]);
+      return withIdempotency({
+        key: idemKey,
+        scope: "purchase.commitInvoice",
+        operationType: "purchase_commit_invoice",
+        actorId: ctx.user!.id,
+        storeId: (ctx.user as any)?.staffStoreId ?? null,
+        entityType: "purchase_invoice",
+        entityId: String(input.id),
+        requestHash: createMutationFingerprint(input),
+        ctx,
+      }, async () => {
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id));
-      if (!inv || inv.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
+      if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
+      if (inv.status === "committed") return { success: true, idempotent: true, status: inv.status, gstSummary: inv.gstSummary };
+      if (inv.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
       const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseInvoiceId, input.id));
       if (!lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines to commit" });
       const gstSummary: Record<string, { taxable: number; gst: number; total: number }> = {};
@@ -298,6 +313,7 @@ export const purchaseRouter = router({
       await recordSupplierPayable(db, { supplierId: inv.supplierId, purchaseInvoiceId: inv.id, storeId: inv.storeId, amount: Number(inv.netAmount ?? 0), actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, ctx);
       await logAudit({ action: "purchase.committed", entityType: "purchase_invoice", entityId: input.id, beforeJson: { status: "draft" }, afterJson: { status: "committed", gstSummary } }, ctx);
       return { success: true, gstSummary };
+      });
     }),
 
   stockMovements: protectedProcedure

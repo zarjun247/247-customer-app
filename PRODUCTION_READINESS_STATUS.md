@@ -222,3 +222,14 @@ Next PR: feat/idempotency-reservation-truth
 production chain operations require store-scoped staff/admin access.
 
 - 2026-05-03: corrected unsafe default-store fallback in delivery router; staff store assignment now fail-closed for scoped delivery/report flows.
+
+## Prompt 5 Update (Idempotency/Reservation)
+- Phase 4 status: partial (durable idempotency table + service + canonical availability helper landed).
+- Remaining blockers: full transactional locking/replay posture across all mutation endpoints.
+- Next PR: feat/stock-truth-10.
+
+## Prompt 5 correction note (2026-05-03)
+- Phase 4 remains partial.
+- Wired duplicate/idempotency guards into purchase commit, sale confirm, payment verify, delivery delivered, stock audit complete, and OCR draft commit.
+- Reservation truth now enforced in sale confirm via canonical availability helper.
+- Next PR: feat/stock-truth-10.

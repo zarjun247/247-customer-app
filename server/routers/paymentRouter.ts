@@ -27,6 +27,7 @@ import {
   getExpiryZones,
 } from "../payment";
 import { getOrderById, updateOrderStatus, getOrderItems } from "../db";
+import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
 
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
 
@@ -105,6 +106,8 @@ export const paymentRouter = router({
       method: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const idemKey = buildIdempotencyKey(["payment","verify",input.gatewayOrderId,input.gatewayPaymentId]);
+      return withIdempotency({ key: idemKey, scope: "payment.verify", operationType: "payment_verify", actorId: ctx.user.id, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint(input), ctx }, async () => {
       const isValid = await paymentConnector.verifyPayment({
         gatewayOrderId: input.gatewayOrderId,
         gatewayPaymentId: input.gatewayPaymentId,
@@ -120,6 +123,7 @@ export const paymentRouter = router({
       if (!payment) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
       }
+      if (payment.status === "paid") return { success: true, orderId: payment.orderId, idempotent: true };
 
       // Confirm payment
       await confirmPaymentRecord({
@@ -146,6 +150,7 @@ export const paymentRouter = router({
       }
 
       return { success: true, orderId: payment.orderId };
+      });
     }),
 
   /**
