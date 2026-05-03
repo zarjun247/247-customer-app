@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'child_process';
 
-const routersWithNoLocalAuditHelpers = ['server/routers/inventoryRouter.ts', 'server/routers/prescriptionGovRouter.ts', 'server/routers/ocrIngestionRouter.ts'];
-const pendingRouters = [
-  'server/routers/masterDataRouter.ts',
-  'server/routers/masterDataPart3Router.ts',
-];
+const routersWithNoLocalAuditHelpers = ['server/routers/inventoryRouter.ts', 'server/routers/prescriptionGovRouter.ts', 'server/routers/ocrIngestionRouter.ts', 'server/routers/masterDataRouter.ts', 'server/routers/masterDataPart3Router.ts'];
+const pendingRouters: string[] = [];
 
 describe('audit unification static guard', () => {
   it('blocks direct db.insert(auditLogs) outside central audit service/db adapters', () => {
@@ -35,7 +32,7 @@ describe('audit unification static guard', () => {
     }
 
     expect(out).toBe('');
-    expect(pendingRouters.length).toBeGreaterThan(0);
+    expect(pendingRouters.length).toBe(0);
   });
 
   it('blocks entityId: 0 in production router audit contexts', () => {
