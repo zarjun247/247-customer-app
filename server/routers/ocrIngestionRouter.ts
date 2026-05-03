@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { logAudit as logAuditEvent } from "../services/audit";
+import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 import { eq, and, desc, like, or, inArray } from "drizzle-orm";
 
@@ -18,15 +18,6 @@ async function getDb() {
 function requirePurchaseRole(role: string) {
   const allowed = ["admin", "super_admin", "store_manager", "purchase_manager", "inventory_operator", "pharmacist"];
   if (!allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Purchase role required" });
-}
-
-async function writeAuditLog(db: any, params: {
-  actorId: number; actorRole: string; entityType: string;
-  entityId: number; action: string; before?: any; after?: any; reason?: string;
-}) {
-  try {
-    await logAuditEvent({ actorId: params.actorId, actorRole: params.actorRole, actorType: "user", action: params.action.startsWith("ocr.") ? params.action : `ocr.${params.action}`, entityType: params.entityType, entityId: params.entityId ?? undefined, beforeJson: params.before, afterJson: params.after, reason: params.reason ?? undefined, source: "admin" });
-  } catch { /* non-fatal */ }
 }
 
 const AUTO_MATCH_THRESHOLD = 95;
@@ -123,7 +114,7 @@ export const ocrIngestionRouter = router({
         ingestionJobId: job.id, fileUrl: input.fileUrl, fileKey: input.fileKey,
         filename: input.filename, mimeType: input.mimeType, fileSizeBytes: input.fileSizeBytes, uploadedBy: ctx.user.id,
       });
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "ingestion_job", entityId: job.id, action: "upload", after: { filename: input.filename, sourceType: input.sourceType } });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "ingestion_job", entityId: job.id, action: "ocr.upload", afterJson: { filename: input.filename, sourceType: input.sourceType }, source: "admin" });
       return { jobId: job.id };
     }),
 
@@ -182,7 +173,7 @@ export const ocrIngestionRouter = router({
           else { autoMatched++; }
         }
         await db.update(ingestionJobs).set({ status: "ocr_complete", processedAt: new Date(), totalLines: parsed.lines.length, matchedLines: autoMatched, reviewLines: reviewRequired, unknownLines: unknownSku }).where(eq(ingestionJobs.id, input.jobId));
-        await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "ingestion_job", entityId: input.jobId, action: "process", after: { totalLines: parsed.lines.length, autoMatched, reviewRequired, unknownSku } });
+        await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "ingestion_job", entityId: input.jobId, action: "ocr.process", afterJson: { totalLines: parsed.lines.length, autoMatched, reviewRequired, unknownSku }, source: "admin" });
         return { success: true, totalLines: parsed.lines.length, autoMatched, reviewRequired, unknownSku };
       } catch (err: any) {
         await db.update(ingestionJobs).set({ status: "failed", errorMessage: err.message }).where(eq(ingestionJobs.id, input.jobId));
@@ -262,7 +253,7 @@ export const ocrIngestionRouter = router({
       if (input.hsnCode !== undefined) u.hsnCode = input.hsnCode;
       await db.update(ocrExtractedLines).set(u).where(eq(ocrExtractedLines.id, input.lineId));
       await db.update(ocrReviewTasks).set({ status: "resolved", resolvedBy: ctx.user.id, resolvedAt: new Date() }).where(and(eq(ocrReviewTasks.ocrLineId, input.lineId), eq(ocrReviewTasks.status, "pending")));
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "ocr_extracted_line", entityId: input.lineId, action: `review_${input.action}`, before: { matchStatus: line.matchStatus }, after: u, reason: input.rejectionReason });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "ocr_extracted_line", entityId: input.lineId, action: `ocr.review_${input.action}`, beforeJson: { matchStatus: line.matchStatus }, afterJson: u, reason: input.rejectionReason, source: "admin" });
       return { success: true };
     }),
 
@@ -313,7 +304,7 @@ export const ocrIngestionRouter = router({
       const db = await getDb();
       const { skuCreationDrafts } = await import("../../drizzle/schema");
       const [draft] = await db.insert(skuCreationDrafts).values({ ingestionJobId: input.ingestionJobId, ocrLineId: input.ocrLineId, draftName: input.draftName, brand: input.brand, genericName: input.genericName, manufacturer: input.manufacturer, scheduleFlag: input.scheduleFlag, hsnCode: input.hsnCode, gstRate: input.gstRate !== undefined ? String(input.gstRate) : undefined, packSize: input.packSize, status: "pending_review" }).$returningId();
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "sku_creation_draft", entityId: draft.id, action: "create", after: { draftName: input.draftName } });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "sku_creation_draft", entityId: draft.id, action: "ocr.create", afterJson: { draftName: input.draftName }, source: "admin" });
       return { draftId: draft.id };
     }),
 
@@ -337,7 +328,7 @@ export const ocrIngestionRouter = router({
       const db = await getDb();
       const { skuCreationDrafts } = await import("../../drizzle/schema");
       await db.update(skuCreationDrafts).set({ status: input.action === "approve" ? "approved" : "rejected", reviewedBy: ctx.user.id, reviewedAt: new Date(), activatedProductId: input.activatedProductId }).where(eq(skuCreationDrafts.id, input.draftId));
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "sku_creation_draft", entityId: input.draftId, action: `sku_${input.action}` });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "sku_creation_draft", entityId: input.draftId, action: `ocr.sku_${input.action}`, source: "admin" });
       return { success: true };
     }),
 
@@ -357,7 +348,7 @@ export const ocrIngestionRouter = router({
         await db.insert(purchaseDraftLines).values({ purchaseDraftId: draft.id, ocrLineId: line.id, productId: line.matchedProductId ?? null, batchNo: line.batchNo ?? null, expiryDate: line.expiryDate ?? null, mrp: line.mrp ?? null, purchaseRate: line.purchaseRate ?? null, qty: line.qty ?? null, freeQty: line.freeQty ?? 0, discount: line.discount ?? null, gstRate: line.gstRate ?? null, hsnCode: line.hsnCode ?? null, status: "pending" });
       }
       await db.update(ingestionJobs).set({ status: "under_review" }).where(eq(ingestionJobs.id, input.jobId));
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "purchase_draft", entityId: draft.id, action: "generate", after: { jobId: input.jobId, lineCount: matchedLines.length } });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "purchase_draft", entityId: draft.id, action: "ocr.generate", afterJson: { jobId: input.jobId, lineCount: matchedLines.length }, source: "admin" });
       return { draftId: draft.id, lineCount: matchedLines.length };
     }),
 
@@ -424,7 +415,7 @@ export const ocrIngestionRouter = router({
       if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
       if (draft.status !== "draft" && draft.status !== "under_review") throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot approve draft in status: ${draft.status}` });
       await db.update(purchaseDrafts).set({ status: "approved", reviewedBy: ctx.user.id, reviewedAt: new Date(), notes: input.notes }).where(eq(purchaseDrafts.id, input.draftId));
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "purchase_draft", entityId: input.draftId, action: "approve", before: { status: draft.status }, after: { status: "approved" } });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "purchase_draft", entityId: input.draftId, action: "ocr.approve", beforeJson: { status: draft.status }, afterJson: { status: "approved" }, source: "admin" });
       return { success: true };
     }),
 
@@ -435,7 +426,7 @@ export const ocrIngestionRouter = router({
       const db = await getDb();
       const { purchaseDrafts } = await import("../../drizzle/schema");
       await db.update(purchaseDrafts).set({ status: "rejected", reviewedBy: ctx.user.id, reviewedAt: new Date(), rejectionReason: input.reason }).where(eq(purchaseDrafts.id, input.draftId));
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "purchase_draft", entityId: input.draftId, action: "reject", reason: input.reason });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "purchase_draft", entityId: input.draftId, action: "ocr.reject", reason: input.reason, source: "admin" });
       return { success: true };
     }),
 
@@ -457,7 +448,7 @@ export const ocrIngestionRouter = router({
       }
       await db.update(purchaseDrafts).set({ status: "committed", committedInvoiceId: invoice.id }).where(eq(purchaseDrafts.id, input.draftId));
       await db.update(ingestionJobs).set({ status: "committed", committedAt: new Date() }).where(eq(ingestionJobs.id, draft.ingestionJobId));
-      await writeAuditLog(db, { actorId: ctx.user.id, actorRole: ctx.user.role, entityType: "purchase_draft", entityId: input.draftId, action: "commit", after: { committedInvoiceId: invoice.id } });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "purchase_draft", entityId: input.draftId, action: "ocr.commit", afterJson: { committedInvoiceId: invoice.id }, source: "admin" });
       return { success: true, invoiceId: invoice.id };
     }),
 
