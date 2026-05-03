@@ -17,6 +17,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
+import { adjustStock } from "../services/stockInvariant";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -520,12 +521,10 @@ const adjustmentRouter = router({
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, adj.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND", message: "Batch not found" });
       const qtyChange = adj.adjustmentType === "increase" ? adj.qty : -adj.qty;
-      const qtyAfter = batch.qtyOnHand + qtyChange;
-      await db.update(batchLedger).set({ qtyOnHand: qtyAfter }).where(eq(batchLedger.id, adj.batchId));
+      const movement = await adjustStock({ batchId: adj.batchId, storeId: adj.storeId, qtyDelta: qtyChange, adjustmentType: adj.adjustmentType as "increase"|"decrease", referenceType: "stock_adjustment", referenceId: input.id, reason: adj.reason, actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" }, productId: batch.productId });
       await db.update(stockAdjustments).set({ status: "approved", approvedBy: ctx.user.id, approvedAt: new Date() }).where(eq(stockAdjustments.id, input.id));
-      await writeMovement({ batchId: adj.batchId, productId: batch.productId, storeId: adj.storeId, movementType: "stock_adjustment", qtyChange, qtyBefore: batch.qtyOnHand, qtyAfter, referenceType: "stock_adjustment", referenceId: input.id, note: adj.reason, performedBy: ctx.user.id });
       try {
-        await logAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: input.id, action: "inventory.approve", reason: `Qty changed from ${batch.qtyOnHand} to ${qtyAfter}`, source: "admin" });
+        await logAudit({ actorId: ctx.user.id, entityType: "stock_adjustment", entityId: input.id, action: "inventory.approve", reason: `Qty changed from ${movement.qtyBefore} to ${movement.qtyAfter}`, source: "admin" });
       } catch { /* non-critical */ }
       return { ok: true };
     }),

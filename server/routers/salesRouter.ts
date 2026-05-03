@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { logAudit } from "../services/audit";
+import { decreaseStockForSaleConfirmation, reverseStockForSaleReturn } from "../services/stockInvariant";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -334,7 +335,7 @@ export const salesRouter = router({
       requireSales(ctx.user?.role);
       const db = await getDbSafe();
       const {
-        sales, saleLines, batchLedger, stockMovements, counterPayments, auditLogs,
+        sales, saleLines, batchLedger, counterPayments, auditLogs,
       } = await import("../../drizzle/schema");
       const now = Date.now();
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
@@ -361,21 +362,7 @@ export const salesRouter = router({
       // Decrement batch qty and create stock movements
       for (const line of lines) {
         if (line.batchLedgerId) {
-          await db.update(batchLedger)
-            .set({ qtyOnHand: sql`${batchLedger.qtyOnHand} - ${line.qty}` })
-            .where(eq(batchLedger.id, parseInt(line.batchLedgerId ?? "0") || 0));
-          await db.insert(stockMovements).values({
-            movementType: "sale_fulfil",
-            batchId: parseInt(line.batchLedgerId ?? "0") || 0,
-            storeId: parseInt(sale.storeId) || 0,
-            qty: -line.qty,
-            qtyBefore: 0,
-            qtyAfter: 0,
-            referenceType: "sale",
-            referenceId: parseInt(sale.id) || 0,
-            reason: `Bill ${sale.billNo}`,
-            performedBy: ctx.user!.id,
-          });
+          await decreaseStockForSaleConfirmation({ batchId: parseInt(line.batchLedgerId ?? "0") || 0, storeId: parseInt(sale.storeId) || 0, qtyDelta: -line.qty, referenceType: "sale", referenceId: parseInt(sale.id) || 0, reason: `Bill ${sale.billNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: Number(line.productId) });
         }
       }
 
@@ -567,7 +554,7 @@ export const salesRouter = router({
       requireManager(ctx.user?.role);
       const db = await getDbSafe();
       const {
-        saleReturns, saleReturnLines, batchLedger, stockMovements, sales,
+        saleReturns, saleReturnLines, batchLedger, sales,
       } = await import("../../drizzle/schema");
       const now = Date.now();
       const [ret] = await db.select().from(saleReturns).where(eq(saleReturns.id, input.returnId)).limit(1);
@@ -581,21 +568,7 @@ export const salesRouter = router({
       for (const l of lines) {
         if (l.batchLedgerId) {
           if (l.stockDisposition === "resaleable") {
-            await db.update(batchLedger)
-              .set({ qtyOnHand: sql`${batchLedger.qtyOnHand} + ${l.returnQty}` })
-              .where(eq(batchLedger.id, parseInt(l.batchLedgerId ?? "0") || 0));
-            await db.insert(stockMovements).values({
-              movementType: "sale_return",
-              batchId: parseInt(l.batchLedgerId ?? "0") || 0,
-              storeId: parseInt(sale?.storeId ?? "0") || 0,
-              qty: l.returnQty,
-              qtyBefore: 0,
-              qtyAfter: 0,
-              referenceType: "sale_return",
-              referenceId: parseInt(input.returnId) || 0,
-              reason: `Return ${ret.returnNo}`,
-              performedBy: ctx.user!.id,
-            });
+            await reverseStockForSaleReturn({ batchId: parseInt(l.batchLedgerId ?? "0") || 0, storeId: parseInt(sale?.storeId ?? "0") || 0, qtyDelta: l.returnQty, referenceType: "sale_return", referenceId: parseInt(input.returnId) || 0, reason: `Return ${ret.returnNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: Number(l.productId) });
           } else if (l.stockDisposition === "quarantine") {
             await db.update(batchLedger)
               .set({ qtyQuarantined: sql`${batchLedger.qtyQuarantined} + ${l.returnQty}` })
