@@ -909,6 +909,31 @@ export const discountCategories = mysqlTable("discount_categories", {
 });
 
 // ─── Message Templates ────────────────────────────────────────────────────────
+
+export const discountCodes = mysqlTable("discount_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 80 }).notNull(),
+  discountType: mysqlEnum("discountType", ["percentage", "fixed"]).notNull(),
+  value: decimal("value", { precision: 10, scale: 2 }).notNull(),
+  maxDiscountAmount: decimal("maxDiscountAmount", { precision: 10, scale: 2 }),
+  minOrderAmount: decimal("minOrderAmount", { precision: 10, scale: 2 }).default("0.00"),
+  appliesTo: mysqlEnum("appliesTo", ["all", "store", "building", "customer", "category", "product"]).default("all").notNull(),
+  appliesToId: varchar("appliesToId", { length: 80 }),
+  startsAt: timestamp("startsAt").notNull(),
+  endsAt: timestamp("endsAt").notNull(),
+  usageLimit: int("usageLimit"),
+  perCustomerLimit: int("perCustomerLimit"),
+  usedCount: int("usedCount").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  requiresApprovalBelowMargin: boolean("requiresApprovalBelowMargin").default(true).notNull(),
+  createdBy: int("createdBy"),
+  approvedBy: int("approvedBy"),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// ─── Message Templates ────────────────────────────────────────────────────────
 export const messageTemplates = mysqlTable("message_templates", {
   id: int("id").autoincrement().primaryKey(),
   templateName: varchar("templateName", { length: 200 }).notNull(),

@@ -9,6 +9,8 @@ import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { logAudit } from "../services/audit";
 import { decreaseStockForSaleConfirmation, reverseStockForSaleReturn } from "../services/stockInvariant";
+import { assertCanConfirmSale, createOrVerifyH1RegisterEntry } from "../services/complianceGate";
+import { applyDiscountCode, assertDiscountWithinCaps, assertNoLossWithoutApproval, recordDiscountCodeUsage } from "../services/marginGuard";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -160,6 +162,7 @@ export const salesRouter = router({
       pharmacistCode: z.string().optional(),
       pharmacistName: z.string().optional(),
       pharmacistRegNo: z.string().optional(),
+      discountCode: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
@@ -330,6 +333,7 @@ export const salesRouter = router({
       pharmacistCode: z.string().optional(),
       pharmacistName: z.string().optional(),
       pharmacistRegNo: z.string().optional(),
+      discountCode: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
@@ -345,9 +349,14 @@ export const salesRouter = router({
       const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, input.saleId));
       if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines on sale" });
 
-      // Check Rx gate: all Rx lines must be cleared
-      const uncleared = lines.filter(l => l.requiresPrescription && !l.rxCleared);
-      if (uncleared.length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `${uncleared.length} line(s) require pharmacist Rx clearance before confirming` });
+      await assertCanConfirmSale(input.saleId, ctx);
+      let discountUsageCodeId: number | null = null;
+      if (input.discountCode) {
+        const applied = await applyDiscountCode(input.saleId, input.discountCode, ctx);
+        await assertDiscountWithinCaps(applied.discountAmount, Number(sale.subtotal ?? 0));
+        discountUsageCodeId = applied.codeId;
+      }
+      await assertNoLossWithoutApproval(input.saleId, ctx.user?.role, ctx);
 
       // Build GST summary
       const gstMap: Record<string, { taxable: number; gst: number }> = {};
@@ -391,6 +400,9 @@ export const salesRouter = router({
         createdAt: now,
       });
 
+      if (discountUsageCodeId !== null) await recordDiscountCodeUsage(discountUsageCodeId, input.saleId, ctx);
+      await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
+      await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: Number(input.saleId), afterJson: { ok: true } }, ctx);
       await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
       return { ok: true, billNo: sale.billNo, total: sale.total };
     }),
