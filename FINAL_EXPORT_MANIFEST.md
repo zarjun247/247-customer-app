@@ -36,3 +36,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - GitHub CI is now required before production merges.
 - Local Codex validation is not sufficient as final merge authority.
 - Production chain readiness requires green GitHub CI checks.
+
+- Updated: idempotency/reservation truth tracking added; app/POS availability must use canonical availability formula.

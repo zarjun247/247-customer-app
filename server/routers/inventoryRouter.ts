@@ -708,6 +708,7 @@ const auditSessionRouter = router({
       const { stockAudits, stockAuditLines, batchLedger } = await schema();
       const [audit] = await db.select().from(stockAudits).where(eq(stockAudits.id, input.auditId));
       if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      if (audit.status === "completed") return { ok: true, idempotent: true, varianceCount: Number(audit.totalVariances ?? 0) };
       const lines = await db.select().from(stockAuditLines).where(and(eq(stockAuditLines.auditId, input.auditId), eq(stockAuditLines.status, "counted")));
       const variances = lines.filter(l => l.variance !== 0 && l.variance !== null);
       if (input.applyCorrections) {

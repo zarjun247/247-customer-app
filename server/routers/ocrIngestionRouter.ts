@@ -438,6 +438,7 @@ export const ocrIngestionRouter = router({
       const { purchaseDrafts, purchaseDraftLines, purchaseInvoices, purchaseLines, ingestionJobs } = await import("../../drizzle/schema");
       const [draft] = await db.select().from(purchaseDrafts).where(eq(purchaseDrafts.id, input.draftId)).limit(1);
       if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
+      if (draft.status === "committed") return { success: true, invoiceId: draft.committedInvoiceId, idempotent: true };
       if (draft.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "Draft must be approved before committing" });
       const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, draft.ingestionJobId)).limit(1);
       const lines = await db.select().from(purchaseDraftLines).where(eq(purchaseDraftLines.purchaseDraftId, input.draftId));

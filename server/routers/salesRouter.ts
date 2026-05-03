@@ -13,6 +13,8 @@ import { decreaseStockForSaleConfirmation, reverseStockForSaleReturn } from "../
 import { assertCanConfirmSale, createOrVerifyH1RegisterEntry } from "../services/complianceGate";
 import { applyDiscountCode, assertDiscountWithinCaps, assertNoLossWithoutApproval, recordDiscountCodeUsage } from "../services/marginGuard";
 import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barcodeService";
+import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
+import { getCanonicalAvailability } from "../services/reservationService";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -370,12 +372,19 @@ export const salesRouter = router({
         sales, saleLines, batchLedger, counterPayments, auditLogs,
       } = await import("../../drizzle/schema");
       const now = Date.now();
+      const idemKey = buildIdempotencyKey(["sale","confirm",input.saleId,getRequestIdFromContext(ctx) ?? "no-request-id"]);
+      return withIdempotency({ key: idemKey, scope: "sales.confirmSale", operationType: "sale_confirm", actorId: ctx.user!.id, entityType: "sale", entityId: String(input.saleId), requestHash: createMutationFingerprint(input), ctx }, async () => {
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
+      if (sale.status === "confirmed") return { ok: true, idempotent: true, billNo: sale.billNo, total: sale.total };
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Sale already confirmed" });
 
       const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, input.saleId));
       if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines on sale" });
+      for (const line of lines) {
+        const availability = await getCanonicalAvailability(Number(sale.storeId), Number(line.productId), null);
+        if (availability.availableQty < line.qty) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Insufficient canonical availability for product ${line.productId}` });
+      }
 
       await assertCanConfirmSale(input.saleId, ctx);
       let discountUsageCodeId: number | null = null;
@@ -433,6 +442,7 @@ export const salesRouter = router({
       await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: Number(input.saleId), afterJson: { ok: true } }, ctx);
       await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
       return { ok: true, billNo: sale.billNo, total: sale.total };
+      });
     }),
 
   // ─── List Sales ──────────────────────────────────────────────────────────────
