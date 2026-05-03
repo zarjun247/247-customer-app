@@ -169,6 +169,21 @@ function formatCart(lines: any[]): string {
   return `*Your Cart:*\n\n${items.join("\n")}\n\n*Total: ₹${total}*\n\nReply *confirm* to place order, *clear* to empty cart, or *hi* for menu.`;
 }
 
+
+function assertWhatsappWebhookGuard(ctx: { req?: { header?: (name: string) => string | undefined } }) {
+  if (process.env.NODE_ENV !== "production") return;
+  if (!((process.env.WHATSAPP_PROVIDER_ENABLED ?? "").toLowerCase() in {"1":1,"true":1,"yes":1,"on":1})) return;
+  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? "";
+  const secret = process.env.WHATSAPP_WEBHOOK_SECRET ?? "";
+  const incomingToken = ctx.req?.header?.("x-webhook-token") ?? "";
+  const incomingSig = ctx.req?.header?.("x-hub-signature-256") ?? "";
+  const rawPayload = ctx.req?.header?.("x-raw-body") ?? "";
+
+  const tokenOk = verifyToken && incomingToken && incomingToken === verifyToken;
+  const sigOk = secret && incomingSig && rawPayload && validateWebhookSignature(rawPayload, incomingSig, secret);
+  if (!tokenOk && !sigOk) throw new TRPCError({ code: "UNAUTHORIZED", message: "Webhook verification required" });
+}
+
 // ─── Sub-routers ──────────────────────────────────────────────────────────────
 
 // Phone linking
@@ -320,7 +335,8 @@ const templateRouter = router({
       wabaStatus: z.enum(["draft", "pending", "approved", "rejected"]).optional(),
       isActive: z.boolean().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
       const update: any = {};
       if (input.body !== undefined) update.body = input.body;
@@ -559,7 +575,8 @@ const cartRouter = router({
       storeSkuId: z.number().int().positive(),
       qty: z.number().int().min(1).default(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
       // Resolve or create active cart
       let cart = (await db.select().from(whatsappCarts)
@@ -632,7 +649,8 @@ const cartRouter = router({
 
   clear: publicProcedure
     .input(z.object({ phone: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
       const cart = (await db.select().from(whatsappCarts)
         .where(and(eq(whatsappCarts.phone, input.phone), eq(whatsappCarts.status, "active")))
@@ -651,7 +669,8 @@ const cartRouter = router({
       flatNumber: z.string().optional(),
       buildingId: z.number().int().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
       const cart = (await db.select().from(whatsappCarts)
         .where(and(eq(whatsappCarts.phone, input.phone), eq(whatsappCarts.status, "active")))
@@ -739,7 +758,8 @@ const webhookRouter = router({
       signature: z.string().optional(),
       signatureValid: z.boolean().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
       const [r] = await db.insert(whatsappWebhookLog).values({
         source: input.source,
@@ -764,7 +784,8 @@ const webhookRouter = router({
       documentUrl: z.string().optional(),
       externalMsgId: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      assertWhatsappWebhookGuard(ctx);
       const session = await getWhatsappSession(input.phone);
       const flow = session?.currentFlow ?? "menu";
       const state: any = session?.flowState ? JSON.parse(session.flowState) : {};

@@ -203,3 +203,5 @@ The system is 10/10 only when it is:
 - pnpm run check: pass
 - pnpm test -- --runInBand: pass
 - pnpm run build: pass (non-blocking warnings on analytics env/chunk size)
+
+- 2026-05-03: Red-alert security lockdown updates applied (env fail-hard, worker auth, storage proxy hardening, OTP hardening, security guard tests). Next: chore/github-ci-branch-protection.

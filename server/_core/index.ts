@@ -10,6 +10,8 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getDb } from "../db";
 import { processQueue } from "../worker";
+import { ENV } from "./env";
+import { redactSensitive } from "./redact";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -62,13 +64,26 @@ async function startServer() {
   // ─── Worker Trigger (scheduled task endpoint) ──────────────────────────────
   // POST /api/worker/run — trigger OCR queue processing
   // Called by Manus scheduled tasks (uses app_session_id cookie for auth)
-  app.post("/api/worker/run", async (_req, res) => {
+  app.post("/api/worker/run", async (req, res) => {
+    const cronSecret = req.header("x-cron-secret") ?? "";
+    const bearer = req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    const hasConfiguredAuth = Boolean(ENV.workerCronSecret || ENV.workerAdminToken);
+    const isAuthed = (ENV.workerCronSecret && cronSecret === ENV.workerCronSecret) || (ENV.workerAdminToken && bearer === ENV.workerAdminToken);
+
+    if (ENV.isProduction && (!hasConfiguredAuth || !isAuthed)) {
+      console.warn("worker.run_attempt denied", { ip: req.ip });
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+
     try {
+      console.info("worker.run_started", { ip: req.ip });
       const processed = await processQueue();
+      console.info("worker.run_completed", { processed });
       res.json({ success: true, processed });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ success: false, error: message });
+      console.error("worker.run_failed", redactSensitive(String(err)));
+      res.status(500).json({ success: false, error: "Worker run failed" });
     }
   });
   // tRPC API
