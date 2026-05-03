@@ -21,6 +21,7 @@ import {
 } from "./db";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
+import { redactSensitive } from "./_core/redact";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
 import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
 import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
@@ -48,6 +49,16 @@ import { createDosageSchedule, getTodayDosePlan, recordDoseTaken, recordDoseSkip
 import { createOrderRating, updateOrderRating, getOrderRating, __markOrderDeliveredForTest } from "./services/orderRating";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
+const otpRateLimit = new Map<string, { count: number; ts: number }>();
+const otpVerifyFailures = new Map<string, { count: number; ts: number }>();
+
+function assertOtpLimiterMode() {
+  const mode = (process.env.OTP_RATE_LIMIT_BACKEND ?? "").trim();
+  if (ENV.isProduction && mode !== "database" && mode !== "memory_allowed_for_single_instance") {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "OTP disabled: OTP_RATE_LIMIT_BACKEND must be set for production" });
+  }
+}
+
 const authRouter = router({
   me: publicProcedure.query(opts => opts.ctx.user),
   logout: publicProcedure.mutation(({ ctx }) => {
@@ -59,18 +70,39 @@ const authRouter = router({
   sendOtp: publicProcedure
     .input(z.object({ phone: z.string().min(10).max(15) }))
     .mutation(async ({ input }) => {
+      assertOtpLimiterMode();
+      const now = Date.now();
+      const slot = otpRateLimit.get(input.phone);
+      if (slot && now - slot.ts < 15 * 60 * 1000 && slot.count >= 5) {
+        console.warn("auth.otp_rate_limited", redactSensitive(input.phone));
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many OTP requests" });
+      }
+      otpRateLimit.set(input.phone, { count: (slot?.count ?? 0) + 1, ts: slot?.ts ?? now });
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
       await createOtp(input.phone, code, expiresAt);
-      // In production: send via Twilio/MSG91. For demo, return code.
-      console.log(`[OTP] Phone: ${input.phone} Code: ${code}`);
-      return { success: true, devCode: process.env.NODE_ENV !== "production" ? code : undefined };
+      if (!ENV.isProduction) console.log(`[OTP] ${redactSensitive(`phone=${input.phone} code=${code}`)}`);
+      console.info("auth.otp_requested");
+      return { success: true, devCode: !ENV.isProduction ? code : undefined };
     }),
   verifyOtp: publicProcedure
     .input(z.object({ phone: z.string(), code: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      assertOtpLimiterMode();
+      const failSlot = otpVerifyFailures.get(input.phone);
+      const now = Date.now();
+      if (failSlot && now - failSlot.ts < 15 * 60 * 1000 && failSlot.count >= 8) {
+        console.warn("auth.otp_rate_limited", redactSensitive(input.phone));
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many OTP verification attempts" });
+      }
       const valid = await verifyOtp(input.phone, input.code);
-      if (!valid) return { valid: false as const };
+      if (!valid) {
+        otpVerifyFailures.set(input.phone, { count: (failSlot?.count ?? 0) + 1, ts: failSlot?.ts ?? now });
+        console.warn("auth.otp_failed", redactSensitive(input.phone));
+        return { valid: false as const };
+      }
+      otpVerifyFailures.delete(input.phone);
+      console.info("auth.otp_verified");
 
       // Upsert the user record keyed by phone
       const { id: userId } = await upsertUserByPhone(input.phone, { loginMethod: "phone" });
@@ -555,6 +587,7 @@ const whatsappRouter = router({
       imageUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      assertOtpLimiterMode();
       const session = await getWhatsappSession(input.phone);
       const flow = session?.currentFlow ?? "menu";
       const state = session?.flowState ? JSON.parse(session.flowState) : {};
