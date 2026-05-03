@@ -7,6 +7,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { logAudit } from "../services/audit";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -23,28 +24,6 @@ function requireSales(role: string | null | undefined) {
 function requireManager(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "store_manager"];
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
-}
-
-async function writeAuditLog(
-  db: Awaited<ReturnType<typeof getDbSafe>>,
-  actorId: string,
-  action: string,
-  entityType: string,
-  entityId: string,
-  before: unknown,
-  after: unknown,
-  reason?: string
-) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
-    actorId: parseInt(actorId) || 0,
-    action,
-    entityType,
-    entityId: 0,
-    beforeJson: before ? JSON.stringify(before) : null,
-    afterJson: after ? JSON.stringify(after) : null,
-    reason: reason ?? null,
-  });
 }
 
 // Generate sequential bill number: BILL-YYYYMMDD-NNNN
@@ -212,7 +191,7 @@ export const salesRouter = router({
         createdAt: now,
         updatedAt: now,
       });
-      await writeAuditLog(db, ctx.user!.id.toString(), "create", "sale", id, null, { billNo, storeId: input.storeId });
+      await logAudit({ action: "sale.created", entityType: "sale", entityId: Number(id), beforeJson: null, afterJson: { billNo, storeId: input.storeId } }, ctx);
       return { id, billNo };
     }),
 
@@ -425,7 +404,7 @@ export const salesRouter = router({
         createdAt: now,
       });
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "confirm", "sale", input.saleId, { status: "draft" }, { status: "confirmed", paymentMode: input.paymentMode });
+      await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
       return { ok: true, billNo: sale.billNo, total: sale.total };
     }),
 
@@ -498,7 +477,7 @@ export const salesRouter = router({
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft sales can be cancelled" });
       await db.update(sales).set({ status: "cancelled", updatedAt: Date.now() }).where(eq(sales.id, input.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "cancel", "sale", input.saleId, { status: "draft" }, { status: "cancelled" }, input.reason);
+      await logAudit({ action: "sale.cancelled", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "cancelled" }, reason: input.reason }, ctx);
       return { ok: true };
     }),
 
@@ -577,7 +556,7 @@ export const salesRouter = router({
         });
       }
 
-      await writeAuditLog(db, ctx.user!.id.toString(), "create_return", "sale_return", returnId, null, { saleId: input.saleId, totalRefund, returnNo });
+      await logAudit({ action: "sale.returned", entityType: "sale_return", entityId: Number(returnId), afterJson: { saleId: input.saleId, totalRefund, returnNo } }, ctx);
       return { returnId, returnNo, totalRefund: +totalRefund.toFixed(2) };
     }),
 
@@ -635,7 +614,7 @@ export const salesRouter = router({
 
       // Mark original sale as returned
       await db.update(sales).set({ status: "returned", updatedAt: now }).where(eq(sales.id, ret.saleId));
-      await writeAuditLog(db, ctx.user!.id.toString(), "approve_return", "sale_return", input.returnId, { status: "pending" }, { status: "approved" });
+      await logAudit({ action: "sale.return_approved", entityType: "sale_return", entityId: Number(input.returnId), beforeJson: { status: "pending" }, afterJson: { status: "approved" } }, ctx);
       return { ok: true };
     }),
 
