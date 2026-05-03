@@ -10,6 +10,7 @@ import {
   bigint,
   date,
   json,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -2299,3 +2300,74 @@ export const systemEvents = mysqlTable("system_events", {
 });
 export type SystemEvent = typeof systemEvents.$inferSelect;
 export type InsertSystemEvent = typeof systemEvents.$inferInsert;
+
+export const notificationEvents = mysqlTable("notification_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  channel: mysqlEnum("channel", ["in_app", "push", "email", "whatsapp", "sms"]).notNull(),
+  type: varchar("type", { length: 80 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  body: text("body").notNull(),
+  safePayloadJson: text("safePayloadJson"),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "unconfigured"]).default("pending").notNull(),
+  provider: varchar("provider", { length: 80 }),
+  providerMessageId: varchar("providerMessageId", { length: 150 }),
+  scheduledFor: timestamp("scheduledFor"),
+  sentAt: timestamp("sentAt"),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const notificationPreferences = mysqlTable("notification_preferences", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  channel: mysqlEnum("channel", ["in_app", "push", "email", "whatsapp", "sms"]).notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  allowSensitiveContent: boolean("allowSensitiveContent").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({ userChannelUnique: uniqueIndex("notification_preferences_user_channel_uq").on(t.userId, t.channel) }));
+
+export const dosageSchedules = mysqlTable("dosage_schedules", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  familyMemberId: int("familyMemberId"),
+  prescriptionId: int("prescriptionId"),
+  saleLineId: int("saleLineId"),
+  productId: int("productId"),
+  medicineNameSnapshot: varchar("medicineNameSnapshot", { length: 255 }),
+  scheduleJson: text("scheduleJson").notNull(),
+  source: mysqlEnum("source", ["prescription", "pharmacist", "user"]).notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const doseLogs = mysqlTable("dose_logs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  scheduleId: bigint("scheduleId", { mode: "number" }).notNull(),
+  userId: int("userId").notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  status: mysqlEnum("status", ["taken", "skipped", "missed"]).notNull(),
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const orderRatings = mysqlTable("order_ratings", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  userId: int("userId").notNull(),
+  overall: int("overall").notNull(),
+  delivery: int("delivery"),
+  packaging: int("packaging"),
+  pharmacistSupport: int("pharmacistSupport"),
+  availability: int("availability"),
+  issueTagsJson: text("issueTagsJson"),
+  comment: text("comment"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({ orderUserUnique: uniqueIndex("order_ratings_order_user_uq").on(t.orderId, t.userId) }));

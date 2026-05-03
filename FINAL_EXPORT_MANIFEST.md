@@ -1,32 +1,23 @@
-# Final Export Manifest (Pilot RC)
+# FINAL EXPORT MANIFEST
 
-## Key modules
-- Customer app (catalog/cart/orders/Rx/profile/refills)
-- Pharmacy operations (purchase/OCR/inventory/expiry/barcode/GST)
-- Admin operations (command center/orders/prescriptions/sales/delivery/masters/reports)
-- Routing + SLA + event/audit support
+## Customer/mobile continuity modules
+- server/services/notificationService.ts (DB-backed)
+- server/services/refillReminderService.ts (foundation helper + route prompt contract)
+- server/services/dosageTracking.ts (DB-backed)
+- server/services/orderRating.ts (DB-backed)
+- server/routers.ts (notifications/dosage/ratings/refills/invoiceSummary route wiring)
+- server/customer-mobile.guard.test.ts
+- CUSTOMER_MOBILE_RELEASE_STATUS.md
+- RELEASE_CHECKPOINT.md
+- PILOT_RUNBOOK.md
+- config/secrets.json.example
 
-## Key routes
-- Customer: `/catalog`, `/cart`, `/orders`, `/rx-upload`, `/profile`
-- Staff: `/workbench`, `/pharmacy/*`
-- Admin: `/admin/*`
-- Fallback: `/404` and catch-all NotFound
+## Validation manifest
+- install/check/test/build executed on branch.
 
-## Key reports
-- Daily sales, stock, expiry, purchase, GST, SLA dashboards/reports
+## Deferred items
+- Provider adapters for external push/email/sms/whatsapp delivery.
+- Insurance submission API.
 
-## Key env vars
-- `DATABASE_URL`
-- Payment provider secrets (as configured in deployment)
-- OTP/auth provider vars
-- Analytics vars: `VITE_ANALYTICS_ENDPOINT`, `VITE_ANALYTICS_WEBSITE_ID`
-
-## Key migration files
-- Core schema: `drizzle/0000_*` through `drizzle/0021_*`
-- Store capabilities creation: `drizzle/0020_tearful_selene.sql`
-- **GSTIN on store capabilities:** `drizzle/0022_store_capabilities_gstin.sql`
-
-## Remaining non-blocking gaps
-- Chunk size optimization pending (build warning only).
-- Analytics env vars optional in non-analytics pilot environments.
-- Optional consolidated one-command pilot seed script can still be added later.
+## Next prompt
+Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardening.
