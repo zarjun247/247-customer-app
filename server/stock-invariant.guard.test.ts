@@ -4,15 +4,15 @@ import { describe, expect, it } from "vitest";
 describe("stock invariant guard", () => {
   it("blocks fake qtyBefore/qtyAfter placeholders in stock mutation routers", () => {
     const out = execSync(
-      "rg -n \"qtyBefore:\\s*0|qtyAfter:\\s*0\" server/routers/purchaseRouter.ts server/routers/salesRouter.ts server/routers/inventoryRouter.ts --glob '!**/*.md' | rg -v \"batchId, productId: input.productId|movementType: \\\"stock_transfer\\\"|release_quarantine|audit_correction|qtyChange: input.qtyOnHand\" || true",
+      "rg -n \"qtyBefore:\\s*0|qtyAfter:\\s*0\" server/routers/purchaseRouter.ts server/routers/salesRouter.ts server/routers/inventoryRouter.ts server/services/stockInvariant.ts --glob '!**/*.md' | rg -v \"movementType: \\\"stock_transfer\\\"\" || true",
       { encoding: "utf8" },
     ).trim();
     expect(out).toBe("");
   });
 
-  it("blocks legacy duplicate stock_adjustment movement write in inventory approve path", () => {
+  it("blocks legacy movement helper usage in inventory router", () => {
     const out = execSync(
-      "rg -n 'writeMovement\\(\\{.*movementType: \"stock_adjustment\"' server/routers/inventoryRouter.ts || true",
+      "rg -n 'writeMovement\\(' server/routers/inventoryRouter.ts || true",
       { encoding: "utf8" },
     ).trim();
     expect(out).toBe("");
@@ -20,7 +20,15 @@ describe("stock invariant guard", () => {
 
   it("blocks direct stock movement inserts in migrated purchase/inventory flows", () => {
     const out = execSync(
-      "rg -n \"insert\\(stockMovements\\)\" server/routers/purchaseRouter.ts server/routers/inventoryRouter.ts | rg -v \"inventoryRouter.ts:78\" || true",
+      "rg -n \"insert\\(stockMovements\\)\" server/routers/purchaseRouter.ts server/routers/inventoryRouter.ts || true",
+      { encoding: "utf8" },
+    ).trim();
+    expect(out).toBe("");
+  });
+
+  it("blocks direct qtyOnHand writes in inventory corrections path", () => {
+    const out = execSync(
+      "rg -n \"audit\\.complete[\\s\\S]*update\\(batchLedger\\)\\.set\\(\\{\\s*qtyOnHand\" server/routers/inventoryRouter.ts || true",
       { encoding: "utf8" },
     ).trim();
     expect(out).toBe("");
