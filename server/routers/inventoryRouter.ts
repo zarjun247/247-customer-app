@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { logAudit as logAuditEvent } from "../services/audit";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -95,16 +96,7 @@ async function writeAudit(p: {
 }) {
   try {
     const db = await getDb();
-    const { auditLogs } = await schema();
-    await db.insert(auditLogs).values({
-      actorId: p.actorId,
-      entityType: p.entityType,
-      entityId: p.entityId,
-      action: p.action,
-      beforeJson: p.before ? JSON.stringify(p.before) : null,
-      afterJson: p.after ? JSON.stringify(p.after) : null,
-      reason: p.note,
-    });
+    await logAuditEvent({ actorId: p.actorId, action: `inventory.${p.action}`, entityType: p.entityType, entityId: p.entityId, beforeJson: p.before, afterJson: p.after, reason: p.note, source: "admin" });
   } catch { /* non-critical */ }
 }
 

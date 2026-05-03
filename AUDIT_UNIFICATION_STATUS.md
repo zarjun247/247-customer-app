@@ -1,33 +1,38 @@
-# Audit Unification Status (Pass 1)
+# Audit Unification Status (Pass 2)
 
-## Centralized in this PR
-- Added `server/services/audit.ts` central `logAudit` helper.
-- Migrated core audit writes in:
-  - `server/routers/salesRouter.ts`
-  - `server/routers/purchaseRouter.ts`
+## Migrated in pass 2
+- `server/routers/inventoryRouter.ts`
+- `server/routers/prescriptionGovRouter.ts`
+- `server/routers/ocrIngestionRouter.ts`
+- `server/routers/masterDataRouter.ts`
+- `server/routers/masterDataPart3Router.ts`
 
-## Audit schema used
-- Existing Drizzle table: `audit_logs` (`auditLogs` in `drizzle/schema.ts`).
-- No new audit table.
-- No migration added.
+These routers now route audit persistence through `server/services/audit.ts` (`logAudit`) for audit writes.
 
-## Fields supported by central service
-- action, entityType, entityId
-- actorType, actorId, actorRole
-- source/channel
-- beforeJson, afterJson
-- reason, metadata (payload)
-- ipAddress, userAgent, sessionId
+## Remaining direct audit inserts
+- `server/routers/whatsappRouter.ts` still writes via `writeAuditLog` from `server/db.ts` (not a direct `db.insert(auditLogs)` in router).
+- No new direct `db.insert(auditLogs)` was added in pass 2.
 
-## Remaining direct/local audit writes (deferred)
-- `server/routers/inventoryRouter.ts` (local `writeAudit` helper)
-- `server/routers/prescriptionGovRouter.ts` (local `writeAuditLog` helper)
-- `server/routers/ocrIngestionRouter.ts` (local `writeAuditLog` helper)
-- plus non-core router direct/local writes identified by guard/search
+## Remaining router-local audit helpers
+- Lightweight local helper wrappers still exist in some migrated routers and should be flattened in a follow-up cleanup pass:
+  - `server/routers/inventoryRouter.ts`
+  - `server/routers/prescriptionGovRouter.ts`
+  - `server/routers/ocrIngestionRouter.ts`
+  - `server/routers/masterDataRouter.ts`
+  - `server/routers/masterDataPart3Router.ts`
 
-## Limitations
-- This pass prioritizes core sale/purchase paths first.
-- Additional routers still require migration in pass 2.
+## entityId: 0 status
+- Pass 2 removed/avoided introducing `entityId: 0` in migrated audit-writing contexts.
+
+## Static guard status
+- Global static guard expanded in `server/audit-unification.guard.test.ts` to detect:
+  - direct `db.insert(auditLogs)` usage outside approved central files,
+  - router-local helper patterns in pass-2 target routers,
+  - `entityId: 0` in router code.
+
+## Limitations / deferred
+- Action-name normalization is improved but not yet fully taxonomy-complete across all legacy actions.
+- Remaining non-pass routers should be moved to `server/services/audit.ts` with direct `logAudit` calls.
 
 ## Recommended next PR
-- `chore/audit-unification-pass-2`: migrate inventory + prescriptionGov + OCR + remaining router-local helpers to `server/services/audit.ts`, and tighten guard to allow only central service.
+- `chore/audit-unification-pass-3`: remove all router-local helper wrappers and migrate WhatsApp + any remaining router audit calls to direct `logAudit`, complete action taxonomy normalization, and keep guard strict.
