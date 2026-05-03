@@ -7,6 +7,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
+import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -221,7 +222,7 @@ export const purchaseRouter = router({
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       const db = await getDbSafe();
-      const { purchaseInvoices, purchaseLines, batchLedger, batches, storeSkus, stockMovements } = await import("../../drizzle/schema");
+      const { purchaseInvoices, purchaseLines, batchLedger, batches, storeSkus } = await import("../../drizzle/schema");
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id));
       if (!inv || inv.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
       const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseInvoiceId, input.id));
@@ -252,8 +253,7 @@ export const purchaseRouter = router({
           batchId = (br as { insertId: number }).insertId;
         }
         await db.update(purchaseLines).set({ batchId }).where(eq(purchaseLines.id, line.id));
-        const qtyBefore = (existingBatch?.quantity ?? 0);
-        await db.insert(stockMovements).values({ batchId, storeId: inv.storeId, movementType: "purchase_inward", qty, qtyBefore, qtyAfter: qtyBefore + qty, referenceType: "purchase_invoice", referenceId: inv.id, performedBy: ctx.user!.id });
+        await increaseStockForPurchaseCommit({ batchId, storeId: inv.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: inv.id, reason: `Purchase commit ${inv.invoiceNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: line.productId });
         const [sku] = await db.select().from(storeSkus).where(eq(storeSkus.productId, line.productId)).limit(1);
         if (sku) await db.update(storeSkus).set({ stockQty: (sku.stockQty ?? 0) + qty }).where(eq(storeSkus.id, sku.id));
         const rateKey = `${gr}%`;
