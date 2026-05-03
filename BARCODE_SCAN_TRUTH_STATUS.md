@@ -21,3 +21,5 @@ Customer app catalog availability continues to use canonical `store_skus.stockQt
 ## Remaining gaps
 - UI polish for dedicated scan widgets can be incremental; backend endpoints are now present for production integration.
 - Vendor printer/scanner SDK integrations remain intentionally out of scope.
+
+> Note: Production hardening control-plane and roadmap now tracked in `PRODUCTION_READINESS_STATUS.md`. Legacy pilot framing (including filename `PILOT_RUNBOOK.md`) must be reframed as Production Store Go-Live in a later PR.

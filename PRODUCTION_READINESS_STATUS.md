@@ -1,0 +1,205 @@
+# PRODUCTION_READINESS_STATUS
+
+## 1. Current score
+- Overall: 6.8 / 10
+- Last updated by: chore/production-baseline-audit
+- Next target after immediate 5 PRs: 8.0+
+
+## 2. Phase checklist
+### Phase 0
+- status: partial
+- current score /10: 6.8
+- owner branch/PR: chore/production-baseline-audit
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 1
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 2
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 3
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 4
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 5
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 6
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 7
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 8
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 9
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 10
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 11
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 12
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 13
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 14
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 15
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 16
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 17
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+### Phase 18
+- status: not started
+- current score /10: 0.0
+- owner branch/PR: TBD
+- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
+- acceptance criteria: phase-specific production hardening complete and validated
+- next action: execute roadmap phase PR
+
+## 3. Immediate red-alert blockers
+- worker route lock
+- storage proxy access control
+- production env fail-hard
+- OTP production logging/rate limits
+- GitHub CI missing or unproven
+- H1 register correctness
+- stock opening/transfer/reservation truth
+- store isolation
+- payment webhook/refund truth
+
+## 4. Production doctrine
+- No more feature jazz.
+- No more shiny dragons.
+- No pilot language.
+- No fake-complete modules.
+- No hidden stubs.
+- No in-memory-only production features.
+- No unscoped access.
+- No unaudited critical mutation.
+- No regulated medicine release without compliance truth.
+- No stock mutation outside invariant truth.
+- No payment/refund without ledger truth.
+
+## 5. Definition of 10/10
+The system is 10/10 only when it is:
+- secure
+- store-scoped
+- idempotent
+- audited
+- compliance-proof
+- payment-proof
+- stock-proof
+- report-proof
+- migration-proof
+- deployable
+- recoverable
+- trainable
+- investor-auditable
+
+## Validation status
+- pnpm install: pass (warning: ignored build scripts approval prompt)
+- pnpm run check: pass
+- pnpm test -- --runInBand: pass
+- pnpm run build: pass (non-blocking warnings on analytics env/chunk size)
