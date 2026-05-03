@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'child_process';
 
-const routersWithNoLocalAuditHelpers = ['server/routers/inventoryRouter.ts', 'server/routers/prescriptionGovRouter.ts', 'server/routers/ocrIngestionRouter.ts', 'server/routers/masterDataRouter.ts'];
-const pendingRouters = [
+const routersWithNoLocalAuditHelpers = [
+  'server/routers/inventoryRouter.ts',
+  'server/routers/prescriptionGovRouter.ts',
+  'server/routers/ocrIngestionRouter.ts',
+  'server/routers/masterDataRouter.ts',
   'server/routers/masterDataPart3Router.ts',
 ];
 
@@ -34,7 +37,6 @@ describe('audit unification static guard', () => {
     }
 
     expect(out).toBe('');
-    expect(pendingRouters.length).toBeGreaterThan(0);
   });
 
   it('blocks entityId: 0 in production router audit contexts', () => {

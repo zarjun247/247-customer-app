@@ -1,19 +1,21 @@
-# Audit Unification Status (Pass 3D)
+# Audit Unification Status (Pass 3E)
 
-## Completed in pass 3D
-- `server/routers/masterDataRouter.ts` is now fully inlined to call `logAudit` from `server/services/audit.ts` directly.
-- No local master data router audit helper/proxy remains (`writeAudit`, `writeAuditLog`, `recordAuditEvent`, `createAuditLog`, local `logAudit` wrapper).
-- Guard staging now enforces completed router inline-audit compliance via:
-  - `const routersWithNoLocalAuditHelpers = ["server/routers/inventoryRouter.ts", "server/routers/prescriptionGovRouter.ts", "server/routers/ocrIngestionRouter.ts", "server/routers/masterDataRouter.ts"]`
+## Completed in pass 3E
+- `server/routers/masterDataPart3Router.ts` is now fully inlined to call `logAudit` from `server/services/audit.ts` directly.
+- No local masterDataPart3 router audit helper/proxy remains (`writeAudit`, `writeAuditLog`, `recordAuditEvent`, `createAuditLog`, local `logAudit` wrapper).
+- All five completed routers are now enforced by the static guard list:
+  - `server/routers/inventoryRouter.ts`
+  - `server/routers/prescriptionGovRouter.ts`
+  - `server/routers/ocrIngestionRouter.ts`
+  - `server/routers/masterDataRouter.ts`
+  - `server/routers/masterDataPart3Router.ts`
+- No pending audit-helper router remains from the pass-2 list.
 
 ## Guard enforcement status
 - `server/audit-unification.guard.test.ts` enforces:
   - no direct `db.insert(auditLogs)` outside approved central files,
   - no `entityId: 0` in production router audit contexts,
-  - no local audit helper/proxy wrappers in completed routers list only.
-
-## Remaining routers intentionally pending
-- `server/routers/masterDataPart3Router.ts`
+  - no local audit helper/proxy wrappers in all five completed routers.
 
 ## Next recommended PR
-- `chore/audit-unification-pass-3e-master-data-part3`
+- `feat/stock-invariant-service`
