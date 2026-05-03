@@ -2,6 +2,8 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { requireStaffStore } from './rbac';
+
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -146,6 +148,28 @@ export const riderProcedure = t.procedure.use(
       throw new TRPCError({ code: "FORBIDDEN", message: "Rider access required" });
     }
     return next({ ctx: { ...ctx, user: ctx.user } });
+  }),
+);
+
+
+
+/** Store-scoped staff access (fails closed without staffStoreId) */
+export const storeStaffProcedure = staffProcedure.use(
+  t.middleware(async ({ ctx, next }) => {
+    requireStaffStore(ctx.user);
+    return next();
+  }),
+);
+
+export const storeManagerProcedure = managerProcedure.use(t.middleware(async ({ ctx, next }) => { requireStaffStore(ctx.user); return next(); }));
+export const storePharmacistProcedure = pharmacistProcedure.use(t.middleware(async ({ ctx, next }) => { requireStaffStore(ctx.user); return next(); }));
+export const storePurchaseProcedure = purchaseProcedure.use(t.middleware(async ({ ctx, next }) => { requireStaffStore(ctx.user); return next(); }));
+export const storeRiderProcedure = riderProcedure.use(t.middleware(async ({ ctx, next }) => { requireStaffStore(ctx.user); return next(); }));
+
+export const superAdminProcedure = t.procedure.use(
+  t.middleware(async ({ ctx, next }) => {
+    if (!ctx.user || ctx.user.role !== 'super_admin') throw new TRPCError({ code: 'FORBIDDEN', message: 'Super admin access required' });
+    return next();
   }),
 );
 

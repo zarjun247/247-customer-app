@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
 
 async function getDbSafe() {
@@ -20,6 +21,16 @@ function requireStaff(role: string) {
   if (!STAFF.includes(role)) throw new TRPCError({ code: "FORBIDDEN" });
 }
 
+
+function resolveScopedStoreId(user: any, inputStoreId?: number): number | undefined {
+  if (inputStoreId !== undefined) {
+    requireStoreAccess(user, inputStoreId);
+    return inputStoreId;
+  }
+  if (["super_admin", "admin", "ops_admin"].includes(user.role)) return undefined;
+  return requireStaffStore(user);
+}
+
 const dateRangeInput = z.object({
   fromDate: z.string(),
   toDate: z.string(),
@@ -32,6 +43,7 @@ export const reportsRouter = router({
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { orders, orderItems, products } = await import("../../drizzle/schema");
       const { eq, and, gte, lte, sql, sum, count } = await import("drizzle-orm");
@@ -42,7 +54,7 @@ export const reportsRouter = router({
         lte(orders.createdAt, to),
         eq(orders.status, "delivered"),
       ];
-      if (input.storeId) conditions.push(eq(orders.storeId, input.storeId));
+      if (scopedStoreId !== undefined) conditions.push(eq(orders.storeId, scopedStoreId));
 
       const summary = await db.select({
         totalOrders: count(orders.id),
@@ -65,7 +77,7 @@ export const reportsRouter = router({
           gte(orders.createdAt, from),
           lte(orders.createdAt, to),
           eq(orders.status, "delivered"),
-          ...(input.storeId ? [eq(orders.storeId, input.storeId)] : []),
+          ...(scopedStoreId !== undefined ? [eq(orders.storeId, scopedStoreId)] : []),
         ))
         .groupBy(products.category);
 
@@ -77,6 +89,7 @@ export const reportsRouter = router({
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { purchaseInvoices, suppliers } = await import("../../drizzle/schema");
       const { eq, and, gte, lte, sum, count, desc } = await import("drizzle-orm");
@@ -87,7 +100,7 @@ export const reportsRouter = router({
         lte(purchaseInvoices.createdAt, to),
         eq(purchaseInvoices.status, "committed"),
       ];
-      if (input.storeId) conditions.push(eq(purchaseInvoices.storeId, input.storeId));
+      if (scopedStoreId !== undefined) conditions.push(eq(purchaseInvoices.storeId, scopedStoreId));
 
       const invoices = await db.select({
         invoice: purchaseInvoices,
@@ -114,6 +127,7 @@ export const reportsRouter = router({
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { orders, orderItems, products } = await import("../../drizzle/schema");
       const { eq, and, gte, lte, sum, sql } = await import("drizzle-orm");
@@ -135,7 +149,7 @@ export const reportsRouter = router({
           gte(orders.createdAt, from),
           lte(orders.createdAt, to),
           eq(orders.status, "delivered"),
-          ...(input.storeId ? [eq(orders.storeId, input.storeId)] : []),
+          ...(scopedStoreId !== undefined ? [eq(orders.storeId, scopedStoreId)] : []),
         ))
         .groupBy(products.hsnCode, products.gstRate);
 
@@ -147,12 +161,13 @@ export const reportsRouter = router({
     .input(z.object({ storeId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { batches, products, storeSkus } = await import("../../drizzle/schema");
       const { eq, and, gt, sum, sql } = await import("drizzle-orm");
 
       const conditions = [gt(batches.quantity, 0)];
-      if (input.storeId) conditions.push(eq(batches.storeId, input.storeId));
+      if (scopedStoreId !== undefined) conditions.push(eq(batches.storeId, scopedStoreId));
 
       const rows = await db.select({
         productId: products.id,
@@ -195,13 +210,14 @@ export const reportsRouter = router({
       if (!["admin", "super_admin", "store_manager", "pharmacist"].includes(ctx.user!.role)) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { h1Register } = await import("../../drizzle/schema");
       const { eq, and, gte, lte, desc } = await import("drizzle-orm");
       const from = new Date(input.fromDate);
       const to = new Date(input.toDate); to.setHours(23, 59, 59, 999);
       const conditions = [gte(h1Register.dispensedAt, from), lte(h1Register.dispensedAt, to)];
-      if (input.storeId) conditions.push(eq(h1Register.storeId, input.storeId));
+      if (scopedStoreId !== undefined) conditions.push(eq(h1Register.storeId, scopedStoreId));
       return db.select().from(h1Register).where(and(...conditions)).orderBy(desc(h1Register.dispensedAt));
     }),
 
@@ -210,13 +226,14 @@ export const reportsRouter = router({
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { slaEvents } = await import("../../drizzle/schema");
       const { eq, and, gte, lte, count, sql } = await import("drizzle-orm");
       const from = new Date(input.fromDate);
       const to = new Date(input.toDate); to.setHours(23, 59, 59, 999);
       const conditions = [gte(slaEvents.createdAt, from), lte(slaEvents.createdAt, to)];
-      if (input.storeId) conditions.push(eq(slaEvents.storeId, input.storeId));
+      if (scopedStoreId !== undefined) conditions.push(eq(slaEvents.storeId, scopedStoreId));
 
       const rows = await db.select({
         total: count(slaEvents.id),
@@ -235,13 +252,14 @@ export const reportsRouter = router({
     .input(z.object({ storeId: z.number().optional(), days: z.number().default(90) }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { batches, products } = await import("../../drizzle/schema");
       const { eq, and, lte, gt, asc } = await import("drizzle-orm");
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() + input.days);
       const conditions = [lte(batches.expiryDate, cutoff), gt(batches.quantity, 0)];
-      if (input.storeId) conditions.push(eq(batches.storeId, input.storeId));
+      if (scopedStoreId !== undefined) conditions.push(eq(batches.storeId, scopedStoreId));
       return db.select({
         batch: batches,
         productName: products.name,
@@ -259,6 +277,7 @@ export const reportsRouter = router({
     .input(z.object({ storeId: z.number().optional(), days: z.number().default(90) }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { storeSkus, products } = await import("../../drizzle/schema");
       const { eq, and, gt, lte } = await import("drizzle-orm");
@@ -282,6 +301,7 @@ export const reportsRouter = router({
     .input(z.object({ storeId: z.number().optional(), limit: z.number().default(30) }))
     .query(async ({ ctx, input }) => {
       requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { shiftClosings } = await import("../../drizzle/schema");
       const { eq, desc } = await import("drizzle-orm");

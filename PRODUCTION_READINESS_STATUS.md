@@ -212,3 +212,13 @@ The system is 10/10 only when it is:
 - CI score: **7.0 / 10** (up from 6.8 after CI workflow + migration/placeholder/security guard automation).
 - Remaining CI gaps: branch protection enforcement, ephemeral DB-backed migration smoke, strict required check wiring in repository settings.
 - Next PR: `feat/store-isolation-rbac`.
+
+
+## Phase 3 Store isolation + central RBAC
+Status: partial
+Store isolation score: 7/10
+Remaining blockers: full router rollout + integration coverage + customer dependent authorization.
+Next PR: feat/idempotency-reservation-truth
+production chain operations require store-scoped staff/admin access.
+
+- 2026-05-03: corrected unsafe default-store fallback in delivery router; staff store assignment now fail-closed for scoped delivery/report flows.
