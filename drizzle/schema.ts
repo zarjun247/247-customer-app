@@ -1517,6 +1517,39 @@ export type StaffMember = typeof staffMaster.$inferSelect;
 export type ProductBarcode = typeof productBarcodes.$inferSelect;
 export type ProductMarginRule = typeof productMarginRules.$inferSelect;
 
+export const barcodeAliases = mysqlTable("barcode_aliases", {
+  id: int("id").autoincrement().primaryKey(),
+  barcode: varchar("barcode", { length: 200 }).notNull().unique(),
+  productId: int("productId"),
+  variantId: int("variantId"),
+  batchId: int("batchId"),
+  storeId: int("storeId"),
+  aliasType: mysqlEnum("aliasType", ["manufacturer", "internal", "batch", "shelf", "legacy"]).notNull().default("internal"),
+  isActive: boolean("isActive").notNull().default(true),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const labelPrintJobs = mysqlTable("label_print_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  barcodeAliasId: int("barcodeAliasId"),
+  productId: int("productId"),
+  variantId: int("variantId"),
+  batchId: int("batchId"),
+  storeId: int("storeId"),
+  labelType: mysqlEnum("labelType", ["batch", "shelf", "mrp", "return", "audit"]).notNull().default("batch"),
+  payloadJson: text("payloadJson").notNull(),
+  status: mysqlEnum("status", ["queued", "printed", "failed", "cancelled"]).notNull().default("queued"),
+  printerName: varchar("printerName", { length: 120 }),
+  requestedBy: int("requestedBy"),
+  printedAt: timestamp("printedAt"),
+  error: text("error"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // PART 4 — Batchwise Inventory + Stock Ledger
 // ═══════════════════════════════════════════════════════════════════════════════

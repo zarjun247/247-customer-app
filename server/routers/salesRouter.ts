@@ -11,6 +11,7 @@ import { logAudit } from "../services/audit";
 import { decreaseStockForSaleConfirmation, reverseStockForSaleReturn } from "../services/stockInvariant";
 import { assertCanConfirmSale, createOrVerifyH1RegisterEntry } from "../services/complianceGate";
 import { applyDiscountCode, assertDiscountWithinCaps, assertNoLossWithoutApproval, recordDiscountCodeUsage } from "../services/marginGuard";
+import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barcodeService";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -60,6 +61,23 @@ async function generateReturnNo(db: Awaited<ReturnType<typeof getDbSafe>>, store
 }
 
 export const salesRouter = router({
+
+  scanBarcodeForSale: protectedProcedure
+    .input(z.object({ barcode: z.string().min(1), storeId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      requireSales(ctx.user?.role);
+      const resolved = await resolveBarcodeForSale(input.barcode, input.storeId);
+      return { ...resolved, stockMutation: "deferred_to_confirmSale_stockInvariant", complianceGate: "checked_at_confirm", marginGuard: "checked_at_confirm" };
+    }),
+
+  scanBarcodeForReturn: protectedProcedure
+    .input(z.object({ barcode: z.string().min(1), storeId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      requireSales(ctx.user?.role);
+      const resolved = await resolveBarcodeForReturn(input.barcode, input.storeId);
+      return { ...resolved, stockMutation: "deferred_to_return_commit_stockInvariant" };
+    }),
+
   // ─── Product Search ──────────────────────────────────────────────────────────
   searchProducts: protectedProcedure
     .input(z.object({
