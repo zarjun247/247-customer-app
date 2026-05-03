@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'child_process';
 
-const routersWithNoLocalAuditHelpers = ['server/routers/inventoryRouter.ts', 'server/routers/prescriptionGovRouter.ts', 'server/routers/ocrIngestionRouter.ts'];
+const routersWithNoLocalAuditHelpers = ['server/routers/inventoryRouter.ts', 'server/routers/prescriptionGovRouter.ts', 'server/routers/ocrIngestionRouter.ts', 'server/routers/masterDataRouter.ts'];
 const pendingRouters = [
-  'server/routers/masterDataRouter.ts',
   'server/routers/masterDataPart3Router.ts',
 ];
 

@@ -6,7 +6,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { logAudit as logAuditEvent } from "../services/audit";
+import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
 type StaffRole = "admin" | "super_admin" | "store_manager" | "pharmacist" | "purchase_manager" | "accountant" | "cashier" | "salesman" | "inventory_operator" | "delivery_operator" | "auditor";
@@ -28,21 +28,6 @@ async function getDbSafe() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
   return db;
-}
-
-async function logAudit(
-  userId: number,
-  action: string,
-  entityType: string,
-  entityId: number | string,
-  before?: unknown,
-  after?: unknown,
-  reason?: string,
-) {
-  try {
-    const numericId = typeof entityId === "string" ? parseInt(entityId, 10) : entityId;
-    await logAuditEvent({ actorId: userId, actorType: "user", action: action.startsWith("master.") ? action : `master.${entityType}.${action}`, entityType, entityId: Number.isFinite(numericId as number) ? Number(numericId) : undefined, beforeJson: before, afterJson: after, reason: reason ?? undefined, source: "admin" });
-  } catch { /* non-critical */ }
 }
 
 function toCsv(rows: Record<string, unknown>[]): string {
@@ -109,7 +94,7 @@ const supplierRouter = router({
       const { suppliers } = await import("../../drizzle/schema");
       const [result] = await db.insert(suppliers).values({ ...input, isActive: true });
       const id = (result as { insertId: number }).insertId;
-      await logAudit(ctx.user!.id, "create", "supplier", id, undefined, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.supplier.create", entityType: "supplier", entityId: id, beforeJson: undefined, afterJson: input, source: "admin" }, ctx).catch(() => {});
       return { id };
     }),
 
@@ -138,7 +123,7 @@ const supplierRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       const { id, reason, ...fields } = input;
       await db.update(suppliers).set(fields).where(eq(suppliers.id, id));
-      await logAudit(ctx.user!.id, "update", "supplier", id, before, fields, reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.supplier.update", entityType: "supplier", entityId: id, beforeJson: before, afterJson: fields, reason: reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -152,7 +137,7 @@ const supplierRouter = router({
       const [before] = await db.select().from(suppliers).where(eq(suppliers.id, input.id));
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       await db.update(suppliers).set({ isActive: false }).where(eq(suppliers.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "supplier", input.id, before, { isActive: false }, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.supplier.deactivate", entityType: "supplier", entityId: input.id, beforeJson: before, afterJson: { isActive: false }, reason: input.reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -164,7 +149,7 @@ const supplierRouter = router({
       const { suppliers } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(suppliers).set({ isActive: true }).where(eq(suppliers.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "supplier", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.supplier.reactivate", entityType: "supplier", entityId: input.id, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -224,7 +209,7 @@ const manufacturerRouter = router({
       const { manufacturers } = await import("../../drizzle/schema");
       const [result] = await db.insert(manufacturers).values({ ...input, isActive: true });
       const id = (result as { insertId: number }).insertId;
-      await logAudit(ctx.user!.id, "create", "manufacturer", id, undefined, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.manufacturer.create", entityType: "manufacturer", entityId: id, beforeJson: undefined, afterJson: input, source: "admin" }, ctx).catch(() => {});
       return { id };
     }),
 
@@ -245,7 +230,7 @@ const manufacturerRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       const { id, reason, ...fields } = input;
       await db.update(manufacturers).set(fields).where(eq(manufacturers.id, id));
-      await logAudit(ctx.user!.id, "update", "manufacturer", id, before, fields, reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.manufacturer.update", entityType: "manufacturer", entityId: id, beforeJson: before, afterJson: fields, reason: reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -259,7 +244,7 @@ const manufacturerRouter = router({
       const [before] = await db.select().from(manufacturers).where(eq(manufacturers.id, input.id));
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       await db.update(manufacturers).set({ isActive: false }).where(eq(manufacturers.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "manufacturer", input.id, before, { isActive: false }, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.manufacturer.deactivate", entityType: "manufacturer", entityId: input.id, beforeJson: before, afterJson: { isActive: false }, reason: input.reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -271,7 +256,7 @@ const manufacturerRouter = router({
       const { manufacturers } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(manufacturers).set({ isActive: true }).where(eq(manufacturers.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "manufacturer", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.manufacturer.reactivate", entityType: "manufacturer", entityId: input.id, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -320,7 +305,7 @@ const categoryRouter = router({
       const { drugCategories } = await import("../../drizzle/schema");
       const [result] = await db.insert(drugCategories).values({ ...input, isActive: true });
       const id = (result as { insertId: number }).insertId;
-      await logAudit(ctx.user!.id, "create", "drug_category", id, undefined, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.drug_category.create", entityType: "drug_category", entityId: id, beforeJson: undefined, afterJson: input, source: "admin" }, ctx).catch(() => {});
       return { id };
     }),
 
@@ -342,7 +327,7 @@ const categoryRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       const { id, reason, ...fields } = input;
       await db.update(drugCategories).set(fields).where(eq(drugCategories.id, id));
-      await logAudit(ctx.user!.id, "update", "drug_category", id, before, fields, reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.drug_category.update", entityType: "drug_category", entityId: id, beforeJson: before, afterJson: fields, reason: reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -356,7 +341,7 @@ const categoryRouter = router({
       const [before] = await db.select().from(drugCategories).where(eq(drugCategories.id, input.id));
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       await db.update(drugCategories).set({ isActive: false }).where(eq(drugCategories.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "drug_category", input.id, before, { isActive: false }, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.drug_category.deactivate", entityType: "drug_category", entityId: input.id, beforeJson: before, afterJson: { isActive: false }, reason: input.reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -368,7 +353,7 @@ const categoryRouter = router({
       const { drugCategories } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(drugCategories).set({ isActive: true }).where(eq(drugCategories.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "drug_category", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.drug_category.reactivate", entityType: "drug_category", entityId: input.id, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -416,7 +401,7 @@ const genericRouter = router({
       const { generics } = await import("../../drizzle/schema");
       const [result] = await db.insert(generics).values({ ...input, isActive: true });
       const id = (result as { insertId: number }).insertId;
-      await logAudit(ctx.user!.id, "create", "generic", id, undefined, input);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.generic.create", entityType: "generic", entityId: id, beforeJson: undefined, afterJson: input, source: "admin" }, ctx).catch(() => {});
       return { id };
     }),
 
@@ -437,7 +422,7 @@ const genericRouter = router({
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       const { id, reason, ...fields } = input;
       await db.update(generics).set(fields).where(eq(generics.id, id));
-      await logAudit(ctx.user!.id, "update", "generic", id, before, fields, reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.generic.update", entityType: "generic", entityId: id, beforeJson: before, afterJson: fields, reason: reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -451,7 +436,7 @@ const genericRouter = router({
       const [before] = await db.select().from(generics).where(eq(generics.id, input.id));
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
       await db.update(generics).set({ isActive: false }).where(eq(generics.id, input.id));
-      await logAudit(ctx.user!.id, "deactivate", "generic", input.id, before, { isActive: false }, input.reason);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.generic.deactivate", entityType: "generic", entityId: input.id, beforeJson: before, afterJson: { isActive: false }, reason: input.reason ?? undefined, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
@@ -463,7 +448,7 @@ const genericRouter = router({
       const { generics } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       await db.update(generics).set({ isActive: true }).where(eq(generics.id, input.id));
-      await logAudit(ctx.user!.id, "reactivate", "generic", input.id);
+      await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.generic.reactivate", entityType: "generic", entityId: input.id, source: "admin" }, ctx).catch(() => {});
       return { success: true };
     }),
 
