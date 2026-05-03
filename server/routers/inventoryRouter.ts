@@ -17,7 +17,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
-import { adjustStock, quarantineBatch, disposeBatch, transferStock } from "../services/stockInvariant";
+import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection } from "../services/stockInvariant";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -63,30 +63,6 @@ function computeExpiryBucket(expiryDate: string | Date): "normal" | "warning" | 
   if (days <= 60) return "critical";
   if (days <= 90) return "warning";
   return "normal";
-}
-
-// ─── Movement writer ──────────────────────────────────────────────────────────
-
-async function writeMovement(p: {
-  batchId: number; productId: number; storeId: number;
-  movementType: "purchase_inward" | "sale_reserve" | "sale_fulfil" | "cancellation_release" | "sale_return" | "purchase_return" | "stock_adjustment" | "stock_transfer" | "batch_transfer" | "quarantine" | "disposal" | "audit_correction";
-  qtyChange: number; qtyBefore: number; qtyAfter: number;
-  referenceType?: string; referenceId?: number; note?: string; performedBy: number;
-}) {
-  const db = await getDb();
-  const { stockMovements } = await schema();
-  await db.insert(stockMovements).values({
-    batchId: p.batchId,
-    storeId: p.storeId,
-    movementType: p.movementType,
-    qty: p.qtyChange,
-    qtyBefore: p.qtyBefore,
-    qtyAfter: p.qtyAfter,
-    referenceType: p.referenceType,
-    referenceId: p.referenceId,
-    reason: p.note,
-    performedBy: p.performedBy,
-  });
 }
 
 // ─── Batch Router ─────────────────────────────────────────────────────────────
@@ -159,23 +135,17 @@ const batchRouter = router({
       const db = await getDb();
       const { batchLedger } = await schema();
       const bucket = computeExpiryBucket(input.expiryDate);
-      const [result] = await db.insert(batchLedger).values({
-        ...input,
-        mfgDate: input.mfgDate ? new Date(input.mfgDate) : undefined,
-        expiryDate: new Date(input.expiryDate),
-        expiryBucket: bucket,
-        status: bucket === "expired" ? "expired" : "active",
-        createdBy: ctx.user.id,
-      });
-      const batchId = result.insertId;
-      await writeMovement({
-        batchId, productId: input.productId, storeId: input.storeId,
-        movementType: "purchase_inward",
-        qtyChange: input.qtyOnHand, qtyBefore: 0, qtyAfter: input.qtyOnHand,
-        referenceType: input.purchaseInvoiceId ? "purchase_invoice" : undefined,
-        referenceId: input.purchaseInvoiceId,
-        note: `Batch ${input.batchNo} inward`,
-        performedBy: ctx.user.id,
+      const { batchId } = await createBatchWithOpeningStock({
+        batch: {
+          ...input,
+          qtyOnHand: 0,
+          mfgDate: input.mfgDate ? new Date(input.mfgDate) : undefined,
+          expiryDate: new Date(input.expiryDate),
+          expiryBucket: bucket,
+          status: bucket === "expired" ? "expired" : "active",
+          createdBy: ctx.user.id,
+        },
+        actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" },
       });
       try {
         await logAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: batchId, action: "inventory.create", afterJson: { ...input, expiryBucket: bucket }, source: "admin" });
@@ -243,11 +213,9 @@ const batchRouter = router({
       const { batchLedger } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND" });
-      if (batch.qtyQuarantined < input.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Only ${batch.qtyQuarantined} units quarantined` });
-      const newOnHand = batch.qtyOnHand + input.qty;
-      const newQuarantined = batch.qtyQuarantined - input.qty;
-      await db.update(batchLedger).set({ qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, status: "active" }).where(eq(batchLedger.id, input.batchId));
-      await writeMovement({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, movementType: "audit_correction", qtyChange: input.qty, qtyBefore: batch.qtyOnHand, qtyAfter: newOnHand, note: `Release from quarantine. ${input.note ?? ""}`, performedBy: ctx.user.id });
+      const movement = await releaseQuarantine({ batchId: input.batchId, qty: input.qty, note: input.note, actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" } });
+      const newOnHand = movement.qtyAfter;
+      const newQuarantined = movement.qtyQuarantinedAfter;
       try {
         await logAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "inventory.release_quarantine", beforeJson: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, afterJson: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined }, reason: input.note, source: "admin" });
       } catch { /* non-critical */ }
@@ -720,10 +688,15 @@ const auditSessionRouter = router({
         for (const line of variances) {
           const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, line.batchId));
           if (!batch) continue;
-          const newQty = line.countedQty ?? batch.qtyOnHand;
-          await db.update(batchLedger).set({ qtyOnHand: newQty }).where(eq(batchLedger.id, line.batchId));
-          await writeMovement({ batchId: line.batchId, productId: line.productId, storeId: audit.storeId, movementType: "audit_correction", qtyChange: line.variance ?? 0, qtyBefore: batch.qtyOnHand, qtyAfter: newQty, referenceType: "stock_audit", referenceId: input.auditId, performedBy: ctx.user.id });
-          await db.update(stockAuditLines).set({ status: "adjusted" }).where(eq(stockAuditLines.id, line.id));
+          await applyStockAuditCorrection({
+            auditId: input.auditId,
+            lineId: line.id,
+            batchId: line.batchId,
+            storeId: audit.storeId,
+            countedQty: line.countedQty ?? batch.qtyOnHand,
+            actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" },
+            productId: line.productId,
+          });
         }
       }
       await db.update(stockAudits).set({ status: "completed", completedBy: ctx.user.id, completedAt: new Date(), totalVariances: variances.length }).where(eq(stockAudits.id, input.auditId));
