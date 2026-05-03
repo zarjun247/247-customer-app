@@ -468,6 +468,32 @@ export const salesRouter = router({
       return { ok: true };
     }),
 
+
+  cancelSale: protectedProcedure
+    .input(z.object({ saleId: z.string(), reason: z.string().min(3), actorNote: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      requireSales(ctx.user?.role);
+      const db = await getDbSafe();
+      const { sales, counterPayments } = await import("../../drizzle/schema");
+      const { recordCancellationTruth } = await import("../services/reconciliationTruth");
+      const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
+      if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
+      if (sale.status === "confirmed" && String(sale.notes ?? "").includes("delivered")) {
+        await logAudit({ action: "sale.cancel_denied", entityType: "sale", entityId: Number(input.saleId), beforeJson: sale, reason: input.reason }, ctx);
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Delivered sale cannot be cancelled; use return flow" });
+      }
+      if (sale.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "Sale already cancelled" });
+      const payments = await db.select().from(counterPayments).where(eq(counterPayments.saleId, input.saleId));
+      const paid = payments.filter((p) => p.status === "confirmed").reduce((a, p) => a + Number(p.amount ?? 0), 0);
+      const cancellationCost = ["packed","out_for_delivery"].includes(String(sale.status)) ? +(paid * 0.05).toFixed(2) : 0;
+      const refundAmount = Math.max(0, +(paid - cancellationCost).toFixed(2));
+      await logAudit({ action: "sale.cancel_requested", entityType: "sale", entityId: Number(input.saleId), beforeJson: sale, reason: input.reason }, ctx);
+      const truth = await recordCancellationTruth({ saleId: input.saleId, reason: input.reason, actorId: ctx.user!.id, cancellationCost, refundAmount });
+      await logAudit({ action: "sale.cancelled", entityType: "sale", entityId: Number(input.saleId), afterJson: truth, reason: input.reason }, ctx);
+      if (paid > 0) await logAudit({ action: "refund.recorded", entityType: "sale", entityId: Number(input.saleId), afterJson: { paid, refundAmount, cancellationCost } }, ctx);
+      return { ok: true, paid, refundAmount, cancellationCost };
+    }),
+
   // ─── Create Return ───────────────────────────────────────────────────────────
   createReturn: protectedProcedure
     .input(z.object({
