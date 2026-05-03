@@ -52,3 +52,5 @@
 
 ## Next recommended prompt
 Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardening
+
+> Note: Production hardening control-plane and roadmap now tracked in `PRODUCTION_READINESS_STATUS.md`. Legacy pilot framing (including filename `PILOT_RUNBOOK.md`) must be reframed as Production Store Go-Live in a later PR.
