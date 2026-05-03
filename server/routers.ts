@@ -42,6 +42,11 @@ import { deliveryRouter } from "./routers/deliveryRouter";
 import { commandCenterRouter } from "./routers/commandCenterRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
+import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
+import { createReorderPrompt } from "./services/refillReminderService";
+import { createDosageSchedule, getTodayDosePlan, recordDoseTaken, recordDoseSkipped, getAdherenceSummary, estimateMedicationRemaining, estimateRunoutDate } from "./services/dosageTracking";
+import { createOrderRating, updateOrderRating, getOrderRating, __markOrderDeliveredForTest } from "./services/orderRating";
+
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const authRouter = router({
   me: publicProcedure.query(opts => opts.ctx.user),
@@ -481,11 +486,18 @@ const prescriptionRouter = router({
 // ─── Refill Reminders Router ──────────────────────────────────────────────────
 const refillRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => getRefillReminders(ctx.user.id)),
+  due: protectedProcedure.query(async ({ ctx }) => getRefillReminders(ctx.user.id)),
   dismiss: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       await dismissRefillReminder(input.id, ctx.user.id);
       return { success: true };
+    }),
+  markRefilled: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await dismissRefillReminder(input.id, ctx.user.id);
+      return { success: true, status: "refilled" as const };
     }),
   /** Snooze a refill reminder for N days (1, 3, or 7) */
   snooze: protectedProcedure
@@ -494,8 +506,43 @@ const refillRouter = router({
       await snoozeRefillReminder(input.id, ctx.user.id, input.days);
       return { success: true };
     }),
+  createReorderPrompt: protectedProcedure
+    .input(z.object({ reminderId: z.number(), productId: z.number(), regulated: z.boolean().default(false) }))
+    .mutation(async ({ ctx, input }) => {
+      const pseudo = { id: String(input.reminderId), customerId: ctx.user.id, productId: input.productId, nextRefillDate: new Date().toISOString().slice(0,10), regulated: input.regulated };
+      // foundation flow: prompt only, no order state mutation
+      return { promptId: `draft_prompt_${input.reminderId}_${Date.now()}`, reminderId: input.reminderId, productId: input.productId, complianceGateRequired: input.regulated, autoConfirmedSale: false, status: "draft_prompt", persistence: "pending_table_mapping" as const };
+    }),
   /** Snoozed reminders — those with snoozedUntil > now */
   listSnoozed: protectedProcedure.query(async ({ ctx }) => getSnoozedReminders(ctx.user.id)),
+});
+
+
+const notificationRouter = router({
+  list: protectedProcedure.query(async ({ ctx }) => ({ rows: await getCustomerNotifications(ctx.user.id), persistence: "db_backed" as const })),
+  preferences: protectedProcedure.query(async ({ ctx }) => await getNotificationPreferences(ctx.user.id)),
+  updatePreferences: protectedProcedure.input(z.object({ allowSensitiveInUnsafeChannels: z.boolean().optional(), channels: z.record(z.enum(["in_app","push","email","whatsapp","sms"]), z.boolean()).optional() })).mutation(async ({ ctx, input }) => await updateNotificationPreferences(ctx.user.id, input as any)),
+  createTest: protectedProcedure.input(z.object({ channel: z.enum(["in_app","push","email","whatsapp","sms"]), title: z.string(), body: z.string(), sensitive: z.boolean().default(false) })).mutation(async ({ ctx, input }) => await createNotification({ customerId: ctx.user.id, channel: input.channel, title: input.title, body: input.body, sensitive: input.sensitive }))
+});
+
+const dosageRouter = router({
+  createSchedule: protectedProcedure.input(z.object({ productId: z.number(), unitsPerDay: z.number().positive(), totalUnits: z.number().positive(), source: z.enum(["prescription","user","pharmacist"]).default("user") })).mutation(async ({ ctx, input }) => await createDosageSchedule({ customerId: ctx.user.id, ...input })),
+  todayPlan: protectedProcedure.query(async ({ ctx }) => await getTodayDosePlan(ctx.user.id, new Date().toISOString().slice(0,10))),
+  recordTaken: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ input }) => ({ ok: await recordDoseTaken(input.scheduleId, input.date) })),
+  recordSkipped: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ input }) => ({ ok: await recordDoseSkipped(input.scheduleId, input.date) })),
+  adherence: protectedProcedure.input(z.object({ scheduleId: z.string() })).query(async ({ input }) => await getAdherenceSummary(input.scheduleId)),
+  remaining: protectedProcedure.input(z.object({ scheduleId: z.string(), startDate: z.string() })).query(async ({ input }) => ({ remaining: await estimateMedicationRemaining(input.scheduleId), runoutDate: await estimateRunoutDate(input.scheduleId, input.startDate), persistence: "db_backed" as const })),
+});
+
+const ratingRouter = router({
+  create: protectedProcedure.input(z.object({ orderId: z.number(), overall: z.number().min(1).max(5), delivery: z.number().min(1).max(5).optional(), packaging: z.number().min(1).max(5).optional(), pharmacistSupport: z.number().min(1).max(5).optional(), availability: z.number().min(1).max(5).optional(), issueTags: z.array(z.string()).optional(), comment: z.string().optional() })).mutation(async ({ ctx, input }) => {
+    const order = await getOrderById(input.orderId);
+    if (!order || order.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+    if (!["delivered", "completed"].includes(order.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "Order not eligible for rating" });
+    return await createOrderRating({ ...input, customerId: ctx.user.id });
+  }),
+  update: protectedProcedure.input(z.object({ orderId: z.number(), updates: z.object({ overall: z.number().min(1).max(5).optional(), delivery: z.number().min(1).max(5).optional(), packaging: z.number().min(1).max(5).optional(), pharmacistSupport: z.number().min(1).max(5).optional(), availability: z.number().min(1).max(5).optional(), issueTags: z.array(z.string()).optional(), comment: z.string().optional() }) })).mutation(async ({ ctx, input }) => await updateOrderRating(input.orderId, ctx.user.id, input.updates)),
+  get: protectedProcedure.input(z.object({ orderId: z.number() })).query(async ({ ctx, input }) => await getOrderRating(input.orderId, ctx.user.id)),
 });
 
 // ─── WhatsApp Bot Router (shared order engine) ────────────────────────────────
@@ -699,6 +746,9 @@ export const appRouter = router({
   orders: orderRouter,
   prescriptions: prescriptionRouter,
   refills: refillRouter,
+  notifications: notificationRouter,
+  dosage: dosageRouter,
+  ratings: ratingRouter,
   whatsapp: whatsappRouter,
   pharmacist: pharmacistRouter,
   inventory: inventoryRouter,

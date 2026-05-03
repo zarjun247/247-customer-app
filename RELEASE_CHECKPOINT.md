@@ -1,55 +1,39 @@
-# Release Checkpoint — Tranche 10 (Final Go-Live / Pilot Launch)
+# RELEASE CHECKPOINT — Customer/Mobile Continuity (Mega Prompt 5 Correction)
 
-- **Branch:** `work`
-- **Commit (base before this checkpoint commit):** `158b2bc`
-- **Release date (UTC):** 2026-05-01
+## Scope
+- Added customer/mobile API wiring for notifications, dosage, ratings, refill due/snooze/refilled/reorder-prompt, and invoice summary.
+- Persistence verified per module (see CUSTOMER_MOBILE_RELEASE_STATUS.md).
 
-## Modules completed
-- Customer app core journeys (auth, onboarding, catalog, cart, orders, Rx upload).
-- Staff/Pharmacy workflows (purchase, OCR, reports, shift, expiry, barcode, GST export).
-- Admin console modules (command center, sales, inventory, delivery, WhatsApp, masters, accounting).
-- Role/route protection hardening for admin and staff route groups.
-- Seed + migration readiness documentation for pilot bootstrap.
-
-## Validation status
-- Typecheck: **pass**
-- Unit tests: **pass** (6 files, 73 tests)
-- Production build: **pass**
-
-## Known warnings
-- Vite build warns analytics env placeholders are undefined if analytics env vars are not set.
-- Vite build warns about large client chunk size (>500 kB).
-
-## Known gaps
-- `store_capabilities.gstin` added via migration; must be applied in target DB before pilot.
-- Route protection now enforced at frontend route level; backend already enforces role checks per router.
-- Pilot seed still split across scripts (`seed-locations` + `seed-medivision`); run in documented order.
-
-## Install steps
-1. `pnpm install`
-2. Copy `.env` from deployment template and set DB + payment + OTP + analytics values.
-3. `pnpm run check && pnpm test && pnpm run build`
+## Required ENV keys
+- NOTIFICATION_PUSH_PROVIDER_KEY
+- NOTIFICATION_EMAIL_PROVIDER_KEY
+- NOTIFICATION_SMS_PROVIDER_KEY
+- NOTIFICATION_WHATSAPP_PROVIDER_KEY
+- WHATSAPP_WEBHOOK_VERIFY_TOKEN
+- WHATSAPP_ACCESS_TOKEN
 
 ## Migration steps
-1. Apply Drizzle SQL migrations in order.
-2. **Exact command:** `pnpm drizzle-kit migrate`
-3. Confirm `drizzle/0022_store_capabilities_gstin.sql` is applied.
+- No new migration in this correction pass.
+- Existing DB schema reused for orders/refills/customer medicine records.
+- Notifications/dosage/ratings now persisted in DB tables via migration 0024.
 
-## Seed steps
-1. `node scripts/seed-locations.mjs`
-2. `node scripts/seed-medivision.mjs`
-3. (Optional sanity) `node scripts/seed.mjs` for lightweight local demo data.
+## Seed status
+- Existing seed pipeline present (`scripts/seed.mjs`); enrichment for new durable tables can be added incrementally.
+- Seed expansion for those modules deferred until persistence tables are finalized.
 
-## Publish / deploy steps
-1. Build: `pnpm run build`
-2. Start app in production env (your process manager/container entrypoint for `dist/index.js`).
-3. Smoke test key routes and pilot transactions.
-4. Export code archive from current branch commit for downloadable pilot package.
+## Rollback
+- Revert commit `fix(customer): wire continuity APIs and complete release docs`.
+- No destructive DB migration rollback needed.
 
-## Rollback plan
-- Rollback app artifact to previous successful commit.
-- Rollback DB by restoring pre-migration backup snapshot (recommended for pilot) or manually reverting latest SQL migration(s).
-- Re-seed from known-good seed scripts if data reset is required.
+## Known limitations
+- Provider adapter delivery remains deferred; persistence is durable even when provider env is missing.
+- Reorder prompt endpoint is draft-prompt only and does not auto-create order.
 
-## Pilot readiness score
-- **8.8 / 10** (release-candidate ready for single-store pilot with noted warnings/gaps).
+## Validation
+- pnpm install
+- pnpm run check
+- pnpm test -- --runInBand
+- pnpm run build
+
+## Next prompt
+Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardening.
