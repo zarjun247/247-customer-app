@@ -9,6 +9,7 @@ import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding } from "../services/supplierLedger";
+import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -74,6 +75,26 @@ async function recalcInvoiceTotals(db: Awaited<ReturnType<typeof getDbSafe>>, in
 }
 
 export const purchaseRouter = router({
+
+  ensureScannerReadyForBatch: protectedProcedure
+    .input(z.object({ productId: z.number(), batchId: z.number().optional(), batchNo: z.string().optional(), storeId: z.number(), expiryDate: z.string().optional(), mrp: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      requirePurchase(ctx.user!.role);
+      const internalBarcode = generateInternalBarcode({ productId: input.productId, batchId: input.batchId, storeId: input.storeId });
+      await registerBarcodeAlias({ barcode: internalBarcode, productId: input.productId, batchId: input.batchId, storeId: input.storeId, aliasType: "internal" });
+      const payload = getBarcodeLabelPayload({ productName: `Product-${input.productId}`, batchNo: input.batchNo ?? null, expiryDate: input.expiryDate ?? null, mrp: input.mrp ?? null, internalBarcode, storeId: input.storeId });
+      await createLabelPrintJob({ productId: input.productId, batchId: input.batchId ?? null, storeId: input.storeId, labelType: "batch", payloadJson: payload, requestedBy: ctx.user!.id });
+      return { internalBarcode, queued: true };
+    }),
+
+  listLabelQueue: protectedProcedure
+    .input(z.object({ storeId: z.number().optional() }))
+    .query(async ({ ctx, input }) => { requirePurchase(ctx.user!.role); const { getLabelPrintQueue } = await import("../services/barcodeService"); return { rows: await getLabelPrintQueue(input.storeId) }; }),
+
+  reprintLabel: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => { requirePurchase(ctx.user!.role); const { reprintLabel } = await import("../services/barcodeService"); await reprintLabel(input.id); return { ok: true }; }),
+
   listInvoices: protectedProcedure
     .input(z.object({ storeId: z.number().optional(), supplierId: z.number().optional(), status: z.enum(["draft","committed","partially_returned","returned","cancelled"]).optional(), invoiceNo: z.string().optional(), dateFrom: z.date().optional(), dateTo: z.date().optional(), limit: z.number().default(50), offset: z.number().default(0) }))
     .query(async ({ ctx, input }) => {

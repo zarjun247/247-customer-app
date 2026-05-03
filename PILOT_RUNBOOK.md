@@ -1,6 +1,8 @@
+# Production Store Go-Live Runbook (Legacy filename retained as PILOT_RUNBOOK.md)
+
 # PILOT RUNBOOK — Customer Continuity APIs
 
-## Pilot stores
+## Production stores
 - Salsette 27 (live)
 - Signet/Lodha Park (fitout)
 - Lodha NCP (LOI)
@@ -29,3 +31,10 @@
 
 ## Next prompt
 Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardening.
+
+## Barcode Scanner + Label Queue (Prompt 6)
+- Scanner assumption: USB/Bluetooth keyboard-wedge input.
+- SOP: purchase inwarding -> generate/queue label; POS scan -> add candidate line; stock audit scan and return scan resolve by barcode.
+- Printer fallback: if PRINTER_HOST/PRINTER_PORT missing, keep label jobs queued/failed-with-retry without blocking inwarding.
+- Env: PRINTER_HOST, PRINTER_PORT, PRINTER_NAME.
+

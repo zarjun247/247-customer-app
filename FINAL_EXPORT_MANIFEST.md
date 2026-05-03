@@ -21,3 +21,10 @@
 
 ## Next prompt
 Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardening.
+
+## Barcode Scanner + Label Queue (Prompt 6)
+- Scanner assumption: USB/Bluetooth keyboard-wedge input.
+- SOP: purchase inwarding -> generate/queue label; POS scan -> add candidate line; stock audit scan and return scan resolve by barcode.
+- Printer fallback: if PRINTER_HOST/PRINTER_PORT missing, keep label jobs queued/failed-with-retry without blocking inwarding.
+- Env: PRINTER_HOST, PRINTER_PORT, PRINTER_NAME.
+

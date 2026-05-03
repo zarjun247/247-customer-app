@@ -18,6 +18,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection } from "../services/stockInvariant";
+import { resolveBarcodeForStockAudit } from "../services/barcodeService";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -610,6 +611,12 @@ const transferRouter = router({
 // ─── Audit Router ─────────────────────────────────────────────────────────────
 
 const auditSessionRouter = router({
+  scanBarcodeForAudit: protectedProcedure
+    .input(z.object({ barcode: z.string().min(1), storeId: z.number() }))
+    .query(async ({ input }) => {
+      const resolved = await resolveBarcodeForStockAudit(input.barcode, input.storeId);
+      return { ...resolved, correctionMutation: "deferred_to_audit_complete_applyStockAuditCorrection" };
+    }),
 
   list: protectedProcedure
     .input(z.object({
