@@ -47,6 +47,7 @@ import {
 import { eq, and, desc, gte, lte, sql, inArray, isNull } from "drizzle-orm";
 import { resolveNode, recordOrderTimestamp } from "../routingEngine";
 import { TRPCError } from "@trpc/server";
+import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 const DELIVERY_ROLES = ["delivery_operator", "store_manager", "admin"] as const;
@@ -57,7 +58,7 @@ function assertRole(role: string, allowed: readonly string[], label: string) {
 }
 
 function getStoreId(user: any): number {
-  return user.storeId ?? 1;
+  return requireStaffStore(user as any);
 }
 
 // ─── Routing sub-router ───────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ const riderRouter = router({
       const db = await getDb();
       if (!db) return [];
       const storeId = input.storeId ?? getStoreId(ctx.user);
+      requireStoreAccess(ctx.user, storeId);
       const conditions = [eq(riders.storeId, storeId)];
       if (input.status) conditions.push(eq(riders.status, input.status));
       if (input.isActive !== undefined) conditions.push(eq(riders.isActive, input.isActive));
@@ -177,6 +179,7 @@ const riderRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const storeId = input.storeId ?? getStoreId(ctx.user);
+      requireStoreAccess(ctx.user, storeId);
       const r = await db.insert(riders).values({ name: input.name, phone: input.phone, storeId });
       return { id: (r as any).insertId, ok: true };
     }),
@@ -194,6 +197,9 @@ const riderRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...values } = input;
+      const [existing] = await db.select().from(riders).where(eq(riders.id, id)).limit(1);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, existing.storeId);
       await db.update(riders).set(values).where(eq(riders.id, id));
       return { ok: true };
     }),
@@ -260,6 +266,7 @@ const taskRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const storeId = getStoreId(ctx.user);
+      requireStoreAccess(ctx.user, storeId);
 
       // Create delivery task
       const r = await db.insert(deliveryTasks).values({
@@ -309,6 +316,7 @@ const taskRouter = router({
 
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, task.storeId);
 
       await db.update(deliveryTasks).set({
         status: "pickup_confirmed",
@@ -339,6 +347,7 @@ const taskRouter = router({
 
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, task.storeId);
 
       await db.update(deliveryTasks).set({
         status: "out_for_delivery",
@@ -376,6 +385,7 @@ const taskRouter = router({
 
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, task.storeId);
 
       // Verify OTP against delivery_otps table
       const { deliveryOtps } = await import("../../drizzle/schema");
@@ -447,6 +457,7 @@ const taskRouter = router({
 
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, task.storeId);
 
       const now = new Date();
 
@@ -500,6 +511,7 @@ const taskRouter = router({
 
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, task.storeId);
 
       const now = new Date();
 
@@ -544,6 +556,7 @@ const taskRouter = router({
 
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, task.storeId);
 
       const now = new Date();
 
@@ -621,6 +634,7 @@ const taskRouter = router({
 
       const conditions = [];
       const storeId = input.storeId ?? getStoreId(ctx.user);
+      requireStoreAccess(ctx.user, storeId);
       conditions.push(eq(deliveryTasks.storeId, storeId));
       if (input.riderId) conditions.push(eq(deliveryTasks.riderId, input.riderId));
       if (input.status) conditions.push(eq(deliveryTasks.status, input.status));
@@ -652,6 +666,7 @@ const taskRouter = router({
       const db = await getDb();
       if (!db) return null;
       const storeId = getStoreId(ctx.user);
+      requireStoreAccess(ctx.user, storeId);
       const since = new Date(Date.now() - input.days * 86400000);
 
       const [total] = await db.select({ count: sql<number>`count(*)` })
@@ -686,6 +701,7 @@ const slaRouter = router({
       const db = await getDb();
       if (!db) return [];
       const storeId = input.storeId ?? getStoreId(ctx.user);
+      requireStoreAccess(ctx.user, storeId);
       const conditions = [eq(slaEvents.storeId, storeId)];
       if (input.breached !== undefined) conditions.push(eq(slaEvents.breached, input.breached));
       return db.select().from(slaEvents)

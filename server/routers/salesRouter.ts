@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, desc, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { logAudit } from "../services/audit";
@@ -66,6 +67,7 @@ export const salesRouter = router({
     .input(z.object({ barcode: z.string().min(1), storeId: z.number() }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const resolved = await resolveBarcodeForSale(input.barcode, input.storeId);
       return { ...resolved, stockMutation: "deferred_to_confirmSale_stockInvariant", complianceGate: "checked_at_confirm", marginGuard: "checked_at_confirm" };
     }),
@@ -74,6 +76,7 @@ export const salesRouter = router({
     .input(z.object({ barcode: z.string().min(1), storeId: z.number() }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const resolved = await resolveBarcodeForReturn(input.barcode, input.storeId);
       return { ...resolved, stockMutation: "deferred_to_return_commit_stockInvariant" };
     }),
@@ -87,6 +90,7 @@ export const salesRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { products, batchLedger } = await import("../../drizzle/schema");
       const q = `%${input.query}%`;
@@ -130,6 +134,7 @@ export const salesRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { batchLedger } = await import("../../drizzle/schema");
       const now = Date.now();
@@ -184,6 +189,7 @@ export const salesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { sales } = await import("../../drizzle/schema");
       const now = Date.now();
@@ -237,6 +243,7 @@ export const salesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { saleLines, sales } = await import("../../drizzle/schema");
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
@@ -301,6 +308,7 @@ export const salesRouter = router({
     .input(z.object({ saleId: z.string(), lineId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { saleLines, sales } = await import("../../drizzle/schema");
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
@@ -326,6 +334,7 @@ export const salesRouter = router({
     .input(z.object({ saleId: z.string() }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { sales, saleLines, products } = await import("../../drizzle/schema");
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
@@ -355,6 +364,7 @@ export const salesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const {
         sales, saleLines, batchLedger, counterPayments, auditLogs,
@@ -438,6 +448,7 @@ export const salesRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { sales } = await import("../../drizzle/schema");
       const conditions = [];
@@ -465,6 +476,7 @@ export const salesRouter = router({
     .input(z.object({ saleId: z.string() }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { sales, saleLines, products } = await import("../../drizzle/schema");
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
@@ -488,6 +500,7 @@ export const salesRouter = router({
     .input(z.object({ saleId: z.string(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { sales } = await import("../../drizzle/schema");
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
@@ -503,6 +516,7 @@ export const salesRouter = router({
     .input(z.object({ saleId: z.string(), reason: z.string().min(3), actorNote: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { sales, counterPayments } = await import("../../drizzle/schema");
       const { recordCancellationTruth } = await import("../services/reconciliationTruth");
@@ -543,6 +557,7 @@ export const salesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const {
         sales, saleReturns, saleReturnLines, batchLedger, stockMovements,
@@ -657,6 +672,7 @@ export const salesRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { saleReturns } = await import("../../drizzle/schema");
       const conditions = [];
@@ -678,6 +694,7 @@ export const salesRouter = router({
     .input(z.object({ returnId: z.string() }))
     .query(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { saleReturns, saleReturnLines, products } = await import("../../drizzle/schema");
       const [ret] = await db.select().from(saleReturns).where(eq(saleReturns.id, input.returnId)).limit(1);
@@ -700,6 +717,7 @@ export const salesRouter = router({
       }))
       .query(async ({ ctx, input }) => {
         requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
         const db = await getDbSafe();
         const { sales } = await import("../../drizzle/schema");
         const conditions = [
@@ -731,6 +749,7 @@ export const salesRouter = router({
       }))
       .query(async ({ ctx, input }) => {
         requireSales(ctx.user?.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
         const db = await getDbSafe();
         const { sales } = await import("../../drizzle/schema");
         const conditions = [

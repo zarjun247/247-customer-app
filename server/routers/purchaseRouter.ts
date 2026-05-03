@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
@@ -80,6 +81,7 @@ export const purchaseRouter = router({
     .input(z.object({ productId: z.number(), batchId: z.number().optional(), batchNo: z.string().optional(), storeId: z.number(), expiryDate: z.string().optional(), mrp: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const internalBarcode = generateInternalBarcode({ productId: input.productId, batchId: input.batchId, storeId: input.storeId });
       await registerBarcodeAlias({ barcode: internalBarcode, productId: input.productId, batchId: input.batchId, storeId: input.storeId, aliasType: "internal" });
       const payload = getBarcodeLabelPayload({ productName: `Product-${input.productId}`, batchNo: input.batchNo ?? null, expiryDate: input.expiryDate ?? null, mrp: input.mrp ?? null, internalBarcode, storeId: input.storeId });
@@ -99,6 +101,7 @@ export const purchaseRouter = router({
     .input(z.object({ storeId: z.number().optional(), supplierId: z.number().optional(), status: z.enum(["draft","committed","partially_returned","returned","cancelled"]).optional(), invoiceNo: z.string().optional(), dateFrom: z.date().optional(), dateTo: z.date().optional(), limit: z.number().default(50), offset: z.number().default(0) }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices, suppliers, users } = await import("../../drizzle/schema");
       const conds: ReturnType<typeof eq>[] = [];
@@ -118,6 +121,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices, purchaseLines, products, suppliers } = await import("../../drizzle/schema");
       const [row] = await db.select({ invoice: purchaseInvoices, supplierName: suppliers.supplierName }).from(purchaseInvoices).leftJoin(suppliers, eq(purchaseInvoices.supplierId, suppliers.id)).where(eq(purchaseInvoices.id, input.id));
@@ -130,6 +134,7 @@ export const purchaseRouter = router({
     .input(z.object({ supplierId: z.number(), storeId: z.number(), invoiceNo: z.string().min(1), invoiceDate: z.date(), supplierGstin: z.string().optional(), sourceType: z.enum(["manual","ocr","import","whatsapp"]).default("manual"), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices } = await import("../../drizzle/schema");
       const [result] = await db.insert(purchaseInvoices).values({ supplierId: input.supplierId, storeId: input.storeId, invoiceNo: input.invoiceNo, invoiceDate: input.invoiceDate, supplierGstin: input.supplierGstin ?? null, sourceType: input.sourceType, notes: input.notes ?? null, createdBy: ctx.user!.id, status: "draft" });
@@ -142,6 +147,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number(), invoiceNo: z.string().optional(), invoiceDate: z.date().optional(), supplierGstin: z.string().optional(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices } = await import("../../drizzle/schema");
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id));
@@ -175,6 +181,7 @@ export const purchaseRouter = router({
     .input(z.object({ purchaseInvoiceId: z.number(), productId: z.number(), batchNo: z.string().min(1), mfgDate: z.date().optional(), expiryDate: z.date(), mrp: z.string(), purchaseRate: z.string(), saleRate: z.string().optional(), qty: z.number().min(1), freeQty: z.number().default(0), schemeDiscount: z.string().default("0"), cashDiscount: z.string().default("0"), gstRate: z.string().default("12"), hsnCode: z.string().optional(), rawLineText: z.string().optional(), confidence: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices, purchaseLines } = await import("../../drizzle/schema");
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.purchaseInvoiceId));
@@ -192,6 +199,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number(), purchaseRate: z.string().optional(), mrp: z.string().optional(), saleRate: z.string().optional(), qty: z.number().optional(), freeQty: z.number().optional(), schemeDiscount: z.string().optional(), cashDiscount: z.string().optional(), gstRate: z.string().optional(), hsnCode: z.string().optional(), batchNo: z.string().optional(), mfgDate: z.date().optional(), expiryDate: z.date().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseLines, purchaseInvoices } = await import("../../drizzle/schema");
       const [line] = await db.select().from(purchaseLines).where(eq(purchaseLines.id, input.id));
@@ -228,6 +236,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseLines, purchaseInvoices } = await import("../../drizzle/schema");
       const [line] = await db.select().from(purchaseLines).where(eq(purchaseLines.id, input.id));
@@ -243,6 +252,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices, purchaseLines, batchLedger, batches, storeSkus } = await import("../../drizzle/schema");
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id));
@@ -294,6 +304,7 @@ export const purchaseRouter = router({
     .input(z.object({ purchaseInvoiceId: z.number().optional(), storeId: z.number().optional(), batchId: z.number().optional(), limit: z.number().default(100), offset: z.number().default(0) }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { stockMovements, batches, products } = await import("../../drizzle/schema");
       const conds: ReturnType<typeof eq>[] = [];
@@ -309,6 +320,7 @@ export const purchaseRouter = router({
     .input(z.object({ purchaseInvoiceId: z.number(), supplierId: z.number(), storeId: z.number(), reason: z.string().optional(), debitNoteNo: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseReturns } = await import("../../drizzle/schema");
       const [result] = await db.insert(purchaseReturns).values({ purchaseInvoiceId: input.purchaseInvoiceId, supplierId: input.supplierId, storeId: input.storeId, reason: input.reason ?? null, debitNoteNo: input.debitNoteNo ?? null, createdBy: ctx.user!.id, status: "draft" });
@@ -321,6 +333,7 @@ export const purchaseRouter = router({
     .input(z.object({ purchaseReturnId: z.number(), purchaseLineId: z.number(), batchId: z.number(), qty: z.number().min(1), returnRate: z.string(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseReturnLines, purchaseReturns } = await import("../../drizzle/schema");
       const [ret] = await db.select().from(purchaseReturns).where(eq(purchaseReturns.id, input.purchaseReturnId));
@@ -365,6 +378,7 @@ export const purchaseRouter = router({
     .input(z.object({ storeId: z.number().optional(), supplierId: z.number().optional(), status: z.enum(["draft","committed"]).optional(), limit: z.number().default(50), offset: z.number().default(0) }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseReturns, suppliers, purchaseInvoices } = await import("../../drizzle/schema");
       const conds: ReturnType<typeof eq>[] = [];
@@ -380,6 +394,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseReturns, purchaseReturnLines, purchaseLines, products, batches } = await import("../../drizzle/schema");
       const [ret] = await db.select().from(purchaseReturns).where(eq(purchaseReturns.id, input.id));
@@ -394,6 +409,7 @@ export const purchaseRouter = router({
     .input(z.object({ supplierId: z.number().optional(), storeId: z.number().optional(), limit: z.number().default(50), offset: z.number().default(0) }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { supplierPayments, suppliers } = await import("../../drizzle/schema");
       const conds: ReturnType<typeof eq>[] = [];
@@ -408,6 +424,7 @@ export const purchaseRouter = router({
     .input(z.object({ supplierId: z.number(), storeId: z.number(), purchaseInvoiceId: z.number().optional(), amount: z.string(), paymentMode: z.enum(["cash","cheque","upi","neft","rtgs"]), referenceNo: z.string().optional(), voucherNo: z.string().optional(), bankRef: z.string().optional(), paymentDate: z.date().optional(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const result = await recordSupplierPayment(db, { supplierId: input.supplierId, storeId: input.storeId, purchaseInvoiceId: input.purchaseInvoiceId ?? null, amount: input.amount, paymentMode: input.paymentMode, referenceNo: input.referenceNo ?? null, voucherNo: input.voucherNo ?? null, bankRef: input.bankRef ?? null, paymentDate: input.paymentDate ?? new Date(), notes: input.notes ?? null, createdBy: ctx.user!.id }, ctx);
       return { id: result.id };
@@ -417,6 +434,7 @@ export const purchaseRouter = router({
     .input(z.object({ supplierId: z.number() }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const row = await getSupplierOutstanding(db, input.supplierId);
       const rows = [row];
@@ -428,6 +446,7 @@ export const purchaseRouter = router({
       .input(z.object({ storeId: z.number().optional(), supplierId: z.number().optional(), dateFrom: z.date().optional(), dateTo: z.date().optional(), status: z.enum(["draft","committed","partially_returned","returned","cancelled"]).optional(), limit: z.number().default(100), offset: z.number().default(0) }))
       .query(async ({ ctx, input }) => {
         requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
         const db = await getDbSafe();
         const { purchaseInvoices, suppliers, users } = await import("../../drizzle/schema");
         const conds: ReturnType<typeof eq>[] = [];
@@ -448,6 +467,7 @@ export const purchaseRouter = router({
       .input(z.object({ storeId: z.number().optional(), dateFrom: z.date().optional(), dateTo: z.date().optional() }))
       .query(async ({ ctx, input }) => {
         requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
         const db = await getDbSafe();
         const { purchaseInvoices, suppliers } = await import("../../drizzle/schema");
         const conds: ReturnType<typeof eq>[] = [eq(purchaseInvoices.status, "committed")];
@@ -463,6 +483,7 @@ export const purchaseRouter = router({
       .input(z.object({ storeId: z.number().optional(), dateFrom: z.date().optional(), dateTo: z.date().optional() }))
       .query(async ({ ctx, input }) => {
         requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
         const db = await getDbSafe();
         const { purchaseLines, purchaseInvoices, products } = await import("../../drizzle/schema");
         const conds: ReturnType<typeof eq>[] = [eq(purchaseInvoices.status, "committed")];
@@ -478,6 +499,7 @@ export const purchaseRouter = router({
       .input(z.object({ storeId: z.number().optional(), productId: z.number().optional(), supplierId: z.number().optional(), dateFrom: z.date().optional(), dateTo: z.date().optional(), limit: z.number().default(100), offset: z.number().default(0) }))
       .query(async ({ ctx, input }) => {
         requirePurchase(ctx.user!.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
         const db = await getDbSafe();
         const { purchaseLines, purchaseInvoices, products, suppliers } = await import("../../drizzle/schema");
         const conds: ReturnType<typeof eq>[] = [eq(purchaseInvoices.status, "committed")];

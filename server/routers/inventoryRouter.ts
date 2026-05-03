@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { requireStoreAccess } from "../_core/rbac";
 import { logAudit } from "../services/audit";
 import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection } from "../services/stockInvariant";
 import { resolveBarcodeForStockAudit } from "../services/barcodeService";
@@ -81,6 +82,7 @@ const batchRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -133,6 +135,7 @@ const batchRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger } = await schema();
       const bucket = computeExpiryBucket(input.expiryDate);
@@ -170,6 +173,7 @@ const batchRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger } = await schema();
       const [before] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.id));
@@ -191,6 +195,7 @@ const batchRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger, batchQuarantineLogs } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
@@ -252,6 +257,7 @@ const batchRouter = router({
     .input(z.object({ storeId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger } = await schema();
       const conds = input.storeId ? [eq(batchLedger.storeId, input.storeId)] : [];
@@ -280,6 +286,7 @@ const stockRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -324,6 +331,7 @@ const stockRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockMovements, batchLedger, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -355,6 +363,7 @@ const stockRouter = router({
     .input(z.object({ storeId: z.number().optional(), days: z.number().default(90) }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger, products, stores } = await schema();
       const cutoff = new Date();
@@ -386,6 +395,7 @@ const stockRouter = router({
     .input(z.object({ productId: z.number(), storeId: z.number(), qtyNeeded: z.number().min(1) }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger } = await schema();
       const batches = await db.select().from(batchLedger).where(and(
@@ -422,6 +432,7 @@ const adjustmentRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAdjustments, batchLedger } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -456,6 +467,7 @@ const adjustmentRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAdjustments, batchLedger } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
@@ -529,6 +541,7 @@ const transferRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockTransfers, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -559,6 +572,7 @@ const transferRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchLedger, stockTransfers } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
@@ -580,6 +594,7 @@ const transferRouter = router({
     .input(z.object({ transferId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockTransfers, batchLedger } = await schema();
       const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, input.transferId));
@@ -625,6 +640,7 @@ const auditSessionRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAudits } = await schema();
       const conds: ReturnType<typeof eq>[] = [];
@@ -641,6 +657,7 @@ const auditSessionRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAudits, stockAuditLines, batchLedger } = await schema();
       const [result] = await db.insert(stockAudits).values({ storeId: input.storeId, auditType: input.auditType, status: "draft", startedBy: ctx.user.id, note: input.note });
@@ -658,6 +675,7 @@ const auditSessionRouter = router({
     .input(z.object({ auditId: z.number() }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAuditLines, batchLedger, products } = await schema();
       return db.select({ line: stockAuditLines, productName: products.name, batchNo: batchLedger.batchNo, expiryDate: batchLedger.expiryDate })
@@ -672,6 +690,7 @@ const auditSessionRouter = router({
     .input(z.object({ lineId: z.number(), countedQty: z.number().min(0) }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAuditLines } = await schema();
       const [line] = await db.select().from(stockAuditLines).where(eq(stockAuditLines.id, input.lineId));
@@ -726,6 +745,7 @@ const quarantineRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { batchQuarantineLogs, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -756,6 +776,7 @@ const expiryActionsRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { expiryActions, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -786,6 +807,7 @@ const expiryActionsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
+      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { expiryActions } = await schema();
       const [result] = await db.insert(expiryActions).values({
