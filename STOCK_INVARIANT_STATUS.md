@@ -1,42 +1,37 @@
 # STOCK_INVARIANT_STATUS
 
-## Schema/tables inspected
-- product variants/SKUs: `product_variants`, `store_skus`
-- batches/current stock: `batch_ledger`, `batches`
-- stock movement: `stock_movements`
-- purchase/sale/returns/adjustments: `purchase_invoices`, `purchase_invoice_lines`, `purchase_returns`, `purchase_return_lines`, `sales`, `sale_lines`, `sale_returns`, `sale_return_lines`, `stock_adjustments`
+## Pass 2 status
+- Pass 2 is completed for purchase return commit, quarantine/disposal on-hand mutations, and transfer receive movement writes.
 
-## Service functions created
-- `applyStockMovement`
-- `increaseStockForPurchaseCommit`
-- `decreaseStockForSaleConfirmation`
-- `reverseStockForSaleReturn`
-- `decreaseStockForPurchaseReturn` (helper exported)
-- `adjustStock`
-- `assertNoNegativeStock`
-- `getCurrentBatchQty`
+## Service functions created/extended
+- `quarantineBatch`
+- `disposeBatch`
+- `transferStock`
+- existing helper reuse: `decreaseStockForPurchaseReturn`
 
-## Flows migrated in this PR
-- purchase commit
-- sale confirmation
-- stock adjustment approve (corrected: duplicate legacy movement removed; single movement now via `stockInvariant.adjustStock`)
-- sale return approval (resaleable branch)
+## Flows migrated in this pass
+- purchase return commit: now uses `decreaseStockForPurchaseReturn(...)` in `purchaseRouter.commitReturn`.
+- batch quarantine: now routes on-hand decrement through `quarantineBatch(...)` in `inventoryRouter.batch.quarantine`.
+- batch disposal: on-hand disposal decrement now routes through `disposeBatch(...)` in `inventoryRouter.batch.dispose`.
+- transfer receive: source decrement + destination increment movement pair now routes through `transferStock(...)` in `inventoryRouter.transfer.receive`.
 
-## Correction completed
-- Removed duplicate legacy `writeMovement(... movementType: "stock_adjustment")` in `inventoryRouter.adjustment.approve` so approval now writes exactly one movement via `adjustStock(...)`.
+## Flows not migrated / deferred
+- `transfer.initiate` reservation (`qtyReserved`) is not a stock-on-hand decrement path; preserved as-is.
+- `releaseQuarantine` still uses legacy `writeMovement` (`audit_correction`) because it is a quarantine reversal path not included in pass-2 scope.
+- `batch.create` and stock-audit correction paths remain legacy and are deferred to a dedicated pass.
 
-## Remaining mutation risks
-- purchase return commit path still has direct batch updates and should be migrated in next PR.
-- quarantine/disposal paths in inventory router still use local mutation helper.
+## No-negative-stock coverage
+- purchase return, quarantine, disposal on-hand decrement, and transfer source decrement now enforce no-negative via stock invariant service.
 
 ## FEFO status
-- Existing FEFO-compatible batch-level flow preserved; no allocator redesign introduced.
+- FEFO-compatible batch-level behavior remains unchanged in this pass.
 
-## No-negative-stock behavior
-- Central service rejects any movement resulting in `qtyAfter < 0`.
+## Remaining direct stock mutation risks
+- Legacy direct stock movement writer remains in inventory router for non-pass-2 paths (`batch.create`, `releaseQuarantine`, `audit.complete`).
+- Legacy batch quantity synchronizations between `batch_ledger`, `batches`, and `store_skus` remain and should be unified in a later pass.
 
-## Validation
-- Run `pnpm run check`, `pnpm test -- --runInBand`, `pnpm run build`.
+## Migrations
+- No migrations added (existing schema was sufficient).
 
 ## Next recommended PR
-- stock-invariant pass 2: migrate purchase return + quarantine/disposal + transfer stock writes fully into stockInvariant service and add transaction wrappers for multi-line workflows.
+- stock-invariant pass 3: centralize release-quarantine and stock-audit correction movement writes; optionally split service APIs for on-hand vs quarantined bucket mutations and remove remaining `writeMovement` router helper usage.
