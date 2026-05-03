@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { logAudit as logAuditEvent } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
 function requireStaff(role: string) {
@@ -28,8 +29,7 @@ async function getDb() {
 async function logAudit(userId: number, action: string, entityType: string, entityId: number, before?: unknown, after?: unknown, reason?: string) {
   try {
     const db = await getDb();
-    const { auditLogs } = await import("../../drizzle/schema");
-    await db.insert(auditLogs).values({ actorId: userId, actorType: "user", userId, action, entityType, entityId, beforeJson: before ? JSON.stringify(before) : null, afterJson: after ? JSON.stringify(after) : null, reason: reason ?? null });
+    await logAuditEvent({ actorId: userId, actorType: "user", action: action.startsWith("master.") ? action : `master.${entityType}.${action}`, entityType, entityId, beforeJson: before, afterJson: after, reason: reason ?? undefined, source: "admin" });
   } catch { /* non-critical */ }
 }
 function toCsv(rows: Record<string, unknown>[]): string {

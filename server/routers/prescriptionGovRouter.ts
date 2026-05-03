@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { logAudit as logAuditEvent } from "../services/audit";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -38,16 +39,7 @@ async function writeAuditLog(
   after: unknown,
   reason?: string
 ) {
-  const { auditLogs } = await import("../../drizzle/schema");
-  await db.insert(auditLogs).values({
-    actorId: actorId,
-    action,
-    entityType,
-    entityId: parseInt(entityId) || 0,
-    beforeJson: before ? JSON.stringify(before) : null,
-    afterJson: after ? JSON.stringify(after) : null,
-    reason: reason ?? null,
-  });
+  await logAuditEvent({ actorId, action: action.startsWith("prescription.") || action.startsWith("h1.") ? action : `prescription.${action}`, entityType, entityId: Number(entityId) || undefined, beforeJson: before, afterJson: after, reason, source: "admin" });
 }
 
 async function logAccess(

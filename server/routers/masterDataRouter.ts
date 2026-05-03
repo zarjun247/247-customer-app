@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { logAudit as logAuditEvent } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
 type StaffRole = "admin" | "super_admin" | "store_manager" | "pharmacist" | "purchase_manager" | "accountant" | "cashier" | "salesman" | "inventory_operator" | "delivery_operator" | "auditor";
@@ -39,20 +40,8 @@ async function logAudit(
   reason?: string,
 ) {
   try {
-    const db = await getDbSafe();
-    const { auditLogs } = await import("../../drizzle/schema");
-    const numericId = typeof entityId === "string" ? parseInt(entityId, 10) || 0 : entityId;
-    await db.insert(auditLogs).values({
-      actorId: userId,
-      actorType: "user",
-      userId,
-      action,
-      entityType,
-      entityId: numericId,
-      beforeJson: before ? JSON.stringify(before) : null,
-      afterJson: after ? JSON.stringify(after) : null,
-      reason: reason ?? null,
-    });
+    const numericId = typeof entityId === "string" ? parseInt(entityId, 10) : entityId;
+    await logAuditEvent({ actorId: userId, actorType: "user", action: action.startsWith("master.") ? action : `master.${entityType}.${action}`, entityType, entityId: Number.isFinite(numericId as number) ? Number(numericId) : undefined, beforeJson: before, afterJson: after, reason: reason ?? undefined, source: "admin" });
   } catch { /* non-critical */ }
 }
 
