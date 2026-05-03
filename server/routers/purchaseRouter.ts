@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
+import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding } from "../services/supplierLedger";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -263,6 +264,7 @@ export const purchaseRouter = router({
         gstSummary[rateKey].total += taxableAmount + gstAmount;
       }
       await db.update(purchaseInvoices).set({ status: "committed", committedAt: new Date(), approvedBy: ctx.user!.id, approvedAt: new Date(), gstSummary: JSON.stringify(gstSummary) }).where(eq(purchaseInvoices.id, input.id));
+      await recordSupplierPayable(db, { supplierId: inv.supplierId, purchaseInvoiceId: inv.id, storeId: inv.storeId, amount: Number(inv.netAmount ?? 0), actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, ctx);
       await logAudit({ action: "purchase.committed", entityType: "purchase_invoice", entityId: input.id, beforeJson: { status: "draft" }, afterJson: { status: "committed", gstSummary } }, ctx);
       return { success: true, gstSummary };
     }),
@@ -386,11 +388,18 @@ export const purchaseRouter = router({
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       const db = await getDbSafe();
-      const { supplierPayments } = await import("../../drizzle/schema");
-      const [result] = await db.insert(supplierPayments).values({ supplierId: input.supplierId, storeId: input.storeId, purchaseInvoiceId: input.purchaseInvoiceId ?? null, amount: input.amount, paymentMode: input.paymentMode, referenceNo: input.referenceNo ?? null, voucherNo: input.voucherNo ?? null, bankRef: input.bankRef ?? null, paymentDate: input.paymentDate ?? new Date(), notes: input.notes ?? null, createdBy: ctx.user!.id });
-      const id = (result as { insertId: number }).insertId;
-      await logAudit({ action: "supplier.payment_created", entityType: "supplier_payment", entityId: id, afterJson: { supplierId: input.supplierId, amount: input.amount } }, ctx);
-      return { id };
+      const result = await recordSupplierPayment(db, { supplierId: input.supplierId, storeId: input.storeId, purchaseInvoiceId: input.purchaseInvoiceId ?? null, amount: input.amount, paymentMode: input.paymentMode, referenceNo: input.referenceNo ?? null, voucherNo: input.voucherNo ?? null, bankRef: input.bankRef ?? null, paymentDate: input.paymentDate ?? new Date(), notes: input.notes ?? null, createdBy: ctx.user!.id }, ctx);
+      return { id: result.id };
+    }),
+
+  supplierOutstanding: protectedProcedure
+    .input(z.object({ supplierId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      requirePurchase(ctx.user!.role);
+      const db = await getDbSafe();
+      const row = await getSupplierOutstanding(db, input.supplierId);
+      const rows = [row];
+      return { rows, totals: { outstanding: row.outstanding }, csvData: `supplierId,outstanding\n${row.supplierId},${row.outstanding}` };
     }),
 
   reports: router({
