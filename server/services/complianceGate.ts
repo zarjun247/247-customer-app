@@ -37,19 +37,27 @@ export async function createOrVerifyH1RegisterEntry(saleId: string, pharmacistId
   const db = await getDb(); const { saleLines, sales, products, h1Register } = await import("../../drizzle/schema");
   const [sale] = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1); if (!sale) return;
   const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, saleId));
+  if (!pharmacistId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Pharmacist identity required for H1 dispensing" });
   for (const line of lines) {
     const flags = await getProductScheduleFlags(String(line.productId)); if (!flags.h1RegisterRequired) continue;
-    const [existing] = await db.select().from(h1Register).where(and(eq(h1Register.saleId, Number(saleId) || 0), eq(h1Register.drugName, String(line.productId)))).limit(1);
+    if (!sale.billNo || !sale.storeId || !sale.customerName) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Missing required H1 sale context" });
+    const [product] = await db.select({ name: products.name }).from(products).where(eq(products.id, Number(line.productId))).limit(1);
+    if (!product?.name) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Missing product name for H1 register" });
+    const [existing] = await db.select().from(h1Register).where(and(eq(h1Register.saleId, Number(line.id)), eq(h1Register.drugName, String(product.name)))).limit(1);
     if (!existing) {
-      await db.insert(h1Register).values({ storeId: Number(sale.storeId) || 0, patientName: sale.customerName ?? "NA", patientPhone: sale.customerMobile, prescribingDoctor: null, drugName: String(line.productId), qty: line.qty, pharmacistId, billNo: sale.billNo, saleId: Number(saleId) || 0, prescriptionRef: sale.prescriptionId ?? null });
-      await logAudit({ action: "compliance.h1_register_created", entityType: "sale", entityId: Number(saleId) || 0, afterJson: { saleId, lineId: line.id } }, ctx);
+      await db.insert(h1Register).values({ storeId: Number(sale.storeId), patientName: sale.customerName, patientPhone: sale.customerMobile, prescribingDoctor: null, drugName: String(product.name), batchNo: line.batchNo ?? null, qty: line.qty, pharmacistId, billNo: sale.billNo, saleId: Number(line.id), prescriptionRef: sale.prescriptionId ?? null });
+      await logAudit({ action: "h1.register.created", entityType: "sale", entityId: Number(line.id), afterJson: { saleId, lineId: line.id, drugName: product.name } }, ctx);
+    } else {
+      await logAudit({ action: "h1.register.verified", entityType: "sale", entityId: Number(line.id), afterJson: { saleId, lineId: line.id, drugName: product.name } }, ctx);
     }
   }
 }
 
 export async function assertCanConfirmSale(saleId: string, ctx?: any) {
   const result = await validateSaleCompliance(saleId);
-  if (!result.ok) { await logAudit({ action: "compliance.sale_blocked", entityType: "sale", entityId: Number(saleId) || 0, reason: "regulated_without_clearance", afterJson: result }, ctx); throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Regulated items require valid prescription and pharmacist approval" }); }
+  await logAudit({ action: "regulated.release_checked", entityType: "sale", entityId: undefined, afterJson: { saleId, ...result } }, ctx);
+  if (!result.ok) { await logAudit({ action: "regulated.release_blocked", entityType: "sale", entityId: undefined, reason: "regulated_without_clearance", afterJson: { saleId, ...result } }, ctx); throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Regulated items require valid prescription and pharmacist approval" }); }
+  await logAudit({ action: "regulated.release_approved", entityType: "sale", entityId: undefined, afterJson: { saleId } }, ctx);
 }
 export async function assertCanPickPackDeliver(saleId: string, _nextStatus: string, ctx?: any) { await assertCanConfirmSale(saleId, ctx); }
 export function assertNoAutonomousRegulatedRelease() { return true; }
