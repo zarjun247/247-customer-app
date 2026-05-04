@@ -51,3 +51,6 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 
 
 - Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`; production readiness requires supplier allocation and export truth.
+
+- Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
+- Salsette migration tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
