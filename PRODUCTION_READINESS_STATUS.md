@@ -95,12 +95,12 @@
 - next action: feat/product-master-normalization-migration
 
 ### Phase 11
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
+- status: partial
+- current score /10: 7.6
+- owner branch/PR: feat/product-master-normalization-migration
+- blockers: full runtime router wiring + durable import batch tables + production barcode UX pending
+- acceptance criteria: canonical product identity + completeness + migration safety + guarded substitution
+- next action: feat/barcode-production-ux
 
 ### Phase 12
 - status: not started
@@ -258,3 +258,9 @@ production chain operations require store-scoped staff/admin access.
 - Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`.
 - Production readiness requires supplier allocation truth and export audit truth before claiming complete.
 - Next PR: `feat/product-master-normalization-migration`.
+
+
+## 2026-05-04 Phase 11 update
+- Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
+- Salsette migration/import sequence tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
+- Next PR: `feat/barcode-production-ux`.
