@@ -58,3 +58,6 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Production runbook note: release requires verified payment signatures and reconciliation truth; see PAYMENT_GATEWAY_STATUS.md.
 
 - Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.
+
+
+- Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`; production readiness requires supplier allocation and export truth.

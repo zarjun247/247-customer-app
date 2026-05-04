@@ -87,12 +87,12 @@
 - next action: execute roadmap phase PR
 
 ### Phase 10
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
+- status: partial
+- current score /10: 7.2
+- owner branch/PR: feat/accounting-supplier-tally-production
+- blockers: durable allocation table + durable journal table + tally export run audit table pending
+- acceptance criteria: supplier allocation truth + accounting journal durability + tally duplicate prevention
+- next action: feat/product-master-normalization-migration
 
 ### Phase 11
 - status: not started
@@ -252,3 +252,9 @@ production chain operations require store-scoped staff/admin access.
 - Phase 8 correction: webhook posture fail-closed when route unsupported, refund provider state now pending/manual (no premature success), over-refund guard added. Next PR: feat/invoice-statutory-billing.
 
 - Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.
+
+
+## 2026-05-04 Accounting/Tally production note
+- Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`.
+- Production readiness requires supplier allocation truth and export audit truth before claiming complete.
+- Next PR: `feat/product-master-normalization-migration`.

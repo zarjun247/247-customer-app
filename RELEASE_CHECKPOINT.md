@@ -66,3 +66,6 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Payment webhook remains disabled until verified raw-body route support is implemented; fail-closed env posture enforced.
 
 - Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.
+
+
+- Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`; production readiness requires supplier allocation and export truth.
