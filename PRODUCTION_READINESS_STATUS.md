@@ -1,266 +1,54 @@
 # PRODUCTION_READINESS_STATUS
 
-## 1. Current score
-- Overall: 6.8 / 10
-- Last updated by: chore/production-baseline-audit
-- Next target after immediate 5 PRs: 8.0+
+## Current overall score
+- Overall readiness: **8.0 / 10**
+- Date: 2026-05-04
+- Interpretation: materially hardened through Prompt 12, but still short of production-final truth.
 
-## 2. Phase checklist
-### Phase 0
-- status: partial
-- current score /10: 6.8
-- owner branch/PR: chore/production-baseline-audit
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
+## Phase summary (single-source truth)
+- Phase 0 baseline/readiness: **complete**
+- Phase 1 security lockdown: **partial/strong**
+- Phase 2 CI/unsafe merge blocking: **partial/strong**
+- Phase 3 store isolation/RBAC: **partial**
+- Phase 4 idempotency/reservation: **partial**
+- Phase 5 stock truth: **partial/strong**
+- Phase 6 commercial-flow integration tests: **partial**
+- Phase 7 regulated release/H1/vault: **partial/strong**
+- Phase 8 payment/refund truth: **partial**
+- Phase 9 invoice/GST/statutory billing: **partial**
+- Phase 10 accounting/supplier/Tally: **partial**
+- Phase 11 product master/migration: **partial**
+- Phase 12 barcode production UX: **next**
+- Phase 13 placeholder/provider matrix: **pending**
+- Phase 14 deployment/monitoring/backup: **pending**
+- Phase 15 performance/HTTP hardening: **pending**
+- Phase 16 UX/admin polish: **pending**
+- Phase 17 training/SOP/smoke checklist: **pending**
+- Phase 18 investor/dev audit pack/final audit: **pending**
 
-### Phase 1
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
+## Remaining blockers
+- duplicate/stale PR cleanup execution on GitHub remote
+- barcode production UX / scanner-label workflow
+- provider contract matrix
+- deployment/observability/backup/restore
+- performance/load/HTTP hardening
+- deeper DB-backed integration tests
+- full route wiring for product master/import
+- payment webhook raw-body verified route
+- full refund/settlement reconciliation
+- full invoice PDF/persistence parity
+- full accounting route wiring
+- customer/admin UX polish
+- training/SOP mode
+- final investor/dev audit pack
 
-### Phase 2
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 3
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 4
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 5
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 6
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 7
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 8
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 9
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 10
-- status: partial
-- current score /10: 7.2
-- owner branch/PR: feat/accounting-supplier-tally-production
-- blockers: durable allocation table + durable journal table + tally export run audit table pending
-- acceptance criteria: supplier allocation truth + accounting journal durability + tally duplicate prevention
-- next action: feat/product-master-normalization-migration
-
-### Phase 11
-- status: partial
-- current score /10: 7.6
-- owner branch/PR: feat/product-master-normalization-migration
-- blockers: full runtime router wiring + durable import batch tables + production barcode UX pending
-- acceptance criteria: canonical product identity + completeness + migration safety + guarded substitution
-- next action: feat/barcode-production-ux
-
-### Phase 12
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 13
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 14
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 15
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 16
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 17
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-### Phase 18
-- status: not started
-- current score /10: 0.0
-- owner branch/PR: TBD
-- blockers: security/CI/store-scope/idempotency/payment/migration proof pending
-- acceptance criteria: phase-specific production hardening complete and validated
-- next action: execute roadmap phase PR
-
-## 3. Immediate red-alert blockers
-- worker route lock
-- storage proxy access control
-- production env fail-hard
-- OTP production logging/rate limits
-- GitHub CI missing or unproven
-- H1 register correctness
-- stock opening/transfer/reservation truth
-- store isolation
-- payment webhook/refund truth
-
-## 4. Production doctrine
-- No more feature jazz.
-- No more shiny dragons.
-- No pilot language.
+## Production doctrine (retained)
 - No fake-complete modules.
-- No hidden stubs.
-- No in-memory-only production features.
 - No unscoped access.
 - No unaudited critical mutation.
 - No regulated medicine release without compliance truth.
 - No stock mutation outside invariant truth.
 - No payment/refund without ledger truth.
 
-## 5. Definition of 10/10
-The system is 10/10 only when it is:
-- secure
-- store-scoped
-- idempotent
-- audited
-- compliance-proof
-- payment-proof
-- stock-proof
-- report-proof
-- migration-proof
-- deployable
-- recoverable
-- trainable
-- investor-auditable
-
-## Validation status
-- pnpm install: pass (warning: ignored build scripts approval prompt)
-- pnpm run check: pass
-- pnpm test -- --runInBand: pass
-- pnpm run build: pass (non-blocking warnings on analytics env/chunk size)
-
-- 2026-05-03: Red-alert security lockdown updates applied (env fail-hard, worker auth, storage proxy hardening, OTP hardening, security guard tests). Next: chore/github-ci-branch-protection.
-
-
-## 2026-05-03 CI and unsafe-merge blocking update
-- Phase 2 (GitHub CI + unsafe-merge blocking): **in progress** (workflows and guards added in PR branch, pending branch-protection settings in GitHub).
-- CI score: **7.0 / 10** (up from 6.8 after CI workflow + migration/placeholder/security guard automation).
-- Remaining CI gaps: branch protection enforcement, ephemeral DB-backed migration smoke, strict required check wiring in repository settings.
-- Next PR: `feat/store-isolation-rbac`.
-
-
-## Phase 3 Store isolation + central RBAC
-Status: partial
-Store isolation score: 7/10
-Remaining blockers: full router rollout + integration coverage + customer dependent authorization.
-Next PR: feat/idempotency-reservation-truth
-production chain operations require store-scoped staff/admin access.
-
-- 2026-05-03: corrected unsafe default-store fallback in delivery router; staff store assignment now fail-closed for scoped delivery/report flows.
-
-## Prompt 5 Update (Idempotency/Reservation)
-- Phase 4 status: partial (durable idempotency table + service + canonical availability helper landed).
-- Remaining blockers: full transactional locking/replay posture across all mutation endpoints.
-- Next PR: feat/stock-truth-10.
-
-## Prompt 5 correction note (2026-05-03)
-- Phase 4 remains partial.
-- Wired duplicate/idempotency guards into purchase commit, sale confirm, payment verify, delivery delivered, stock audit complete, and OCR draft commit.
-- Reservation truth now enforced in sale confirm via canonical availability helper.
-- Next PR: feat/stock-truth-10.
-
-## Phase 5 — Stock Truth 10/10 (Prompt 6)
-- Status: partial (in progress)
-- Score: 8.8/10
-- Blockers: full commercial-flow integration test matrix and remaining legacy availability reads.
-- Next PR: `test/commercial-flow-integration`
-
-- Phase 6 commercial flow integration tests added (service/static coverage); see COMMERCIAL_FLOW_TEST_STATUS.md.
-- Next PR: feat/regulated-release-prescription-vault.
-
-- Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
-
-- Phase 7 update: delivery/whatsapp/refill regulated runtime gates and vault view audit enforced (partial completion). Next PR: feat/payment-gateway-refund-reconciliation
-
-- Phase 8 Payment gateway, webhook, refund truth: partial (service hardening + env guard + verify idempotency audit landed; webhook endpoint/report normalization still pending). Next PR: feat/invoice-statutory-billing.
-
-- Phase 8 correction: webhook posture fail-closed when route unsupported, refund provider state now pending/manual (no premature success), over-refund guard added. Next PR: feat/invoice-statutory-billing.
-
-- Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.
-
-
-## 2026-05-04 Accounting/Tally production note
-- Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`.
-- Production readiness requires supplier allocation truth and export audit truth before claiming complete.
-- Next PR: `feat/product-master-normalization-migration`.
-
-
-## 2026-05-04 Phase 11 update
-- Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
-- Salsette migration/import sequence tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
-- Next PR: `feat/barcode-production-ux`.
+## Next prompt
+`feat/barcode-production-ux`

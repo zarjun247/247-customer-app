@@ -54,3 +54,8 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 
 - Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
 - Salsette migration tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
+
+## 2026-05-04 Repo hygiene reconciliation note
+- Stale PR cleanup status is tracked in `STALE_PR_STATUS.md`.
+- Current production truth after Prompt 12 is in `CURRENT_MAIN_TRUTH_AFTER_PROMPT_12.md`.
+- Next implementation branch: `feat/barcode-production-ux`.
