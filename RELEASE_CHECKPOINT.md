@@ -54,3 +54,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Production chain readiness requires green GitHub CI checks.
 
 - Updated: idempotency/reservation truth tracking added; app/POS availability must use canonical availability formula.
+
+- Phase 5 stock truth tracked in `STOCK_TRUTH_10_STATUS.md`; invariant-only mutation enforcement remains required for production readiness.

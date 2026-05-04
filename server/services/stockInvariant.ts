@@ -84,12 +84,13 @@ export async function createBatchWithOpeningStock(input: {
 }) {
   const db = await getDb();
   const { batchLedger } = await import("../../drizzle/schema");
-  const [result] = await db.insert(batchLedger).values(input.batch);
+  const openingQty = Math.max(0, input.batch.qtyOnHand ?? 0);
+  const [result] = await db.insert(batchLedger).values({ ...input.batch, qtyOnHand: 0 });
   const batchId = result.insertId;
-  if (input.batch.qtyOnHand > 0) {
-    await applyStockMovement({ batchId, storeId: input.batch.storeId, qtyDelta: input.batch.qtyOnHand, movementType: "purchase_inward", referenceType: input.batch.purchaseInvoiceId ? "purchase_invoice" : "batch_create", referenceId: input.batch.purchaseInvoiceId ?? batchId, reason: `Batch ${input.batch.batchNo} opening stock`, actor: input.actor, productId: input.batch.productId });
+  if (openingQty > 0) {
+    await applyStockMovement({ batchId, storeId: input.batch.storeId, qtyDelta: openingQty, movementType: "purchase_inward", referenceType: input.batch.purchaseInvoiceId ? "purchase_invoice" : "batch_create", referenceId: input.batch.purchaseInvoiceId ?? batchId, reason: `Batch ${input.batch.batchNo} opening stock`, actor: input.actor, productId: input.batch.productId });
   }
-  await logAudit({ action: "inventory.batch_created_with_opening_stock", entityType: "batch_ledger", entityId: batchId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", afterJson: { ...input.batch }, metadata: { openingStockQty: input.batch.qtyOnHand } });
+  await logAudit({ action: "inventory.batch_created_with_opening_stock", entityType: "batch_ledger", entityId: batchId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", afterJson: { ...input.batch }, metadata: { openingStockQty: openingQty } });
   return { batchId };
 }
 
@@ -125,27 +126,23 @@ export async function transferStock(input: {
   productId?: number;
 }) {
   const qty = Math.abs(input.qty);
-  const sourceMovement = await applyStockMovement({
-    batchId: input.sourceBatchId,
-    storeId: input.sourceStoreId,
-    qtyDelta: -qty,
-    movementType: "stock_adjustment",
-    referenceType: "stock_transfer",
-    referenceId: input.referenceId,
-    reason: input.reason ?? "Transfer out",
-    actor: input.actor,
-    productId: input.productId,
-  });
-  const destinationMovement = await applyStockMovement({
-    batchId: input.destinationBatchId,
-    storeId: input.destinationStoreId,
-    qtyDelta: qty,
-    movementType: "stock_adjustment",
-    referenceType: "stock_transfer",
-    referenceId: input.referenceId,
-    reason: input.reason ?? "Transfer in",
-    actor: input.actor,
-    productId: input.productId,
+  const db = await getDb();
+  const { batchLedger, stockMovements } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const { sourceMovement, destinationMovement } = await db.transaction(async (tx: any) => {
+    const [sourceBatch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, input.sourceBatchId)).limit(1);
+    const [destinationBatch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, input.destinationBatchId)).limit(1);
+    if (!sourceBatch || !destinationBatch) throw new TRPCError({ code: "NOT_FOUND", message: "Transfer batch not found" });
+    const sourceBefore = sourceBatch.qtyOnHand ?? 0;
+    const sourceAfter = sourceBefore - qty;
+    await assertNoNegativeStock(sourceAfter);
+    await tx.update(batchLedger).set({ qtyOnHand: sourceAfter }).where(eq(batchLedger.id, input.sourceBatchId));
+    await tx.insert(stockMovements).values({ batchId: input.sourceBatchId, storeId: input.sourceStoreId, movementType: "stock_adjustment", qty: -qty, qtyBefore: sourceBefore, qtyAfter: sourceAfter, referenceType: "stock_transfer", referenceId: input.referenceId, reason: input.reason ?? "Transfer out", performedBy: input.actor.actorId ?? 0 });
+    const destBefore = destinationBatch.qtyOnHand ?? 0;
+    const destAfter = destBefore + qty;
+    await tx.update(batchLedger).set({ qtyOnHand: destAfter }).where(eq(batchLedger.id, input.destinationBatchId));
+    await tx.insert(stockMovements).values({ batchId: input.destinationBatchId, storeId: input.destinationStoreId, movementType: "stock_adjustment", qty, qtyBefore: destBefore, qtyAfter: destAfter, referenceType: "stock_transfer", referenceId: input.referenceId, reason: input.reason ?? "Transfer in", performedBy: input.actor.actorId ?? 0 });
+    return { sourceMovement: { qtyBefore: sourceBefore, qtyAfter: sourceAfter }, destinationMovement: { qtyBefore: destBefore, qtyAfter: destAfter } };
   });
   await logAudit({
     action: "inventory.transfer.completed",
