@@ -64,3 +64,9 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 
 - Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
 - Salsette migration tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
+
+## Repo hygiene note (2026-05-04)
+- Repo hygiene tracking moved to `CURRENT_MAIN_TRUTH_AFTER_PROMPT_12.md`.
+- Stale PR handling tracked in `STALE_PR_STATUS.md`.
+- CI pnpm setup order fixed in this cleanup PR.
+- Next branch: `feat/barcode-production-ux`.

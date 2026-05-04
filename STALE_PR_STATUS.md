@@ -1,15 +1,30 @@
 # STALE_PR_STATUS
 
-- Old PRs must not be merged casually.
-- PR #19 is presumed superseded by later audit-unification / stock / mega-prompt PRs unless manually re-reviewed.
-- Older PRs #2–#11, if still open, should be marked superseded/needs manual review unless they are clearly already merged/closed.
-- Any stale PR touching old audit, stock, compliance, or router architecture must be re-reviewed against latest main before merge.
-- Note: "PR #19 superseded by PR #20+ / later audit-unification, stock invariant, and mega-prompt hardening PRs unless manually re-reviewed."
+Snapshot date: 2026-05-04 (UTC)
 
-## GitHub stale PR query status
-- Unable to query remote PR metadata in this environment because no git remote is configured locally.
-- Classification placeholders until GitHub data is available:
-  - safe to close: unknown
-  - needs manual review: likely PRs touching audit/stock/compliance/router architecture
-  - superseded: likely older architecture PRs including presumed PR #19
-  - unknown: all others pending API/CLI verification
+## Policy
+- Do not merge stale PRs directly into `main`.
+- If any stale PR contains useful material, extract it later through a **fresh branch from latest main**.
+- PR #41 merged Prompt 12.
+- PR #42 closed duplicate.
+- PR #43 closed unmerged and not reused.
+- Next prompt: `feat/barcode-production-ux`.
+
+## GitHub operations blocker in this environment
+- Unable to query GitHub PR metadata or close PRs from this runner due to remote access failure (`CONNECT tunnel failed, response 403`).
+- Required close-comment and close actions could not be executed here.
+
+## Stale PR tracking target set
+| PR | Title | State | Mergeable | Classification | Action | Reason |
+|---|---|---|---|---|---|---|
+| #2 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #3 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #4 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #5 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #6 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #7 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #8 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #9 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #10 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #11 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Listed as stale open set; must not be merged directly. |
+| #19 | UNVERIFIED_IN_THIS_ENVIRONMENT | assumed open/stale | unverified | stale/superseded candidate | close when GitHub access available | Explicitly called out as stale; superseded by later hardening stream unless cherry-picked into fresh branch. |
