@@ -258,3 +258,6 @@ production chain operations require store-scoped staff/admin access.
 - Accounting/Tally production status tracked in `ACCOUNTING_TALLY_PRODUCTION_STATUS.md`.
 - Production readiness requires supplier allocation truth and export audit truth before claiming complete.
 - Next PR: `feat/product-master-normalization-migration`.
+
+
+- Phase 11 product master normalization + Salsette migration planning: partial (tracked in PRODUCT_MASTER_NORMALIZATION_STATUS.md and REAL_STORE_DATA_MIGRATION_PLAN.md). Next: feat/barcode-production-ux.
