@@ -64,3 +64,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Payment gateway verification/reconciliation status tracked in PAYMENT_GATEWAY_STATUS.md.
 
 - Payment webhook remains disabled until verified raw-body route support is implemented; fail-closed env posture enforced.
+
+- Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.

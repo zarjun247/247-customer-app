@@ -56,3 +56,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
 
 - Production runbook note: release requires verified payment signatures and reconciliation truth; see PAYMENT_GATEWAY_STATUS.md.
+
+- Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.

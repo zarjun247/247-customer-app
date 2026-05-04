@@ -1815,6 +1815,20 @@ export type SaleReturn = typeof saleReturns.$inferSelect;
 export type SaleReturnLine = typeof saleReturnLines.$inferSelect;
 export type CounterPayment = typeof counterPayments.$inferSelect;
 
+
+
+export const invoiceSequences = mysqlTable("invoice_sequences", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: varchar("store_id", { length: 36 }).notNull(),
+  financialYear: varchar("financial_year", { length: 10 }).notNull(),
+  documentType: mysqlEnum("document_type", ["sale_invoice", "credit_note", "debit_note", "return_note"]).notNull(),
+  prefix: varchar("prefix", { length: 80 }).notNull(),
+  lastNumber: int("last_number").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqStoreFyDoc: uniqueIndex("uq_invoice_seq_store_fy_doc").on(t.storeId, t.financialYear, t.documentType),
+}));
 // ─── PART 8: Prescription Governance ─────────────────────────────────────────
 
 export const prescriptionLines = mysqlTable("prescription_lines", {
