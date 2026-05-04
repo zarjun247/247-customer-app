@@ -233,3 +233,9 @@ production chain operations require store-scoped staff/admin access.
 - Wired duplicate/idempotency guards into purchase commit, sale confirm, payment verify, delivery delivered, stock audit complete, and OCR draft commit.
 - Reservation truth now enforced in sale confirm via canonical availability helper.
 - Next PR: feat/stock-truth-10.
+
+## Phase 5 — Stock Truth 10/10 (Prompt 6)
+- Status: partial (in progress)
+- Score: 8.8/10
+- Blockers: full commercial-flow integration test matrix and remaining legacy availability reads.
+- Next PR: `test/commercial-flow-integration`
