@@ -15,6 +15,13 @@ export function requireProductionEnv(name: string, errors: string[]) {
   if (isProduction && !getEnv(name)) errors.push(name);
 }
 
+export function assertPaymentWebhookRoutePosture(errors: string[]) {
+  if (isProviderEnabled("PAYMENT_WEBHOOK_ENABLED", false)) {
+    const routeImplemented = isProviderEnabled("PAYMENT_WEBHOOK_ROUTE_IMPLEMENTED", false);
+    if (!routeImplemented) errors.push("PAYMENT_WEBHOOK_ENABLED_UNSUPPORTED_WITHOUT_VERIFIED_ROUTE");
+  }
+}
+
 export function assertProductionEnvSafe(): void {
   const missing: string[] = [];
   requireProductionEnv("JWT_SECRET", missing);
@@ -28,6 +35,7 @@ export function assertProductionEnvSafe(): void {
   if (isProviderEnabled("PAYMENT_PROVIDER_ENABLED", false)) {
     requireProductionEnv("RAZORPAY_KEY_ID", missing);
     requireProductionEnv("RAZORPAY_KEY_SECRET", missing);
+    if (isProviderEnabled("PAYMENT_WEBHOOK_ENABLED", false)) requireProductionEnv("RAZORPAY_WEBHOOK_SECRET", missing);
   }
   if (isProviderEnabled("WHATSAPP_PROVIDER_ENABLED", false)) requireProductionEnv("WHATSAPP_WEBHOOK_SECRET", missing);
   if (isProviderEnabled("OTP_PROVIDER_ENABLED", false)) {
@@ -36,6 +44,7 @@ export function assertProductionEnvSafe(): void {
     if (!["database", "memory_allowed_for_single_instance"].includes(otpRateBackend)) missing.push("OTP_RATE_LIMIT_BACKEND");
   }
 
+  assertPaymentWebhookRoutePosture(missing);
   if (missing.length) throw new Error(`Missing required production env: ${missing.join(", ")}`);
 }
 

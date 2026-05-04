@@ -12,13 +12,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { paymentConnector } from "../connectors";
+import { logAudit } from "../services/audit";
+import { createGatewayOrder, verifyGatewayPaymentSignature, markPaymentCaptured, markPaymentFailed, getPaymentByGatewayOrder } from "../services/paymentGateway";
 import {
-  createPaymentRecord,
-  confirmPaymentRecord,
-  failPaymentRecord,
   getPaymentByOrderId,
-  getPaymentByGatewayOrderId,
   createSlaEvent,
   closeSlaEvent,
   detectSlaBreaches,
@@ -63,35 +60,9 @@ export const paymentRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Order is already paid" });
       }
 
-      const amountPaise = Math.round(parseFloat(String(order.total)) * 100);
-      const receipt = `ORD-${String(input.orderId).padStart(6, "0")}`;
-
-      const gatewayOrder = await paymentConnector.createOrder({
-        amount: amountPaise,
-        currency: "INR",
-        receipt,
-        notes: {
-          orderId: String(input.orderId),
-          userId: String(ctx.user.id),
-        },
-      });
-
-      // Store pending payment record
-      await createPaymentRecord({
-        orderId: input.orderId,
-        userId: ctx.user.id,
-        gatewayOrderId: gatewayOrder.gatewayOrderId,
-        amount: amountPaise,
-        currency: "INR",
-      });
-
-      return {
-        gatewayOrderId: gatewayOrder.gatewayOrderId,
-        amount: amountPaise,
-        currency: "INR",
-        keyId: process.env.RAZORPAY_KEY_ID ?? "rzp_test_demo",
-        receipt,
-      };
+      const created = await createGatewayOrder({ orderId: input.orderId, userId: ctx.user.id });
+      await logAudit({ action: "payment.order_created", entityType: "order", entityId: input.orderId, afterJson: { gatewayOrderId: created.gatewayOrderId, amount: created.amountPaise } }, ctx);
+      return { gatewayOrderId: created.gatewayOrderId, amount: created.amountPaise, currency: created.currency, keyId: created.keyId, receipt: created.receipt };
     }),
 
   /**
@@ -108,30 +79,20 @@ export const paymentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const idemKey = buildIdempotencyKey(["payment","verify",input.gatewayOrderId,input.gatewayPaymentId]);
       return withIdempotency({ key: idemKey, scope: "payment.verify", operationType: "payment_verify", actorId: ctx.user.id, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint(input), ctx }, async () => {
-      const isValid = await paymentConnector.verifyPayment({
-        gatewayOrderId: input.gatewayOrderId,
-        gatewayPaymentId: input.gatewayPaymentId,
-        signature: input.signature,
-      });
-
-      if (!isValid) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Payment signature verification failed" });
-      }
+      await logAudit({ action: "payment.verify_attempted", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
+      const isValid = await verifyGatewayPaymentSignature({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
+      if (!isValid) { await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx); throw new TRPCError({ code: "BAD_REQUEST", message: "Payment signature verification failed" }); }
 
       // Get the payment record
-      const payment = await getPaymentByGatewayOrderId(input.gatewayOrderId);
+      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
       if (!payment) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
       }
-      if (payment.status === "paid") return { success: true, orderId: payment.orderId, idempotent: true };
+      if (payment.status === "paid") { await logAudit({ action: "payment.duplicate_detected", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx); return { success: true, orderId: payment.orderId, idempotent: true }; }
 
       // Confirm payment
-      await confirmPaymentRecord({
-        gatewayOrderId: input.gatewayOrderId,
-        gatewayPaymentId: input.gatewayPaymentId,
-        gatewaySignature: input.signature,
-        method: input.method,
-      });
+      await markPaymentCaptured({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature, method: input.method });
+      await logAudit({ action: "payment.verified", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
 
       // Advance order status and start SLA clock
       const order = await getOrderById(payment.orderId);
@@ -162,10 +123,7 @@ export const paymentRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await failPaymentRecord({
-        gatewayOrderId: input.gatewayOrderId,
-        reason: input.reason,
-      });
+      await markPaymentFailed({ gatewayOrderId: input.gatewayOrderId, reason: input.reason });
       return { success: true };
     }),
 

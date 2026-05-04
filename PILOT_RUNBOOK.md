@@ -54,3 +54,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Commercial flow integration now tracked in COMMERCIAL_FLOW_TEST_STATUS.md; production readiness still requires end-to-end commercial truth closure.
 
 - Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
+
+- Production runbook note: release requires verified payment signatures and reconciliation truth; see PAYMENT_GATEWAY_STATUS.md.

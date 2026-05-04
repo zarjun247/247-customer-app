@@ -246,3 +246,7 @@ production chain operations require store-scoped staff/admin access.
 - Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
 
 - Phase 7 update: delivery/whatsapp/refill regulated runtime gates and vault view audit enforced (partial completion). Next PR: feat/payment-gateway-refund-reconciliation
+
+- Phase 8 Payment gateway, webhook, refund truth: partial (service hardening + env guard + verify idempotency audit landed; webhook endpoint/report normalization still pending). Next PR: feat/invoice-statutory-billing.
+
+- Phase 8 correction: webhook posture fail-closed when route unsupported, refund provider state now pending/manual (no premature success), over-refund guard added. Next PR: feat/invoice-statutory-billing.

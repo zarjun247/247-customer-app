@@ -60,3 +60,7 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Commercial flow integration status tracked in COMMERCIAL_FLOW_TEST_STATUS.md; end-to-end commercial truth remains required.
 
 - Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
+
+- Payment gateway verification/reconciliation status tracked in PAYMENT_GATEWAY_STATUS.md.
+
+- Payment webhook remains disabled until verified raw-body route support is implemented; fail-closed env posture enforced.
