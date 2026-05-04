@@ -264,3 +264,8 @@ production chain operations require store-scoped staff/admin access.
 - Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
 - Salsette migration/import sequence tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
 - Next PR: `feat/barcode-production-ux`.
+
+- Barcode production UX status tracked in `BARCODE_PRODUCTION_UX_STATUS.md`.
+- Scanner workflow is keyboard-wedge first with manual fallback.
+- Vendor scanner/printer SDK remains deferred to provider-matrix scope; no fake SDK completion claims.
+- Next prompt: `feat/provider-contract-matrix-placeholder-elimination`.
