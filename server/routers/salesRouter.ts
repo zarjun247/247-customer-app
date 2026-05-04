@@ -15,7 +15,7 @@ import { applyDiscountCode, assertDiscountWithinCaps, assertNoLossWithoutApprova
 import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 import { getCanonicalAvailability } from "../services/reservationService";
-import { reserveInvoiceNumber, generateReturnNoteNumber } from "../services/invoiceNumbering";
+import { reserveInvoiceNumber, generateReturnNoteNumber, buildDraftBillNumber } from "../services/invoiceNumbering";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -166,7 +166,7 @@ export const salesRouter = router({
       const db = await getDbSafe();
       const { sales } = await import("../../drizzle/schema");
       const now = Date.now();
-      const billNo = await reserveInvoiceNumber(db, input.storeId, "sale_invoice");
+      const billNo = buildDraftBillNumber(input.storeId);
       const id = randomUUID();
       await db.insert(sales).values({
         id,
@@ -376,10 +376,12 @@ export const salesRouter = router({
         gstMap[rate].gst += parseFloat(l.gstAmount ?? "0");
       }
 
+      const finalBillNo = sale.billNo?.startsWith("DRF-") ? await reserveInvoiceNumber(db, sale.storeId, "sale_invoice") : sale.billNo;
+
       // Decrement batch qty and create stock movements
       for (const line of lines) {
         if (line.batchLedgerId) {
-          await decreaseStockForSaleConfirmation({ batchId: parseInt(line.batchLedgerId ?? "0") || 0, storeId: parseInt(sale.storeId) || 0, qtyDelta: -line.qty, referenceType: "sale", referenceId: parseInt(sale.id) || 0, reason: `Bill ${sale.billNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: Number(line.productId) });
+          await decreaseStockForSaleConfirmation({ batchId: parseInt(line.batchLedgerId ?? "0") || 0, storeId: parseInt(sale.storeId) || 0, qtyDelta: -line.qty, referenceType: "sale", referenceId: parseInt(sale.id) || 0, reason: `Bill ${finalBillNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: Number(line.productId) });
         }
       }
 
@@ -391,6 +393,7 @@ export const salesRouter = router({
         pharmacistCode: input.pharmacistCode ?? sale.pharmacistCode,
         pharmacistName: input.pharmacistName ?? sale.pharmacistName,
         pharmacistRegNo: input.pharmacistRegNo ?? sale.pharmacistRegNo,
+        billNo: finalBillNo,
         gstSummary: JSON.stringify(gstMap),
         confirmedAt: now,
         updatedAt: now,
@@ -412,7 +415,7 @@ export const salesRouter = router({
       await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
       await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: Number(input.saleId), afterJson: { ok: true } }, ctx);
       await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
-      return { ok: true, billNo: sale.billNo, total: sale.total };
+      return { ok: true, billNo: finalBillNo, total: sale.total };
       });
     }),
 
@@ -546,6 +549,8 @@ export const salesRouter = router({
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "confirmed") throw new TRPCError({ code: "BAD_REQUEST", message: "Can only return confirmed sales" });
+      const [existingReturn] = await db.select().from(saleReturns).where(and(eq(saleReturns.saleId, input.saleId), eq(saleReturns.status, "pending"))).limit(1);
+      if (existingReturn) return { returnId: existingReturn.id, returnNo: existingReturn.returnNo, totalRefund: Number(existingReturn.totalRefund ?? 0), idempotent: true };
       const now = Date.now();
       const returnNo = await generateReturnNoteNumber(db, sale.storeId);
       const returnId = randomUUID();

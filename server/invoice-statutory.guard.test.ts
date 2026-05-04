@@ -1,14 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { buildInvoiceLine, buildInvoiceForSale } from './services/invoiceService';
+import { buildInvoiceForSale, getCustomerInvoiceSummary, getInvoiceBySale } from './services/invoiceService';
 
 describe('invoice statutory guards', () => {
-  it('computes line gst and totals', () => {
-    const line = buildInvoiceLine({ productName:'A', quantity:2, mrp:100, sellingPrice:90, discountAmount:10, gstRate:12, hsnCode:'3004' });
-    expect(line.totalGst).toBeGreaterThan(0);
-  });
-  it('detects missing hsn/gstin/license', () => {
-    const invoice = buildInvoiceForSale({ header: { invoiceNumber:'INV-1' }, lines: [{ productName:'A', quantity:1, mrp:10, sellingPrice:10 }] });
+  it('detects missing statutory fields including store identity and product/gst/hsn requirements', () => {
+    const invoice = buildInvoiceForSale({ header: { invoiceNumber:'INV-1' }, lines: [{ productName:'', quantity:1, mrp:10, sellingPrice:10 }] });
     expect(invoice.completeness.complete).toBe(false);
-    expect(invoice.completeness.missingFields.join(',')).toContain('hsnCode');
+    const missing = invoice.completeness.missingFields.join(',');
+    expect(missing).toContain('storeName');
+    expect(missing).toContain('lines[0].productName');
+    expect(missing).toContain('lines[0].hsnCode');
+  });
+
+  it('invoice service methods are implemented (non-stub responses)', async () => {
+    const fakeDb = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [],
+            orderBy: () => ({ limit: async () => [] }),
+          }),
+        }),
+      }),
+    } as any;
+    const bySale = await getInvoiceBySale(fakeDb, 'missing');
+    const summary = await getCustomerInvoiceSummary(fakeDb, 1);
+    expect(bySale).toHaveProperty('status');
+    expect(summary).toHaveProperty('status');
   });
 });

@@ -1,37 +1,37 @@
 # INVOICE_STATUTORY_STATUS
 
-## Scope audited
-- `drizzle/schema.ts`: `sales`, `sale_lines`, `sale_returns`, `sale_return_lines`, `stores`, `products`, `counter_payments`.
-- `server/routers/salesRouter.ts`, `server/routers/reportsRouter.ts`, `server/routers.ts`.
-- Existing status docs and payment/reconciliation services.
+## Corrections in this PR
+- Removed invoice service stubs: `getInvoiceBySale` and `getCustomerInvoiceSummary` now return explicit runtime status objects and limitations (no fake "complete" invoice document claims).
+- Added durable sequence migration/table: `drizzle/0027_invoice_sequences.sql` + `invoiceSequences` schema.
+- Added DB uniqueness constraints for `sales.bill_no` and `sale_returns.return_no` in migration.
+- Changed sales draft behavior to generate `DRF-*` draft numbers only; final statutory invoice numbers are now reserved at `confirmSale`.
+- Added idempotent duplicate return guard: pending return for same sale is reused, not re-numbered.
 
-## Implemented in this PR
-- Added `server/services/invoiceNumbering.ts` with helpers:
-  - `generateInvoiceNumber`, `assertInvoiceNumberUnique`, `getNextInvoiceSequence`, `formatInvoiceNumber`, `reserveInvoiceNumber`, `getInvoiceNumberForSale`, `generateCreditNoteNumber`, `generateReturnNoteNumber`.
-- Added `server/services/invoiceService.ts` with helpers:
-  - `buildInvoiceForSale`, `buildInvoiceLine`, `computeGstBreakup`, `computeInvoiceTotals`, `buildInsurerReadyInvoiceSummary`, `buildCreditNoteForReturn`, `buildInvoiceDocumentPayload`, `validateInvoiceCompleteness`, `getInvoiceBySale`, `getCustomerInvoiceSummary`.
-- Integrated invoice number reservation in sale draft creation, and return-note numbering in returns.
-- Added statutory guard tests for numbering, GST/HSN completeness, and credit-note over-refund protection.
+## salesRouter deletion (+ safety)
+The prior `-32` lines were only the two local helper functions (`generateBillNo`, `generateReturnNo`) and their inline SQL query logic. No stock/payment/compliance logic was removed. Number generation moved to `server/services/invoiceNumbering.ts`.
 
-## Behavior status
-- Invoice numbering: store-wise prefix + FY + date + sequence; uniqueness guard across sales/returns; idempotent confirm remains based on existing confirmed-sale guard.
-- Credit/return note: return notes now generated with dedicated `RTN` prefix; credit-note numbering helper added as foundation.
-- GST computation: explicit taxable + CGST/SGST/IGST + total GST; rounding to 2 decimals.
-- Completeness: missing store GSTIN/license and line HSN/GST are flagged; no fake placeholder values emitted.
-- Reports: existing GST/daily/H1 endpoints already return normalized `{ rows, totals, csvData }` shapes (with legacy fields retained where present).
-- Customer/insurer-ready: insurer-ready summary helper reports readiness only when completeness passes; direct insurer API submission remains deferred.
+## Sequence behavior
+- Canonical sequence state is now durable in `invoice_sequences` keyed by `(storeId, financialYear, documentType)`.
+- Final numbers are formatted as `INV/CRN/RTN-S{store}-{FY}-{NNNN}`.
+- Uniqueness is guarded in-service across sales + sale returns and backed by DB unique constraints on bill/return fields.
+
+## Invoice issuance timing
+- Draft sale: non-statutory `DRF-*` bill number.
+- Confirm sale: reserves final statutory invoice number once (if still draft/proforma number).
+- Duplicate confirm: existing confirmed path returns idempotent response with existing bill number.
+
+## Invoice read behavior
+- `getInvoiceBySale`: returns found/unavailable status; when found, builds invoice payload from sale + lines and marks model limitations explicitly (`incomplete_data_model` when statutory store fields missing).
+- `getCustomerInvoiceSummary`: returns partial summary with explicit scope/limitations; does not claim insurer/statutory completeness.
+
+## Credit/return note status
+- Return note numbering is durable and idempotent for duplicate pending return attempts.
+- Credit-note lifecycle remains foundation-only; statutory finalization and full reversal workflow still pending.
 
 ## Remaining gaps
-- DB-level unique constraint/index for `sales.bill_no` and `sale_returns.return_no` still recommended.
-- Store statutory fields (GSTIN/drug license) are not fully modeled on `stores`; completeness can flag missing but cannot auto-fill.
-- Full statutory invoice persistence/read-model and PDF harmonization still partial.
-- Credit-note persistence workflow is foundation-only; full lifecycle deferred.
-
-## Validation
-- `pnpm install`
-- `pnpm run check`
-- `pnpm test -- --runInBand`
-- `pnpm run build`
+- `stores` table still lacks canonical GSTIN/drug-license fields; completeness intentionally fails when absent.
+- Customer ownership linkage for summaries should move from `createdBy` fallback to strict customer mapping.
+- Full statutory invoice persistence/PDF harmonization remains pending.
 
 ## Next recommended prompt
 `feat/accounting-supplier-tally-production`
