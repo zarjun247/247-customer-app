@@ -40,3 +40,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Updated: idempotency/reservation truth tracking added; app/POS availability must use canonical availability formula.
 
 - Stock truth hardening status moved to `STOCK_TRUTH_10_STATUS.md` (Prompt 6).
+
+- Added commercial flow integration tracking doc: COMMERCIAL_FLOW_TEST_STATUS.md.

@@ -239,3 +239,6 @@ production chain operations require store-scoped staff/admin access.
 - Score: 8.8/10
 - Blockers: full commercial-flow integration test matrix and remaining legacy availability reads.
 - Next PR: `test/commercial-flow-integration`
+
+- Phase 6 commercial flow integration tests added (service/static coverage); see COMMERCIAL_FLOW_TEST_STATUS.md.
+- Next PR: feat/regulated-release-prescription-vault.
