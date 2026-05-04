@@ -15,6 +15,7 @@ import { applyDiscountCode, assertDiscountWithinCaps, assertNoLossWithoutApprova
 import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 import { getCanonicalAvailability } from "../services/reservationService";
+import { reserveInvoiceNumber, generateReturnNoteNumber } from "../services/invoiceNumbering";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -31,36 +32,6 @@ function requireSales(role: string | null | undefined) {
 function requireManager(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "store_manager"];
   if (!role || !allowed.includes(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
-}
-
-// Generate sequential bill number: BILL-YYYYMMDD-NNNN
-async function generateBillNo(db: Awaited<ReturnType<typeof getDbSafe>>, storeId: string): Promise<string> {
-  const { sales } = await import("../../drizzle/schema");
-  const today = new Date();
-  const prefix = `BILL-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-  const [lastBill] = await db
-    .select({ billNo: sales.billNo })
-    .from(sales)
-    .where(and(eq(sales.storeId, storeId), like(sales.billNo, `${prefix}%`)))
-    .orderBy(desc(sales.billNo))
-    .limit(1);
-  const seq = lastBill ? parseInt(lastBill.billNo.split("-").pop() ?? "0") + 1 : 1;
-  return `${prefix}-${String(seq).padStart(4, "0")}`;
-}
-
-// Generate sequential return number
-async function generateReturnNo(db: Awaited<ReturnType<typeof getDbSafe>>, storeId: string): Promise<string> {
-  const { saleReturns } = await import("../../drizzle/schema");
-  const today = new Date();
-  const prefix = `RET-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-  const [last] = await db
-    .select({ returnNo: saleReturns.returnNo })
-    .from(saleReturns)
-    .where(and(eq(saleReturns.storeId, storeId), like(saleReturns.returnNo, `${prefix}%`)))
-    .orderBy(desc(saleReturns.returnNo))
-    .limit(1);
-  const seq = last ? parseInt(last.returnNo.split("-").pop() ?? "0") + 1 : 1;
-  return `${prefix}-${String(seq).padStart(4, "0")}`;
 }
 
 export const salesRouter = router({
@@ -195,7 +166,7 @@ export const salesRouter = router({
       const db = await getDbSafe();
       const { sales } = await import("../../drizzle/schema");
       const now = Date.now();
-      const billNo = await generateBillNo(db, input.storeId);
+      const billNo = await reserveInvoiceNumber(db, input.storeId, "sale_invoice");
       const id = randomUUID();
       await db.insert(sales).values({
         id,
@@ -576,7 +547,7 @@ export const salesRouter = router({
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "confirmed") throw new TRPCError({ code: "BAD_REQUEST", message: "Can only return confirmed sales" });
       const now = Date.now();
-      const returnNo = await generateReturnNo(db, sale.storeId);
+      const returnNo = await generateReturnNoteNumber(db, sale.storeId);
       const returnId = randomUUID();
 
       let totalRefund = 0;

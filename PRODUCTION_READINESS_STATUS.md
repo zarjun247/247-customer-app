@@ -250,3 +250,5 @@ production chain operations require store-scoped staff/admin access.
 - Phase 8 Payment gateway, webhook, refund truth: partial (service hardening + env guard + verify idempotency audit landed; webhook endpoint/report normalization still pending). Next PR: feat/invoice-statutory-billing.
 
 - Phase 8 correction: webhook posture fail-closed when route unsupported, refund provider state now pending/manual (no premature success), over-refund guard added. Next PR: feat/invoice-statutory-billing.
+
+- Statutory invoice/GST billing status is tracked in `INVOICE_STATUTORY_STATUS.md`; production release requires unique invoice numbering and GST correctness.
