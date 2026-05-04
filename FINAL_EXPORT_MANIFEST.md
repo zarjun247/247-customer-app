@@ -44,3 +44,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Added commercial flow integration tracking doc: COMMERCIAL_FLOW_TEST_STATUS.md.
 
 - Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
+
+- Payment gateway verification/reconciliation status tracked in PAYMENT_GATEWAY_STATUS.md.
