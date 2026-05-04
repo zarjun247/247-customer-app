@@ -12,7 +12,7 @@ Canonical identity now uses deterministic key: generic/name + strength + form + 
 - Schedule/Rx/H/H1/X: unknown schedule fails closed for regulated-sensitive flow.
 - Supplier SKU mapping: ambiguous mappings remain draft until pharmacist/admin approval.
 - Barcode alias: uniqueness guard and active-link governance required.
-- Substitution: pharmacist approval mandatory; H1/X fail closed.
+- Substitution: pharmacist approval mandatory; H1/X fail closed; no autonomous substitution.
 
 ## Fixed in this prompt
 - Added product normalization helpers and duplicate detection.
@@ -22,7 +22,7 @@ Canonical identity now uses deterministic key: generic/name + strength + form + 
 - Added static/service guard tests.
 
 ## Remaining gaps
-- Full DB-backed workflow wiring in every route still partial and should be completed incrementally.
+- Runtime route wiring remains partial; full DB-backed workflow wiring in every route should be completed incrementally.
 - Barcode alias audit trail persistence wiring can be extended in next prompts.
 
 ## Validation
