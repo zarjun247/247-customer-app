@@ -494,7 +494,8 @@ const prescriptionRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
-      if (!rx || rx.userId !== ctx.user.id) throw new Error("Not found");
+      if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+      await writeAuditLog(ctx.user.id, "prescription_viewed", "prescription", input.id, undefined, { channel: "app" });
       return rx;
     }),
   /** Prescription vault — approved + on-file prescriptions */
@@ -541,8 +542,11 @@ const refillRouter = router({
     .input(z.object({ reminderId: z.number(), productId: z.number(), regulated: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }) => {
       const pseudo = { id: String(input.reminderId), customerId: ctx.user.id, productId: input.productId, nextRefillDate: new Date().toISOString().slice(0,10), regulated: input.regulated };
+      if (input.regulated) {
+        await writeAuditLog(ctx.user.id, "refill.regulated_review_required", "refill", input.reminderId, undefined, { channel: "app", payload: { productId: input.productId } });
+      }
       // foundation flow: prompt only, no order state mutation
-      return { promptId: `draft_prompt_${input.reminderId}_${Date.now()}`, reminderId: input.reminderId, productId: input.productId, complianceGateRequired: input.regulated, autoConfirmedSale: false, status: "draft_prompt", persistence: "pending_table_mapping" as const };
+      return { promptId: `draft_prompt_${input.reminderId}_${Date.now()}`, reminderId: input.reminderId, productId: input.productId, complianceGateRequired: input.regulated, autoConfirmedSale: false, status: "draft_prompt", requiresPharmacistReview: input.regulated, persistence: "pending_table_mapping" as const };
     }),
   /** Snoozed reminders — those with snoozedUntil > now */
   listSnoozed: protectedProcedure.query(async ({ ctx }) => getSnoozedReminders(ctx.user.id)),

@@ -6,5 +6,12 @@ export function normalizeInboundWhatsappMessage(input:{phone:string;body?:string
 }
 export async function processWhatsappInbound(input:{phone:string;body?:string}){
   const normalized = normalizeInboundWhatsappMessage(input);
-  return { normalized, providerConfigured: Boolean(process.env.WHATSAPP_TOKEN) };
+  const regulatedIntent = /(rx|prescription|dose|dosage|h1|schedule h|controlled|narcotic)/i.test(input.body ?? "");
+  return {
+    normalized,
+    providerConfigured: Boolean(process.env.WHATSAPP_TOKEN),
+    regulatedIntent,
+    escalateToHuman: regulatedIntent || normalized.escalateToHuman,
+    autoApproveRegulatedSale: false,
+  };
 }

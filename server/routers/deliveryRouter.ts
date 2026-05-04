@@ -48,6 +48,7 @@ import { eq, and, desc, gte, lte, sql, inArray, isNull } from "drizzle-orm";
 import { resolveNode, recordOrderTimestamp } from "../routingEngine";
 import { TRPCError } from "@trpc/server";
 import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
+import { logAudit } from "../services/audit";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 const DELIVERY_ROLES = ["delivery_operator", "store_manager", "admin"] as const;
@@ -59,6 +60,25 @@ function assertRole(role: string, allowed: readonly string[], label: string) {
 
 function getStoreId(user: any): number {
   return requireStaffStore(user as any);
+}
+
+async function assertRegulatedDeliveryAllowed(orderId: number, ctx: any) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+  const { orderItems, products, prescriptions } = await import("../../drizzle/schema");
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  if (!order) throw new TRPCError({ code: "NOT_FOUND" });
+  const lines = await db.select({ schedule: products.schedule, requiresPrescription: products.requiresPrescription, })
+    .from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, orderId));
+  const regulated = lines.some((l) => ["H","H1","X"].includes(String(l.schedule ?? "")) || Boolean(l.requiresPrescription));
+  if (!regulated) return;
+  const [rx] = order.prescriptionId ? await db.select({ status: prescriptions.status }).from(prescriptions).where(eq(prescriptions.id, order.prescriptionId)).limit(1) : [null];
+  const rxOk = !!rx && ["approved", "on_file"].includes(String(rx.status));
+  if (!rxOk || !["picking", "packed", "out_for_delivery"].includes(String(order.status))) {
+    await logAudit({ action: "delivery.regulated_release_blocked", entityType: "order", entityId: orderId, afterJson: { rxOk, status: order.status } }, ctx);
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Regulated delivery requires approved prescription and pharmacist clearance" });
+  }
+  await logAudit({ action: "delivery.regulated_release_allowed", entityType: "order", entityId: orderId, afterJson: { rxOk, status: order.status } }, ctx);
 }
 
 // ─── Routing sub-router ───────────────────────────────────────────────────────
@@ -318,6 +338,7 @@ const taskRouter = router({
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       requireStoreAccess(ctx.user, task.storeId);
       if (task.status === "delivered") return { ok: true, idempotent: true };
+      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
 
       await db.update(deliveryTasks).set({
         status: "pickup_confirmed",
@@ -349,6 +370,7 @@ const taskRouter = router({
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       requireStoreAccess(ctx.user, task.storeId);
+      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
       if (task.status === "delivered") return { ok: true, idempotent: true };
 
       await db.update(deliveryTasks).set({
@@ -388,6 +410,7 @@ const taskRouter = router({
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       requireStoreAccess(ctx.user, task.storeId);
+      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
 
       // Verify OTP against delivery_otps table
       const { deliveryOtps } = await import("../../drizzle/schema");

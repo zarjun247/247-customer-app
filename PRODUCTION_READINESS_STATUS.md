@@ -242,3 +242,7 @@ production chain operations require store-scoped staff/admin access.
 
 - Phase 6 commercial flow integration tests added (service/static coverage); see COMMERCIAL_FLOW_TEST_STATUS.md.
 - Next PR: feat/regulated-release-prescription-vault.
+
+- Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
+
+- Phase 7 update: delivery/whatsapp/refill regulated runtime gates and vault view audit enforced (partial completion). Next PR: feat/payment-gateway-refund-reconciliation

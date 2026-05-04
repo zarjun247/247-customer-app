@@ -1161,11 +1161,18 @@ const webhookRouter = router({
             if (!cart || !cart.storeId) {
               response = "Cart is empty or store not set. Reply *1* to search medicines first.";
             } else {
-              const lines = await db.select().from(whatsappCartLines).where(eq(whatsappCartLines.cartId, cart.id));
+              const lines = await db.select({ line: whatsappCartLines, schedule: products.schedule, requiresPrescription: products.requiresPrescription }).from(whatsappCartLines).leftJoin(products, eq(whatsappCartLines.productId, products.id)).where(eq(whatsappCartLines.cartId, cart.id));
               if (!lines.length) {
                 response = "Cart is empty. Reply *1* to search medicines.";
               } else {
-                const subtotal = lines.reduce((s, l) => s + parseFloat(l.lineTotal), 0).toFixed(2);
+                const regulated = lines.some((l) => ["H","H1","X"].includes(String(l.schedule ?? "")) || Boolean(l.requiresPrescription));
+                if (regulated) {
+                  response = "Regulated medicine request received. A pharmacist will review your prescription before order confirmation. Reply with your prescription image or wait for pharmacist assistance.";
+                  await writeAuditLog({ actor: { id: userId, type: "whatsapp" }, action: "whatsapp.regulated_escalated", entityType: "whatsapp_cart", entityId: cart.id, payload: JSON.stringify({ phone: input.phone }) });
+                  nextFlow = "staff_handoff";
+                  nextState = { reason: "regulated_medicine" };
+                } else {
+                const subtotal = lines.reduce((s, l) => s + parseFloat(l.line.lineTotal), 0).toFixed(2);
                 const orderId = await createOrder({
                   userId,
                   storeId: cart.storeId,
@@ -1178,12 +1185,12 @@ const webhookRouter = router({
                   buildingId: cart.buildingId ?? undefined,
                   source: "whatsapp",
                   items: lines.map(l => ({
-                    productId: l.productId,
-                    variantId: l.variantId ?? undefined,
-                    storeSkuId: l.storeSkuId,
-                    quantity: l.qty,
-                    unitPrice: l.unitPrice,
-                    lineTotal: l.lineTotal,
+                    productId: l.line.productId,
+                    variantId: l.line.variantId ?? undefined,
+                    storeSkuId: l.line.storeSkuId,
+                    quantity: l.line.qty,
+                    unitPrice: l.line.unitPrice,
+                    lineTotal: l.line.lineTotal,
                   })),
                 });
                 await db.update(whatsappCarts)
@@ -1197,6 +1204,7 @@ const webhookRouter = router({
                   entityId: orderId,
                   payload: JSON.stringify({ phone: input.phone, cartId: cart.id }),
                 });
+                }
               }
             }
           } else {

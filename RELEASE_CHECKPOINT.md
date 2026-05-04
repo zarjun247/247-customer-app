@@ -58,3 +58,5 @@ Prompt 6 — Barcode Scanner + Label Printing + Scan-to-Truth Systemwide Hardeni
 - Phase 5 stock truth tracked in `STOCK_TRUTH_10_STATUS.md`; invariant-only mutation enforcement remains required for production readiness.
 
 - Commercial flow integration status tracked in COMMERCIAL_FLOW_TEST_STATUS.md; end-to-end commercial truth remains required.
+
+- Regulated release status tracked in `REGULATED_RELEASE_STATUS.md`; prescription vault status tracked in `PRESCRIPTION_VAULT_STATUS.md`.
