@@ -1142,7 +1142,7 @@ export const supplierPayments = mysqlTable("supplier_payments", {
   storeId: int("storeId").notNull(),
   purchaseInvoiceId: int("purchaseInvoiceId"),  // optional invoice-wise allocation
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  paymentMode: mysqlEnum("paymentMode", ["cash", "cheque", "upi", "neft", "rtgs"]).default("upi").notNull(),
+  paymentMode: mysqlEnum("paymentMode", ["cash", "cheque", "upi", "neft", "rtgs", "credit", "advance", "debit_note", "return_credit", "adjustment"]).default("upi").notNull(),
   referenceNo: varchar("referenceNo", { length: 100 }),
   voucherNo: varchar("voucherNo", { length: 100 }),
   bankRef: varchar("bankRef", { length: 200 }),
@@ -1152,6 +1152,55 @@ export const supplierPayments = mysqlTable("supplier_payments", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
+
+export const supplierPaymentAllocations = mysqlTable("supplier_payment_allocations", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierPaymentId: int("supplierPaymentId").notNull(),
+  purchaseInvoiceId: int("purchaseInvoiceId"),
+  purchaseReturnId: int("purchaseReturnId"),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  allocationType: mysqlEnum("allocationType", ["invoice_payment", "advance_applied", "debit_note", "return_credit", "adjustment"]).notNull(),
+  allocatedAt: timestamp("allocatedAt").defaultNow().notNull(),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  uqPaymentInvoiceType: uniqueIndex("uq_supplier_alloc_payment_invoice_type").on(t.supplierPaymentId, t.purchaseInvoiceId, t.allocationType),
+}));
+
+export const accountingJournalEntries = mysqlTable("accounting_journal_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId"),
+  sourceType: varchar("sourceType", { length: 64 }).notNull(),
+  sourceId: int("sourceId").notNull(),
+  entryDate: timestamp("entryDate").defaultNow().notNull(),
+  accountCode: varchar("accountCode", { length: 64 }).notNull(),
+  accountName: varchar("accountName", { length: 200 }).notNull(),
+  debit: decimal("debit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  credit: decimal("credit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  currency: varchar("currency", { length: 12 }).default("INR").notNull(),
+  narration: text("narration"),
+  metadataJson: json("metadataJson"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  uqSourceAccountDirection: uniqueIndex("uq_journal_source_account_direction").on(t.sourceType, t.sourceId, t.accountCode, t.debit, t.credit),
+}));
+
+export const tallyExportRuns = mysqlTable("tally_export_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId"),
+  exportType: varchar("exportType", { length: 64 }).notNull(),
+  dateFrom: timestamp("dateFrom"),
+  dateTo: timestamp("dateTo"),
+  filtersJson: json("filtersJson"),
+  rowCount: int("rowCount").default(0).notNull(),
+  checksum: varchar("checksum", { length: 128 }).notNull(),
+  status: mysqlEnum("status", ["generated", "failed", "reexported"]).default("generated").notNull(),
+  generatedBy: int("generatedBy"),
+  generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  uqTallyExportChecksum: uniqueIndex("uq_tally_export_checksum").on(t.checksum),
+}));
 
 // ─── OCR / AI Ingestion Tables ────────────────────────────────────────────────
 export const ingestionJobs = mysqlTable("ingestion_jobs", {
