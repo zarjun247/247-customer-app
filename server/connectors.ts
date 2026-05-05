@@ -223,10 +223,12 @@ export const paymentConnector: PaymentGatewayConnector = {
 
   async verifyPayment({ gatewayOrderId, gatewayPaymentId, signature }) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const localDemoMode = ["1", "true", "yes"].includes(String(process.env.LOCAL_DEMO_MODE ?? "").toLowerCase())
+      || ["development", "test"].includes(String(process.env.NODE_ENV ?? "").toLowerCase());
 
     if (!keySecret) {
-      console.log(`[Payment STUB] Verify: ${gatewayOrderId} | Payment: ${gatewayPaymentId}`);
-      return true;
+      if (localDemoMode) return false;
+      throw new Error("Payment verification unavailable: RAZORPAY_KEY_SECRET missing");
     }
 
     // Razorpay HMAC-SHA256 signature verification

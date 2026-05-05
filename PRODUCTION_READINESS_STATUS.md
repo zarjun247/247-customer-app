@@ -264,3 +264,18 @@ production chain operations require store-scoped staff/admin access.
 - Product master normalization tracked in `PRODUCT_MASTER_NORMALIZATION_STATUS.md`.
 - Salsette migration/import sequence tracked in `REAL_STORE_DATA_MIGRATION_PLAN.md`.
 - Next PR: `feat/barcode-production-ux`.
+
+## 2026-05-04 P0 backend truth/security stabilization pass
+- Branch: `feat/p0-backend-truth-security-pass`
+- Focused P0/P1 backend fixes landed without feature expansion.
+- Completed:
+  - Purchase commit no longer directly increments stock quantity fields prior to canonical stock movement.
+  - H1 register path removed unsafe `Number(line.id)` dependency and now persists string-safe sale/line references in canonical/audit context.
+  - Storage proxy bearer spoof removed; authenticated user session required for sensitive access policy.
+  - `deliverWithPhoto` now enforces regulated-release gate.
+  - Payment signature verification hardened against malformed signature length mismatch and missing-secret fail-open behavior.
+- Remaining before 9.8+/10:
+  - dedicated H1 schema refs migration,
+  - broader DB-backed stock/purchase return race tests,
+  - full storage scope integration matrix,
+  - wider provider stub fail-closed cleanup.

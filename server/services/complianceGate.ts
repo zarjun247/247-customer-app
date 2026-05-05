@@ -43,12 +43,14 @@ export async function createOrVerifyH1RegisterEntry(saleId: string, pharmacistId
     if (!sale.billNo || !sale.storeId || !sale.customerName) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Missing required H1 sale context" });
     const [product] = await db.select({ name: products.name }).from(products).where(eq(products.id, Number(line.productId))).limit(1);
     if (!product?.name) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Missing product name for H1 register" });
-    const [existing] = await db.select().from(h1Register).where(and(eq(h1Register.saleId, Number(line.id)), eq(h1Register.drugName, String(product.name)))).limit(1);
+    const saleLineRef = String(line.id);
+    const saleLineNumericId = /^[0-9]+$/.test(saleLineRef) ? Number(saleLineRef) : null;
+    const [existing] = await db.select().from(h1Register).where(and(eq(h1Register.prescriptionRef, `sale:${saleId}:line:${saleLineRef}`), eq(h1Register.drugName, String(product.name)))).limit(1);
     if (!existing) {
-      await db.insert(h1Register).values({ storeId: Number(sale.storeId), patientName: sale.customerName, patientPhone: sale.customerMobile, prescribingDoctor: null, drugName: String(product.name), batchNo: line.batchNo ?? null, qty: line.qty, pharmacistId, billNo: sale.billNo, saleId: Number(line.id), prescriptionRef: sale.prescriptionId ?? null });
-      await logAudit({ action: "h1.register.created", entityType: "sale", entityId: Number(line.id), afterJson: { saleId, lineId: line.id, drugName: product.name } }, ctx);
+      await db.insert(h1Register).values({ storeId: Number(sale.storeId), patientName: sale.customerName, patientPhone: sale.customerMobile, prescribingDoctor: null, drugName: String(product.name), batchNo: line.batchNo ?? null, qty: line.qty, pharmacistId, billNo: sale.billNo, saleId: saleLineNumericId, prescriptionRef: `sale:${saleId}:line:${saleLineRef}` });
+      await logAudit({ action: "h1.register.created", entityType: "sale", entityId: saleLineNumericId ?? undefined, afterJson: { saleRef: saleId, saleLineRef, prescriptionRef: sale.prescriptionId ?? null, billNo: sale.billNo, patientName: sale.customerName, patientPhone: sale.customerMobile, prescribingDoctor: null, drugName: product.name, batchNo: line.batchNo ?? null, qty: line.qty, pharmacistId } }, ctx);
     } else {
-      await logAudit({ action: "h1.register.verified", entityType: "sale", entityId: Number(line.id), afterJson: { saleId, lineId: line.id, drugName: product.name } }, ctx);
+      await logAudit({ action: "h1.register.verified", entityType: "sale", entityId: saleLineNumericId ?? undefined, afterJson: { saleRef: saleId, saleLineRef, drugName: product.name } }, ctx);
     }
   }
 }
