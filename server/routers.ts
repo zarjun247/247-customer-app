@@ -112,7 +112,7 @@ const authRouter = router({
       const { sdk } = await import("./_core/sdk");
       // Use phone as the stable identifier (openId may be null for phone users)
       const sessionToken = await sdk.signSession(
-        { openId: `phone:${input.phone}`, appId: "", name: user.name ?? "" },
+        { openId: `phone:${input.phone}`, appId: ENV.appId, name: user.name ?? "" },
         { expiresInMs: 1000 * 60 * 60 * 24 * 365 }
       );
       const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -167,6 +167,17 @@ const userRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Building not found" });
         }
       }
+      let resolvedStoreId = input.assignedStoreId;
+      if (input.buildingId) {
+        const result = await resolveStore({ buildingId: input.buildingId });
+        if (!result) throw new TRPCError({ code: "BAD_REQUEST", message: "No serviceable store found for building" });
+        resolvedStoreId = result.storeId;
+      } else if (input.userLat !== undefined && input.userLng !== undefined) {
+        const svc = await checkServiceability(input.userLat, input.userLng);
+        if (!svc?.serviceable || !svc.storeId) throw new TRPCError({ code: "BAD_REQUEST", message: "Address not serviceable" });
+        resolvedStoreId = svc.storeId;
+      }
+
       await updateUserProfile(ctx.user.id, {
         name: input.name,
         phone: input.phone,
@@ -175,11 +186,11 @@ const userRouter = router({
         userAddress: input.userAddress,
         userLat: input.userLat !== undefined ? String(input.userLat) : undefined,
         userLng: input.userLng !== undefined ? String(input.userLng) : undefined,
-        assignedStoreId: input.assignedStoreId,
+        assignedStoreId: resolvedStoreId,
         onboardingComplete: true,
       });
       await writeAuditLog(ctx.user.id, "onboarding_complete", "user", ctx.user.id, input);
-      return { success: true, assignedStoreId: input.assignedStoreId };
+      return { success: true, assignedStoreId: resolvedStoreId };
     }),
   buildings: publicProcedure.query(() => getBuildings()),
 });
@@ -270,8 +281,11 @@ const routingRouter = router({
 const cartRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => getCart(ctx.user.id)),
   upsert: protectedProcedure
-    .input(z.object({ skuId: z.number(), productId: z.number(), variantId: z.number().optional(), quantity: z.number().min(0) }))
+    .input(z.object({ skuId: z.number(), productId: z.number().optional(), variantId: z.number().optional(), quantity: z.number().min(0) }))
     .mutation(async ({ ctx, input }) => {
+      const sku = await getSkuById(input.skuId);
+      if (!sku) throw new TRPCError({ code: "NOT_FOUND", message: "SKU not found" });
+
       const user = await getUserById(ctx.user.id);
       if (!user?.onboardingComplete || !user?.assignedStoreId) {
         throw new TRPCError({
@@ -279,7 +293,11 @@ const cartRouter = router({
           message: ONBOARDING_REQUIRED_MSG,
         });
       }
-      await upsertCartItem(ctx.user.id, input.skuId, input.productId, input.quantity);
+      if (sku.storeId !== user.assignedStoreId) throw new TRPCError({ code: "FORBIDDEN", message: "SKU not available for your assigned store" });
+      if (!sku.isActive) throw new TRPCError({ code: "BAD_REQUEST", message: "SKU is inactive" });
+      if (input.productId && input.productId !== sku.productId) throw new TRPCError({ code: "BAD_REQUEST", message: "Product mismatch for SKU" });
+      if (input.quantity > 0 && Number(sku.availableQty ?? 0) < input.quantity) throw new TRPCError({ code: "BAD_REQUEST", message: "Requested quantity unavailable" });
+      await upsertCartItem(ctx.user.id, input.skuId, sku.productId, input.quantity);
       return { success: true };
     }),
   clear: protectedProcedure.mutation(async ({ ctx }) => {
@@ -306,9 +324,13 @@ const orderRouter = router({
       const store = await getStoreById(user.assignedStoreId);
       const slaMins = store?.slaMins ?? 20;
 
-      // Apply inventory soft-lock at checkout
-      await softLockCart(ctx.user.id);
-      await applySoftLockToSkus(cartData.map(i => ({ skuId: i.skuId, qty: i.quantity })));
+      const lockItems = cartData.map(i => ({ skuId: i.skuId, qty: i.quantity }));
+      for (const item of cartData) {
+        const sku = await getSkuById(item.skuId);
+        if (!sku || !sku.isActive || sku.storeId !== user.assignedStoreId || sku.productId !== item.productId || Number(sku.availableQty ?? 0) < item.quantity) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Cart contains unavailable items" });
+        }
+      }
 
       const subtotal = cartData.reduce((s, i) => s + parseFloat(String(i.sellingPrice)) * i.quantity, 0);
       const total = subtotal;
@@ -333,7 +355,11 @@ const orderRouter = router({
       }
       // Initial status: Rx orders enter pharmacist review; OTC orders go to awaiting_allocation
       const initialStatus = needsRx ? "awaiting_pharmacist_review" : "awaiting_allocation";
-      const orderId = await createOrder({
+      let orderId: number | null = null;
+      await softLockCart(ctx.user.id);
+      await applySoftLockToSkus(lockItems);
+      try {
+      orderId = await createOrder({
         userId: ctx.user.id,
         storeId: user.assignedStoreId,
         prescriptionId: input.prescriptionId,
@@ -354,8 +380,12 @@ const orderRouter = router({
         })),
       });
 
-      await updateOrderStatus(orderId, initialStatus);
+      await updateOrderStatus(orderId!, initialStatus);
       await clearCart(ctx.user.id);
+      } catch (error) {
+        await releaseSoftLock(lockItems);
+        throw error;
+      }
       await writeAuditLog(ctx.user.id, "order_created", "order", orderId, { source: "app" });
 
       // Fire-and-forget: send order confirmation notification
@@ -383,7 +413,7 @@ const orderRouter = router({
         }
       }
 
-      return { orderId, status: initialStatus, promisedSlaMins: slaMins };
+      return { orderId: orderId!, status: initialStatus, promisedSlaMins: slaMins };
     }),
 
   list: protectedProcedure.query(async ({ ctx }) => getOrdersByUser(ctx.user.id)),
@@ -483,7 +513,12 @@ const prescriptionRouter = router({
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
       const buffer = Buffer.from(input.imageBase64, "base64");
-      const key = `prescriptions/${ctx.user.id}/${Date.now()}.jpg`;
+      const allowed: Record<string, {ext:string; magic:number[]}> = {"image/jpeg":{ext:"jpg",magic:[0xFF,0xD8,0xFF]},"image/png":{ext:"png",magic:[0x89,0x50,0x4E,0x47]},"application/pdf":{ext:"pdf",magic:[0x25,0x50,0x44,0x46]}};
+      const rule = allowed[input.mimeType];
+      if (!rule) throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported file type" });
+      if (buffer.length > 8 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "File too large" });
+      if (!rule.magic.every((b,i)=>buffer[i]===b)) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid file signature" });
+      const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       const rxId = await createPrescription(ctx.user.id, user?.assignedStoreId ?? undefined, url, key);
       await writeAuditLog(ctx.user.id, "prescription_uploaded", "prescription", rxId);
@@ -563,10 +598,10 @@ const notificationRouter = router({
 const dosageRouter = router({
   createSchedule: protectedProcedure.input(z.object({ productId: z.number(), unitsPerDay: z.number().positive(), totalUnits: z.number().positive(), source: z.enum(["prescription","user","pharmacist"]).default("user") })).mutation(async ({ ctx, input }) => await createDosageSchedule({ customerId: ctx.user.id, ...input })),
   todayPlan: protectedProcedure.query(async ({ ctx }) => await getTodayDosePlan(ctx.user.id, new Date().toISOString().slice(0,10))),
-  recordTaken: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ input }) => ({ ok: await recordDoseTaken(input.scheduleId, input.date) })),
-  recordSkipped: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ input }) => ({ ok: await recordDoseSkipped(input.scheduleId, input.date) })),
-  adherence: protectedProcedure.input(z.object({ scheduleId: z.string() })).query(async ({ input }) => await getAdherenceSummary(input.scheduleId)),
-  remaining: protectedProcedure.input(z.object({ scheduleId: z.string(), startDate: z.string() })).query(async ({ input }) => ({ remaining: await estimateMedicationRemaining(input.scheduleId), runoutDate: await estimateRunoutDate(input.scheduleId, input.startDate), persistence: "db_backed" as const })),
+  recordTaken: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ ctx, input }) => ({ ok: await recordDoseTaken(ctx.user.id, input.scheduleId, input.date) })),
+  recordSkipped: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ ctx, input }) => ({ ok: await recordDoseSkipped(ctx.user.id, input.scheduleId, input.date) })),
+  adherence: protectedProcedure.input(z.object({ scheduleId: z.string() })).query(async ({ ctx, input }) => await getAdherenceSummary(ctx.user.id, input.scheduleId)),
+  remaining: protectedProcedure.input(z.object({ scheduleId: z.string(), startDate: z.string() })).query(async ({ ctx, input }) => ({ remaining: await estimateMedicationRemaining(ctx.user.id, input.scheduleId), runoutDate: await estimateRunoutDate(ctx.user.id, input.scheduleId, input.startDate), persistence: "db_backed" as const })),
 });
 
 const ratingRouter = router({

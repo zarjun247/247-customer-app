@@ -17,3 +17,5 @@
   - needs manual review: likely PRs touching audit/stock/compliance/router architecture
   - superseded: likely older architecture PRs including presumed PR #19
   - unknown: all others pending API/CLI verification
+
+- 2026-05-05 update: PR #44, #46, and #47 are stale/duplicate after merge of PR #48 and must not be merged directly.

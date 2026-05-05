@@ -242,6 +242,7 @@ export async function getSkuById(skuId: number) {
     stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty,
     availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
     storeId: storeSkus.storeId,
+    isActive: storeSkus.isActive,
   }).from(storeSkus).innerJoin(products, eq(storeSkus.productId, products.id))
     .leftJoin(productVariants, eq(storeSkus.variantId, productVariants.id))
     .where(eq(storeSkus.id, skuId)).limit(1);
@@ -263,6 +264,7 @@ export async function getCart(userId: number) {
     imageUrl: products.imageUrl, mrp: storeSkus.mrp, sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty,
     storeId: storeSkus.storeId,
+    isActive: storeSkus.isActive,
     isChronicMedication: products.isChronicMedication,
   }).from(cartItems)
     .innerJoin(storeSkus, eq(cartItems.storeSkuId, storeSkus.id))

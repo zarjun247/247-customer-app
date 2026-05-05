@@ -279,3 +279,6 @@ production chain operations require store-scoped staff/admin access.
   - broader DB-backed stock/purchase return race tests,
   - full storage scope integration matrix,
   - wider provider stub fail-closed cleanup.
+
+
+- 2026-05-05: Auth/cart/checkout/onboarding/upload/dosage safety patch landed on feat/mega-01-auth-checkout-customer-safety; rerun full validation before production claim.
