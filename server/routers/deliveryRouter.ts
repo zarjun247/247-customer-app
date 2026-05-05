@@ -483,6 +483,7 @@ const taskRouter = router({
       const [task] = await db.select().from(deliveryTasks).where(eq(deliveryTasks.id, input.taskId)).limit(1);
       if (!task) throw new TRPCError({ code: "NOT_FOUND" });
       requireStoreAccess(ctx.user, task.storeId);
+      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
 
       const now = new Date();
 

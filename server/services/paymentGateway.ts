@@ -31,7 +31,10 @@ export function verifyGatewayWebhookSignature(rawBody: string, signature: string
   if (!secret && ENV.isProduction) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Webhook secret missing" });
   if (!secret) return false;
   const digest = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature || ""));
+  const expected = Buffer.from(digest, "utf8");
+  const actual = Buffer.from(signature || "", "utf8");
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
 }
 
 export function normalizeGatewayPaymentEvent(event: any) { return { id: event?.id ?? null, type: event?.event ?? "unknown", payload: event?.payload ?? null }; }

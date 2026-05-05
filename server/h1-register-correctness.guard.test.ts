@@ -10,4 +10,8 @@ describe('h1 register correctness guards', () => {
     expect(source).toContain('product.name');
     expect(source).not.toContain('drugName: String(line.productId)');
   });
+  it("does not use Number(line.id) or Number(uuid) style casts in h1 register path", () => {
+    expect(source).not.toContain("Number(line.id)");
+    expect(source).toContain("saleLineRef");
+  });
 });

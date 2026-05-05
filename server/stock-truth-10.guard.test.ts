@@ -11,4 +11,9 @@ describe("stock truth 10 static guards", () => {
     const out = execSync("rg -n \"insert\\(stockMovements\\)\" server/routers | rg -v \"legacy|deferred\" || true", { encoding: "utf8" }).trim();
     expect(out).toBe("");
   });
+
+  it("purchase commit does not directly increment qtyOnHand/stockQty", () => {
+    const out = execSync("rg -n \"commitInvoice[\\s\\S]{0,2800}(qtyOnHand: \\(existingLedger\\.qtyOnHand|qtyOnHand: qty|quantity: \\(existingBatch\\.quantity|stockQty: \\(sku\\.stockQty)\" server/routers/purchaseRouter.ts || true", { encoding: "utf8" }).trim();
+    expect(out).toBe("");
+  });
 });

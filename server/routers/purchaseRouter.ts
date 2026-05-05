@@ -284,25 +284,28 @@ export const purchaseRouter = router({
         const bucket = computeExpiryBucket(line.expiryDate);
         // Upsert batch_ledger
         const [existingLedger] = await db.select().from(batchLedger).where(and(eq(batchLedger.batchNo, line.batchNo), eq(batchLedger.storeId, inv.storeId), eq(batchLedger.productId, line.productId))).limit(1);
+        let ledgerId: number;
         if (existingLedger) {
-          await db.update(batchLedger).set({ qtyOnHand: (existingLedger.qtyOnHand ?? 0) + qty, mrp: line.mrp, purchaseRate: line.purchaseRate, saleRate: line.saleRate ?? line.mrp, landingCost: landingCost.toString(), margin: margin.toString(), expiryBucket: bucket, purchaseInvoiceId: inv.id }).where(eq(batchLedger.id, existingLedger.id));
+          ledgerId = existingLedger.id;
+          await db.update(batchLedger).set({ mrp: line.mrp, purchaseRate: line.purchaseRate, saleRate: line.saleRate ?? line.mrp, landingCost: landingCost.toString(), margin: margin.toString(), expiryBucket: bucket, purchaseInvoiceId: inv.id }).where(eq(batchLedger.id, existingLedger.id));
         } else {
-          await db.insert(batchLedger).values({ productId: line.productId, storeId: inv.storeId, supplierId: inv.supplierId, batchNo: line.batchNo, mfgDate: line.mfgDate ?? null, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, saleRate: line.saleRate ?? line.mrp, schemeDiscount: line.schemeDiscount ?? "0", cashDiscount: line.cashDiscount ?? "0", landingCost: landingCost.toString(), margin: margin.toString(), qtyOnHand: qty, qtyReserved: 0, qtyQuarantined: 0, qtyExpired: 0, purchaseInvoiceId: inv.id, expiryBucket: bucket, status: "active", createdBy: ctx.user!.id });
+          const [lr] = await db.insert(batchLedger).values({ productId: line.productId, storeId: inv.storeId, supplierId: inv.supplierId, batchNo: line.batchNo, mfgDate: line.mfgDate ?? null, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, saleRate: line.saleRate ?? line.mrp, schemeDiscount: line.schemeDiscount ?? "0", cashDiscount: line.cashDiscount ?? "0", landingCost: landingCost.toString(), margin: margin.toString(), qtyOnHand: 0, qtyReserved: 0, qtyQuarantined: 0, qtyExpired: 0, purchaseInvoiceId: inv.id, expiryBucket: bucket, status: "active", createdBy: ctx.user!.id });
+          ledgerId = (lr as { insertId: number }).insertId;
         }
         // Upsert legacy batches
         const [existingBatch] = await db.select().from(batches).where(and(eq(batches.batchNumber, line.batchNo), eq(batches.storeId, inv.storeId))).limit(1);
         let batchId: number;
         if (existingBatch) {
           batchId = existingBatch.id;
-          await db.update(batches).set({ quantity: (existingBatch.quantity ?? 0) + qty }).where(eq(batches.id, batchId));
         } else {
-          const [br] = await db.insert(batches).values({ productId: line.productId, batchNumber: line.batchNo, expiryDate: line.expiryDate, unitCost: line.purchaseRate, quantity: qty, storeId: inv.storeId, status: "active" });
+          const [br] = await db.insert(batches).values({ productId: line.productId, batchNumber: line.batchNo, expiryDate: line.expiryDate, unitCost: line.purchaseRate, quantity: 0, storeId: inv.storeId, status: "active" });
           batchId = (br as { insertId: number }).insertId;
         }
         await db.update(purchaseLines).set({ batchId }).where(eq(purchaseLines.id, line.id));
-        await increaseStockForPurchaseCommit({ batchId, storeId: inv.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: inv.id, reason: `Purchase commit ${inv.invoiceNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: line.productId });
-        const [sku] = await db.select().from(storeSkus).where(eq(storeSkus.productId, line.productId)).limit(1);
-        if (sku) await db.update(storeSkus).set({ stockQty: (sku.stockQty ?? 0) + qty }).where(eq(storeSkus.id, sku.id));
+        const movement = await increaseStockForPurchaseCommit({ batchId: ledgerId, storeId: inv.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: inv.id, reason: `Purchase commit ${inv.invoiceNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: line.productId });
+        await db.update(batches).set({ quantity: movement.qtyAfter }).where(eq(batches.id, batchId));
+        const [sku] = await db.select().from(storeSkus).where(and(eq(storeSkus.productId, line.productId), eq(storeSkus.storeId, inv.storeId))).limit(1);
+        if (sku) await db.update(storeSkus).set({ stockQty: movement.qtyAfter }).where(eq(storeSkus.id, sku.id));
         const rateKey = `${gr}%`;
         if (!gstSummary[rateKey]) gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
         gstSummary[rateKey].taxable += taxableAmount;
