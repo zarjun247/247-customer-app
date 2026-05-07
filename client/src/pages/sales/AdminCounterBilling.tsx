@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
 import { trpc } from "@/lib/trpc";
+import { BarcodeScannerInput, type BarcodeResolvedResult } from "@/components/barcode/BarcodeScannerInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,7 @@ export default function AdminCounterBilling() {
   const [billNo, setBillNo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [barcodeInput, setBarcodeInput] = useState("");
+  const [scanResult, setScanResult] = useState<BarcodeResolvedResult | null>(null);
   const [customerMobile, setCustomerMobile] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [salesmanCode, setSalesmanCode] = useState("");
@@ -116,6 +118,8 @@ export default function AdminCounterBilling() {
     { saleId: saleId ?? "" },
     { enabled: !!saleId }
   );
+
+  const trpcUtils = trpc.useUtils();
 
   // ─── Mutations ──────────────────────────────────────────────────────────────
   const createDraft = trpc.sales.createDraft.useMutation({
@@ -204,11 +208,29 @@ export default function AdminCounterBilling() {
     setSearchQuery("");
   };
 
+  const handleBarcodeScan = async (barcode: string): Promise<BarcodeResolvedResult> => {
+    setBarcodeInput(barcode);
+    const resolved = await trpcUtils.sales.scanBarcodeForSale.fetch({ barcode, storeId: Number(DEFAULT_STORE_ID) }) as BarcodeResolvedResult | undefined;
+    const rows = resolved?.rows ?? [];
+    const firstRow = rows[0] as { name?: string; productId?: number; canonicalAvailability?: unknown } | undefined;
+    const result: BarcodeResolvedResult = {
+      ...resolved,
+      rows,
+      canonicalAvailability: firstRow?.canonicalAvailability as BarcodeResolvedResult["canonicalAvailability"],
+      status: rows.length === 0 ? "not_found" : rows.length > 1 ? "ambiguous" : firstRow?.productId ? "found" : "incomplete_master",
+      message: rows.length === 0 ? "Lookup only: no stock changed." : "Lookup only: add item through confirmed billing flow.",
+    };
+    setScanResult(result);
+    if (firstRow?.name) setSearchQuery(firstRow.name);
+    else setSearchQuery(barcode);
+    setBarcodeInput("");
+    return result;
+  };
+
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcodeInput.trim()) return;
-    setSearchQuery(barcodeInput.trim());
-    setBarcodeInput("");
+    void handleBarcodeScan(barcodeInput.trim()).catch((error) => toast.error(error.message));
   };
 
   const handleAddToCart = async () => {
@@ -304,31 +326,40 @@ export default function AdminCounterBilling() {
           </div>
 
           {/* Barcode + Search */}
-          <div className="flex gap-2">
-            <form onSubmit={handleBarcodeSubmit} className="flex gap-2 flex-1">
+          <div className="space-y-2">
+            <BarcodeScannerInput
+              label="Counter barcode lookup"
+              lastScannedValue={barcodeInput}
+              result={scanResult}
+              onScan={handleBarcodeScan}
+              onError={(error) => toast.error(error.message)}
+            />
+            <div className="flex gap-2">
+              <form onSubmit={handleBarcodeSubmit} className="flex gap-2 flex-1">
+                <div className="relative flex-1">
+                  <Barcode className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    ref={barcodeRef}
+                    placeholder="Legacy scan/search fallback..."
+                    value={barcodeInput}
+                    onChange={e => setBarcodeInput(e.target.value)}
+                    className="pl-8 h-9"
+                    autoFocus
+                  />
+                </div>
+                <Button type="submit" size="sm" variant="outline">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </form>
               <div className="relative flex-1">
-                <Barcode className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  ref={barcodeRef}
-                  placeholder="Scan barcode or type product name..."
-                  value={barcodeInput}
-                  onChange={e => setBarcodeInput(e.target.value)}
+                  placeholder="Search product..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                   className="pl-8 h-9"
-                  autoFocus
                 />
               </div>
-              <Button type="submit" size="sm" variant="outline">
-                <Search className="h-4 w-4" />
-              </Button>
-            </form>
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search product..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-8 h-9"
-              />
             </div>
           </div>
 
