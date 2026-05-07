@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
+import { getProductMasterCompleteness, validateProductForRegulatedSale } from "../services/productMasterValidation";
 
 function requireStaff(role: string) {
   const STAFF = ["admin", "super_admin", "store_manager", "pharmacist", "purchase_manager", "accountant", "cashier", "salesman", "inventory_operator", "delivery_operator", "auditor"];
@@ -589,10 +590,12 @@ export const productMasterRouter = router({
       requireManager(ctx.user!.role);
       const db = await getDb();
       const { products } = await import("../../drizzle/schema");
+      const validation = input.schedule === "OTC" ? getProductMasterCompleteness(input, { relaxedOtc: true }) : validateProductForRegulatedSale(input);
+      if (!validation.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Product master incomplete for regulated/statutory workflow", cause: validation.errors });
       const [r] = await db.insert(products).values(input);
       const id = (r as any).insertId;
       await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.product.create", entityType: "product", entityId: id, beforeJson: null, afterJson: input, source: "admin" });
-      return { id };
+      return { id, validation: { status: validation.status, warnings: validation.warnings, duplicateCandidates: validation.duplicateCandidates } };
     }),
   update: protectedProcedure
     .input(z.object({
@@ -621,9 +624,13 @@ export const productMasterRouter = router({
       const { eq } = await import("drizzle-orm");
       const { id, ...data } = input;
       const [before] = await db.select().from(products).where(eq(products.id, id));
+      if (!before) throw new TRPCError({ code: "NOT_FOUND" });
+      const candidate = { ...before, ...data };
+      const validation = candidate.schedule === "OTC" ? getProductMasterCompleteness(candidate, { relaxedOtc: true }) : validateProductForRegulatedSale(candidate);
+      if (!validation.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Product master incomplete for regulated/statutory workflow", cause: validation.errors });
       await db.update(products).set(data).where(eq(products.id, id));
       await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.product.update", entityType: "product", entityId: id, beforeJson: before, afterJson: data, source: "admin" });
-      return { success: true };
+      return { success: true, validation: { status: validation.status, warnings: validation.warnings, duplicateCandidates: validation.duplicateCandidates } };
     }),
   deactivate: protectedProcedure
     .input(z.object({ id: z.number(), reason: z.string().optional() }))

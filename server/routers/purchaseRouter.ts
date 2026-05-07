@@ -13,6 +13,7 @@ import { syncStoreSkuAggregate } from "../services/reservationService";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
+import { validateBarcodeRuntimeLabel, validatePurchaseRuntimeLine } from "../services/productMasterValidation";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -84,9 +85,14 @@ export const purchaseRouter = router({
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
+      const db = await getDbSafe();
+      const { products } = await import("../../drizzle/schema");
       const internalBarcode = generateInternalBarcode({ productId: input.productId, batchId: input.batchId, storeId: input.storeId });
+      const [product] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
+      const gate = validateBarcodeRuntimeLabel({ product, batchNo: input.batchNo, expiryDate: input.expiryDate, mrp: input.mrp, internalBarcode });
+      if (!gate.complete) return { status: "incomplete_master", errors: gate.errors, queued: false };
       await registerBarcodeAlias({ barcode: internalBarcode, productId: input.productId, batchId: input.batchId, storeId: input.storeId, aliasType: "internal" });
-      const payload = getBarcodeLabelPayload({ productName: `Product-${input.productId}`, batchNo: input.batchNo ?? null, expiryDate: input.expiryDate ?? null, mrp: input.mrp ?? null, internalBarcode, storeId: input.storeId });
+      const payload = getBarcodeLabelPayload({ productName: product.name, strength: product.strength, packSize: product.packSize, batchNo: input.batchNo ?? null, expiryDate: input.expiryDate ?? null, mrp: input.mrp ?? null, internalBarcode, storeId: input.storeId });
       await createLabelPrintJob({ productId: input.productId, batchId: input.batchId ?? null, storeId: input.storeId, labelType: "batch", payloadJson: payload, requestedBy: ctx.user!.id });
       return { internalBarcode, queued: true };
     }),
@@ -185,9 +191,12 @@ export const purchaseRouter = router({
       requirePurchase(ctx.user!.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
-      const { purchaseInvoices, purchaseLines } = await import("../../drizzle/schema");
+      const { purchaseInvoices, purchaseLines, products } = await import("../../drizzle/schema");
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.purchaseInvoiceId));
       if (!inv || inv.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
+      const [product] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
+      const gate = validatePurchaseRuntimeLine({ product, batchNo: input.batchNo, expiryDate: input.expiryDate, mrp: input.mrp, purchaseRate: input.purchaseRate, gstRate: input.gstRate, hsnCode: input.hsnCode });
+      if (!gate.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Purchase line blocked by incomplete product master", cause: gate.errors });
       const pr = parseFloat(input.purchaseRate), gr = parseFloat(input.gstRate), sd = parseFloat(input.schemeDiscount), cd = parseFloat(input.cashDiscount);
       const { landingCost, gstAmount, taxableAmount } = calcGst(pr, gr, input.qty, sd, cd);
       const mrp = parseFloat(input.mrp);
@@ -256,7 +265,7 @@ export const purchaseRouter = router({
       requirePurchase(ctx.user!.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
-      const { purchaseInvoices, purchaseLines, batchLedger, batches } = await import("../../drizzle/schema");
+      const { purchaseInvoices, purchaseLines, batchLedger, batches, products } = await import("../../drizzle/schema");
       const idemKey = buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]);
       return withIdempotency({
         key: idemKey,
@@ -277,6 +286,9 @@ export const purchaseRouter = router({
       if (!lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines to commit" });
       const gstSummary: Record<string, { taxable: number; gst: number; total: number }> = {};
       for (const line of lines) {
+        const [product] = await db.select().from(products).where(eq(products.id, line.productId)).limit(1);
+        const gate = validatePurchaseRuntimeLine({ product, batchNo: line.batchNo, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, gstRate: line.gstRate, hsnCode: line.hsnCode });
+        if (!gate.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Purchase commit blocked by incomplete product master for line ${line.id}`, cause: gate.errors });
         const pr = parseFloat(line.purchaseRate ?? "0"), gr = parseFloat(line.gstRate ?? "12"), sd = parseFloat(line.schemeDiscount ?? "0"), cd = parseFloat(line.cashDiscount ?? "0");
         const qty = line.qty + (line.freeQty ?? 0);
         const { landingCost, gstAmount, taxableAmount } = calcGst(pr, gr, line.qty, sd, cd);

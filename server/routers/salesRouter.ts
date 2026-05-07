@@ -16,6 +16,7 @@ import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barc
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 import { getCanonicalAvailability } from "../services/reservationService";
 import { reserveInvoiceNumber, generateReturnNoteNumber, buildDraftBillNumber } from "../services/invoiceNumbering";
+import { validateProductForRegulatedSale } from "../services/productMasterValidation";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -218,20 +219,29 @@ export const salesRouter = router({
       requireSales(ctx.user?.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
-      const { saleLines, sales } = await import("../../drizzle/schema");
+      const { saleLines, sales, products } = await import("../../drizzle/schema");
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
       if (!sale) throw new TRPCError({ code: "NOT_FOUND", message: "Sale not found" });
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Sale already confirmed" });
+      const productId = Number(input.productId);
+      const [product] = await db.select().from(products).where(eq(products.id, productId)).limit(1);
+      if (!product) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Product not found for sale line" });
+      const effectiveSchedule = input.scheduleCode ?? product.schedule;
+      const effectiveRequiresPrescription = input.requiresPrescription || Boolean(product.requiresPrescription);
+      const effectiveGstRate = input.gstRate || Number(product.gstRate ?? 0);
+      const effectiveHsnCode = input.hsnCode ?? product.hsnCode ?? undefined;
+      const masterGate = validateProductForRegulatedSale({ ...product, schedule: effectiveSchedule, requiresPrescription: effectiveRequiresPrescription, gstRate: effectiveGstRate, hsnCode: effectiveHsnCode });
+      if (!masterGate.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Sale line blocked by incomplete product master", cause: masterGate.errors });
 
       // Rx gate: H/H1/X always require pharmacist clearance
-      const rxSchedules = ["H", "H1", "X", "Rx", "NRX"];
-      if (input.scheduleCode && rxSchedules.includes(input.scheduleCode) && !input.rxCleared) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Schedule ${input.scheduleCode} requires pharmacist clearance before adding to bill` });
+      const rxSchedules = ["H", "H1", "X", "RX", "NRX"];
+      if (rxSchedules.includes(String(effectiveSchedule).toUpperCase()) && !input.rxCleared) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Schedule ${effectiveSchedule} requires pharmacist clearance before adding to bill` });
       }
 
       const discountAmount = +(input.saleRate * input.qty * (input.discountPct / 100)).toFixed(2);
       const taxableAmount = +(input.saleRate * input.qty - discountAmount).toFixed(2);
-      const gstAmount = +(taxableAmount * (input.gstRate / 100)).toFixed(2);
+      const gstAmount = +(taxableAmount * (effectiveGstRate / 100)).toFixed(2);
       const lineTotal = +(taxableAmount + gstAmount).toFixed(2);
 
       const lineId = randomUUID();
@@ -248,12 +258,12 @@ export const salesRouter = router({
         qty: input.qty,
         discountPct: String(input.discountPct),
         discountAmount: String(discountAmount),
-        gstRate: String(input.gstRate),
+        gstRate: String(effectiveGstRate),
         gstAmount: String(gstAmount),
-        hsnCode: input.hsnCode ?? null,
+        hsnCode: effectiveHsnCode ?? null,
         lineTotal: String(lineTotal),
-        requiresPrescription: input.requiresPrescription ? 1 : 0,
-        scheduleCode: input.scheduleCode ?? null,
+        requiresPrescription: effectiveRequiresPrescription ? 1 : 0,
+        scheduleCode: effectiveSchedule,
         rxCleared: input.rxCleared ? 1 : 0,
         createdAt: now,
       });
@@ -340,7 +350,7 @@ export const salesRouter = router({
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const {
-        sales, saleLines, batchLedger, counterPayments, auditLogs,
+        sales, saleLines, batchLedger, counterPayments, auditLogs, products,
       } = await import("../../drizzle/schema");
       const now = Date.now();
       const idemKey = buildIdempotencyKey(["sale","confirm",input.saleId,getRequestIdFromContext(ctx) ?? "no-request-id"]);
@@ -353,6 +363,10 @@ export const salesRouter = router({
       const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, input.saleId));
       if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines on sale" });
       for (const line of lines) {
+        const [product] = await db.select().from(products).where(eq(products.id, Number(line.productId))).limit(1);
+        if (!product) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Sale confirm blocked: product ${line.productId} not found` });
+        const masterGate = validateProductForRegulatedSale({ ...product, schedule: line.scheduleCode ?? product.schedule, requiresPrescription: Boolean(line.requiresPrescription) || product.requiresPrescription, gstRate: line.gstRate ?? product.gstRate, hsnCode: line.hsnCode ?? product.hsnCode });
+        if (!masterGate.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Sale confirm blocked by incomplete product master for product ${line.productId}`, cause: masterGate.errors });
         const availability = await getCanonicalAvailability(Number(sale.storeId), Number(line.productId), null);
         if (availability.availableQty < line.qty) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Insufficient canonical availability for product ${line.productId}` });
       }

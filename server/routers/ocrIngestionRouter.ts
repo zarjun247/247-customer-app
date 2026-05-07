@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 import { eq, and, desc, like, or, inArray } from "drizzle-orm";
+import { validatePurchaseRuntimeLine } from "../services/productMasterValidation";
 
 async function getDb() {
   const { getDb: _getDb } = await import("../db");
@@ -410,10 +411,17 @@ export const ocrIngestionRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (!["admin", "super_admin", "store_manager", "purchase_manager"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
       const db = await getDb();
-      const { purchaseDrafts } = await import("../../drizzle/schema");
+      const { purchaseDrafts, purchaseDraftLines, products } = await import("../../drizzle/schema");
       const [draft] = await db.select().from(purchaseDrafts).where(eq(purchaseDrafts.id, input.draftId)).limit(1);
       if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
       if (draft.status !== "draft" && draft.status !== "under_review") throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot approve draft in status: ${draft.status}` });
+      const lines = await db.select().from(purchaseDraftLines).where(eq(purchaseDraftLines.purchaseDraftId, input.draftId));
+      for (const line of lines) {
+        if (line.status === "rejected") continue;
+        const [product] = line.productId ? await db.select().from(products).where(eq(products.id, line.productId)).limit(1) : [];
+        const gate = validatePurchaseRuntimeLine({ product: product ?? null, batchNo: line.batchNo, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, gstRate: line.gstRate, hsnCode: line.hsnCode });
+        if (!gate.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `OCR draft approval blocked by incomplete product master for line ${line.id}`, cause: gate.errors });
+      }
       await db.update(purchaseDrafts).set({ status: "approved", reviewedBy: ctx.user.id, reviewedAt: new Date(), notes: input.notes }).where(eq(purchaseDrafts.id, input.draftId));
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "purchase_draft", entityId: input.draftId, action: "ocr.approve", beforeJson: { status: draft.status }, afterJson: { status: "approved" }, source: "admin" });
       return { success: true };
@@ -435,13 +443,19 @@ export const ocrIngestionRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (!["admin", "super_admin", "store_manager", "purchase_manager"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
       const db = await getDb();
-      const { purchaseDrafts, purchaseDraftLines, purchaseInvoices, purchaseLines, ingestionJobs } = await import("../../drizzle/schema");
+      const { purchaseDrafts, purchaseDraftLines, purchaseInvoices, purchaseLines, ingestionJobs, products } = await import("../../drizzle/schema");
       const [draft] = await db.select().from(purchaseDrafts).where(eq(purchaseDrafts.id, input.draftId)).limit(1);
       if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
       if (draft.status === "committed") return { success: true, invoiceId: draft.committedInvoiceId, idempotent: true };
       if (draft.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "Draft must be approved before committing" });
       const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, draft.ingestionJobId)).limit(1);
       const lines = await db.select().from(purchaseDraftLines).where(eq(purchaseDraftLines.purchaseDraftId, input.draftId));
+      for (const line of lines) {
+        if (line.status === "rejected") continue;
+        const [product] = line.productId ? await db.select().from(products).where(eq(products.id, line.productId)).limit(1) : [];
+        const gate = validatePurchaseRuntimeLine({ product: product ?? null, batchNo: line.batchNo, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, gstRate: line.gstRate, hsnCode: line.hsnCode });
+        if (!gate.complete) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `OCR draft commit blocked by incomplete product master for line ${line.id}`, cause: gate.errors });
+      }
       const [invoice] = await db.insert(purchaseInvoices).values({ supplierId: draft.supplierId ?? 0, storeId: job?.storeId ?? 0, invoiceNo: draft.invoiceNo ?? `OCR-${Date.now()}`, invoiceDate: draft.invoiceDate ? new Date(draft.invoiceDate) : new Date(), sourceType: "ocr", status: "draft", createdBy: ctx.user.id }).$returningId();
       for (const line of lines) {
         if (line.status === "rejected") continue;

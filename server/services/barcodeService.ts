@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import { batchLedger, labelPrintJobs, products, productBarcodes, barcodeAliases } from "../../drizzle/schema";
 import { getCanonicalAvailability } from "./reservationService";
+import { validateBarcodeRuntimeLabel } from "./productMasterValidation";
 
 export function normalizeBarcodeInput(value: string) { return value.trim().replace(/\s+/g, "").toUpperCase(); }
 export function generateInternalBarcode(seed: { productId: number; batchId?: number; storeId?: number }) {
@@ -48,6 +49,11 @@ export function getBarcodeLabelPayload(input: { productName: string; strength?: 
 }
 export async function createLabelPrintJob(input: { barcodeAliasId?: number|null; productId?: number|null; batchId?: number|null; storeId?: number|null; labelType: "batch"|"shelf"|"mrp"|"return"|"audit"; payloadJson: any; printerName?: string|null; requestedBy?: number|null; }) {
   const db = await getDb(); if (!db) return null;
+  if (input.labelType === "batch" || input.labelType === "mrp" || input.labelType === "shelf") {
+    const [product] = input.productId ? await db.select().from(products).where(eq(products.id, input.productId)).limit(1) : [];
+    const gate = validateBarcodeRuntimeLabel({ product: product ?? null, batchNo: input.payloadJson?.batchNo, expiryDate: input.payloadJson?.expiryDate, mrp: input.payloadJson?.mrp, internalBarcode: input.payloadJson?.internalBarcode });
+    if (!gate.complete) return { status: "incomplete_master", errors: gate.errors };
+  }
   const [r] = await db.insert(labelPrintJobs).values({ ...input, payloadJson: JSON.stringify(input.payloadJson), status: "queued" });
   return r;
 }
