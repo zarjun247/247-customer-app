@@ -1986,6 +1986,35 @@ export const saleReturnLines = mysqlTable("sale_return_lines", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+export const creditNotes = mysqlTable("credit_notes", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  creditNoteNo: varchar("credit_note_no", { length: 64 }).notNull(),
+  originalInvoiceNo: varchar("original_invoice_no", { length: 100 }).notNull(),
+  billNo: varchar("bill_no", { length: 100 }),
+  saleId: varchar("sale_id", { length: 36 }),
+  orderId: int("order_id"),
+  saleReturnId: varchar("sale_return_id", { length: 36 }),
+  refundId: varchar("refund_id", { length: 100 }),
+  storeId: varchar("store_id", { length: 36 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }),
+  amountPaise: int("amount_paise").notNull(),
+  taxableAmountPaise: int("taxable_amount_paise").notNull().default(0),
+  gstAmountPaise: int("gst_amount_paise").notNull().default(0),
+  reason: text("reason").notNull(),
+  status: mysqlEnum("status", ["draft", "issued", "cancelled", "failed"]).notNull().default("draft"),
+  issuedBy: varchar("issued_by", { length: 36 }),
+  issuedAt: bigint("issued_at", { mode: "number" }),
+  lineSplitsJson: text("line_splits_json"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (table) => ({
+  creditNoteNoUnique: uniqueIndex("credit_notes_credit_note_no_unique").on(table.creditNoteNo),
+}));
+
+
+export type CreditNote = typeof creditNotes.$inferSelect;
+export type NewCreditNote = typeof creditNotes.$inferInsert;
+
 export const counterPayments = mysqlTable("counter_payments", {
   id: varchar("id", { length: 36 }).primaryKey(),
   saleId: varchar("sale_id", { length: 36 }).notNull(),
