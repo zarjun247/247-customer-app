@@ -9,6 +9,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
+import { BarcodeLabelPreview } from "@/components/barcode/BarcodeLabelPreview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -162,6 +163,16 @@ export default function BarcodePrint() {
   };
 
   const removeJob = (id: string) => setJobs(prev => prev.filter(j => j.id !== id));
+
+  const previewLabels = jobs.map((job) => ({
+    id: job.id,
+    productName: job.productName,
+    batchNo: job.batchNumber,
+    expiryDate: job.expiryDate,
+    mrp: job.mrp,
+    barcode: job.barcode ?? job.batchNumber,
+    quantity: 1,
+  }));
 
   const downloadAll = () => {
     if (jobs.length === 0) { toast.error("No labels in queue."); return; }
@@ -351,11 +362,18 @@ export default function BarcodePrint() {
             </Card>
           )}
 
+          <BarcodeLabelPreview
+            labels={previewLabels}
+            printerStatus="not_configured"
+            printerWarning="Downloadable ZPL is available, but this UI does not claim SDK print success."
+            onReprint={(label) => { toast.info(`Reprint queued for preview only: ${label.barcode}`); }}
+          />
+
           {/* ZPL info */}
           <Card className="bg-card/60 border-border/40">
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">ZPL output</strong> is compatible with all Zebra thermal label printers (ZT200, ZT400, ZD400 series). Download the <code className="text-primary">.zpl</code> file and send to your printer via USB, network, or Zebra Setup Utilities. Labels use <strong className="text-foreground">Code 128</strong> barcodes.
+                <strong className="text-foreground">ZPL output</strong> can be downloaded and sent through an operator-managed printer utility. Browser print is explicitly a preview/fallback path until a configured printer provider confirms printed status. Labels use <strong className="text-foreground">Code 128</strong> barcodes.
               </p>
             </CardContent>
           </Card>
