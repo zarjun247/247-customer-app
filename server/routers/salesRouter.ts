@@ -192,7 +192,7 @@ export const salesRouter = router({
         createdAt: now,
         updatedAt: now,
       });
-      await logAudit({ action: "sale.created", entityType: "sale", entityId: Number(id), beforeJson: null, afterJson: { billNo, storeId: input.storeId } }, ctx);
+      await logAudit({ action: "sale.created", entityType: "sale", entityId: null, entityRef: id, beforeJson: null, afterJson: { billNo, storeId: input.storeId, saleRef: id } }, ctx);
       return { id, billNo };
     }),
 
@@ -413,8 +413,8 @@ export const salesRouter = router({
 
       if (discountUsageCodeId !== null) await recordDiscountCodeUsage(discountUsageCodeId, input.saleId, ctx);
       await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
-      await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: Number(input.saleId), afterJson: { ok: true } }, ctx);
-      await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
+      await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: null, entityRef: input.saleId, afterJson: { ok: true } }, ctx);
+      await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
       return { ok: true, billNo: finalBillNo, total: sale.total };
       });
     }),
@@ -491,7 +491,7 @@ export const salesRouter = router({
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft sales can be cancelled" });
       await db.update(sales).set({ status: "cancelled", updatedAt: Date.now() }).where(eq(sales.id, input.saleId));
-      await logAudit({ action: "sale.cancelled", entityType: "sale", entityId: Number(input.saleId), beforeJson: { status: "draft" }, afterJson: { status: "cancelled" }, reason: input.reason }, ctx);
+      await logAudit({ action: "sale.cancelled", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: { status: "draft" }, afterJson: { status: "cancelled" }, reason: input.reason }, ctx);
       return { ok: true };
     }),
 
@@ -507,7 +507,7 @@ export const salesRouter = router({
       const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
       if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
       if (sale.status === "confirmed" && String(sale.notes ?? "").includes("delivered")) {
-        await logAudit({ action: "sale.cancel_denied", entityType: "sale", entityId: Number(input.saleId), beforeJson: sale, reason: input.reason }, ctx);
+        await logAudit({ action: "sale.cancel_denied", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: sale, reason: input.reason }, ctx);
         throw new TRPCError({ code: "BAD_REQUEST", message: "Delivered sale cannot be cancelled; use return flow" });
       }
       if (sale.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "Sale already cancelled" });
@@ -515,10 +515,10 @@ export const salesRouter = router({
       const paid = payments.filter((p) => p.status === "confirmed").reduce((a, p) => a + Number(p.amount ?? 0), 0);
       const cancellationCost = ["packed","out_for_delivery"].includes(String(sale.status)) ? +(paid * 0.05).toFixed(2) : 0;
       const refundAmount = Math.max(0, +(paid - cancellationCost).toFixed(2));
-      await logAudit({ action: "sale.cancel_requested", entityType: "sale", entityId: Number(input.saleId), beforeJson: sale, reason: input.reason }, ctx);
+      await logAudit({ action: "sale.cancel_requested", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: sale, reason: input.reason }, ctx);
       const truth = await recordCancellationTruth({ saleId: input.saleId, reason: input.reason, actorId: ctx.user!.id, cancellationCost, refundAmount });
-      await logAudit({ action: "sale.cancelled", entityType: "sale", entityId: Number(input.saleId), afterJson: truth, reason: input.reason }, ctx);
-      if (paid > 0) await logAudit({ action: "refund.recorded", entityType: "sale", entityId: Number(input.saleId), afterJson: { paid, refundAmount, cancellationCost } }, ctx);
+      await logAudit({ action: "sale.cancelled", entityType: "sale", entityId: null, entityRef: input.saleId, afterJson: truth, reason: input.reason }, ctx);
+      if (paid > 0) await logAudit({ action: "refund.recorded", entityType: "sale", entityId: null, entityRef: input.saleId, afterJson: { paid, refundAmount, cancellationCost } }, ctx);
       return { ok: true, paid, refundAmount, cancellationCost };
     }),
 
@@ -600,7 +600,7 @@ export const salesRouter = router({
         });
       }
 
-      await logAudit({ action: "sale.returned", entityType: "sale_return", entityId: Number(returnId), afterJson: { saleId: input.saleId, totalRefund, returnNo } }, ctx);
+      await logAudit({ action: "sale.returned", entityType: "sale_return", entityId: null, entityRef: returnId, afterJson: { saleId: input.saleId, returnRef: returnId, totalRefund, returnNo } }, ctx);
       return { returnId, returnNo, totalRefund: +totalRefund.toFixed(2) };
     }),
 
@@ -644,7 +644,7 @@ export const salesRouter = router({
 
       // Mark original sale as returned
       await db.update(sales).set({ status: "returned", updatedAt: now }).where(eq(sales.id, ret.saleId));
-      await logAudit({ action: "sale.return_approved", entityType: "sale_return", entityId: Number(input.returnId), beforeJson: { status: "pending" }, afterJson: { status: "approved" } }, ctx);
+      await logAudit({ action: "sale.return_approved", entityType: "sale_return", entityId: null, entityRef: input.returnId, beforeJson: { status: "pending" }, afterJson: { status: "approved" } }, ctx);
       return { ok: true };
     }),
 

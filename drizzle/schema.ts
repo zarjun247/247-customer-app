@@ -221,11 +221,21 @@ export const prescriptions = mysqlTable("prescriptions", {
   lane: mysqlEnum("lane", ["otc", "digital", "on_file", "fallback", "doctor_consult"]).default("digital").notNull(),
   // Doctor / prescription metadata
   doctorName: varchar("doctorName", { length: 200 }),
-  doctorReg: varchar("doctorReg", { length: 100 }),  // MCI/state registration number
+  doctorReg: varchar("doctorReg", { length: 100 }),  // MCI/state registration number (legacy)
+  doctorRegNo: varchar("doctorRegNo", { length: 100 }),
+  clinicName: varchar("clinicName", { length: 200 }),
   prescribedDate: timestamp("prescribedDate"),
-  expiryDate: timestamp("expiryDate"),               // Rx valid until (typically 6 months)
+  prescriptionDate: timestamp("prescriptionDate"),
+  expiryDate: timestamp("expiryDate"),               // Rx valid until (typically 6 months; legacy)
+  validUntil: timestamp("validUntil"),
   // Linked products (JSON array of productIds extracted from Rx)
   linkedProductIds: text("linkedProductIds"),
+  source: mysqlEnum("source", ["upload", "whatsapp", "doctor", "pharmacist", "manual"]).default("upload"),
+  consentGivenAt: timestamp("consentGivenAt"),
+  consentSource: mysqlEnum("consentSource", ["app", "whatsapp", "pharmacist", "doctor", "manual"]),
+  consentRevokedAt: timestamp("consentRevokedAt"),
+  onFileMarkedBy: int("onFileMarkedBy"),
+  onFileMarkedAt: timestamp("onFileMarkedAt"),
   // Patient note (e.g. "chronic patient, 3-month supply")
   patientNote: text("patientNote"),
   // Prior approval reference
@@ -758,6 +768,28 @@ export const paymentRecords = mysqlTable("payment_records", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const refunds = mysqlTable("refunds", {
+  id: int("id").autoincrement().primaryKey(),
+  paymentId: int("paymentId").notNull(),
+  orderId: int("orderId"),
+  saleId: int("saleId"),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  providerRefundId: varchar("providerRefundId", { length: 100 }),
+  amountPaise: int("amountPaise").notNull(),
+  status: mysqlEnum("status", ["pending", "success", "failed", "cancelled"]).default("pending").notNull(),
+  reason: text("reason"),
+  creditNoteId: int("creditNoteId"),
+  initiatedBy: int("initiatedBy"),
+  failureReason: text("failureReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqProviderRefundId: uniqueIndex("refunds_provider_refund_id_uq").on(t.provider, t.providerRefundId),
+}));
+
+export type Refund = typeof refunds.$inferSelect;
+export type InsertRefund = typeof refunds.$inferInsert;
+
 // ─── SLA Events ───────────────────────────────────────────────────────────────
 export const slaEvents = mysqlTable("sla_events", {
   id: int("id").autoincrement().primaryKey(),
@@ -1161,6 +1193,7 @@ export const supplierPaymentAllocations = mysqlTable("supplier_payment_allocatio
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   allocationType: mysqlEnum("allocationType", ["invoice_payment", "advance_applied", "debit_note", "return_credit", "adjustment"]).notNull(),
   allocatedAt: timestamp("allocatedAt").defaultNow().notNull(),
+  allocatedBy: int("allocatedBy"),
   createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (t) => ({
@@ -1189,17 +1222,26 @@ export const tallyExportRuns = mysqlTable("tally_export_runs", {
   id: int("id").autoincrement().primaryKey(),
   storeId: int("storeId"),
   exportType: varchar("exportType", { length: 64 }).notNull(),
+  periodStart: timestamp("periodStart"),
+  periodEnd: timestamp("periodEnd"),
+  // Legacy aliases retained for callers/migrations created before export proof hardening.
   dateFrom: timestamp("dateFrom"),
   dateTo: timestamp("dateTo"),
   filtersJson: json("filtersJson"),
   rowCount: int("rowCount").default(0).notNull(),
   checksum: varchar("checksum", { length: 128 }).notNull(),
-  status: mysqlEnum("status", ["generated", "failed", "reexported"]).default("generated").notNull(),
+  duplicateKey: varchar("duplicateKey", { length: 192 }).notNull(),
+  status: mysqlEnum("status", ["pending", "generated", "exported", "failed", "cancelled"]).default("generated").notNull(),
   generatedBy: int("generatedBy"),
   generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  exportedAt: timestamp("exportedAt"),
+  failureReason: text("failureReason"),
+  fileKey: text("fileKey"),
+  fileUrl: text("fileUrl"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
-  uqTallyExportChecksum: uniqueIndex("uq_tally_export_checksum").on(t.checksum),
+  uqTallyExportProofWindow: uniqueIndex("uq_tally_export_proof_window").on(t.duplicateKey),
 }));
 
 // ─── OCR / AI Ingestion Tables ────────────────────────────────────────────────
@@ -1264,17 +1306,24 @@ export const ocrExtractedLines = mysqlTable("ocr_extracted_lines", {
   ingestionJobId: int("ingestionJobId").notNull(),
   lineNo: int("lineNo").notNull(),
   rawText: text("rawText"),
+  rawLineText: text("rawLineText"),
   itemName: varchar("itemName", { length: 300 }),
+  extractedProductName: varchar("extractedProductName", { length: 300 }),
   normalizedName: varchar("normalizedName", { length: 300 }),
   manufacturer: varchar("manufacturer", { length: 200 }),
   strength: varchar("strength", { length: 100 }),
   dosageForm: varchar("dosageForm", { length: 100 }),
   packSize: varchar("packSize", { length: 100 }),
   batchNo: varchar("batchNo", { length: 100 }),
+  extractedBatchNo: varchar("extractedBatchNo", { length: 100 }),
   expiryDate: varchar("expiryDate", { length: 50 }),
+  extractedExpiry: varchar("extractedExpiry", { length: 50 }),
   mrp: decimal("mrp", { precision: 10, scale: 2 }),
+  extractedMRP: decimal("extractedMRP", { precision: 10, scale: 2 }),
   purchaseRate: decimal("purchaseRate", { precision: 10, scale: 2 }),
+  extractedCost: decimal("extractedCost", { precision: 10, scale: 2 }),
   qty: int("qty"),
+  extractedQty: int("extractedQty"),
   freeQty: int("freeQty").default(0),
   discount: decimal("discount", { precision: 5, scale: 2 }),
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }),
@@ -1282,8 +1331,16 @@ export const ocrExtractedLines = mysqlTable("ocr_extracted_lines", {
   totalValue: decimal("totalValue", { precision: 12, scale: 2 }),
   confidence: decimal("confidence", { precision: 5, scale: 2 }),
   matchedProductId: int("matchedProductId"),
+  mappedProductId: int("mappedProductId"),
+  mappedSupplierSkuId: int("mappedSupplierSkuId"),
   matchConfidence: decimal("matchConfidence", { precision: 5, scale: 2 }),
   matchStatus: mysqlEnum("matchStatus", ["auto_matched", "review_required", "unknown_sku", "rejected"]).default("review_required").notNull(),
+  exceptionReason: mysqlEnum("exceptionReason", ["low_confidence", "ambiguous_product", "missing_batch", "missing_expiry", "missing_qty", "missing_mrp", "missing_cost", "missing_hsn_or_gst", "missing_schedule_for_regulated", "supplier_sku_unmapped"]),
+  approvalStatus: mysqlEnum("approvalStatus", ["pending", "approved", "held", "rejected"]).default("pending").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  approvalDecision: mysqlEnum("approvalDecision", ["approve", "hold", "reject"]),
+  correctionNotes: text("correctionNotes"),
   rejectionReason: text("rejectionReason"),
   reviewedBy: int("reviewedBy"),
   reviewedAt: timestamp("reviewedAt"),
@@ -1318,6 +1375,8 @@ export const purchaseDrafts = mysqlTable("purchase_drafts", {
   totalValue: decimal("totalValue", { precision: 12, scale: 2 }),
   notes: text("notes"),
   status: mysqlEnum("status", ["draft", "under_review", "approved", "committed", "rejected"]).default("draft").notNull(),
+  approvalDecision: mysqlEnum("approvalDecision", ["approve", "hold", "reject"]),
+  correctionNotes: text("correctionNotes"),
   reviewedBy: int("reviewedBy"),
   reviewedAt: timestamp("reviewedAt"),
   rejectionReason: text("rejectionReason"),
@@ -1331,6 +1390,15 @@ export const purchaseDraftLines = mysqlTable("purchase_draft_lines", {
   purchaseDraftId: int("purchaseDraftId").notNull(),
   ocrLineId: int("ocrLineId"),
   productId: int("productId"),
+  rawLineText: text("rawLineText"),
+  extractedProductName: varchar("extractedProductName", { length: 300 }),
+  extractedBatchNo: varchar("extractedBatchNo", { length: 100 }),
+  extractedExpiry: varchar("extractedExpiry", { length: 50 }),
+  extractedQty: int("extractedQty"),
+  extractedMRP: decimal("extractedMRP", { precision: 10, scale: 2 }),
+  extractedCost: decimal("extractedCost", { precision: 10, scale: 2 }),
+  mappedProductId: int("mappedProductId"),
+  mappedSupplierSkuId: int("mappedSupplierSkuId"),
   batchNo: varchar("batchNo", { length: 100 }),
   expiryDate: varchar("expiryDate", { length: 50 }),
   mrp: decimal("mrp", { precision: 10, scale: 2 }),
@@ -1343,7 +1411,14 @@ export const purchaseDraftLines = mysqlTable("purchase_draft_lines", {
   discount: decimal("discount", { precision: 5, scale: 2 }),
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }),
   hsnCode: varchar("hsnCode", { length: 20 }),
-  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }),
+  exceptionReason: mysqlEnum("exceptionReason", ["low_confidence", "ambiguous_product", "missing_batch", "missing_expiry", "missing_qty", "missing_mrp", "missing_cost", "missing_hsn_or_gst", "missing_schedule_for_regulated", "supplier_sku_unmapped"]),
+  approvalStatus: mysqlEnum("approvalStatus", ["pending", "approved", "held", "rejected"]).default("pending").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  approvalDecision: mysqlEnum("approvalDecision", ["approve", "hold", "reject"]),
+  correctionNotes: text("correctionNotes"),
+  status: mysqlEnum("status", ["pending", "approved", "held", "rejected"]).default("pending").notNull(),
   rejectionReason: text("rejectionReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -1395,21 +1470,33 @@ export const h1Register = mysqlTable("h1_register", {
   id: int("id").autoincrement().primaryKey(),
   orderId: int("orderId"),
   prescriptionId: int("prescriptionId"),
-  storeId: int("storeId").notNull(),
+  storeId: int("storeId"),
+  storeRef: varchar("storeRef", { length: 36 }),
   patientName: varchar("patientName", { length: 300 }).notNull(),
   patientPhone: varchar("patientPhone", { length: 20 }),
   prescribingDoctor: varchar("prescribingDoctor", { length: 300 }),
+  doctorName: varchar("doctorName", { length: 300 }),
+  doctorRegNo: varchar("doctorRegNo", { length: 100 }),
   drugName: varchar("drugName", { length: 300 }).notNull(),
+  productId: varchar("productId", { length: 36 }),
   batchNo: varchar("batchNo", { length: 100 }),
+  batchLedgerId: varchar("batchLedgerId", { length: 36 }),
+  batchId: varchar("batchId", { length: 36 }),
   qty: int("qty").notNull(),
   prescriptionRef: varchar("prescriptionRef", { length: 100 }),
+  saleRef: varchar("saleRef", { length: 36 }),
+  saleLineRef: varchar("saleLineRef", { length: 36 }),
+  saleBillNo: varchar("saleBillNo", { length: 100 }),
+  statutoryContextStatus: varchar("statutoryContextStatus", { length: 60 }).default("complete").notNull(),
   pharmacistId: int("pharmacistId").notNull(),
   billNo: varchar("billNo", { length: 100 }),
   saleId: int("saleId"),
   prescriptionLineId: int("prescriptionLineId"),
   dispensedAt: timestamp("dispensedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  uqH1SaleLine: uniqueIndex("uq_h1_register_sale_line_ref").on(t.saleRef, t.saleLineRef),
+}));
 
 // ─── Ledgers ──────────────────────────────────────────────────────────────────
 export const ledgers = mysqlTable("ledgers", {
@@ -1797,7 +1884,9 @@ export const sales = mysqlTable("sales", {
   confirmedAt: bigint("confirmed_at", { mode: "number" }),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-});
+}, (t) => ({
+  uqSalesBillNo: uniqueIndex("uq_sales_bill_no").on(t.billNo),
+}));
 
 export const saleLines = mysqlTable("sale_lines", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1837,7 +1926,9 @@ export const saleReturns = mysqlTable("sale_returns", {
   createdBy: varchar("created_by", { length: 36 }).notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-});
+}, (t) => ({
+  uqSaleReturnsReturnNo: uniqueIndex("uq_sale_returns_return_no").on(t.returnNo),
+}));
 
 export const saleReturnLines = mysqlTable("sale_return_lines", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1919,10 +2010,14 @@ export const prescriptionAccessLog = mysqlTable("prescription_access_log", {
   id: int("id").autoincrement().primaryKey(),
   prescriptionId: int("prescriptionId").notNull(),
   accessedBy: int("accessedBy").notNull(),
+  actorId: int("actorId"),
+  actorRole: varchar("actorRole", { length: 50 }),
   accessType: mysqlEnum("accessType", ["view", "download", "print", "api_check", "audit"]).default("view"),
   ipAddress: varchar("ipAddress", { length: 50 }),
   userAgent: text("userAgent"),
   purpose: text("purpose"),
+  channel: varchar("channel", { length: 50 }).default("app"),
+  accessedAt: timestamp("accessedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -2432,7 +2527,7 @@ export const notificationEvents = mysqlTable("notification_events", {
   title: varchar("title", { length: 200 }).notNull(),
   body: text("body").notNull(),
   safePayloadJson: text("safePayloadJson"),
-  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "unconfigured"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "provider_unconfigured", "retry_scheduled", "dead_letter", "skipped_demo"]).default("pending").notNull(),
   provider: varchar("provider", { length: 80 }),
   providerMessageId: varchar("providerMessageId", { length: 150 }),
   scheduledFor: timestamp("scheduledFor"),

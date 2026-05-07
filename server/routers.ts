@@ -39,7 +39,7 @@ import { prescriptionGovRouter } from "./routers/prescriptionGovRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
 import { customerMedicineRouter } from "./routers/customerMedicineRouter";
-import { whatsappFullRouter } from "./routers/whatsappRouter";
+import { assertWhatsappWebhookGuard, isRegulatedMedicineIntent, normalizeWhatsAppPhone, whatsappFullRouter } from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
 import { commandCenterRouter } from "./routers/commandCenterRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
@@ -48,6 +48,7 @@ import { createNotification, getCustomerNotifications, getNotificationPreference
 import { createReorderPrompt } from "./services/refillReminderService";
 import { createDosageSchedule, getTodayDosePlan, recordDoseTaken, recordDoseSkipped, getAdherenceSummary, estimateMedicationRemaining, estimateRunoutDate } from "./services/dosageTracking";
 import { createOrderRating, updateOrderRating, getOrderRating, __markOrderDeliveredForTest } from "./services/orderRating";
+import { assertPrescriptionUsableForCustomer, logPrescriptionVaultAccess } from "./services/prescriptionVault";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const otpRateLimit = new Map<string, { count: number; ts: number }>();
@@ -530,6 +531,16 @@ const prescriptionRouter = router({
     .input(z.object({
       imageBase64: z.string(),
       mimeType: z.string().default("image/jpeg"),
+      metadata: z.object({
+        doctorName: z.string().max(200).optional(),
+        doctorRegNo: z.string().max(100).optional(),
+        clinicName: z.string().max(200).optional(),
+        prescriptionDate: z.string().datetime().optional(),
+        validUntil: z.string().datetime().optional(),
+        patientName: z.string().max(300).optional(),
+        linkedProductIds: z.array(z.number().int().positive()).max(50).optional(),
+        source: z.enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"]).optional(),
+      }).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
@@ -541,8 +552,21 @@ const prescriptionRouter = router({
       if (!rule.magic.every((b,i)=>buffer[i]===b)) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid file signature" });
       const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
-      const rxId = await createPrescription(ctx.user.id, user?.assignedStoreId ?? undefined, url, key);
-      await writeAuditLog(ctx.user.id, "prescription_uploaded", "prescription", rxId);
+      const rxId = await createPrescription(ctx.user.id, user?.assignedStoreId ?? undefined, url, key, input.metadata ? {
+        doctorName: input.metadata.doctorName,
+        doctorRegNo: input.metadata.doctorRegNo,
+        clinicName: input.metadata.clinicName,
+        prescriptionDate: input.metadata.prescriptionDate ? new Date(input.metadata.prescriptionDate) : undefined,
+        validUntil: input.metadata.validUntil ? new Date(input.metadata.validUntil) : undefined,
+        patientName: input.metadata.patientName,
+        linkedProductIds: input.metadata.linkedProductIds,
+        source: input.metadata.source ?? "upload",
+      } : { source: "upload" });
+      await writeAuditLog(ctx.user.id, "prescription_uploaded", "prescription", rxId, undefined, {
+        actorRole: ctx.user.role,
+        afterJson: { metadataSupplied: Boolean(input.metadata), source: input.metadata?.source ?? "upload" },
+        channel: "app",
+      });
       return { prescriptionId: rxId, imageUrl: url };
     }),
   list: protectedProcedure.query(async ({ ctx }) => getPrescriptionsByUser(ctx.user.id)),
@@ -551,20 +575,57 @@ const prescriptionRouter = router({
     .query(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
       if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
-      await writeAuditLog(ctx.user.id, "prescription_viewed", "prescription", input.id, undefined, { channel: "app" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (db) {
+        await logPrescriptionVaultAccess(db, {
+          actorId: ctx.user.id,
+          actorRole: ctx.user.role ?? "customer",
+          prescriptionId: input.id,
+          purpose: "customer_detail_view",
+          channel: "app",
+          accessType: "view",
+        });
+      }
+      await writeAuditLog(ctx.user.id, "prescription_viewed", "prescription", input.id, undefined, { channel: "app", actorRole: ctx.user.role });
       return rx;
     }),
   /** Prescription vault — approved + on-file prescriptions */
-  vault: protectedProcedure.query(async ({ ctx }) => getPrescriptionVault(ctx.user.id)),
+  vault: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await getPrescriptionVault(ctx.user.id);
+    const { getDb } = await import("./db");
+    const db = await getDb();
+    if (db) {
+      await Promise.all(rows.map((rx: any) => logPrescriptionVaultAccess(db, {
+        actorId: ctx.user.id,
+        actorRole: ctx.user.role ?? "customer",
+        prescriptionId: rx.id,
+        purpose: "customer_vault_list",
+        channel: "app",
+        accessType: "view",
+      })));
+    }
+    return rows;
+  }),
   /** Mark an approved prescription as permanently on-file */
   markOnFile: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({
+      id: z.number(),
+      consentGiven: z.literal(true),
+      consentSource: z.enum(["app", "whatsapp", "pharmacist", "doctor", "manual"]).default("app"),
+    }))
     .mutation(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
       if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
       if (rx.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "Only approved prescriptions can be stored on file" });
-      await markPrescriptionOnFile(input.id, ctx.user.id);
-      await writeAuditLog(ctx.user.id, "prescription_marked_on_file", "prescription", input.id);
+      await markPrescriptionOnFile(input.id, ctx.user.id, { actorId: ctx.user.id, actorRole: ctx.user.role ?? "customer", consentSource: input.consentSource });
+      const updated = await getPrescriptionById(input.id);
+      const usable = assertPrescriptionUsableForCustomer(updated as any, ctx.user.id);
+      await writeAuditLog(ctx.user.id, "prescription_marked_on_file", "prescription", input.id, undefined, {
+        actorRole: ctx.user.role,
+        afterJson: { consentGiven: true, consentSource: input.consentSource, usable },
+        channel: input.consentSource,
+      });
       return { success: true };
     }),
   /** Active prior approvals for the current user */
@@ -645,9 +706,17 @@ const whatsappRouter = router({
       messageType: z.enum(["text", "image", "button"]).default("text"),
       imageUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       assertOtpLimiterMode();
-      const session = await getWhatsappSession(input.phone);
+      assertWhatsappWebhookGuard(ctx, JSON.stringify(input));
+      const phone = normalizeWhatsAppPhone(input.phone);
+      const linkedUser = await getUserByPhone(phone);
+      if (!linkedUser && isRegulatedMedicineIntent(input.message)) {
+        await upsertWhatsappSession(phone, { currentFlow: "pending_link", flowState: JSON.stringify({ identity: "unlinked", reason: "regulated_intent" }) });
+        await writeAuditLog({ actor: { id: null, type: "whatsapp" }, action: "whatsapp.regulated_intent.escalated", entityType: "whatsapp_session", payload: JSON.stringify({ phone }) });
+        return { response: "This looks like a regulated medicine or medical question. I cannot give medical advice or confirm refills on WhatsApp. A pharmacist will review it. Please upload a valid prescription or wait for staff assistance." };
+      }
+      const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
       const state = session?.flowState ? JSON.parse(session.flowState) : {};
 
@@ -671,7 +740,11 @@ const whatsappRouter = router({
           nextState = {};
         }
       } else if (input.message === "2" || flow === "status") {
-        if (flow !== "status" || !state.awaitingOrderId) {
+        if (!linkedUser) {
+          response = "Your phone is not linked to an account, so I cannot show private order details on WhatsApp. Please link your account in the app or ask staff for help.";
+          nextFlow = "menu";
+          nextState = {};
+        } else if (flow !== "status" || !state.awaitingOrderId) {
           response = "Please enter your Order ID (e.g. 1234):";
           nextFlow = "status";
           nextState = { awaitingOrderId: true };
@@ -679,7 +752,9 @@ const whatsappRouter = router({
           const orderId = parseInt(input.message);
           if (!isNaN(orderId)) {
             const order = await getOrderById(orderId);
-            if (order) {
+            if (order && order.userId !== linkedUser.id) {
+              response = "I cannot show private order details for this WhatsApp session. Please use the linked account in the 24/7 app or ask staff for help. Reply \"hi\" for main menu.";
+            } else if (order) {
               const statusLabel: Record<string, string> = {
                 created: "Order Received",
                 pharmacist_reviewing: "Pharmacist Reviewing",
@@ -702,8 +777,8 @@ const whatsappRouter = router({
         if (input.messageType === "image" && input.imageUrl) {
           // Persist Rx into the shared prescriptions table
           try {
-            const key = `whatsapp-rx/${input.phone}-${Date.now()}.jpg`;
-            await createWhatsappPrescription(input.phone, input.imageUrl, key);
+            const key = `whatsapp-rx/${phone}-${Date.now()}.jpg`;
+            await createWhatsappPrescription(phone, input.imageUrl, key);
           } catch (e) {
             console.error("[WhatsApp] Failed to persist Rx:", e);
           }
@@ -729,7 +804,7 @@ const whatsappRouter = router({
         nextState = {};
       }
 
-      await upsertWhatsappSession(input.phone, {
+      await upsertWhatsappSession(phone, {
         currentFlow: nextFlow,
         flowState: JSON.stringify(nextState),
       });

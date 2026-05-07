@@ -8,6 +8,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
+import { canUsePrescriptionOnFile, isPrescriptionExpired, logPrescriptionVaultAccess } from "../services/prescriptionVault";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -34,14 +35,17 @@ async function logAccess(
   prescriptionId: number,
   accessedBy: number,
   accessType: "view" | "download" | "print" | "api_check" | "audit",
-  purpose?: string
+  purpose: string,
+  actorRole: string | null | undefined,
+  channel: "admin" | "api" | "app" | "system" | "whatsapp" = "admin",
 ) {
-  const { prescriptionAccessLog } = await import("../../drizzle/schema");
-  await db.insert(prescriptionAccessLog).values({
+  await logPrescriptionVaultAccess(db, {
     prescriptionId,
-    accessedBy,
+    actorId: accessedBy,
+    actorRole: actorRole ?? "staff",
     accessType,
-    purpose: purpose ?? null,
+    purpose,
+    channel,
   });
 }
 
@@ -87,8 +91,18 @@ export const prescriptionGovRouter = router({
           patientPhone: prescriptions.patientPhone,
           doctorName: prescriptions.doctorName,
           doctorReg: prescriptions.doctorReg,
+          doctorRegNo: prescriptions.doctorRegNo,
+          clinicName: prescriptions.clinicName,
           prescribedDate: prescriptions.prescribedDate,
+          prescriptionDate: prescriptions.prescriptionDate,
           expiryDate: prescriptions.expiryDate,
+          validUntil: prescriptions.validUntil,
+          source: prescriptions.source,
+          consentGivenAt: prescriptions.consentGivenAt,
+          consentSource: prescriptions.consentSource,
+          consentRevokedAt: prescriptions.consentRevokedAt,
+          onFileMarkedBy: prescriptions.onFileMarkedBy,
+          onFileMarkedAt: prescriptions.onFileMarkedAt,
           pharmacistNote: prescriptions.pharmacistNote,
           pharmacistId: prescriptions.pharmacistId,
           reviewedAt: prescriptions.reviewedAt,
@@ -142,7 +156,7 @@ export const prescriptionGovRouter = router({
         .orderBy(prescriptionLines.lineNo);
 
       // Log access
-      await logAccess(db, input.id, ctx.user.id as number, "view", "pharmacist_review");
+      await logAccess(db, input.id, ctx.user.id as number, "view", "pharmacist_review", ctx.user.role, "admin");
 
       return { prescription: rx, lines };
     }),
@@ -156,7 +170,14 @@ export const prescriptionGovRouter = router({
       patientAddress: z.string().optional(),
       doctorName: z.string().optional(),
       doctorReg: z.string().optional(),
+      doctorRegNo: z.string().optional(),
+      clinicName: z.string().optional(),
       prescribedDate: z.string().optional(), // ISO date string
+      prescriptionDate: z.string().optional(),
+      expiryDate: z.string().optional(),
+      validUntil: z.string().optional(),
+      linkedProductIds: z.array(z.number().int().positive()).max(50).optional(),
+      source: z.enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"]).optional(),
       repeatDispenseMax: z.number().int().min(1).max(12).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -173,7 +194,23 @@ export const prescriptionGovRouter = router({
       if (input.patientAddress !== undefined) updateData.patientAddress = input.patientAddress;
       if (input.doctorName !== undefined) updateData.doctorName = input.doctorName;
       if (input.doctorReg !== undefined) updateData.doctorReg = input.doctorReg;
+      if (input.doctorRegNo !== undefined) {
+        updateData.doctorRegNo = input.doctorRegNo;
+        updateData.doctorReg = input.doctorRegNo;
+      }
+      if (input.clinicName !== undefined) updateData.clinicName = input.clinicName;
       if (input.prescribedDate !== undefined) updateData.prescribedDate = new Date(input.prescribedDate);
+      if (input.prescriptionDate !== undefined) {
+        updateData.prescriptionDate = new Date(input.prescriptionDate);
+        updateData.prescribedDate = new Date(input.prescriptionDate);
+      }
+      if (input.expiryDate !== undefined) updateData.expiryDate = new Date(input.expiryDate);
+      if (input.validUntil !== undefined) {
+        updateData.validUntil = new Date(input.validUntil);
+        updateData.expiryDate = new Date(input.validUntil);
+      }
+      if (input.linkedProductIds !== undefined) updateData.linkedProductIds = JSON.stringify(input.linkedProductIds);
+      if (input.source !== undefined) updateData.source = input.source;
       if (input.repeatDispenseMax !== undefined) updateData.repeatDispenseMax = input.repeatDispenseMax;
 
       await db.update(prescriptions).set(updateData).where(eq(prescriptions.id, input.id));
@@ -318,7 +355,7 @@ export const prescriptionGovRouter = router({
       }
 
       await logAudit({ actorId: ctx.user.id as number, action: `prescription.rx_${input.decision}`, entityType: "prescription", entityId: input.id, beforeJson: rx, afterJson: { status: input.decision, note: input.pharmacistNote }, source: "admin" });
-      await logAccess(db, input.id, ctx.user.id as number, "audit", `rx_${input.decision}`);
+      await logAccess(db, input.id, ctx.user.id as number, "audit", `rx_${input.decision}`, ctx.user.role, "admin");
       return { success: true };
     }),
 
@@ -367,6 +404,10 @@ export const prescriptionGovRouter = router({
           accessedBy: prescriptionAccessLog.accessedBy,
           accessType: prescriptionAccessLog.accessType,
           purpose: prescriptionAccessLog.purpose,
+          actorId: prescriptionAccessLog.actorId,
+          actorRole: prescriptionAccessLog.actorRole,
+          channel: prescriptionAccessLog.channel,
+          accessedAt: prescriptionAccessLog.accessedAt,
           createdAt: prescriptionAccessLog.createdAt,
           accessorName: users.name,
         })
@@ -391,15 +432,25 @@ export const prescriptionGovRouter = router({
         patientName: z.string().min(1),
         patientPhone: z.string().optional(),
         prescribingDoctor: z.string().optional(),
+        doctorRegNo: z.string().optional(),
         drugName: z.string().min(1),
+        productId: z.string().optional(),
         batchNo: z.string().optional(),
+        batchLedgerId: z.string().optional(),
+        batchId: z.string().optional(),
         qty: z.number().int().positive(),
         billNo: z.string().optional(),
+        saleBillNo: z.string().optional(),
         saleId: z.number().int().optional(),
+        saleRef: z.string().optional(),
+        saleLineRef: z.string().optional(),
         orderId: z.number().int().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         requirePharmacist(ctx.user.role);
+        if (!input.prescribingDoctor?.trim()) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Doctor name required before creating final H1 register row" });
+        }
         const db = await getDbSafe();
         const { h1Register } = await import("../../drizzle/schema");
 
@@ -409,12 +460,21 @@ export const prescriptionGovRouter = router({
           storeId: input.storeId,
           patientName: input.patientName,
           patientPhone: input.patientPhone ?? null,
-          prescribingDoctor: input.prescribingDoctor ?? null,
+          prescribingDoctor: input.prescribingDoctor,
+          doctorName: input.prescribingDoctor,
+          doctorRegNo: input.doctorRegNo ?? null,
           drugName: input.drugName,
+          productId: input.productId ?? null,
           batchNo: input.batchNo ?? null,
+          batchLedgerId: input.batchLedgerId ?? null,
+          batchId: input.batchId ?? input.batchLedgerId ?? null,
           qty: input.qty,
-          billNo: input.billNo ?? null,
+          billNo: input.billNo ?? input.saleBillNo ?? null,
+          saleBillNo: input.saleBillNo ?? input.billNo ?? null,
           saleId: input.saleId ?? null,
+          saleRef: input.saleRef ?? (input.saleId == null ? null : String(input.saleId)),
+          saleLineRef: input.saleLineRef ?? null,
+          statutoryContextStatus: "complete",
           pharmacistId: ctx.user.id as number,
           dispensedAt: new Date(),
         });
@@ -499,10 +559,14 @@ export const prescriptionGovRouter = router({
 
       const [rx] = await db.select().from(prescriptions).where(eq(prescriptions.id, input.prescriptionId)).limit(1);
       if (!rx) return { allowed: false, reason: "Prescription not found" };
-      if (rx.status !== "approved") return { allowed: false, reason: `Prescription status: ${rx.status}` };
+      if (rx.status !== "approved" && rx.status !== "on_file") return { allowed: false, reason: `Prescription status: ${rx.status}` };
+      if (rx.status === "on_file") {
+        const usable = canUsePrescriptionOnFile(rx as any);
+        if (!usable.usable) return { allowed: false, reason: usable.reason };
+      }
 
       // Check expiry
-      if (rx.expiryDate && new Date(rx.expiryDate) < new Date()) {
+      if (isPrescriptionExpired(rx as any)) {
         return { allowed: false, reason: "Prescription has expired" };
       }
 
@@ -617,7 +681,7 @@ export const prescriptionGovRouter = router({
       }
 
       const [rx] = await db
-        .select({ id: prescriptions.id, status: prescriptions.status })
+        .select({ id: prescriptions.id, status: prescriptions.status, userId: prescriptions.userId, expiryDate: prescriptions.expiryDate, validUntil: prescriptions.validUntil, consentRevokedAt: prescriptions.consentRevokedAt, repeatDispenseCount: prescriptions.repeatDispenseCount, repeatDispenseMax: prescriptions.repeatDispenseMax })
         .from(prescriptions)
         .where(eq(prescriptions.id, input.prescriptionId))
         .limit(1);
@@ -626,9 +690,15 @@ export const prescriptionGovRouter = router({
       if (rx.status !== "approved" && rx.status !== "on_file") {
         return { cleared: false, reason: `Prescription status is '${rx.status}' — must be approved before dispensing` };
       }
+      if (rx.status === "on_file") {
+        const usable = canUsePrescriptionOnFile(rx as any);
+        if (!usable.usable) return { cleared: false, reason: usable.reason };
+      } else if (isPrescriptionExpired(rx as any)) {
+        return { cleared: false, reason: "Prescription has expired" };
+      }
 
       // Log the API check access
-      await logAccess(db, input.prescriptionId, ctx.user.id as number, "api_check", "counter_billing_rx_gate");
+      await logAccess(db, input.prescriptionId, ctx.user.id as number, "api_check", "counter_billing_rx_gate", ctx.user.role, "api");
       return { cleared: true, prescriptionId: rx.id };
     }),
 });

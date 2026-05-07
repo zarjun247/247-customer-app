@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, gte, ilike, like, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { isPrescriptionExpired, markPrescriptionOnFileWithConsent } from "./services/prescriptionVault";
 import {
   auditLogs,
   batchLedger,
@@ -431,10 +432,42 @@ export async function updateOrderInvoice(orderId: number, invoiceUrl: string, in
 }
 
 // ─── Prescriptions ────────────────────────────────────────────────────────────
-export async function createPrescription(userId: number, storeId: number | undefined, imageUrl: string, imageKey: string) {
+export async function createPrescription(
+  userId: number,
+  storeId: number | undefined,
+  imageUrl: string,
+  imageKey: string,
+  metadata?: {
+    doctorName?: string | null;
+    doctorRegNo?: string | null;
+    clinicName?: string | null;
+    prescriptionDate?: Date | null;
+    validUntil?: Date | null;
+    patientName?: string | null;
+    linkedProductIds?: number[] | null;
+    source?: "upload" | "whatsapp" | "doctor" | "pharmacist" | "manual";
+  },
+) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [r] = await db.insert(prescriptions).values({ userId, storeId, imageUrl, imageKey, status: "pending_pharmacist" });
+  const [r] = await db.insert(prescriptions).values({
+    userId,
+    storeId,
+    imageUrl,
+    imageKey,
+    status: "pending_pharmacist",
+    doctorName: metadata?.doctorName ?? undefined,
+    doctorReg: metadata?.doctorRegNo ?? undefined,
+    doctorRegNo: metadata?.doctorRegNo ?? undefined,
+    clinicName: metadata?.clinicName ?? undefined,
+    prescribedDate: metadata?.prescriptionDate ?? undefined,
+    prescriptionDate: metadata?.prescriptionDate ?? undefined,
+    expiryDate: metadata?.validUntil ?? undefined,
+    validUntil: metadata?.validUntil ?? undefined,
+    patientName: metadata?.patientName ?? undefined,
+    linkedProductIds: metadata?.linkedProductIds ? JSON.stringify(metadata.linkedProductIds) : undefined,
+    source: metadata?.source ?? "upload",
+  });
   return (r as any).insertId as number;
 }
 
@@ -453,11 +486,11 @@ export async function getPrescriptionById(id: number) {
 
 // ─── Refill Reminders ─────────────────────────────────────────────────────────
 // ─── Prescription Vault / Lane helpers ──────────────────────────────────────
-/** Returns all on-file prescriptions for a user (status = 'on_file' or 'approved') */
+/** Returns readable vault prescriptions for a user; revoked/expired rows are returned with activeOnFile=false. */
 export async function getPrescriptionVault(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(prescriptions)
+  const rows = await db.select().from(prescriptions)
     .where(and(
       eq(prescriptions.userId, userId),
       or(
@@ -466,14 +499,27 @@ export async function getPrescriptionVault(userId: number) {
       )
     ))
     .orderBy(desc(prescriptions.createdAt));
+  return rows.map((rx: any) => ({
+    ...rx,
+    activeOnFile: rx.status === "on_file" && !rx.consentRevokedAt && !isPrescriptionExpired(rx),
+    consentGoverned: Boolean(rx.consentGivenAt || rx.consentSource || rx.onFileMarkedAt),
+  }));
 }
-/** Marks a prescription as on-file (vault) */
-export async function markPrescriptionOnFile(rxId: number, userId: number) {
+/** Marks a prescription as on-file (vault) with explicit consent governance. */
+export async function markPrescriptionOnFile(
+  rxId: number,
+  userId: number,
+  opts?: { actorId?: number; actorRole?: string; consentSource?: "app" | "whatsapp" | "pharmacist" | "doctor" | "manual" },
+) {
   const db = await getDb();
   if (!db) return;
-  await db.update(prescriptions)
-    .set({ status: "on_file", lane: "on_file" })
-    .where(and(eq(prescriptions.id, rxId), eq(prescriptions.userId, userId)));
+  await markPrescriptionOnFileWithConsent(db, {
+    prescriptionId: rxId,
+    customerId: userId,
+    actorId: opts?.actorId ?? userId,
+    actorRole: opts?.actorRole ?? "customer",
+    consentSource: opts?.consentSource ?? "app",
+  });
 }
 /** Creates a prior approval record for a prescription */
 export async function createPriorApproval(
@@ -840,20 +886,18 @@ export async function getOrderItemsForReorder(orderId: number) {
 export async function createWhatsappPrescription(phone: string, imageUrl: string, imageKey: string) {
   const db = await getDb();
   if (!db) return null;
-  // Try to find a linked user via whatsapp session
+  // Try to find a linked user via WhatsApp session or an existing customer phone.
+  // Do not create a customer from an unlinked inbound WhatsApp upload; keep it pending for staff linkage.
   const session = await getWhatsappSession(phone);
   let userId = session?.userId ?? null;
-  // If no linked user, upsert one by phone so we never use userId=0
   if (!userId) {
-    const upserted = await upsertUserByPhone(phone, { loginMethod: "whatsapp" });
-    userId = upserted?.id ?? null;
-    // Update the session with the resolved userId
-    if (userId) {
-      await upsertWhatsappSession(phone, { userId });
-    }
+    const existingUser = await getUserByPhone(phone);
+    userId = existingUser?.id ?? null;
+    if (userId) await upsertWhatsappSession(phone, { userId });
   }
   if (!userId) {
-    console.error("[WhatsApp] Could not resolve userId for phone", phone, "— skipping Rx insert");
+    await upsertWhatsappSession(phone, { currentFlow: "pending_link", flowState: JSON.stringify({ identity: "unlinked", pendingRxUpload: true, imageUrl, imageKey }) });
+    console.error("[WhatsApp] Could not resolve userId for phone", phone, "— queued pending linkage and skipped Rx insert");
     return null;
   }
   const [r] = await db.insert(prescriptions).values({
@@ -862,6 +906,7 @@ export async function createWhatsappPrescription(phone: string, imageUrl: string
     imageUrl,
     imageKey,
     status: "pending_pharmacist",
+    source: "whatsapp",
   });
   return (r as any).insertId as number;
 }

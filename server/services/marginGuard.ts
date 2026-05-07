@@ -31,7 +31,7 @@ export async function applyDiscountCode(saleId: string, code: string, ctx?: any)
   const [sale] = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
   if (!sale) throw new TRPCError({ code: "NOT_FOUND", message: "Sale not found" });
   const check = await validateDiscountCode(code, sale);
-  if (!check.valid) { await logAudit({ action: "discount.code_rejected", entityType: "sale", entityId: Number(saleId)||0, reason: check.reason }, ctx); throw new TRPCError({ code: "PRECONDITION_FAILED", message: check.reason }); }
+  if (!check.valid) { await logAudit({ action: "discount.code_rejected", entityType: "sale", entityId: null, entityRef: saleId, reason: check.reason }, ctx); throw new TRPCError({ code: "PRECONDITION_FAILED", message: check.reason }); }
   const dc = check.code!;
   const subtotal = Number(sale.subtotal ?? 0);
   let discount = dc.discountType === "percentage" ? subtotal * (Number(dc.value) / 100) : Number(dc.value);
@@ -39,7 +39,7 @@ export async function applyDiscountCode(saleId: string, code: string, ctx?: any)
   discount = Math.max(0, Number(discount.toFixed(2)));
   const total = Math.max(0, Number((subtotal - discount + Number(sale.gstAmount ?? 0)).toFixed(2)));
   await db.update(sales).set({ discountAmount: String(discount), total: String(total), notes: `${sale.notes ?? ""} [discountCode:${dc.code}]`, updatedAt: Date.now() }).where(eq(sales.id, saleId));
-  await logAudit({ action: "discount.code_validated", entityType: "sale", entityId: Number(saleId)||0, afterJson: { code: dc.code, discount, total } }, ctx);
+  await logAudit({ action: "discount.code_validated", entityType: "sale", entityId: null, entityRef: saleId, afterJson: { code: dc.code, discount, total } }, ctx);
   return { codeId: dc.id, code: dc.code, discountAmount: discount, total };
 }
 
@@ -47,7 +47,7 @@ export async function applyDiscountCode(saleId: string, code: string, ctx?: any)
 export async function recordDiscountCodeUsage(codeId: number, saleId: string, ctx?: any) {
   const db = await getDb(); const { discountCodes } = await import("../../drizzle/schema");
   await db.update(discountCodes).set({ usedCount: sql`${discountCodes.usedCount} + 1` }).where(eq(discountCodes.id, codeId));
-  await logAudit({ action: "discount.code_applied", entityType: "sale", entityId: Number(saleId)||0, afterJson: { codeId } }, ctx);
+  await logAudit({ action: "discount.code_applied", entityType: "sale", entityId: null, entityRef: saleId, afterJson: { codeId } }, ctx);
 }
 
 export async function assertDiscountWithinCaps(discountAmount: number, subtotal: number, maxPct = 22) {
@@ -55,15 +55,15 @@ export async function assertDiscountWithinCaps(discountAmount: number, subtotal:
   if (pct > maxPct) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Discount exceeds cap of ${maxPct}%` });
 }
 export function requiresMarginOverrideApproval(marginPct: number, minMarginPct = 8) { return marginPct < minMarginPct; }
-export async function recordMarginOverrideRequest(saleId: string, reason: string, ctx?: any) { await logAudit({ action: "margin.override_requested", entityType: "sale", entityId: Number(saleId)||0, reason }, ctx); return { saleId, status: "requested" as const }; }
-export async function approveMarginOverride(saleId: string, approvedBy: number, ctx?: any) { await logAudit({ action: "margin.override_approved", entityType: "sale", entityId: Number(saleId)||0, actorId: approvedBy }, ctx); return { saleId, approved: true }; }
+export async function recordMarginOverrideRequest(saleId: string, reason: string, ctx?: any) { await logAudit({ action: "margin.override_requested", entityType: "sale", entityId: null, entityRef: saleId, reason }, ctx); return { saleId, status: "requested" as const }; }
+export async function approveMarginOverride(saleId: string, approvedBy: number, ctx?: any) { await logAudit({ action: "margin.override_approved", entityType: "sale", entityId: null, entityRef: saleId, actorId: approvedBy }, ctx); return { saleId, approved: true }; }
 export async function assertNoLossWithoutApproval(saleId: string, role?: string | null, ctx?: any) {
   const db = await getDb(); const { saleLines } = await import("../../drizzle/schema");
   const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, saleId));
   const margin = await calculateSaleMargin(lines);
   const needs = requiresMarginOverrideApproval(margin.marginPct) || margin.marginAmt < 0;
   if (needs && !["admin","super_admin","store_manager"].includes(String(role ?? ""))) {
-    await logAudit({ action: "margin.sale_blocked", entityType: "sale", entityId: Number(saleId)||0, reason: `margin ${margin.marginPct.toFixed(2)}%` }, ctx);
+    await logAudit({ action: "margin.sale_blocked", entityType: "sale", entityId: null, entityRef: saleId, reason: `margin ${margin.marginPct.toFixed(2)}%` }, ctx);
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Sale margin below allowed threshold. Manager/admin approval required." });
   }
 }

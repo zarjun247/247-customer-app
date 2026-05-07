@@ -213,13 +213,13 @@ export const reportsRouter = router({
       const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { h1Register } = await import("../../drizzle/schema");
-      const { eq, and, gte, lte, desc, sql } = await import("drizzle-orm");
+      const { eq, and, gte, lte, desc } = await import("drizzle-orm");
       const from = new Date(input.fromDate);
       const to = new Date(input.toDate); to.setHours(23, 59, 59, 999);
-      const conditions = [gte(h1Register.dispensedAt, from), lte(h1Register.dispensedAt, to), sql`${h1Register.saleId} IS NOT NULL`, sql`${h1Register.saleId} > 0`];
+      const conditions = [gte(h1Register.dispensedAt, from), lte(h1Register.dispensedAt, to)];
       if (scopedStoreId !== undefined) conditions.push(eq(h1Register.storeId, scopedStoreId));
       const rows = await db.select().from(h1Register).where(and(...conditions)).orderBy(desc(h1Register.dispensedAt));
-      const normalized = rows.filter((r) => r.drugName && !/^\d+$/.test(String(r.drugName))).map((r) => ({ ...r, saleRef: r.saleId }));
+      const normalized = rows.filter((r) => r.drugName && !/^\d+$/.test(String(r.drugName))).map((r) => ({ ...r, saleRef: r.saleRef ?? (r.saleId == null ? null : String(r.saleId)), saleBillNo: r.saleBillNo ?? r.billNo }));
       return Object.assign(normalized, { rows: normalized, totals: { count: normalized.length }, csvData: normalized });
     }),
 

@@ -19,6 +19,19 @@ describe('barcode scan guards', () => {
     expect(sales).toContain('complianceGate: "checked_at_confirm"');
     expect(sales).toContain('marginGuard: "checked_at_confirm"');
   });
+
+  it('scan route bodies are lookup-only and do not mutate stock', () => {
+    const sales = fs.readFileSync('server/routers/salesRouter.ts', 'utf8');
+    const inventory = fs.readFileSync('server/routers/inventoryRouter.ts', 'utf8');
+    const saleScanBody = sales.slice(sales.indexOf('scanBarcodeForSale'), sales.indexOf('// ─── Product Search'));
+    const returnScanBody = sales.slice(sales.indexOf('scanBarcodeForReturn'), sales.indexOf('// ─── Product Search'));
+    const auditStart = inventory.indexOf('scanBarcodeForAudit');
+    const auditScanBody = inventory.slice(auditStart, inventory.indexOf('list:', auditStart));
+    for (const body of [saleScanBody, returnScanBody, auditScanBody]) {
+      expect(body).toContain('resolveBarcode');
+      expect(body).not.toMatch(/decreaseStock|reverseStock|insert\(stockMovements|update\(batchLedger|qtyOnHand/);
+    }
+  });
   it('no vendor scanner sdk dependency introduced', () => {
     const code = fs.readFileSync('server/services/barcodeService.ts', 'utf8');
     expect(/zebra|honeywell|datalogic|sdk/i.test(code)).toBe(false);

@@ -1,7 +1,7 @@
 import { writeAuditLog } from "../db";
 
 type CtxLike = { user?: { id?: number; role?: string | null }; req?: { headers?: Record<string, string | string[] | undefined>; ip?: string }; session?: { id?: string } };
-export interface LogAuditInput { action: string; entityType?: string; entityId?: number | null; actorType?: string; actorId?: number | null; actorRole?: string | null; storeId?: number | null; source?: string; beforeJson?: unknown; afterJson?: unknown; reason?: string; metadata?: unknown; ipAddress?: string | null; userAgent?: string | null; }
+export interface LogAuditInput { action: string; entityType?: string; entityId?: number | null; entityRef?: string | null; actorType?: string; actorId?: number | null; actorRole?: string | null; storeId?: number | null; source?: string; beforeJson?: unknown; afterJson?: unknown; reason?: string; metadata?: unknown; ipAddress?: string | null; userAgent?: string | null; }
 
 export async function logAudit(input: LogAuditInput, ctx?: CtxLike) {
   const headers = ctx?.req?.headers ?? {};
@@ -15,7 +15,7 @@ export async function logAudit(input: LogAuditInput, ctx?: CtxLike) {
     before: input.beforeJson,
     after: input.afterJson,
     reason: input.reason,
-    payload: { ...(input.storeId ? { storeId: input.storeId } : {}), ...(input.metadata && typeof input.metadata === "object" ? input.metadata as object : input.metadata ? { metadata: input.metadata } : {}) },
+    payload: { ...(input.storeId ? { storeId: input.storeId } : {}), ...(input.entityRef ? { entityRef: input.entityRef } : {}), ...(input.metadata && typeof input.metadata === "object" ? input.metadata as object : input.metadata ? { metadata: input.metadata } : {}) },
     channel: input.source ?? "app",
     ipAddress: ipAddress ?? undefined,
     sessionId: ctx?.session?.id,

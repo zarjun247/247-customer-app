@@ -2,14 +2,15 @@
  * External Service Connectors
  *
  * Typed interfaces and real implementations for all external integrations.
- * Each connector reads credentials from environment variables and falls back
- * to a no-op stub when credentials are absent (safe for dev/demo environments).
+ * Each connector reads credentials from environment variables. Non-payment
+ * providers fail closed in production when credentials are absent; local/demo
+ * skips are explicit and never reported as production success.
  *
  * Connectors:
  *   - SMS / WhatsApp (MSG91 + WhatsApp Cloud API)
  *   - Payment Gateway (Razorpay — real SDK integration)
  *   - Label Printer (ZPL for thermal printers)
- *   - ERP Sync (Tally/SAP stub)
+ *   - ERP Sync (Tally/SAP REST adapter)
  */
 
 import crypto from "crypto";
@@ -18,35 +19,131 @@ import type { NotificationPayload } from "./notifications";
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
+export type MessageProviderStatus =
+  | "sent"
+  | "failed"
+  | "provider_unconfigured"
+  | "skipped_demo";
+
+export type PrinterProviderStatus =
+  | "printed"
+  | "failed"
+  | "provider_unconfigured"
+  | "skipped_demo"
+  | "preview_only"
+  | "not_printed";
+
+export type ErpProviderStatus =
+  | "synced"
+  | "failed"
+  | "provider_unconfigured"
+  | "skipped_demo";
+
+export type ProviderResult<TStatus extends string> = {
+  status: TStatus;
+  ok: boolean;
+  reason?: string;
+  demo?: boolean;
+};
+
+export type MessageProviderResult = ProviderResult<MessageProviderStatus>;
+
+export type PrinterProviderResult = ProviderResult<PrinterProviderStatus> & {
+  zpl?: string;
+};
+
+export type ErpProviderResult = ProviderResult<ErpProviderStatus> & {
+  erpRef: string | null;
+};
+
+export function isExplicitDemoMode(): boolean {
+  const explicit = String(
+    process.env.PROVIDER_DEMO_MODE ?? process.env.DEMO_MODE ?? "",
+  ).toLowerCase();
+
+  return (
+    ["1", "true", "yes", "on", "demo", "local"].includes(explicit) ||
+    ["development", "test"].includes(
+      String(process.env.NODE_ENV ?? "").toLowerCase(),
+    )
+  );
+}
+
+export function isProductionMode(): boolean {
+  return String(process.env.NODE_ENV ?? "").toLowerCase() === "production";
+}
+
+export function providerUnavailableResult<
+  TStatus extends "provider_unconfigured" | "skipped_demo",
+>(provider: string, missing: string[]): ProviderResult<TStatus> {
+  if (isProductionMode() && !isExplicitDemoMode()) {
+    return {
+      status: "provider_unconfigured" as TStatus,
+      ok: false,
+      reason: `${provider} provider unconfigured: missing ${missing.join(", ")}`,
+    };
+  }
+
+  return {
+    status: "skipped_demo" as TStatus,
+    ok: false,
+    demo: true,
+    reason: `${provider} provider skipped in explicit local/demo mode: missing ${missing.join(", ")}`,
+  };
+}
+
 export interface SmsConnector {
   sendSms(params: { phone: string; message: string }): Promise<boolean>;
+
+  sendSmsDetailed(params: {
+    phone: string;
+    message: string;
+  }): Promise<MessageProviderResult>;
+
   sendWhatsApp(params: {
     phone: string;
     templateName: string;
     variables: string[];
   }): Promise<boolean>;
+
+  sendWhatsAppDetailed(params: {
+    phone: string;
+    templateName: string;
+    variables: string[];
+  }): Promise<MessageProviderResult>;
 }
 
 /**
  * MSG91 SMS connector.
  * Required env vars:
- *   SMS_PROVIDER_API_KEY   — MSG91 auth key
- *   SMS_SENDER_ID          — DLT-approved sender ID (e.g. PHRMCY)
+ *   SMS_PROVIDER_API_KEY     — MSG91 auth key
+ *   SMS_SENDER_ID            — DLT-approved sender ID (e.g. PHRMCY)
  *   WHATSAPP_PHONE_NUMBER_ID — WhatsApp Business phone number ID
  *   WHATSAPP_API_TOKEN       — WhatsApp Cloud API token
  */
 export const smsConnector: SmsConnector = {
-  async sendSms({ phone, message }) {
+  async sendSms(params) {
+    const result = await this.sendSmsDetailed(params);
+    return result.status === "sent";
+  },
+
+  async sendSmsDetailed({ phone, message }) {
     const apiKey = process.env.SMS_PROVIDER_API_KEY;
     const senderId = process.env.SMS_SENDER_ID ?? "PHRMCY";
 
     if (!apiKey) {
-      console.log(`[SMS STUB] To: ${phone} | Message: ${message}`);
-      return true;
+      const result = providerUnavailableResult<
+        "provider_unconfigured" | "skipped_demo"
+      >("SMS", ["SMS_PROVIDER_API_KEY"]);
+
+      if (result.status === "skipped_demo") {
+        console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${message}`);
+      }
+
+      return result;
     }
 
     try {
-      // Normalize phone: ensure 91 prefix for India
       const normalizedPhone = phone.replace(/^\+/, "").replace(/^0/, "");
       const mobileWithCountry = normalizedPhone.startsWith("91")
         ? normalizedPhone
@@ -54,7 +151,7 @@ export const smsConnector: SmsConnector = {
 
       const payload = {
         sender: senderId,
-        route: "4", // Transactional route
+        route: "4",
         country: "91",
         sms: [{ message, to: [mobileWithCountry] }],
       };
@@ -71,29 +168,59 @@ export const smsConnector: SmsConnector = {
       if (!res.ok) {
         const text = await res.text();
         console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
-        return false;
+
+        return {
+          status: "failed",
+          ok: false,
+          reason: `MSG91 error: ${res.status}`,
+        };
       }
-      return true;
+
+      return { status: "sent", ok: true };
     } catch (err) {
       console.error("[SMS] Failed to send via MSG91:", err);
-      return false;
+
+      return {
+        status: "failed",
+        ok: false,
+        reason: "MSG91 request failed",
+      };
     }
   },
 
-  async sendWhatsApp({ phone, templateName, variables }) {
+  async sendWhatsApp(params) {
+    const result = await this.sendWhatsAppDetailed(params);
+    return result.status === "sent";
+  },
+
+  async sendWhatsAppDetailed({ phone, templateName, variables }) {
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const token = process.env.WHATSAPP_API_TOKEN;
 
-    if (!phoneNumberId || !token) {
-      console.log(
-        `[WhatsApp STUB] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`
-      );
-      return true;
+    const missing = [
+      ...(!phoneNumberId ? ["WHATSAPP_PHONE_NUMBER_ID"] : []),
+      ...(!token ? ["WHATSAPP_API_TOKEN"] : []),
+    ];
+
+    if (missing.length > 0) {
+      const result = providerUnavailableResult<
+        "provider_unconfigured" | "skipped_demo"
+      >("WhatsApp", missing);
+
+      if (result.status === "skipped_demo") {
+        console.log(
+          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`,
+        );
+      }
+
+      return result;
     }
 
     try {
       const normalizedPhone = phone.replace(/^\+/, "").replace(/^0/, "");
-      const to = normalizedPhone.startsWith("91") ? normalizedPhone : `91${normalizedPhone}`;
+      const to = normalizedPhone.startsWith("91")
+        ? normalizedPhone
+        : `91${normalizedPhone}`;
 
       const body = {
         messaging_product: "whatsapp",
@@ -102,12 +229,18 @@ export const smsConnector: SmsConnector = {
         template: {
           name: templateName,
           language: { code: "en" },
-          components: variables.length > 0 ? [
-            {
-              type: "body",
-              parameters: variables.map(v => ({ type: "text", text: v })),
-            },
-          ] : [],
+          components:
+            variables.length > 0
+              ? [
+                  {
+                    type: "body",
+                    parameters: variables.map(v => ({
+                      type: "text",
+                      text: v,
+                    })),
+                  },
+                ]
+              : [],
         },
       };
 
@@ -120,18 +253,29 @@ export const smsConnector: SmsConnector = {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
-        }
+        },
       );
 
       if (!res.ok) {
         const text = await res.text();
         console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
-        return false;
+
+        return {
+          status: "failed",
+          ok: false,
+          reason: `WhatsApp Cloud API error: ${res.status}`,
+        };
       }
-      return true;
+
+      return { status: "sent", ok: true };
     } catch (err) {
       console.error("[WhatsApp] Failed to send:", err);
-      return false;
+
+      return {
+        status: "failed",
+        ok: false,
+        reason: "WhatsApp Cloud API request failed",
+      };
     }
   },
 };
@@ -142,12 +286,12 @@ export const smsConnector: SmsConnector = {
  */
 export async function sendCustomerNotification(
   phone: string,
-  payload: NotificationPayload
+  payload: NotificationPayload,
 ): Promise<void> {
   const message = `${payload.title}\n${payload.content}`;
   const sent = await smsConnector.sendSms({ phone, message });
+
   if (!sent) {
-    // Fallback: notify owner so ops team can manually reach out
     await notifyOwner({
       title: `[FALLBACK] Customer notification failed`,
       content: `Phone: ${phone} | ${payload.title}`,
@@ -159,7 +303,7 @@ export async function sendCustomerNotification(
 
 export interface PaymentGatewayConnector {
   createOrder(params: {
-    amount: number; // in paise (INR × 100)
+    amount: number;
     currency: string;
     receipt: string;
     notes?: Record<string, string>;
@@ -173,9 +317,22 @@ export interface PaymentGatewayConnector {
 
   refund(params: {
     gatewayPaymentId: string;
-    amount?: number; // partial refund if specified
+    amount?: number;
     reason?: string;
   }): Promise<{ refundId: string; status: string }>;
+}
+
+function isExplicitPaymentDemoMode(): boolean {
+  const mode = String(
+    process.env.PAYMENT_PROVIDER_MODE ?? process.env.LOCAL_DEMO_MODE ?? "",
+  )
+    .trim()
+    .toLowerCase();
+
+  return (
+    ["1", "true", "yes", "on", "demo", "local", "test"].includes(mode) ||
+    String(process.env.NODE_ENV ?? "").toLowerCase() === "test"
+  );
 }
 
 /**
@@ -184,8 +341,9 @@ export interface PaymentGatewayConnector {
  *   RAZORPAY_KEY_ID     — Razorpay API key ID
  *   RAZORPAY_KEY_SECRET — Razorpay API key secret
  *
- * Fails closed when credentials are absent; demo/local callers must not treat
- * skipped provider work as a real gateway success.
+ * Credentials are required for real gateway calls. Production fails closed when
+ * credentials are absent. Explicit demo/test verification returns false instead
+ * of pretending a payment is verified.
  */
 export const paymentConnector: PaymentGatewayConnector = {
   async createOrder({ amount, currency, receipt, notes }) {
@@ -193,22 +351,28 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      throw new Error("Payment provider not configured: Razorpay credentials missing");
+      throw new Error(
+        "Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing",
+      );
     }
 
     try {
-      // Dynamic import to avoid issues when credentials are absent
       const Razorpay = (await import("razorpay")).default;
       const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
       const order = await rzp.orders.create({
         amount,
         currency,
         receipt,
         notes,
       });
+
       return {
         gatewayOrderId: order.id,
-        amount: typeof order.amount === "number" ? order.amount : parseInt(String(order.amount)),
+        amount:
+          typeof order.amount === "number"
+            ? order.amount
+            : parseInt(String(order.amount), 10),
         currency: order.currency,
       };
     } catch (err) {
@@ -219,15 +383,15 @@ export const paymentConnector: PaymentGatewayConnector = {
 
   async verifyPayment({ gatewayOrderId, gatewayPaymentId, signature }) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    const localDemoMode = ["1", "true", "yes"].includes(String(process.env.LOCAL_DEMO_MODE ?? "").toLowerCase())
-      || ["development", "test"].includes(String(process.env.NODE_ENV ?? "").toLowerCase());
 
     if (!keySecret) {
-      if (localDemoMode) return false;
-      throw new Error("Payment verification unavailable: RAZORPAY_KEY_SECRET missing");
+      if (isExplicitPaymentDemoMode()) return false;
+
+      throw new Error(
+        "Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing",
+      );
     }
 
-    // Razorpay HMAC-SHA256 signature verification
     const expectedSignature = crypto
       .createHmac("sha256", keySecret)
       .update(`${gatewayOrderId}|${gatewayPaymentId}`)
@@ -241,16 +405,18 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      throw new Error("Payment refund unavailable: Razorpay credentials missing");
+      throw new Error("Payment refund unavailable: provider_unconfigured");
     }
 
     try {
       const Razorpay = (await import("razorpay")).default;
       const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
       const refund = await rzp.payments.refund(gatewayPaymentId, {
         amount,
         notes: reason ? { reason } : undefined,
       });
+
       return {
         refundId: refund.id,
         status: refund.status,
@@ -274,6 +440,15 @@ export interface LabelPrinterConnector {
     barcodeData?: string;
   }): Promise<boolean>;
 
+  printDispatchLabelDetailed(params: {
+    orderId: number;
+    customerName: string;
+    address: string;
+    phone: string;
+    items: Array<{ name: string; qty: number }>;
+    barcodeData?: string;
+  }): Promise<PrinterProviderResult>;
+
   printBatchLabel(params: {
     productName: string;
     batchNumber: string;
@@ -282,7 +457,14 @@ export interface LabelPrinterConnector {
     barcode?: string;
   }): Promise<boolean>;
 
-  /** Generate ZPL string without sending to printer (for preview/download) */
+  printBatchLabelDetailed(params: {
+    productName: string;
+    batchNumber: string;
+    expiryDate: string;
+    mrp: string;
+    barcode?: string;
+  }): Promise<PrinterProviderResult>;
+
   generateDispatchLabelZpl(params: {
     orderId: number;
     customerName: string;
@@ -303,14 +485,25 @@ export interface LabelPrinterConnector {
 
 /**
  * Label printer connector — ZPL (Zebra Printer Language) with Code 128 barcodes.
- * Required env vars (optional — falls back to logging):
+ * Required env vars (production):
  *   PRINTER_HOST — IP address of the thermal label printer
  *   PRINTER_PORT — TCP port (default: 9100)
  */
 export const labelPrinterConnector: LabelPrinterConnector = {
-  generateDispatchLabelZpl({ orderId, customerName, address, phone, items, barcodeData }) {
+  generateDispatchLabelZpl({
+    orderId,
+    customerName,
+    address,
+    phone,
+    items,
+    barcodeData,
+  }) {
     const barcode = barcodeData ?? `ORD-${orderId}`;
-    const itemsText = items.map(i => `${i.name} x${i.qty}`).join(", ").substring(0, 60);
+    const itemsText = items
+      .map(i => `${i.name} x${i.qty}`)
+      .join(", ")
+      .substring(0, 60);
+
     return `^XA
 ^PW812
 ^LL406
@@ -326,8 +519,15 @@ export const labelPrinterConnector: LabelPrinterConnector = {
 ^XZ`;
   },
 
-  generateBatchLabelZpl({ productName, batchNumber, expiryDate, mrp, barcode }) {
+  generateBatchLabelZpl({
+    productName,
+    batchNumber,
+    expiryDate,
+    mrp,
+    barcode,
+  }) {
     const bc = barcode ?? batchNumber;
+
     return `^XA
 ^PW406
 ^LL203
@@ -339,17 +539,32 @@ export const labelPrinterConnector: LabelPrinterConnector = {
   },
 
   async printDispatchLabel(params) {
+    const result = await this.printDispatchLabelDetailed(params);
+    return result.status === "printed";
+  },
+
+  async printDispatchLabelDetailed(params) {
     const zpl = this.generateDispatchLabelZpl(params);
     const host = process.env.PRINTER_HOST;
-    const port = parseInt(process.env.PRINTER_PORT ?? "9100");
+    const port = parseInt(process.env.PRINTER_PORT ?? "9100", 10);
 
     if (!host) {
-      console.log(`[Printer STUB] Dispatch label for order #${params.orderId}:\n${zpl}`);
-      return true;
+      const result = providerUnavailableResult<
+        "provider_unconfigured" | "skipped_demo"
+      >("Label printer", ["PRINTER_HOST"]);
+
+      if (result.status === "skipped_demo") {
+        console.log(
+          `[Printer DEMO SKIPPED] Dispatch label for order #${params.orderId}:\n${zpl}`,
+        );
+      }
+
+      return { ...result, zpl };
     }
 
     try {
       const net = await import("net");
+
       await new Promise<void>((resolve, reject) => {
         const socket = net.createConnection(port, host, () => {
           socket.write(zpl, "utf8", () => {
@@ -357,28 +572,54 @@ export const labelPrinterConnector: LabelPrinterConnector = {
             resolve();
           });
         });
+
         socket.on("error", reject);
-        socket.setTimeout(5000, () => { socket.destroy(); reject(new Error("Printer timeout")); });
+        socket.setTimeout(5000, () => {
+          socket.destroy();
+          reject(new Error("Printer timeout"));
+        });
       });
-      return true;
+
+      return { status: "printed", ok: true, zpl };
     } catch (err) {
       console.error("[Printer] Failed to send dispatch label:", err);
-      return false;
+
+      return {
+        status: "failed",
+        ok: false,
+        reason: "Printer delivery failed",
+        zpl,
+      };
     }
   },
 
   async printBatchLabel(params) {
+    const result = await this.printBatchLabelDetailed(params);
+    return result.status === "printed";
+  },
+
+  async printBatchLabelDetailed(params) {
     const zpl = this.generateBatchLabelZpl(params);
     const host = process.env.PRINTER_HOST;
-    const port = parseInt(process.env.PRINTER_PORT ?? "9100");
+    const port = parseInt(process.env.PRINTER_PORT ?? "9100", 10);
 
     if (!host) {
-      console.log(`[Printer STUB] Batch label for ${params.productName}:\n${zpl}`);
-      return true;
+      const result = providerUnavailableResult<
+        "provider_unconfigured" | "skipped_demo"
+      >("Label printer", ["PRINTER_HOST"]);
+
+      if (result.status === "skipped_demo") {
+        console.log(
+          `[Printer DEMO SKIPPED] Batch label for ${params.productName}:\n${zpl}`,
+        );
+      }
+
+      return { ...result, zpl };
     }
 
     try {
       const net = await import("net");
+
       await new Promise<void>((resolve, reject) => {
         const socket = net.createConnection(port, host, () => {
           socket.write(zpl, "utf8", () => {
@@ -386,13 +627,24 @@ export const labelPrinterConnector: LabelPrinterConnector = {
             resolve();
           });
         });
+
         socket.on("error", reject);
-        socket.setTimeout(5000, () => { socket.destroy(); reject(new Error("Printer timeout")); });
+        socket.setTimeout(5000, () => {
+          socket.destroy();
+          reject(new Error("Printer timeout"));
+        });
       });
-      return true;
+
+      return { status: "printed", ok: true, zpl };
     } catch (err) {
       console.error("[Printer] Failed to send batch label:", err);
-      return false;
+
+      return {
+        status: "failed",
+        ok: false,
+        reason: "Printer delivery failed",
+        zpl,
+      };
     }
   },
 };
@@ -410,18 +662,24 @@ export interface ErpSyncConnector {
       unitCost: number;
       mrp: number;
     }>;
-  }): Promise<{ erpRef: string; status: string }>;
+  }): Promise<ErpProviderResult>;
 
   pushSalesOrder(params: {
     orderId: number;
     storeId: number;
     totalAmount: number;
-    items: Array<{ productName: string; qty: number; unitPrice: number; hsnCode?: string; gstRate?: number }>;
-  }): Promise<{ erpRef: string; status: string }>;
+    items: Array<{
+      productName: string;
+      qty: number;
+      unitPrice: number;
+      hsnCode?: string;
+      gstRate?: number;
+    }>;
+  }): Promise<ErpProviderResult>;
 }
 
 /**
- * ERP sync connector — Tally XML / REST stub.
+ * ERP sync connector — Tally/SAP REST adapter.
  * Required env vars:
  *   ERP_BASE_URL    — Base URL of the ERP API
  *   ERP_API_KEY     — API key for ERP authentication
@@ -433,11 +691,23 @@ export const erpConnector: ErpSyncConnector = {
     const apiKey = process.env.ERP_API_KEY;
     const companyId = process.env.ERP_COMPANY_ID;
 
-    if (!baseUrl || !apiKey) {
-      console.log(
-        `[ERP STUB] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`
-      );
-      return { erpRef: `GRN-${ingestionId}-${Date.now()}`, status: "synced" };
+    const missing = [
+      ...(!baseUrl ? ["ERP_BASE_URL"] : []),
+      ...(!apiKey ? ["ERP_API_KEY"] : []),
+    ];
+
+    if (missing.length > 0) {
+      const result = providerUnavailableResult<
+        "provider_unconfigured" | "skipped_demo"
+      >("ERP", missing);
+
+      if (result.status === "skipped_demo") {
+        console.log(
+          `[ERP DEMO SKIPPED] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`,
+        );
+      }
+
+      return { ...result, erpRef: null };
     }
 
     try {
@@ -450,14 +720,36 @@ export const erpConnector: ErpSyncConnector = {
         },
         body: JSON.stringify({ ingestionId, storeId, items }),
       });
-      const data = await res.json() as { ref?: string; status?: string };
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[ERP] pushGrn error: ${res.status} ${text}`);
+
+        return {
+          erpRef: null,
+          status: "failed",
+          ok: false,
+          reason: `ERP GRN sync failed: ${res.status}`,
+        };
+      }
+
+      const data = (await res.json()) as { ref?: string; status?: string };
+
       return {
         erpRef: data.ref ?? `GRN-${ingestionId}`,
-        status: data.status ?? "synced",
+        status: "synced",
+        ok: true,
+        reason: data.status,
       };
     } catch (err) {
       console.error("[ERP] pushGrn failed:", err);
-      return { erpRef: `GRN-${ingestionId}-${Date.now()}`, status: "error" };
+
+      return {
+        erpRef: null,
+        status: "failed",
+        ok: false,
+        reason: "ERP GRN sync failed",
+      };
     }
   },
 
@@ -466,9 +758,23 @@ export const erpConnector: ErpSyncConnector = {
     const apiKey = process.env.ERP_API_KEY;
     const companyId = process.env.ERP_COMPANY_ID;
 
-    if (!baseUrl || !apiKey) {
-      console.log(`[ERP STUB] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`);
-      return { erpRef: `SO-${orderId}-${Date.now()}`, status: "synced" };
+    const missing = [
+      ...(!baseUrl ? ["ERP_BASE_URL"] : []),
+      ...(!apiKey ? ["ERP_API_KEY"] : []),
+    ];
+
+    if (missing.length > 0) {
+      const result = providerUnavailableResult<
+        "provider_unconfigured" | "skipped_demo"
+      >("ERP", missing);
+
+      if (result.status === "skipped_demo") {
+        console.log(
+          `[ERP DEMO SKIPPED] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`,
+        );
+      }
+
+      return { ...result, erpRef: null };
     }
 
     try {
@@ -481,14 +787,36 @@ export const erpConnector: ErpSyncConnector = {
         },
         body: JSON.stringify({ orderId, storeId, totalAmount, items }),
       });
-      const data = await res.json() as { ref?: string; status?: string };
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[ERP] pushSalesOrder error: ${res.status} ${text}`);
+
+        return {
+          erpRef: null,
+          status: "failed",
+          ok: false,
+          reason: `ERP sales order sync failed: ${res.status}`,
+        };
+      }
+
+      const data = (await res.json()) as { ref?: string; status?: string };
+
       return {
         erpRef: data.ref ?? `SO-${orderId}`,
-        status: data.status ?? "synced",
+        status: "synced",
+        ok: true,
+        reason: data.status,
       };
     } catch (err) {
       console.error("[ERP] pushSalesOrder failed:", err);
-      return { erpRef: `SO-${orderId}-${Date.now()}`, status: "error" };
+
+      return {
+        erpRef: null,
+        status: "failed",
+        ok: false,
+        reason: "ERP sales order sync failed",
+      };
     }
   },
 };
