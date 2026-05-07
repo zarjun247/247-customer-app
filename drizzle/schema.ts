@@ -1930,6 +1930,28 @@ export const saleLines = mysqlTable("sale_lines", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+
+export const invoiceSnapshots = mysqlTable("invoice_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  saleId: varchar("sale_id", { length: 36 }),
+  orderId: int("order_id"),
+  billNo: varchar("bill_no", { length: 100 }).notNull(),
+  storeId: varchar("store_id", { length: 36 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }),
+  snapshotJson: json("snapshot_json").notNull(),
+  snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+  pdfFileKey: varchar("pdf_file_key", { length: 500 }),
+  pdfFileUrl: text("pdf_file_url"),
+  status: mysqlEnum("status", ["generated", "pdf_generated", "failed", "cancelled"]).notNull().default("generated"),
+  failureReason: text("failure_reason"),
+  generatedBy: varchar("generated_by", { length: 36 }),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxSaleId: uniqueIndex("idx_invoice_snapshots_sale_id_status_hash").on(t.saleId, t.status, t.snapshotHash),
+}));
+
 export const saleReturns = mysqlTable("sale_returns", {
   id: varchar("id", { length: 36 }).primaryKey(),
   returnNo: varchar("return_no", { length: 50 }).notNull(),

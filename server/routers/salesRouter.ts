@@ -16,6 +16,7 @@ import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barc
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 import { getCanonicalAvailability } from "../services/reservationService";
 import { reserveInvoiceNumber, generateReturnNoteNumber, buildDraftBillNumber } from "../services/invoiceNumbering";
+import { createSaleInvoiceSnapshot, getInvoiceSnapshotPackageForSale } from "../services/invoiceSnapshotService";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -411,12 +412,28 @@ export const salesRouter = router({
         createdAt: now,
       });
 
+      await createSaleInvoiceSnapshot(db, input.saleId, { generatedBy: ctx.user?.id });
       if (discountUsageCodeId !== null) await recordDiscountCodeUsage(discountUsageCodeId, input.saleId, ctx);
       await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
       await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: null, entityRef: input.saleId, afterJson: { ok: true } }, ctx);
       await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
       return { ok: true, billNo: finalBillNo, total: sale.total };
       });
+    }),
+
+  // ─── Immutable invoice snapshot package ─────────────────────────────────────
+  getInvoiceSnapshotPackage: protectedProcedure
+    .input(z.object({ saleId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDbSafe();
+      try {
+        const invoicePackage = await getInvoiceSnapshotPackageForSale(db, input.saleId, { id: ctx.user!.id, role: ctx.user?.role });
+        if (!invoicePackage) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice snapshot not found" });
+        return invoicePackage;
+      } catch (error) {
+        if ((error as any)?.code === "FORBIDDEN") throw new TRPCError({ code: "FORBIDDEN", message: "Invoice snapshot not available for this customer" });
+        throw error;
+      }
     }),
 
   // ─── List Sales ──────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import {
   users,
   whatsappSessions,
 } from "../drizzle/schema";
+import { createOrderInvoiceSnapshot } from "./services/invoiceSnapshotService";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -940,9 +941,15 @@ export async function generateAndStoreInvoice(
 
   const buffer = Buffer.from(lines, "utf-8");
   const key = `invoices/order-${orderId}-${Date.now()}.txt`;
-  const { url } = await storeFn(key, buffer, "text/plain");
-  await updateOrderInvoice(orderId, url, key);
-  return url;
+  try {
+    const { url } = await storeFn(key, buffer, "text/plain");
+    await updateOrderInvoice(orderId, url, key);
+    await createOrderInvoiceSnapshot(db, orderId, { pdfFileKey: key, pdfFileUrl: url });
+    return url;
+  } catch (error) {
+    await createOrderInvoiceSnapshot(db, orderId, { failureReason: error instanceof Error ? error.message : "invoice_storage_failed" });
+    throw error;
+  }
 }
 
 // ─── Doctor Consult Requests ─────────────────────────────────────────────────────────────
