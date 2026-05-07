@@ -24,6 +24,7 @@ export type MessageProviderStatus =
   | "failed"
   | "provider_unconfigured"
   | "skipped_demo";
+
 export type PrinterProviderStatus =
   | "printed"
   | "failed"
@@ -31,6 +32,7 @@ export type PrinterProviderStatus =
   | "skipped_demo"
   | "preview_only"
   | "not_printed";
+
 export type ErpProviderStatus =
   | "synced"
   | "failed"
@@ -45,21 +47,24 @@ export type ProviderResult<TStatus extends string> = {
 };
 
 export type MessageProviderResult = ProviderResult<MessageProviderStatus>;
+
 export type PrinterProviderResult = ProviderResult<PrinterProviderStatus> & {
   zpl?: string;
 };
+
 export type ErpProviderResult = ProviderResult<ErpProviderStatus> & {
   erpRef: string | null;
 };
 
 export function isExplicitDemoMode(): boolean {
   const explicit = String(
-    process.env.PROVIDER_DEMO_MODE ?? process.env.DEMO_MODE ?? ""
+    process.env.PROVIDER_DEMO_MODE ?? process.env.DEMO_MODE ?? "",
   ).toLowerCase();
+
   return (
     ["1", "true", "yes", "on", "demo", "local"].includes(explicit) ||
     ["development", "test"].includes(
-      String(process.env.NODE_ENV ?? "").toLowerCase()
+      String(process.env.NODE_ENV ?? "").toLowerCase(),
     )
   );
 }
@@ -89,15 +94,18 @@ export function providerUnavailableResult<
 
 export interface SmsConnector {
   sendSms(params: { phone: string; message: string }): Promise<boolean>;
+
   sendSmsDetailed(params: {
     phone: string;
     message: string;
   }): Promise<MessageProviderResult>;
+
   sendWhatsApp(params: {
     phone: string;
     templateName: string;
     variables: string[];
   }): Promise<boolean>;
+
   sendWhatsAppDetailed(params: {
     phone: string;
     templateName: string;
@@ -108,8 +116,8 @@ export interface SmsConnector {
 /**
  * MSG91 SMS connector.
  * Required env vars:
- *   SMS_PROVIDER_API_KEY   — MSG91 auth key
- *   SMS_SENDER_ID          — DLT-approved sender ID (e.g. PHRMCY)
+ *   SMS_PROVIDER_API_KEY     — MSG91 auth key
+ *   SMS_SENDER_ID            — DLT-approved sender ID (e.g. PHRMCY)
  *   WHATSAPP_PHONE_NUMBER_ID — WhatsApp Business phone number ID
  *   WHATSAPP_API_TOKEN       — WhatsApp Cloud API token
  */
@@ -127,14 +135,15 @@ export const smsConnector: SmsConnector = {
       const result = providerUnavailableResult<
         "provider_unconfigured" | "skipped_demo"
       >("SMS", ["SMS_PROVIDER_API_KEY"]);
+
       if (result.status === "skipped_demo") {
         console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${message}`);
       }
+
       return result;
     }
 
     try {
-      // Normalize phone: ensure 91 prefix for India
       const normalizedPhone = phone.replace(/^\+/, "").replace(/^0/, "");
       const mobileWithCountry = normalizedPhone.startsWith("91")
         ? normalizedPhone
@@ -142,7 +151,7 @@ export const smsConnector: SmsConnector = {
 
       const payload = {
         sender: senderId,
-        route: "4", // Transactional route
+        route: "4",
         country: "91",
         sms: [{ message, to: [mobileWithCountry] }],
       };
@@ -159,16 +168,23 @@ export const smsConnector: SmsConnector = {
       if (!res.ok) {
         const text = await res.text();
         console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
+
         return {
           status: "failed",
           ok: false,
           reason: `MSG91 error: ${res.status}`,
         };
       }
+
       return { status: "sent", ok: true };
     } catch (err) {
       console.error("[SMS] Failed to send via MSG91:", err);
-      return { status: "failed", ok: false, reason: "MSG91 request failed" };
+
+      return {
+        status: "failed",
+        ok: false,
+        reason: "MSG91 request failed",
+      };
     }
   },
 
@@ -190,11 +206,13 @@ export const smsConnector: SmsConnector = {
       const result = providerUnavailableResult<
         "provider_unconfigured" | "skipped_demo"
       >("WhatsApp", missing);
+
       if (result.status === "skipped_demo") {
         console.log(
-          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`
+          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`,
         );
       }
+
       return result;
     }
 
@@ -216,7 +234,10 @@ export const smsConnector: SmsConnector = {
               ? [
                   {
                     type: "body",
-                    parameters: variables.map(v => ({ type: "text", text: v })),
+                    parameters: variables.map(v => ({
+                      type: "text",
+                      text: v,
+                    })),
                   },
                 ]
               : [],
@@ -232,21 +253,24 @@ export const smsConnector: SmsConnector = {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
-        }
+        },
       );
 
       if (!res.ok) {
         const text = await res.text();
         console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
+
         return {
           status: "failed",
           ok: false,
           reason: `WhatsApp Cloud API error: ${res.status}`,
         };
       }
+
       return { status: "sent", ok: true };
     } catch (err) {
       console.error("[WhatsApp] Failed to send:", err);
+
       return {
         status: "failed",
         ok: false,
@@ -262,12 +286,12 @@ export const smsConnector: SmsConnector = {
  */
 export async function sendCustomerNotification(
   phone: string,
-  payload: NotificationPayload
+  payload: NotificationPayload,
 ): Promise<void> {
   const message = `${payload.title}\n${payload.content}`;
   const sent = await smsConnector.sendSms({ phone, message });
+
   if (!sent) {
-    // Fallback: notify owner so ops team can manually reach out
     await notifyOwner({
       title: `[FALLBACK] Customer notification failed`,
       content: `Phone: ${phone} | ${payload.title}`,
@@ -279,7 +303,7 @@ export async function sendCustomerNotification(
 
 export interface PaymentGatewayConnector {
   createOrder(params: {
-    amount: number; // in paise (INR × 100)
+    amount: number;
     currency: string;
     receipt: string;
     notes?: Record<string, string>;
@@ -293,9 +317,22 @@ export interface PaymentGatewayConnector {
 
   refund(params: {
     gatewayPaymentId: string;
-    amount?: number; // partial refund if specified
+    amount?: number;
     reason?: string;
   }): Promise<{ refundId: string; status: string }>;
+}
+
+function isExplicitPaymentDemoMode(): boolean {
+  const mode = String(
+    process.env.PAYMENT_PROVIDER_MODE ?? process.env.LOCAL_DEMO_MODE ?? "",
+  )
+    .trim()
+    .toLowerCase();
+
+  return (
+    ["1", "true", "yes", "on", "demo", "local", "test"].includes(mode) ||
+    String(process.env.NODE_ENV ?? "").toLowerCase() === "test"
+  );
 }
 
 /**
@@ -304,7 +341,9 @@ export interface PaymentGatewayConnector {
  *   RAZORPAY_KEY_ID     — Razorpay API key ID
  *   RAZORPAY_KEY_SECRET — Razorpay API key secret
  *
- * Falls back to stub when credentials are absent.
+ * Credentials are required for real gateway calls. Production fails closed when
+ * credentials are absent. Explicit demo/test verification returns false instead
+ * of pretending a payment is verified.
  */
 export const paymentConnector: PaymentGatewayConnector = {
   async createOrder({ amount, currency, receipt, notes }) {
@@ -312,32 +351,28 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.log(
-        `[Payment STUB] Create order: ₹${amount / 100} | Receipt: ${receipt}`
+      throw new Error(
+        "Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing",
       );
-      return {
-        gatewayOrderId: `stub_order_${Date.now()}`,
-        amount,
-        currency,
-      };
     }
 
     try {
-      // Dynamic import to avoid issues when credentials are absent
       const Razorpay = (await import("razorpay")).default;
       const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
       const order = await rzp.orders.create({
         amount,
         currency,
         receipt,
         notes,
       });
+
       return {
         gatewayOrderId: order.id,
         amount:
           typeof order.amount === "number"
             ? order.amount
-            : parseInt(String(order.amount)),
+            : parseInt(String(order.amount), 10),
         currency: order.currency,
       };
     } catch (err) {
@@ -348,22 +383,15 @@ export const paymentConnector: PaymentGatewayConnector = {
 
   async verifyPayment({ gatewayOrderId, gatewayPaymentId, signature }) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    const localDemoMode =
-      ["1", "true", "yes"].includes(
-        String(process.env.LOCAL_DEMO_MODE ?? "").toLowerCase()
-      ) ||
-      ["development", "test"].includes(
-        String(process.env.NODE_ENV ?? "").toLowerCase()
-      );
 
     if (!keySecret) {
-      if (localDemoMode) return false;
+      if (isExplicitPaymentDemoMode()) return false;
+
       throw new Error(
-        "Payment verification unavailable: RAZORPAY_KEY_SECRET missing"
+        "Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing",
       );
     }
 
-    // Razorpay HMAC-SHA256 signature verification
     const expectedSignature = crypto
       .createHmac("sha256", keySecret)
       .update(`${gatewayOrderId}|${gatewayPaymentId}`)
@@ -377,19 +405,18 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.log(
-        `[Payment STUB] Refund: ${gatewayPaymentId} | Amount: ${amount ?? "full"}`
-      );
-      return { refundId: `stub_refund_${Date.now()}`, status: "processed" };
+      throw new Error("Payment refund unavailable: provider_unconfigured");
     }
 
     try {
       const Razorpay = (await import("razorpay")).default;
       const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+
       const refund = await rzp.payments.refund(gatewayPaymentId, {
         amount,
         notes: reason ? { reason } : undefined,
       });
+
       return {
         refundId: refund.id,
         status: refund.status,
@@ -438,7 +465,6 @@ export interface LabelPrinterConnector {
     barcode?: string;
   }): Promise<PrinterProviderResult>;
 
-  /** Generate ZPL string without sending to printer (for preview/download) */
   generateDispatchLabelZpl(params: {
     orderId: number;
     customerName: string;
@@ -477,6 +503,7 @@ export const labelPrinterConnector: LabelPrinterConnector = {
       .map(i => `${i.name} x${i.qty}`)
       .join(", ")
       .substring(0, 60);
+
     return `^XA
 ^PW812
 ^LL406
@@ -500,6 +527,7 @@ export const labelPrinterConnector: LabelPrinterConnector = {
     barcode,
   }) {
     const bc = barcode ?? batchNumber;
+
     return `^XA
 ^PW406
 ^LL203
@@ -518,22 +546,25 @@ export const labelPrinterConnector: LabelPrinterConnector = {
   async printDispatchLabelDetailed(params) {
     const zpl = this.generateDispatchLabelZpl(params);
     const host = process.env.PRINTER_HOST;
-    const port = parseInt(process.env.PRINTER_PORT ?? "9100");
+    const port = parseInt(process.env.PRINTER_PORT ?? "9100", 10);
 
     if (!host) {
       const result = providerUnavailableResult<
         "provider_unconfigured" | "skipped_demo"
       >("Label printer", ["PRINTER_HOST"]);
+
       if (result.status === "skipped_demo") {
         console.log(
-          `[Printer DEMO SKIPPED] Dispatch label for order #${params.orderId}:\n${zpl}`
+          `[Printer DEMO SKIPPED] Dispatch label for order #${params.orderId}:\n${zpl}`,
         );
       }
+
       return { ...result, zpl };
     }
 
     try {
       const net = await import("net");
+
       await new Promise<void>((resolve, reject) => {
         const socket = net.createConnection(port, host, () => {
           socket.write(zpl, "utf8", () => {
@@ -541,15 +572,18 @@ export const labelPrinterConnector: LabelPrinterConnector = {
             resolve();
           });
         });
+
         socket.on("error", reject);
         socket.setTimeout(5000, () => {
           socket.destroy();
           reject(new Error("Printer timeout"));
         });
       });
+
       return { status: "printed", ok: true, zpl };
     } catch (err) {
       console.error("[Printer] Failed to send dispatch label:", err);
+
       return {
         status: "failed",
         ok: false,
@@ -567,22 +601,25 @@ export const labelPrinterConnector: LabelPrinterConnector = {
   async printBatchLabelDetailed(params) {
     const zpl = this.generateBatchLabelZpl(params);
     const host = process.env.PRINTER_HOST;
-    const port = parseInt(process.env.PRINTER_PORT ?? "9100");
+    const port = parseInt(process.env.PRINTER_PORT ?? "9100", 10);
 
     if (!host) {
       const result = providerUnavailableResult<
         "provider_unconfigured" | "skipped_demo"
       >("Label printer", ["PRINTER_HOST"]);
+
       if (result.status === "skipped_demo") {
         console.log(
-          `[Printer DEMO SKIPPED] Batch label for ${params.productName}:\n${zpl}`
+          `[Printer DEMO SKIPPED] Batch label for ${params.productName}:\n${zpl}`,
         );
       }
+
       return { ...result, zpl };
     }
 
     try {
       const net = await import("net");
+
       await new Promise<void>((resolve, reject) => {
         const socket = net.createConnection(port, host, () => {
           socket.write(zpl, "utf8", () => {
@@ -590,15 +627,18 @@ export const labelPrinterConnector: LabelPrinterConnector = {
             resolve();
           });
         });
+
         socket.on("error", reject);
         socket.setTimeout(5000, () => {
           socket.destroy();
           reject(new Error("Printer timeout"));
         });
       });
+
       return { status: "printed", ok: true, zpl };
     } catch (err) {
       console.error("[Printer] Failed to send batch label:", err);
+
       return {
         status: "failed",
         ok: false,
@@ -660,11 +700,13 @@ export const erpConnector: ErpSyncConnector = {
       const result = providerUnavailableResult<
         "provider_unconfigured" | "skipped_demo"
       >("ERP", missing);
+
       if (result.status === "skipped_demo") {
         console.log(
-          `[ERP DEMO SKIPPED] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`
+          `[ERP DEMO SKIPPED] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`,
         );
       }
+
       return { ...result, erpRef: null };
     }
 
@@ -673,12 +715,26 @@ export const erpConnector: ErpSyncConnector = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": apiKey!,
+          "X-API-Key": apiKey,
           ...(companyId ? { "X-Company-ID": companyId } : {}),
         },
         body: JSON.stringify({ ingestionId, storeId, items }),
       });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[ERP] pushGrn error: ${res.status} ${text}`);
+
+        return {
+          erpRef: null,
+          status: "failed",
+          ok: false,
+          reason: `ERP GRN sync failed: ${res.status}`,
+        };
+      }
+
       const data = (await res.json()) as { ref?: string; status?: string };
+
       return {
         erpRef: data.ref ?? `GRN-${ingestionId}`,
         status: "synced",
@@ -687,6 +743,7 @@ export const erpConnector: ErpSyncConnector = {
       };
     } catch (err) {
       console.error("[ERP] pushGrn failed:", err);
+
       return {
         erpRef: null,
         status: "failed",
@@ -710,11 +767,13 @@ export const erpConnector: ErpSyncConnector = {
       const result = providerUnavailableResult<
         "provider_unconfigured" | "skipped_demo"
       >("ERP", missing);
+
       if (result.status === "skipped_demo") {
         console.log(
-          `[ERP DEMO SKIPPED] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`
+          `[ERP DEMO SKIPPED] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`,
         );
       }
+
       return { ...result, erpRef: null };
     }
 
@@ -723,12 +782,26 @@ export const erpConnector: ErpSyncConnector = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": apiKey!,
+          "X-API-Key": apiKey,
           ...(companyId ? { "X-Company-ID": companyId } : {}),
         },
         body: JSON.stringify({ orderId, storeId, totalAmount, items }),
       });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[ERP] pushSalesOrder error: ${res.status} ${text}`);
+
+        return {
+          erpRef: null,
+          status: "failed",
+          ok: false,
+          reason: `ERP sales order sync failed: ${res.status}`,
+        };
+      }
+
       const data = (await res.json()) as { ref?: string; status?: string };
+
       return {
         erpRef: data.ref ?? `SO-${orderId}`,
         status: "synced",
@@ -737,6 +810,7 @@ export const erpConnector: ErpSyncConnector = {
       };
     } catch (err) {
       console.error("[ERP] pushSalesOrder failed:", err);
+
       return {
         erpRef: null,
         status: "failed",
