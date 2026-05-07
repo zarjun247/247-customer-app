@@ -758,6 +758,28 @@ export const paymentRecords = mysqlTable("payment_records", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const refunds = mysqlTable("refunds", {
+  id: int("id").autoincrement().primaryKey(),
+  paymentId: int("paymentId").notNull(),
+  orderId: int("orderId"),
+  saleId: int("saleId"),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  providerRefundId: varchar("providerRefundId", { length: 100 }),
+  amountPaise: int("amountPaise").notNull(),
+  status: mysqlEnum("status", ["pending", "success", "failed", "cancelled"]).default("pending").notNull(),
+  reason: text("reason"),
+  creditNoteId: int("creditNoteId"),
+  initiatedBy: int("initiatedBy"),
+  failureReason: text("failureReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqProviderRefundId: uniqueIndex("refunds_provider_refund_id_uq").on(t.provider, t.providerRefundId),
+}));
+
+export type Refund = typeof refunds.$inferSelect;
+export type InsertRefund = typeof refunds.$inferInsert;
+
 // ─── SLA Events ───────────────────────────────────────────────────────────────
 export const slaEvents = mysqlTable("sla_events", {
   id: int("id").autoincrement().primaryKey(),
