@@ -10,7 +10,7 @@ import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
 import { syncStoreSkuAggregate } from "../services/reservationService";
-import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding } from "../services/supplierLedger";
+import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding, allocatePaymentToInvoice, allocateSupplierPayment, applyPurchaseReturnCredit, getSupplierAgeing, getSupplierReconciliationReport } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 
@@ -388,6 +388,7 @@ export const purchaseRouter = router({
       }
       await db.update(purchaseReturns).set({ status: "committed", committedAt: new Date(), approvedBy: ctx.user!.id }).where(eq(purchaseReturns.id, input.id));
       await db.update(purchaseInvoices).set({ status: "partially_returned" }).where(eq(purchaseInvoices.id, ret.purchaseInvoiceId));
+      await applyPurchaseReturnCredit(db, { supplierId: ret.supplierId, purchaseInvoiceId: ret.purchaseInvoiceId, purchaseReturnId: ret.id, storeId: ret.storeId, amount: Number(ret.totalAmount ?? 0), createdBy: ctx.user!.id }, ctx);
       await logAudit({ action: "purchase.return_committed", entityType: "purchase_return", entityId: input.id, beforeJson: { status: "draft" }, afterJson: { status: "committed" } }, ctx);
       return { success: true };
     }),
@@ -445,18 +446,47 @@ export const purchaseRouter = router({
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const result = await recordSupplierPayment(db, { supplierId: input.supplierId, storeId: input.storeId, purchaseInvoiceId: input.purchaseInvoiceId ?? null, amount: input.amount, paymentMode: input.paymentMode, referenceNo: input.referenceNo ?? null, voucherNo: input.voucherNo ?? null, bankRef: input.bankRef ?? null, paymentDate: input.paymentDate ?? new Date(), notes: input.notes ?? null, createdBy: ctx.user!.id }, ctx);
+      if (input.purchaseInvoiceId) {
+        await allocatePaymentToInvoice(db, { supplierPaymentId: result.id, purchaseInvoiceId: input.purchaseInvoiceId, amount: Number(input.amount), allocationType: "invoice_payment", allocatedBy: ctx.user!.id }, ctx);
+      }
       return { id: result.id };
     }),
 
+  allocatePayment: protectedProcedure
+    .input(z.object({ supplierPaymentId: z.number(), supplierId: z.number(), invoiceIds: z.array(z.number()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      requirePurchase(ctx.user!.role);
+      const db = await getDbSafe();
+      return allocateSupplierPayment(db, { supplierPaymentId: input.supplierPaymentId, supplierId: input.supplierId, invoiceIds: input.invoiceIds, createdBy: ctx.user!.id }, ctx);
+    }),
+
   supplierOutstanding: protectedProcedure
-    .input(z.object({ supplierId: z.number() }))
+    .input(z.object({ supplierId: z.number(), storeId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
-      const row = await getSupplierOutstanding(db, input.supplierId);
+      const row = await getSupplierOutstanding(db, input.supplierId, input.storeId);
       const rows = [row];
       return { rows, totals: { outstanding: row.outstanding }, csvData: `supplierId,outstanding\n${row.supplierId},${row.outstanding}` };
+    }),
+
+  ageing: protectedProcedure
+    .input(z.object({ supplierId: z.number().optional(), storeId: z.number().optional(), asOfDate: z.date().optional() }))
+    .query(async ({ ctx, input }) => {
+      requirePurchase(ctx.user!.role);
+      if (input.storeId !== undefined) requireStoreAccess(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      return getSupplierAgeing(db, input);
+    }),
+
+  reconciliation: protectedProcedure
+    .input(z.object({ supplierId: z.number().optional(), storeId: z.number().optional(), asOfDate: z.date().optional() }))
+    .query(async ({ ctx, input }) => {
+      requirePurchase(ctx.user!.role);
+      if (input.storeId !== undefined) requireStoreAccess(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      return getSupplierReconciliationReport(db, input);
     }),
 
   reports: router({

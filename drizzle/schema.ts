@@ -1161,6 +1161,7 @@ export const supplierPaymentAllocations = mysqlTable("supplier_payment_allocatio
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   allocationType: mysqlEnum("allocationType", ["invoice_payment", "advance_applied", "debit_note", "return_credit", "adjustment"]).notNull(),
   allocatedAt: timestamp("allocatedAt").defaultNow().notNull(),
+  allocatedBy: int("allocatedBy"),
   createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (t) => ({
