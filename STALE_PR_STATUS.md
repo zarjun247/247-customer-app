@@ -19,3 +19,5 @@
   - unknown: all others pending API/CLI verification
 
 - 2026-05-05 update: PR #44, #46, and #47 are stale/duplicate after merge of PR #48 and must not be merged directly.
+
+- 2026-05-07 update: PR #44, #46, and #47 are confirmed stale/duplicate after PR #48; #46/#47 are barcode duplicates and must not be merged directly. Use fresh branches from latest main for any salvageable changes.

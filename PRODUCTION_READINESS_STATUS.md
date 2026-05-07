@@ -1,8 +1,8 @@
 # PRODUCTION_READINESS_STATUS
 
 ## 1. Current score
-- Overall: 6.8 / 10
-- Last updated by: chore/production-baseline-audit
+- Overall: 7.1 / 10
+- Last updated by: feat/mega-01-auth-checkout-customer-safety
 - Next target after immediate 5 PRs: 8.0+
 
 ## 2. Phase checklist
@@ -162,7 +162,7 @@
 - worker route lock
 - storage proxy access control
 - production env fail-hard
-- OTP production logging/rate limits
+- OTP production logging/rate limits (partially hardened; database-backed limiter/provider validation still required for production)
 - GitHub CI missing or unproven
 - H1 register correctness
 - stock opening/transfer/reservation truth
@@ -282,3 +282,7 @@ production chain operations require store-scoped staff/admin access.
 
 
 - 2026-05-05: Auth/cart/checkout/onboarding/upload/dosage safety patch landed on feat/mega-01-auth-checkout-customer-safety; rerun full validation before production claim.
+
+## 5. 2026-05-07 customer safety update
+- Improved customer auth/session safety, server-side cart/SKU validation, checkout lock cleanup, onboarding store assignment authority, prescription upload validation, and dosage ownership regressions.
+- Remaining production risks: DB-backed integration tests for checkout failure compensation, durable OTP rate limiting/provider delivery in production, full file malware scanning, and broader store/role authorization matrix tests.

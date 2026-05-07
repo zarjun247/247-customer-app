@@ -19,5 +19,12 @@ describe('safety regressions',()=>{
   it('checkout has soft-lock release on failure path',()=>{
     const src=fs.readFileSync('server/routers.ts','utf8');
     expect(src).toContain('await releaseSoftLock(lockItems);');
+    expect(src).toContain('await releaseCartLock(ctx.user.id);');
+  });
+
+  it('validates missing prescription before soft-locking cart',()=>{
+    const src=fs.readFileSync('server/routers.ts','utf8');
+    expect(src.indexOf('if (!input.prescriptionId)')).toBeGreaterThan(-1);
+    expect(src.indexOf('await softLockCart(ctx.user.id);')).toBeGreaterThan(src.indexOf('if (!input.prescriptionId)'));
   });
 });

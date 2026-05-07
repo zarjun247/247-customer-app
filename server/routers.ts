@@ -6,7 +6,7 @@ import { protectedProcedure, publicProcedure, router, requireOrderOwnershipOrSta
 import { TRPCError } from "@trpc/server";
 import {
   getBuildings, getStoreById, getCatalog, getSkuById,
-  getCart, upsertCartItem, clearCart, softLockCart, applySoftLockToSkus, releaseSoftLock,
+  getCart, upsertCartItem, clearCart, softLockCart, releaseCartLock, applySoftLockToSkus, releaseSoftLock,
   createOrder, getOrdersByUser, getOrderById, getOrderItems, updateOrderStatus, updateOrderInvoice,
   createPrescription, getPrescriptionsByUser, getPrescriptionById,
   getRefillReminders, dismissRefillReminder, upsertRefillReminder,
@@ -149,12 +149,12 @@ const userRouter = router({
       userAddress: z.string().optional(),
       userLat: z.number().optional(),
       userLng: z.number().optional(),
-      // The serviceability check result — storeId resolved on frontend
-      assignedStoreId: z.number(),
+      // Frontend hint only; server resolves the authoritative store.
+      assignedStoreId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       // Validate: must have either buildingId or (userAddress + coordinates)
-      if (!input.buildingId && (!input.userAddress || !input.userLat || !input.userLng)) {
+      if (!input.buildingId && (!input.userAddress || input.userLat === undefined || input.userLng === undefined)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Either a building selection or a valid address with coordinates is required.",
@@ -167,7 +167,7 @@ const userRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Building not found" });
         }
       }
-      let resolvedStoreId = input.assignedStoreId;
+      let resolvedStoreId: number | undefined;
       if (input.buildingId) {
         const result = await resolveStore({ buildingId: input.buildingId });
         if (!result) throw new TRPCError({ code: "BAD_REQUEST", message: "No serviceable store found for building" });
@@ -176,6 +176,10 @@ const userRouter = router({
         const svc = await checkServiceability(input.userLat, input.userLng);
         if (!svc?.serviceable || !svc.storeId) throw new TRPCError({ code: "BAD_REQUEST", message: "Address not serviceable" });
         resolvedStoreId = svc.storeId;
+      }
+
+      if (!resolvedStoreId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No serviceable store found for address" });
       }
 
       await updateUserProfile(ctx.user.id, {
@@ -359,61 +363,62 @@ const orderRouter = router({
       await softLockCart(ctx.user.id);
       await applySoftLockToSkus(lockItems);
       try {
-      orderId = await createOrder({
-        userId: ctx.user.id,
-        storeId: user.assignedStoreId,
-        prescriptionId: input.prescriptionId,
-        subtotal: subtotal.toFixed(2),
-        total: total.toFixed(2),
-        promisedSlaMins: slaMins,
-        deliveryAddress: user.flatNumber ? `Flat ${user.flatNumber}` : undefined,
-        flatNumber: user.flatNumber ?? undefined,
-        buildingId: user.buildingId ?? undefined,
-        source: "app",
-        items: cartData.map(i => ({
-          productId: i.productId,
-          variantId: i.variantId ?? undefined,
-          storeSkuId: i.skuId,
-          quantity: i.quantity,
-          unitPrice: String(i.sellingPrice),
-          lineTotal: (parseFloat(String(i.sellingPrice)) * i.quantity).toFixed(2),
-        })),
-      });
+        orderId = await createOrder({
+          userId: ctx.user.id,
+          storeId: user.assignedStoreId,
+          prescriptionId: input.prescriptionId,
+          subtotal: subtotal.toFixed(2),
+          total: total.toFixed(2),
+          promisedSlaMins: slaMins,
+          deliveryAddress: user.flatNumber ? `Flat ${user.flatNumber}` : undefined,
+          flatNumber: user.flatNumber ?? undefined,
+          buildingId: user.buildingId ?? undefined,
+          source: "app",
+          items: cartData.map(i => ({
+            productId: i.productId,
+            variantId: i.variantId ?? undefined,
+            storeSkuId: i.skuId,
+            quantity: i.quantity,
+            unitPrice: String(i.sellingPrice),
+            lineTotal: (parseFloat(String(i.sellingPrice)) * i.quantity).toFixed(2),
+          })),
+        });
 
-      await updateOrderStatus(orderId!, initialStatus);
-      await clearCart(ctx.user.id);
+        await updateOrderStatus(orderId, initialStatus);
+        await clearCart(ctx.user.id);
+        await writeAuditLog(ctx.user.id, "order_created", "order", orderId, { source: "app" });
+
+        // Fire-and-forget: send order confirmation notification
+        const notifPayload = tplOrderReceived({
+          orderId,
+          customerName: user.name ?? "Customer",
+          itemCount: cartData.length,
+          totalAmount: total.toFixed(2),
+          storeName: store?.name ?? "24/7 Pharmacy",
+        });
+        alertNewOrder({
+          orderId,
+          storeName: store?.name ?? "24/7 Pharmacy",
+          totalAmount: total.toFixed(2),
+          itemCount: cartData.length,
+        }).catch(() => {}); // non-blocking ops alert
+        console.log(`[Notification] ${notifPayload.title}: ${notifPayload.content}`);
+
+        // Trigger refill reminder update for chronic meds
+        for (const item of cartData) {
+          if (item.isChronicMedication) {
+            // Compute avg interval from actual order history; fallback to 30 days
+            const avgIntervalDays = await computeRefillIntervalFromHistory(ctx.user.id, item.productId);
+            await upsertRefillReminder(ctx.user.id, item.productId, new Date(), avgIntervalDays);
+          }
+        }
+
+        return { orderId, status: initialStatus, promisedSlaMins: slaMins };
       } catch (error) {
         await releaseSoftLock(lockItems);
+        await releaseCartLock(ctx.user.id);
         throw error;
       }
-      await writeAuditLog(ctx.user.id, "order_created", "order", orderId, { source: "app" });
-
-      // Fire-and-forget: send order confirmation notification
-      const notifPayload = tplOrderReceived({
-        orderId,
-        customerName: user.name ?? "Customer",
-        itemCount: cartData.length,
-        totalAmount: total.toFixed(2),
-        storeName: store?.name ?? "24/7 Pharmacy",
-      });
-      alertNewOrder({
-        orderId,
-        storeName: store?.name ?? "24/7 Pharmacy",
-        totalAmount: total.toFixed(2),
-        itemCount: cartData.length,
-      }).catch(() => {}); // non-blocking ops alert
-      console.log(`[Notification] ${notifPayload.title}: ${notifPayload.content}`);
-
-      // Trigger refill reminder update for chronic meds
-      for (const item of cartData) {
-        if (item.isChronicMedication) {
-          // Compute avg interval from actual order history; fallback to 30 days
-          const avgIntervalDays = await computeRefillIntervalFromHistory(ctx.user.id, item.productId);
-          await upsertRefillReminder(ctx.user.id, item.productId, new Date(), avgIntervalDays);
-        }
-      }
-
-      return { orderId: orderId!, status: initialStatus, promisedSlaMins: slaMins };
     }),
 
   list: protectedProcedure.query(async ({ ctx }) => getOrdersByUser(ctx.user.id)),
