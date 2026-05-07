@@ -178,13 +178,20 @@ export interface PaymentGatewayConnector {
   }): Promise<{ refundId: string; status: string }>;
 }
 
+function isExplicitPaymentDemoMode(): boolean {
+  const mode = String(process.env.PAYMENT_PROVIDER_MODE ?? process.env.LOCAL_DEMO_MODE ?? "").trim().toLowerCase();
+  return ["1", "true", "yes", "on", "demo", "local", "test"].includes(mode)
+    || String(process.env.NODE_ENV ?? "").toLowerCase() === "test";
+}
+
 /**
  * Razorpay payment connector — real SDK integration.
  * Required env vars:
  *   RAZORPAY_KEY_ID     — Razorpay API key ID
  *   RAZORPAY_KEY_SECRET — Razorpay API key secret
  *
- * Falls back to stub when credentials are absent.
+ * Credentials are required for real gateway calls. Explicit demo/test mode may
+ * return skipped placeholders, but production/unconfigured paths fail closed.
  */
 export const paymentConnector: PaymentGatewayConnector = {
   async createOrder({ amount, currency, receipt, notes }) {
@@ -192,12 +199,15 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.log(`[Payment STUB] Create order: ₹${amount / 100} | Receipt: ${receipt}`);
-      return {
-        gatewayOrderId: `stub_order_${Date.now()}`,
-        amount,
-        currency,
-      };
+      if (isExplicitPaymentDemoMode()) {
+        console.log(`[Payment DEMO_SKIPPED] Create order skipped: ₹${amount / 100} | Receipt: ${receipt}`);
+        return {
+          gatewayOrderId: `demo_order_skipped_${Date.now()}`,
+          amount,
+          currency,
+        };
+      }
+      throw new Error("Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing");
     }
 
     try {
@@ -223,12 +233,9 @@ export const paymentConnector: PaymentGatewayConnector = {
 
   async verifyPayment({ gatewayOrderId, gatewayPaymentId, signature }) {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    const localDemoMode = ["1", "true", "yes"].includes(String(process.env.LOCAL_DEMO_MODE ?? "").toLowerCase())
-      || ["development", "test"].includes(String(process.env.NODE_ENV ?? "").toLowerCase());
-
     if (!keySecret) {
-      if (localDemoMode) return false;
-      throw new Error("Payment verification unavailable: RAZORPAY_KEY_SECRET missing");
+      if (isExplicitPaymentDemoMode()) return false;
+      throw new Error("Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing");
     }
 
     // Razorpay HMAC-SHA256 signature verification
@@ -245,8 +252,11 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.log(`[Payment STUB] Refund: ${gatewayPaymentId} | Amount: ${amount ?? "full"}`);
-      return { refundId: `stub_refund_${Date.now()}`, status: "processed" };
+      if (isExplicitPaymentDemoMode()) {
+        console.log(`[Payment DEMO_SKIPPED] Refund skipped: ${gatewayPaymentId} | Amount: ${amount ?? "full"}`);
+        return { refundId: `demo_refund_skipped_${Date.now()}`, status: "demo_skipped" };
+      }
+      throw new Error("Payment refund unavailable: provider_unconfigured");
     }
 
     try {

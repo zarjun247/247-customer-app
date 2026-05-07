@@ -13,7 +13,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { logAudit } from "../services/audit";
-import { createGatewayOrder, verifyGatewayPaymentSignature, markPaymentCaptured, markPaymentFailed, getPaymentByGatewayOrder } from "../services/paymentGateway";
+import { createGatewayOrder, verifyGatewayPayment, markPaymentCaptured, markPaymentFailed, getPaymentByGatewayOrder } from "../services/paymentGateway";
 import {
   getPaymentByOrderId,
   createSlaEvent,
@@ -80,8 +80,12 @@ export const paymentRouter = router({
       const idemKey = buildIdempotencyKey(["payment","verify",input.gatewayOrderId,input.gatewayPaymentId]);
       return withIdempotency({ key: idemKey, scope: "payment.verify", operationType: "payment_verify", actorId: ctx.user.id, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint(input), ctx }, async () => {
       await logAudit({ action: "payment.verify_attempted", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
-      const isValid = await verifyGatewayPaymentSignature({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
-      if (!isValid) { await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx); throw new TRPCError({ code: "BAD_REQUEST", message: "Payment signature verification failed" }); }
+      const verification = await verifyGatewayPayment({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
+      if (!verification.verified || !verification.realGatewayVerification) {
+        await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId, status: verification.status, reason: verification.reason } }, ctx);
+        const code = verification.status === "provider_unconfigured" ? "PRECONDITION_FAILED" : "BAD_REQUEST";
+        throw new TRPCError({ code, message: verification.reason ?? "Payment signature verification failed" });
+      }
 
       // Get the payment record
       const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
