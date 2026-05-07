@@ -1,14 +1,14 @@
 # PRODUCTION_READINESS_STATUS
 
 ## 1. Current score
-- Overall: 7.1 / 10
-- Last updated by: feat/mega-01-auth-checkout-customer-safety
+- Overall: 7.4 / 10
+- Last updated by: feat/mega-02-stock-reservation-truth
 - Next target after immediate 5 PRs: 8.0+
 
 ## 2. Phase checklist
 ### Phase 0
 - status: partial
-- current score /10: 6.8
+- current score /10: 7.2
 - owner branch/PR: chore/production-baseline-audit
 - blockers: security/CI/store-scope/idempotency/payment/migration proof pending
 - acceptance criteria: phase-specific production hardening complete and validated
@@ -286,3 +286,27 @@ production chain operations require store-scoped staff/admin access.
 ## 5. 2026-05-07 customer safety update
 - Improved customer auth/session safety, server-side cart/SKU validation, checkout lock cleanup, onboarding store assignment authority, prescription upload validation, and dosage ownership regressions.
 - Remaining production risks: DB-backed integration tests for checkout failure compensation, durable OTP rate limiting/provider delivery in production, full file malware scanning, and broader store/role authorization matrix tests.
+
+
+## Mega 02 stock reservation truth update (2026-05-07)
+
+### Fixed items
+- Canonical stock aggregation now derives product-store SKU stock from active batch ledger rows instead of per-movement overwrite behavior.
+- Purchase returns preserve multi-batch truth and block over-return against canonical batch availability.
+- Durable `stock_reservations` lifecycle now persists active/released/expired/consumed/cancelled rows and subtracts active reservations from availability.
+- Checkout keeps PR #49 soft-lock safety but reconciles temporary SKU locks into durable reservations after order creation, with failure cleanup.
+- App catalog/cart validation, POS batch availability, barcode lookup, and current-stock reporting now use canonical availability inputs.
+
+### Remaining risks
+- P0: none newly introduced in this pass.
+- P1: real MySQL concurrent reservation integration/load test remains required before claiming oversell-proof durability under high contention.
+- P1: payment/Rx/cancel release helper callers need a full order-state-machine audit to ensure every production edge calls the persisted release path.
+- P2: command-center and older admin dashboard read models still display aggregate `storeSkus.stockQty`; they should eventually show canonical availability breakdowns.
+
+### Deferred items and reason
+- H1/payment/accounting/UI/barcode UX redesign intentionally deferred because it was outside Mega 02 scope.
+- Full stock schema normalization intentionally deferred; this pass changed only reservation durability and aggregate sync/read paths needed for canonical availability.
+
+### New score estimate
+- Overall readiness: 7.4 / 10.
+- Stock/reservation truth readiness: 8.1 / 10.

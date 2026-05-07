@@ -51,3 +51,21 @@
 - Transfer atomicity hardening preserved (single transaction for source/destination + movement rows).
 - Remaining gaps: deeper commercial integration tests; return/cancel/refund end-to-end proof; purchase/sale/report integration proof; broader direct qty update audit follow-up.
 - Next prompt: `test/commercial-flow-integration`.
+
+## Mega 02 stock reservation truth update (2026-05-07)
+
+### Fixed items
+- `storeSkus.stockQty` is now synchronized through `syncStoreSkuAggregate`, which sums active `batchLedger.qtyOnHand` for the product/store/variant and no longer copies a single purchase movement `qtyAfter` into the product-store read model.
+- Purchase returns now resolve the canonical `batchLedger` row for the returned legacy batch, block returns that exceed canonical batch availability, apply the invariant purchase-return movement to the ledger row, and resync the aggregate SKU read model.
+- `stock_reservations` is now a durable reservation ledger with explicit `active`, `released`, `expired`, `consumed`, and `cancelled` statuses plus product/store/variant/SKU/order/cart identity and release reason fields.
+- Canonical availability now subtracts active unexpired reservations, batch reserved quantity, soft locks, quarantine, and expired quantities.
+- Barcode lookup, POS batch availability, app catalog/SKU reads, cart validation, checkout, and inventory current-stock reporting now read from canonical availability inputs or the canonical aggregate read model where feasible.
+- The production `syncStoreSkuSoftLocks` deferred stub was replaced with a real reconciliation operation that clears temporary SKU soft locks after durable reservations become canonical.
+
+### Remaining risks / deferred items
+- Concurrency protection still relies on database isolation around the check/insert reservation sequence; a future DB integration test should prove row/gap-lock behavior under real MySQL load.
+- Some command-center and legacy pharmacy/admin dashboards still use `storeSkus.stockQty` as a read-model signal; because it is now aggregate-synced this is acceptable for triage dashboards, but not a final source for sale/checkout decisions.
+- Legacy `batches.quantity` remains synchronized per batch for compatibility only; `batchLedger` plus `stock_reservations` is the canonical truth.
+
+### New score estimate
+- Stock truth / reservation readiness: 8.1 / 10.

@@ -9,6 +9,7 @@ import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
+import { syncStoreSkuAggregate } from "../services/reservationService";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
@@ -255,7 +256,7 @@ export const purchaseRouter = router({
       requirePurchase(ctx.user!.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
-      const { purchaseInvoices, purchaseLines, batchLedger, batches, storeSkus } = await import("../../drizzle/schema");
+      const { purchaseInvoices, purchaseLines, batchLedger, batches } = await import("../../drizzle/schema");
       const idemKey = buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]);
       return withIdempotency({
         key: idemKey,
@@ -304,8 +305,7 @@ export const purchaseRouter = router({
         await db.update(purchaseLines).set({ batchId }).where(eq(purchaseLines.id, line.id));
         const movement = await increaseStockForPurchaseCommit({ batchId: ledgerId, storeId: inv.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: inv.id, reason: `Purchase commit ${inv.invoiceNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: line.productId });
         await db.update(batches).set({ quantity: movement.qtyAfter }).where(eq(batches.id, batchId));
-        const [sku] = await db.select().from(storeSkus).where(and(eq(storeSkus.productId, line.productId), eq(storeSkus.storeId, inv.storeId))).limit(1);
-        if (sku) await db.update(storeSkus).set({ stockQty: movement.qtyAfter }).where(eq(storeSkus.id, sku.id));
+        await syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null });
         const rateKey = `${gr}%`;
         if (!gstSummary[rateKey]) gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
         gstSummary[rateKey].taxable += taxableAmount;
@@ -369,7 +369,7 @@ export const purchaseRouter = router({
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user!.role);
       const db = await getDbSafe();
-      const { purchaseReturns, purchaseReturnLines, batchLedger, batches, storeSkus, purchaseInvoices } = await import("../../drizzle/schema");
+      const { purchaseReturns, purchaseReturnLines, batchLedger, batches, purchaseInvoices } = await import("../../drizzle/schema");
       const [ret] = await db.select().from(purchaseReturns).where(eq(purchaseReturns.id, input.id));
       if (!ret || ret.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Return not in draft state" });
       const lines = await db.select().from(purchaseReturnLines).where(eq(purchaseReturnLines.purchaseReturnId, input.id));
@@ -377,14 +377,13 @@ export const purchaseRouter = router({
       for (const line of lines) {
         const [b] = await db.select().from(batches).where(eq(batches.id, line.batchId)).limit(1);
         if (b) {
-          if ((b.quantity ?? 0) < line.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient stock in batch ${b.batchNumber}` });
-          const movement = await decreaseStockForPurchaseReturn({ batchId: b.id, storeId: ret.storeId, qtyDelta: line.qty, referenceType: "purchase_return", referenceId: ret.id, reason: line.reason ?? `Purchase return ${ret.id}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: b.productId });
-          const [bl] = await db.select().from(batchLedger).where(eq(batchLedger.id, line.batchId)).limit(1);
-          if (bl) await db.update(batchLedger).set({ qtyOnHand: movement.qtyAfter }).where(eq(batchLedger.id, bl.id));
-          const newQty = movement.qtyAfter;
-          await db.update(batches).set({ quantity: newQty }).where(eq(batches.id, b.id));
-          const [sku] = await db.select().from(storeSkus).where(eq(storeSkus.productId, b.productId)).limit(1);
-          if (sku) await db.update(storeSkus).set({ stockQty: Math.max(0, (sku.stockQty ?? 0) - line.qty) }).where(eq(storeSkus.id, sku.id));
+          const [ledger] = await db.select().from(batchLedger).where(and(eq(batchLedger.batchNo, b.batchNumber), eq(batchLedger.storeId, ret.storeId), eq(batchLedger.productId, b.productId))).limit(1);
+          if (!ledger) throw new TRPCError({ code: "NOT_FOUND", message: `Canonical ledger missing for batch ${b.batchNumber}` });
+          const canonicalBatchAvailable = (ledger.qtyOnHand ?? 0) - (ledger.qtyReserved ?? 0) - (ledger.qtyQuarantined ?? 0) - (ledger.qtyExpired ?? 0);
+          if (canonicalBatchAvailable < line.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient canonical stock in batch ${b.batchNumber}` });
+          const movement = await decreaseStockForPurchaseReturn({ batchId: ledger.id, storeId: ret.storeId, qtyDelta: line.qty, referenceType: "purchase_return", referenceId: ret.id, reason: line.reason ?? `Purchase return ${ret.id}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: b.productId });
+          await db.update(batches).set({ quantity: movement.qtyAfter }).where(eq(batches.id, b.id));
+          await syncStoreSkuAggregate({ storeId: ret.storeId, productId: b.productId, variantId: b.variantId ?? null });
         }
       }
       await db.update(purchaseReturns).set({ status: "committed", committedAt: new Date(), approvedBy: ctx.user!.id }).where(eq(purchaseReturns.id, input.id));
