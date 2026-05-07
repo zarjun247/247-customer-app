@@ -2,7 +2,8 @@ import { and, asc, eq, or, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
-import { batchLedger, labelPrintJobs, products, productBarcodes, barcodeAliases, storeSkus } from "../../drizzle/schema";
+import { batchLedger, labelPrintJobs, products, productBarcodes, barcodeAliases } from "../../drizzle/schema";
+import { getCanonicalAvailability } from "./reservationService";
 
 export function normalizeBarcodeInput(value: string) { return value.trim().replace(/\s+/g, "").toUpperCase(); }
 export function generateInternalBarcode(seed: { productId: number; batchId?: number; storeId?: number }) {
@@ -28,11 +29,16 @@ export async function resolveBarcode(barcodeInput: string, storeId?: number) {
   const barcode = normalizeBarcodeInput(barcodeInput);
   const [alias] = await db.select().from(barcodeAliases).where(and(eq(barcodeAliases.barcode, barcode), eq(barcodeAliases.isActive, true))).limit(1);
   const productId = alias?.productId ?? null;
-  const q = db.select({ productId: products.id, name: products.name, requiresPrescription: products.requiresPrescription, schedule: products.schedule, batchId: batchLedger.id, batchNo: batchLedger.batchNo, expiryDate: batchLedger.expiryDate, mrp: batchLedger.mrp, availableQty: sql<number>`${batchLedger.qtyOnHand} - ${batchLedger.qtyReserved}` })
+  const q = db.select({ productId: products.id, name: products.name, requiresPrescription: products.requiresPrescription, schedule: products.schedule, batchId: batchLedger.id, batchNo: batchLedger.batchNo, expiryDate: batchLedger.expiryDate, mrp: batchLedger.mrp, batchAvailableQty: sql<number>`${batchLedger.qtyOnHand} - ${batchLedger.qtyReserved} - ${batchLedger.qtyQuarantined} - ${batchLedger.qtyExpired}` })
   .from(products).leftJoin(batchLedger, eq(batchLedger.productId, products.id))
   .where(productId ? eq(products.id, productId) : or(eq(products.barcode, barcode), eq(batchLedger.internalBarcode, barcode), eq(batchLedger.manufacturerBarcode, barcode))!);
   const rows = await q;
-  return { barcode, rows };
+  const canonicalRows = await Promise.all(rows.map(async (row) => {
+    if (!storeId || !row.productId) return { ...row, availableQty: Math.max(0, Number(row.batchAvailableQty ?? 0)) };
+    const availability = await getCanonicalAvailability(storeId, row.productId, null);
+    return { ...row, availableQty: availability.availableQty, canonicalAvailability: availability };
+  }));
+  return { barcode, rows: canonicalRows };
 }
 export const resolveBarcodeForSale = resolveBarcode;
 export const resolveBarcodeForReturn = resolveBarcode;

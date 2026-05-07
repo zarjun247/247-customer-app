@@ -141,7 +141,7 @@ export const salesRouter = router({
             isExpired,
             isCritical,
             isQuarantineCandidate,
-            availableQty: (b.qtyOnHand ?? 0) - (b.qtyReserved ?? 0),
+            availableQty: (b.qtyOnHand ?? 0) - (b.qtyReserved ?? 0) - (b.qtyQuarantined ?? 0) - (b.qtyExpired ?? 0),
           };
         }),
       };

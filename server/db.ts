@@ -2,6 +2,7 @@ import { and, desc, eq, gt, gte, ilike, like, lt, lte, or, sql } from "drizzle-o
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   auditLogs,
+  batchLedger,
   batches,
   buildings,
   cartItems,
@@ -15,6 +16,7 @@ import {
   refillReminders,
   rxPriorApprovals,
   doctorConsultRequests,
+  stockReservations,
   storeSkus,
   stores,
   users,
@@ -157,6 +159,10 @@ export async function getStoreById(id: number) {
   return r[0];
 }
 
+function canonicalAvailabilitySql() {
+  return sql<number>`COALESCE((SELECT SUM(bl.qtyOnHand - bl.qtyReserved - bl.qtyQuarantined - bl.qtyExpired) FROM ${batchLedger} bl WHERE bl.productId = ${storeSkus.productId} AND bl.storeId = ${storeSkus.storeId} AND ((${storeSkus.variantId} IS NULL AND bl.variantId IS NULL) OR bl.variantId = ${storeSkus.variantId}) AND bl.status = 'active'), ${storeSkus.stockQty}) - COALESCE((SELECT SUM(COALESCE(sr.qty, sr.qtyReserved)) FROM ${stockReservations} sr WHERE sr.productId = ${storeSkus.productId} AND sr.storeId = ${storeSkus.storeId} AND ((${storeSkus.variantId} IS NULL AND sr.variantId IS NULL) OR sr.variantId = ${storeSkus.variantId}) AND sr.status = 'active' AND (sr.expiresAt IS NULL OR sr.expiresAt > NOW())), 0) - ${storeSkus.softLockedQty}`;
+}
+
 // ─── Products / Catalog ───────────────────────────────────────────────────────
 export async function getCatalog(
   storeId: number,
@@ -211,7 +217,7 @@ export async function getCatalog(
     sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty,
     softLockedQty: storeSkus.softLockedQty,
-    availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
+    availableQty: canonicalAvailabilitySql(),
   }).from(storeSkus)
     .innerJoin(products, eq(storeSkus.productId, products.id))
     .leftJoin(productVariants, eq(storeSkus.variantId, productVariants.id))
@@ -240,7 +246,7 @@ export async function getSkuById(skuId: number) {
     gstRate: products.gstRate,
     mrp: storeSkus.mrp, sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty,
-    availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
+    availableQty: canonicalAvailabilitySql(),
     storeId: storeSkus.storeId,
     isActive: storeSkus.isActive,
   }).from(storeSkus).innerJoin(products, eq(storeSkus.productId, products.id))
@@ -535,7 +541,7 @@ export async function getSponsoredShelf(storeId: number, limit = 8) {
     sellingPrice: storeSkus.sellingPrice,
     stockQty: storeSkus.stockQty,
     softLockedQty: storeSkus.softLockedQty,
-    availableQty: sql<number>`${storeSkus.stockQty} - ${storeSkus.softLockedQty}`,
+    availableQty: canonicalAvailabilitySql(),
     isFeatured: storeSkus.isFeatured,
     sponsorPriority: storeSkus.sponsorPriority,
     sponsorCategory: storeSkus.sponsorCategory,

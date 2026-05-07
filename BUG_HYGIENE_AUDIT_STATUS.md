@@ -30,3 +30,24 @@ Branch: feat/mega-01-auth-checkout-customer-safety
 - Onboarding treats frontend `assignedStoreId` as a hint only and persists the server-resolved store from building routing or address serviceability.
 - Prescription upload enforces max size, MIME allowlist, server-generated key extension, and magic-byte checks for JPEG/PNG/PDF.
 - Dosage APIs are covered by guessed schedule ID ownership rejection tests.
+
+## Mega 02 stock reservation truth pass (2026-05-07)
+
+### Fixed items
+- Purchase commit no longer overwrites `storeSkus.stockQty` with a single batch movement quantity; the aggregate sync helper recalculates product-store stock from active canonical batch ledger rows.
+- Purchase return now prevents split truth by using the same aggregate sync helper after an invariant ledger movement and by blocking returns beyond canonical batch availability.
+- Durable reservation lifecycle implemented for active/released/expired/consumed/cancelled states and wired into app checkout after PR #49 soft-lock safety.
+- Availability reads for catalog/cart, POS batch selection, barcode lookup, and current-stock report now account for active reservations plus quarantine/expiry deductions.
+- Removed the production "Deferred to stock-truth hardening" reservation stub.
+
+### Remaining risks
+- Real concurrent-reservation DB integration coverage remains a P1 gap even though canonical availability subtracts active persisted reservations.
+- Broader legacy dashboard/report consumers should continue migrating from `storeSkus.stockQty` presentation reads to canonical availability objects.
+- Payment/Rx/cancel release helpers now persist release statuses, but all external lifecycle callers should be audited in the next order-state-machine pass.
+
+### Deferred with reason
+- No H1/payment/accounting/UI/barcode UX redesign was attempted; this pass only touched barcode availability reads as required.
+- No large stock schema normalization was attempted beyond the reservation-ledger migration to keep blast radius focused.
+
+### New score estimate
+- Bug hygiene / stock truth area: 8.0 / 10.

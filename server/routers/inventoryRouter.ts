@@ -84,7 +84,7 @@ const batchRouter = router({
       assertInventoryRole(ctx.user.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
-      const { batchLedger, products, stores } = await schema();
+      const { batchLedger, stockReservations, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
       const conds: ReturnType<typeof eq>[] = [];
       if (input.storeId) conds.push(eq(batchLedger.storeId, input.storeId));
@@ -288,7 +288,7 @@ const stockRouter = router({
       assertInventoryRole(ctx.user.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
-      const { batchLedger, products, stores } = await schema();
+      const { batchLedger, stockReservations, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
       const conds = [eq(batchLedger.status, "active")];
       if (input.storeId) conds.push(eq(batchLedger.storeId, input.storeId));
@@ -300,9 +300,9 @@ const stockRouter = router({
           productName: products.name,
           storeName: stores.name,
           totalOnHand: sql<number>`SUM(${batchLedger.qtyOnHand})`,
-          totalReserved: sql<number>`SUM(${batchLedger.qtyReserved})`,
+          totalReserved: sql<number>`SUM(${batchLedger.qtyReserved}) + COALESCE((SELECT SUM(COALESCE(sr.qty, sr.qtyReserved)) FROM ${stockReservations} sr WHERE sr.productId = ${batchLedger.productId} AND sr.storeId = ${batchLedger.storeId} AND sr.status = 'active' AND (sr.expiresAt IS NULL OR sr.expiresAt > NOW())), 0)`,
           totalQuarantined: sql<number>`SUM(${batchLedger.qtyQuarantined})`,
-          availableQty: sql<number>`SUM(${batchLedger.qtyOnHand}) - SUM(${batchLedger.qtyReserved})`,
+          availableQty: sql<number>`SUM(${batchLedger.qtyOnHand}) - SUM(${batchLedger.qtyReserved}) - SUM(${batchLedger.qtyQuarantined}) - SUM(${batchLedger.qtyExpired}) - COALESCE((SELECT SUM(COALESCE(sr.qty, sr.qtyReserved)) FROM ${stockReservations} sr WHERE sr.productId = ${batchLedger.productId} AND sr.storeId = ${batchLedger.storeId} AND sr.status = 'active' AND (sr.expiresAt IS NULL OR sr.expiresAt > NOW())), 0)`,
           batchCount: sql<number>`COUNT(*)`,
           earliestExpiry: sql<string>`MIN(${batchLedger.expiryDate})`,
           latestMrp: sql<string>`MAX(${batchLedger.mrp})`,

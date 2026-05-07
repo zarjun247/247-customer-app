@@ -23,6 +23,7 @@ import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { redactSensitive } from "./_core/redact";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
+import { reserveStockForOrder, releaseReservationOnOrderCancel } from "./services/reservationService";
 import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
 import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
 import { ingestionRouter } from "./routers/ingestionRouter";
@@ -384,6 +385,20 @@ const orderRouter = router({
           })),
         });
 
+        await releaseSoftLock(lockItems);
+        await releaseCartLock(ctx.user.id);
+        for (const item of cartData) {
+          await reserveStockForOrder({
+            orderId,
+            storeId: user.assignedStoreId,
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            skuId: item.skuId,
+            qty: item.quantity,
+            ctx,
+          });
+        }
+
         await updateOrderStatus(orderId, initialStatus);
         await clearCart(ctx.user.id);
         await writeAuditLog(ctx.user.id, "order_created", "order", orderId, { source: "app" });
@@ -415,6 +430,7 @@ const orderRouter = router({
 
         return { orderId, status: initialStatus, promisedSlaMins: slaMins };
       } catch (error) {
+        if (orderId) await releaseReservationOnOrderCancel({ orderId, ctx, releaseReason: "checkout_failed" });
         await releaseSoftLock(lockItems);
         await releaseCartLock(ctx.user.id);
         throw error;
