@@ -184,7 +184,8 @@ export interface PaymentGatewayConnector {
  *   RAZORPAY_KEY_ID     — Razorpay API key ID
  *   RAZORPAY_KEY_SECRET — Razorpay API key secret
  *
- * Falls back to stub when credentials are absent.
+ * Fails closed when credentials are absent; demo/local callers must not treat
+ * skipped provider work as a real gateway success.
  */
 export const paymentConnector: PaymentGatewayConnector = {
   async createOrder({ amount, currency, receipt, notes }) {
@@ -192,12 +193,7 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.log(`[Payment STUB] Create order: ₹${amount / 100} | Receipt: ${receipt}`);
-      return {
-        gatewayOrderId: `stub_order_${Date.now()}`,
-        amount,
-        currency,
-      };
+      throw new Error("Payment provider not configured: Razorpay credentials missing");
     }
 
     try {
@@ -245,8 +241,7 @@ export const paymentConnector: PaymentGatewayConnector = {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
-      console.log(`[Payment STUB] Refund: ${gatewayPaymentId} | Amount: ${amount ?? "full"}`);
-      return { refundId: `stub_refund_${Date.now()}`, status: "processed" };
+      throw new Error("Payment refund unavailable: Razorpay credentials missing");
     }
 
     try {
