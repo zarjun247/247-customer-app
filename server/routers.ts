@@ -48,6 +48,7 @@ import { createNotification, getCustomerNotifications, getNotificationPreference
 import { createReorderPrompt } from "./services/refillReminderService";
 import { createDosageSchedule, getTodayDosePlan, recordDoseTaken, recordDoseSkipped, getAdherenceSummary, estimateMedicationRemaining, estimateRunoutDate } from "./services/dosageTracking";
 import { createOrderRating, updateOrderRating, getOrderRating, __markOrderDeliveredForTest } from "./services/orderRating";
+import { assertPrescriptionUsableForCustomer, logPrescriptionVaultAccess } from "./services/prescriptionVault";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const otpRateLimit = new Map<string, { count: number; ts: number }>();
@@ -530,6 +531,16 @@ const prescriptionRouter = router({
     .input(z.object({
       imageBase64: z.string(),
       mimeType: z.string().default("image/jpeg"),
+      metadata: z.object({
+        doctorName: z.string().max(200).optional(),
+        doctorRegNo: z.string().max(100).optional(),
+        clinicName: z.string().max(200).optional(),
+        prescriptionDate: z.string().datetime().optional(),
+        validUntil: z.string().datetime().optional(),
+        patientName: z.string().max(300).optional(),
+        linkedProductIds: z.array(z.number().int().positive()).max(50).optional(),
+        source: z.enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"]).optional(),
+      }).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
@@ -541,8 +552,21 @@ const prescriptionRouter = router({
       if (!rule.magic.every((b,i)=>buffer[i]===b)) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid file signature" });
       const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
-      const rxId = await createPrescription(ctx.user.id, user?.assignedStoreId ?? undefined, url, key);
-      await writeAuditLog(ctx.user.id, "prescription_uploaded", "prescription", rxId);
+      const rxId = await createPrescription(ctx.user.id, user?.assignedStoreId ?? undefined, url, key, input.metadata ? {
+        doctorName: input.metadata.doctorName,
+        doctorRegNo: input.metadata.doctorRegNo,
+        clinicName: input.metadata.clinicName,
+        prescriptionDate: input.metadata.prescriptionDate ? new Date(input.metadata.prescriptionDate) : undefined,
+        validUntil: input.metadata.validUntil ? new Date(input.metadata.validUntil) : undefined,
+        patientName: input.metadata.patientName,
+        linkedProductIds: input.metadata.linkedProductIds,
+        source: input.metadata.source ?? "upload",
+      } : { source: "upload" });
+      await writeAuditLog(ctx.user.id, "prescription_uploaded", "prescription", rxId, undefined, {
+        actorRole: ctx.user.role,
+        afterJson: { metadataSupplied: Boolean(input.metadata), source: input.metadata?.source ?? "upload" },
+        channel: "app",
+      });
       return { prescriptionId: rxId, imageUrl: url };
     }),
   list: protectedProcedure.query(async ({ ctx }) => getPrescriptionsByUser(ctx.user.id)),
@@ -551,20 +575,57 @@ const prescriptionRouter = router({
     .query(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
       if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
-      await writeAuditLog(ctx.user.id, "prescription_viewed", "prescription", input.id, undefined, { channel: "app" });
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (db) {
+        await logPrescriptionVaultAccess(db, {
+          actorId: ctx.user.id,
+          actorRole: ctx.user.role ?? "customer",
+          prescriptionId: input.id,
+          purpose: "customer_detail_view",
+          channel: "app",
+          accessType: "view",
+        });
+      }
+      await writeAuditLog(ctx.user.id, "prescription_viewed", "prescription", input.id, undefined, { channel: "app", actorRole: ctx.user.role });
       return rx;
     }),
   /** Prescription vault — approved + on-file prescriptions */
-  vault: protectedProcedure.query(async ({ ctx }) => getPrescriptionVault(ctx.user.id)),
+  vault: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await getPrescriptionVault(ctx.user.id);
+    const { getDb } = await import("./db");
+    const db = await getDb();
+    if (db) {
+      await Promise.all(rows.map((rx: any) => logPrescriptionVaultAccess(db, {
+        actorId: ctx.user.id,
+        actorRole: ctx.user.role ?? "customer",
+        prescriptionId: rx.id,
+        purpose: "customer_vault_list",
+        channel: "app",
+        accessType: "view",
+      })));
+    }
+    return rows;
+  }),
   /** Mark an approved prescription as permanently on-file */
   markOnFile: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({
+      id: z.number(),
+      consentGiven: z.literal(true),
+      consentSource: z.enum(["app", "whatsapp", "pharmacist", "doctor", "manual"]).default("app"),
+    }))
     .mutation(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
       if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
       if (rx.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "Only approved prescriptions can be stored on file" });
-      await markPrescriptionOnFile(input.id, ctx.user.id);
-      await writeAuditLog(ctx.user.id, "prescription_marked_on_file", "prescription", input.id);
+      await markPrescriptionOnFile(input.id, ctx.user.id, { actorId: ctx.user.id, actorRole: ctx.user.role ?? "customer", consentSource: input.consentSource });
+      const updated = await getPrescriptionById(input.id);
+      const usable = assertPrescriptionUsableForCustomer(updated as any, ctx.user.id);
+      await writeAuditLog(ctx.user.id, "prescription_marked_on_file", "prescription", input.id, undefined, {
+        actorRole: ctx.user.role,
+        afterJson: { consentGiven: true, consentSource: input.consentSource, usable },
+        channel: input.consentSource,
+      });
       return { success: true };
     }),
   /** Active prior approvals for the current user */
