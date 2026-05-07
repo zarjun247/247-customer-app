@@ -1189,17 +1189,26 @@ export const tallyExportRuns = mysqlTable("tally_export_runs", {
   id: int("id").autoincrement().primaryKey(),
   storeId: int("storeId"),
   exportType: varchar("exportType", { length: 64 }).notNull(),
+  periodStart: timestamp("periodStart"),
+  periodEnd: timestamp("periodEnd"),
+  // Legacy aliases retained for callers/migrations created before export proof hardening.
   dateFrom: timestamp("dateFrom"),
   dateTo: timestamp("dateTo"),
   filtersJson: json("filtersJson"),
   rowCount: int("rowCount").default(0).notNull(),
   checksum: varchar("checksum", { length: 128 }).notNull(),
-  status: mysqlEnum("status", ["generated", "failed", "reexported"]).default("generated").notNull(),
+  duplicateKey: varchar("duplicateKey", { length: 192 }).notNull(),
+  status: mysqlEnum("status", ["pending", "generated", "exported", "failed", "cancelled"]).default("generated").notNull(),
   generatedBy: int("generatedBy"),
   generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  exportedAt: timestamp("exportedAt"),
+  failureReason: text("failureReason"),
+  fileKey: text("fileKey"),
+  fileUrl: text("fileUrl"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
-  uqTallyExportChecksum: uniqueIndex("uq_tally_export_checksum").on(t.checksum),
+  uqTallyExportProofWindow: uniqueIndex("uq_tally_export_proof_window").on(t.duplicateKey),
 }));
 
 // ─── OCR / AI Ingestion Tables ────────────────────────────────────────────────

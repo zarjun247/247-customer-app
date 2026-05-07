@@ -39,7 +39,7 @@ describe("accounting+tally production guards", () => {
     expect(txt).toContain("checksum");
     expect(txt).toContain("tallyExportRuns");
     expect(txt).toContain("duplicate_blocked");
-    expect(txt).toContain("tallyXml: true");
-    expect(txt).toContain("odbcPush: true");
+    expect(txt).toContain("provider_unconfigured_export_generated");
+    expect(txt).toContain("synced: false");
   });
 });
