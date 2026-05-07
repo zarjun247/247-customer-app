@@ -1395,21 +1395,33 @@ export const h1Register = mysqlTable("h1_register", {
   id: int("id").autoincrement().primaryKey(),
   orderId: int("orderId"),
   prescriptionId: int("prescriptionId"),
-  storeId: int("storeId").notNull(),
+  storeId: int("storeId"),
+  storeRef: varchar("storeRef", { length: 36 }),
   patientName: varchar("patientName", { length: 300 }).notNull(),
   patientPhone: varchar("patientPhone", { length: 20 }),
   prescribingDoctor: varchar("prescribingDoctor", { length: 300 }),
+  doctorName: varchar("doctorName", { length: 300 }),
+  doctorRegNo: varchar("doctorRegNo", { length: 100 }),
   drugName: varchar("drugName", { length: 300 }).notNull(),
+  productId: varchar("productId", { length: 36 }),
   batchNo: varchar("batchNo", { length: 100 }),
+  batchLedgerId: varchar("batchLedgerId", { length: 36 }),
+  batchId: varchar("batchId", { length: 36 }),
   qty: int("qty").notNull(),
   prescriptionRef: varchar("prescriptionRef", { length: 100 }),
+  saleRef: varchar("saleRef", { length: 36 }),
+  saleLineRef: varchar("saleLineRef", { length: 36 }),
+  saleBillNo: varchar("saleBillNo", { length: 100 }),
+  statutoryContextStatus: varchar("statutoryContextStatus", { length: 60 }).default("complete").notNull(),
   pharmacistId: int("pharmacistId").notNull(),
   billNo: varchar("billNo", { length: 100 }),
   saleId: int("saleId"),
   prescriptionLineId: int("prescriptionLineId"),
   dispensedAt: timestamp("dispensedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  uqH1SaleLine: uniqueIndex("uq_h1_register_sale_line_ref").on(t.saleRef, t.saleLineRef),
+}));
 
 // ─── Ledgers ──────────────────────────────────────────────────────────────────
 export const ledgers = mysqlTable("ledgers", {

@@ -391,15 +391,25 @@ export const prescriptionGovRouter = router({
         patientName: z.string().min(1),
         patientPhone: z.string().optional(),
         prescribingDoctor: z.string().optional(),
+        doctorRegNo: z.string().optional(),
         drugName: z.string().min(1),
+        productId: z.string().optional(),
         batchNo: z.string().optional(),
+        batchLedgerId: z.string().optional(),
+        batchId: z.string().optional(),
         qty: z.number().int().positive(),
         billNo: z.string().optional(),
+        saleBillNo: z.string().optional(),
         saleId: z.number().int().optional(),
+        saleRef: z.string().optional(),
+        saleLineRef: z.string().optional(),
         orderId: z.number().int().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         requirePharmacist(ctx.user.role);
+        if (!input.prescribingDoctor?.trim()) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Doctor name required before creating final H1 register row" });
+        }
         const db = await getDbSafe();
         const { h1Register } = await import("../../drizzle/schema");
 
@@ -409,12 +419,21 @@ export const prescriptionGovRouter = router({
           storeId: input.storeId,
           patientName: input.patientName,
           patientPhone: input.patientPhone ?? null,
-          prescribingDoctor: input.prescribingDoctor ?? null,
+          prescribingDoctor: input.prescribingDoctor,
+          doctorName: input.prescribingDoctor,
+          doctorRegNo: input.doctorRegNo ?? null,
           drugName: input.drugName,
+          productId: input.productId ?? null,
           batchNo: input.batchNo ?? null,
+          batchLedgerId: input.batchLedgerId ?? null,
+          batchId: input.batchId ?? input.batchLedgerId ?? null,
           qty: input.qty,
-          billNo: input.billNo ?? null,
+          billNo: input.billNo ?? input.saleBillNo ?? null,
+          saleBillNo: input.saleBillNo ?? input.billNo ?? null,
           saleId: input.saleId ?? null,
+          saleRef: input.saleRef ?? (input.saleId == null ? null : String(input.saleId)),
+          saleLineRef: input.saleLineRef ?? null,
+          statutoryContextStatus: "complete",
           pharmacistId: ctx.user.id as number,
           dispensedAt: new Date(),
         });
