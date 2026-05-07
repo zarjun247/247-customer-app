@@ -2527,7 +2527,7 @@ export const notificationEvents = mysqlTable("notification_events", {
   title: varchar("title", { length: 200 }).notNull(),
   body: text("body").notNull(),
   safePayloadJson: text("safePayloadJson"),
-  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "unconfigured"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "provider_unconfigured", "retry_scheduled", "dead_letter", "skipped_demo"]).default("pending").notNull(),
   provider: varchar("provider", { length: 80 }),
   providerMessageId: varchar("providerMessageId", { length: 150 }),
   scheduledFor: timestamp("scheduledFor"),

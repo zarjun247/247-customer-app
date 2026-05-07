@@ -39,7 +39,7 @@ import { prescriptionGovRouter } from "./routers/prescriptionGovRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
 import { customerMedicineRouter } from "./routers/customerMedicineRouter";
-import { whatsappFullRouter } from "./routers/whatsappRouter";
+import { assertWhatsappWebhookGuard, isRegulatedMedicineIntent, normalizeWhatsAppPhone, whatsappFullRouter } from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
 import { commandCenterRouter } from "./routers/commandCenterRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
@@ -706,9 +706,17 @@ const whatsappRouter = router({
       messageType: z.enum(["text", "image", "button"]).default("text"),
       imageUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       assertOtpLimiterMode();
-      const session = await getWhatsappSession(input.phone);
+      assertWhatsappWebhookGuard(ctx, JSON.stringify(input));
+      const phone = normalizeWhatsAppPhone(input.phone);
+      const linkedUser = await getUserByPhone(phone);
+      if (!linkedUser && isRegulatedMedicineIntent(input.message)) {
+        await upsertWhatsappSession(phone, { currentFlow: "pending_link", flowState: JSON.stringify({ identity: "unlinked", reason: "regulated_intent" }) });
+        await writeAuditLog({ actor: { id: null, type: "whatsapp" }, action: "whatsapp.regulated_intent.escalated", entityType: "whatsapp_session", payload: JSON.stringify({ phone }) });
+        return { response: "This looks like a regulated medicine or medical question. I cannot give medical advice or confirm refills on WhatsApp. A pharmacist will review it. Please upload a valid prescription or wait for staff assistance." };
+      }
+      const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
       const state = session?.flowState ? JSON.parse(session.flowState) : {};
 
@@ -732,7 +740,11 @@ const whatsappRouter = router({
           nextState = {};
         }
       } else if (input.message === "2" || flow === "status") {
-        if (flow !== "status" || !state.awaitingOrderId) {
+        if (!linkedUser) {
+          response = "Your phone is not linked to an account, so I cannot show private order details on WhatsApp. Please link your account in the app or ask staff for help.";
+          nextFlow = "menu";
+          nextState = {};
+        } else if (flow !== "status" || !state.awaitingOrderId) {
           response = "Please enter your Order ID (e.g. 1234):";
           nextFlow = "status";
           nextState = { awaitingOrderId: true };
@@ -740,7 +752,9 @@ const whatsappRouter = router({
           const orderId = parseInt(input.message);
           if (!isNaN(orderId)) {
             const order = await getOrderById(orderId);
-            if (order) {
+            if (order && order.userId !== linkedUser.id) {
+              response = "I cannot show private order details for this WhatsApp session. Please use the linked account in the 24/7 app or ask staff for help. Reply \"hi\" for main menu.";
+            } else if (order) {
               const statusLabel: Record<string, string> = {
                 created: "Order Received",
                 pharmacist_reviewing: "Pharmacist Reviewing",
@@ -763,8 +777,8 @@ const whatsappRouter = router({
         if (input.messageType === "image" && input.imageUrl) {
           // Persist Rx into the shared prescriptions table
           try {
-            const key = `whatsapp-rx/${input.phone}-${Date.now()}.jpg`;
-            await createWhatsappPrescription(input.phone, input.imageUrl, key);
+            const key = `whatsapp-rx/${phone}-${Date.now()}.jpg`;
+            await createWhatsappPrescription(phone, input.imageUrl, key);
           } catch (e) {
             console.error("[WhatsApp] Failed to persist Rx:", e);
           }
@@ -790,7 +804,7 @@ const whatsappRouter = router({
         nextState = {};
       }
 
-      await upsertWhatsappSession(input.phone, {
+      await upsertWhatsappSession(phone, {
         currentFlow: nextFlow,
         flowState: JSON.stringify(nextState),
       });
