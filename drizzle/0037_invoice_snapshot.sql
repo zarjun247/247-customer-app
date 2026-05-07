@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `invoice_snapshots` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `sale_id` varchar(36),
+  `order_id` int,
+  `bill_no` varchar(100) NOT NULL,
+  `store_id` varchar(36) NOT NULL,
+  `customer_id` varchar(36),
+  `snapshot_json` json NOT NULL,
+  `snapshot_hash` varchar(64) NOT NULL,
+  `pdf_file_key` varchar(500),
+  `pdf_file_url` text,
+  `status` enum('generated','pdf_generated','failed','cancelled') NOT NULL DEFAULT 'generated',
+  `failure_reason` text,
+  `generated_by` varchar(36),
+  `generated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `invoice_snapshots_id` PRIMARY KEY(`id`),
+  UNIQUE KEY `idx_invoice_snapshots_sale_id_status_hash` (`sale_id`, `status`, `snapshot_hash`)
+);
