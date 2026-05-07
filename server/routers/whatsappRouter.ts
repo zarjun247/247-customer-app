@@ -73,8 +73,9 @@ async function getDbSafe() {
   return db;
 }
 
-/** Resolve userId from phone — first check whatsapp_links, then session, then upsert */
+/** Resolve userId from phone — first check verified links, then sessions, then existing customers. Never creates customers. */
 async function resolveUserId(phone: string): Promise<number | null> {
+  phone = normalizeWhatsAppPhone(phone);
   const db = await getDb();
   if (!db) return null;
   // 1. Check verified link
@@ -85,6 +86,13 @@ async function resolveUserId(phone: string): Promise<number | null> {
   // 2. Fall back to session
   const session = await getWhatsappSession(phone);
   if (session?.userId) return session.userId;
+  // 3. Bind only to an existing customer phone; never create an account from inbound WhatsApp alone.
+  const existingUser = await getUserByPhone(phone);
+  if (existingUser?.id) {
+    await upsertWhatsappSession(phone, { userId: existingUser.id, currentFlow: session?.currentFlow ?? "menu", flowState: session?.flowState ?? "{}" });
+    return existingUser.id;
+  }
+  await upsertWhatsappSession(phone, { currentFlow: session?.currentFlow ?? "pending_link", flowState: session?.flowState ?? JSON.stringify({ identity: "unlinked" }) });
   return null;
 }
 
@@ -124,7 +132,7 @@ async function logMessage(data: {
 }
 
 /** Validate HMAC-SHA256 webhook signature */
-function validateWebhookSignature(payload: string, signature: string, secret: string): boolean {
+export function validateWebhookSignature(payload: string, signature: string, secret: string): boolean {
   const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
   const sig = signature.replace(/^sha256=/, "");
   try {
@@ -170,18 +178,76 @@ function formatCart(lines: any[]): string {
 }
 
 
-function assertWhatsappWebhookGuard(ctx: { req?: { header?: (name: string) => string | undefined } }) {
-  if (process.env.NODE_ENV !== "production") return;
-  if (!((process.env.WHATSAPP_PROVIDER_ENABLED ?? "").toLowerCase() in {"1":1,"true":1,"yes":1,"on":1})) return;
+export function isTruthyEnv(value: string | undefined) {
+  return ["1", "true", "yes", "on"].includes((value ?? "").toLowerCase());
+}
+
+export function normalizeWhatsAppPhone(phone: string) {
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return trimmed;
+  if (trimmed.startsWith("+")) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  return `+${digits}`;
+}
+
+export function isRegulatedMedicineIntent(message: string) {
+  const text = message.toLowerCase();
+  return /\b(rx|prescription|schedule\s*(h1|h|x)|h1|dosage|dose|substitute|substitution|side\s*effects?|emergency|adverse|allergy|refill|antibiotic|controlled|narcotic|sleeping\s*pill|painkiller)\b/.test(text);
+}
+
+export function assertWhatsappWebhookGuard(ctx: { req?: { header?: (name: string) => string | undefined } }, payload?: string) {
+  if (process.env.NODE_ENV !== "production") {
+    if (!isTruthyEnv(process.env.WHATSAPP_DEMO_WEBHOOK_OPEN) && isTruthyEnv(process.env.WHATSAPP_PROVIDER_ENABLED)) {
+      // Local/demo calls are intentionally open only outside production; production always verifies below.
+    }
+    return;
+  }
+
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? "";
   const secret = process.env.WHATSAPP_WEBHOOK_SECRET ?? "";
-  const incomingToken = ctx.req?.header?.("x-webhook-token") ?? "";
-  const incomingSig = ctx.req?.header?.("x-hub-signature-256") ?? "";
-  const rawPayload = ctx.req?.header?.("x-raw-body") ?? "";
+  if (!verifyToken && !secret) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Webhook verification required" });
+  }
 
-  const tokenOk = verifyToken && incomingToken && incomingToken === verifyToken;
-  const sigOk = secret && incomingSig && rawPayload && validateWebhookSignature(rawPayload, incomingSig, secret);
+  const header = (name: string) => ctx.req?.header?.(name) ?? ctx.req?.header?.(name.toLowerCase()) ?? "";
+  const incomingToken = header("x-webhook-token") || header("x-whatsapp-webhook-token") || header("x-hub-verify-token");
+  const incomingSig = header("x-hub-signature-256") || header("x-whatsapp-signature") || header("x-signature");
+  const rawPayload = payload ?? header("x-raw-body");
+
+  let tokenOk = false;
+  if (verifyToken && incomingToken) {
+    const incoming = Buffer.from(incomingToken);
+    const expected = Buffer.from(verifyToken);
+    tokenOk = incoming.length === expected.length && crypto.timingSafeEqual(incoming, expected);
+  }
+  const sigOk = Boolean(secret && incomingSig && rawPayload && validateWebhookSignature(rawPayload, incomingSig, secret));
   if (!tokenOk && !sigOk) throw new TRPCError({ code: "UNAUTHORIZED", message: "Webhook verification required" });
+}
+
+
+async function createRegulatedIntentHandoff(input: { phone: string; userId: number | null; sessionId?: number; message: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  const urgent = /\b(emergency|side\s*effects?|adverse|allergy|breath|swelling|chest\s*pain)\b/i.test(input.message);
+  const [r] = await db.insert(staffHandoffs).values({
+    phone: input.phone,
+    userId: input.userId,
+    sessionId: input.sessionId ?? null,
+    reason: "rx_clarification",
+    reasonNote: `Regulated/medical WhatsApp intent requires pharmacist review: "${input.message.slice(0, 240)}"`,
+    status: "open",
+    priority: urgent ? "urgent" : "high",
+  });
+  const handoffId = (r as any).insertId as number;
+  await writeAuditLog({
+    actor: { id: input.userId ?? null, type: "whatsapp" },
+    action: "whatsapp.regulated_intent.escalated",
+    entityType: "staff_handoff",
+    entityId: handoffId,
+    payload: JSON.stringify({ phone: input.phone, unlinked: !input.userId }),
+  });
+  return handoffId;
 }
 
 // ─── Sub-routers ──────────────────────────────────────────────────────────────
@@ -785,15 +851,16 @@ const webhookRouter = router({
       externalMsgId: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      assertWhatsappWebhookGuard(ctx);
-      const session = await getWhatsappSession(input.phone);
+      assertWhatsappWebhookGuard(ctx, JSON.stringify(input));
+      const phone = normalizeWhatsAppPhone(input.phone);
+      const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
       const state: any = session?.flowState ? JSON.parse(session.flowState) : {};
-      const userId = await resolveUserId(input.phone);
+      const userId = await resolveUserId(phone);
 
       // Log inbound message
       await logMessage({
-        phone: input.phone,
+        phone,
         userId,
         direction: "inbound",
         messageType: input.messageType,
@@ -811,8 +878,14 @@ const webhookRouter = router({
       const msg = input.message.trim().toLowerCase();
       const isGreeting = msg === "hi" || msg === "hello" || msg === "menu" || msg === "start";
 
+      if (!isGreeting && isRegulatedMedicineIntent(input.message)) {
+        const handoffId = await createRegulatedIntentHandoff({ phone, userId, sessionId: session?.id, message: input.message });
+        response = `This looks like a regulated medicine or medical question. I cannot give medical advice or confirm refills on WhatsApp. A pharmacist will review it${handoffId ? ` (Ref: #${handoffId})` : ""}. Please upload a valid prescription or wait for staff assistance.`;
+        nextFlow = "staff_handoff";
+        nextState = { reason: "regulated_intent", handoffId };
+
       // ── MENU ──────────────────────────────────────────────────────────────────
-      if (isGreeting || flow === "menu") {
+      } else if (isGreeting || flow === "menu") {
         const linkedUser = userId ? "✓ Account linked" : "⚠️ Account not linked";
         response = `Welcome to *24/7 Pharmacy* 💊\n${linkedUser}\n\nReply with:\n1️⃣ Search medicines\n2️⃣ My orders\n3️⃣ Upload prescription\n4️⃣ Reorder last order\n5️⃣ Refill reminders\n6️⃣ Talk to staff\n7️⃣ My cart`;
         nextFlow = "menu";
@@ -909,18 +982,22 @@ const webhookRouter = router({
               response = "No orders found.\n\nReply *hi* for main menu.";
             }
           } else {
-            response = "Please enter your Order ID (e.g. *1234*):";
+            response = "⚠️ Your phone is not linked to an account, so I cannot show private order details on WhatsApp. Please link your account in the app or ask staff for help.";
+            nextFlow = "menu";
+            nextState = {};
           }
-          nextFlow = "status";
-          nextState = { awaitingOrderId: true };
+          if (userId) {
+            nextFlow = "status";
+            nextState = { awaitingOrderId: true };
+          }
         } else {
           const orderId = parseInt(input.message.trim());
           if (!isNaN(orderId)) {
             const order = await getOrderById(orderId);
             if (order) {
-              // Ownership check
-              if (userId && order.userId !== userId) {
-                response = "⚠️ You can only check your own orders.\n\nReply *hi* for main menu.";
+              // Ownership check: unlinked WhatsApp sessions cannot fetch private order data by guessed IDs.
+              if (!userId || order.userId !== userId) {
+                response = "⚠️ I cannot show private order details for this WhatsApp session. Please use the linked account in the 24/7 app or ask staff for help.\n\nReply *hi* for main menu.";
               } else {
                 response = formatOrderStatus(order);
               }
@@ -1167,10 +1244,11 @@ const webhookRouter = router({
               } else {
                 const regulated = lines.some((l) => ["H","H1","X"].includes(String(l.schedule ?? "")) || Boolean(l.requiresPrescription));
                 if (regulated) {
-                  response = "Regulated medicine request received. A pharmacist will review your prescription before order confirmation. Reply with your prescription image or wait for pharmacist assistance.";
-                  await writeAuditLog({ actor: { id: userId, type: "whatsapp" }, action: "whatsapp.regulated_escalated", entityType: "whatsapp_cart", entityId: cart.id, payload: JSON.stringify({ phone: input.phone }) });
+                  const handoffId = await createRegulatedIntentHandoff({ phone, userId, sessionId: session?.id, message: "regulated cart confirmation" });
+                  response = "Regulated medicine request received. I cannot auto-confirm this refill/order on WhatsApp. A pharmacist will review your prescription before order confirmation. Reply with your prescription image or wait for pharmacist assistance.";
+                  await writeAuditLog({ actor: { id: userId, type: "whatsapp" }, action: "whatsapp.regulated_escalated", entityType: "whatsapp_cart", entityId: cart.id, payload: JSON.stringify({ phone, handoffId }) });
                   nextFlow = "staff_handoff";
-                  nextState = { reason: "regulated_medicine" };
+                  nextState = { reason: "regulated_medicine", handoffId };
                 } else {
                 const subtotal = lines.reduce((s, l) => s + parseFloat(l.line.lineTotal), 0).toFixed(2);
                 const orderId = await createOrder({
@@ -1210,8 +1288,10 @@ const webhookRouter = router({
           } else {
             response = "Could not place order. Please try again.\n\nReply *hi* for main menu.";
           }
-          nextFlow = "menu";
-          nextState = {};
+          if (nextFlow !== "staff_handoff") {
+            nextFlow = "menu";
+            nextState = {};
+          }
         }
 
       // ── CLEAR CART ────────────────────────────────────────────────────────────
@@ -1236,8 +1316,8 @@ const webhookRouter = router({
         if (!isNaN(orderId)) {
           const order = await getOrderById(orderId);
           if (order) {
-            if (userId && order.userId !== userId) {
-              response = "⚠️ You can only check your own orders.\n\nReply *hi* for main menu.";
+            if (!userId || order.userId !== userId) {
+              response = "⚠️ I cannot show private order details for this WhatsApp session. Please use the linked account in the 24/7 app or ask staff for help.\n\nReply *hi* for main menu.";
             } else {
               response = formatOrderStatus(order);
             }
@@ -1279,7 +1359,7 @@ const webhookRouter = router({
       }
 
       // Save session
-      await upsertWhatsappSession(input.phone, {
+      await upsertWhatsappSession(phone, {
         userId: userId ?? undefined,
         currentFlow: nextFlow,
         flowState: JSON.stringify(nextState),
@@ -1287,7 +1367,7 @@ const webhookRouter = router({
 
       // Log outbound response
       await logMessage({
-        phone: input.phone,
+        phone,
         userId,
         direction: "outbound",
         messageType: "text",

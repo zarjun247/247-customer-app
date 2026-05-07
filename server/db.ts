@@ -840,20 +840,18 @@ export async function getOrderItemsForReorder(orderId: number) {
 export async function createWhatsappPrescription(phone: string, imageUrl: string, imageKey: string) {
   const db = await getDb();
   if (!db) return null;
-  // Try to find a linked user via whatsapp session
+  // Try to find a linked user via WhatsApp session or an existing customer phone.
+  // Do not create a customer from an unlinked inbound WhatsApp upload; keep it pending for staff linkage.
   const session = await getWhatsappSession(phone);
   let userId = session?.userId ?? null;
-  // If no linked user, upsert one by phone so we never use userId=0
   if (!userId) {
-    const upserted = await upsertUserByPhone(phone, { loginMethod: "whatsapp" });
-    userId = upserted?.id ?? null;
-    // Update the session with the resolved userId
-    if (userId) {
-      await upsertWhatsappSession(phone, { userId });
-    }
+    const existingUser = await getUserByPhone(phone);
+    userId = existingUser?.id ?? null;
+    if (userId) await upsertWhatsappSession(phone, { userId });
   }
   if (!userId) {
-    console.error("[WhatsApp] Could not resolve userId for phone", phone, "— skipping Rx insert");
+    await upsertWhatsappSession(phone, { currentFlow: "pending_link", flowState: JSON.stringify({ identity: "unlinked", pendingRxUpload: true, imageUrl, imageKey }) });
+    console.error("[WhatsApp] Could not resolve userId for phone", phone, "— queued pending linkage and skipped Rx insert");
     return null;
   }
   const [r] = await db.insert(prescriptions).values({
