@@ -8,6 +8,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
+import { buildDailyGstReport, buildH1CompletenessReport, buildPaymentConsistencyReport, buildStockReconciliationReport, buildSupplierOutstandingReport } from "../services/reconciliationReports";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -36,6 +37,21 @@ const dateRangeInput = z.object({
   toDate: z.string(),
   storeId: z.number().optional(),
 });
+
+function dateBounds(input: { fromDate: string; toDate: string }) {
+  const from = new Date(input.fromDate);
+  const to = new Date(input.toDate);
+  to.setHours(23, 59, 59, 999);
+  return { from, to };
+}
+
+function resultRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) {
+    const [rows] = result;
+    return Array.isArray(rows) ? rows as T[] : result as T[];
+  }
+  return [];
+}
 
 export const reportsRouter = router({
   // ── Daily Sale Summary ────────────────────────────────────────────────────
@@ -223,6 +239,194 @@ export const reportsRouter = router({
       return Object.assign(normalized, { rows: normalized, totals: { count: normalized.length }, csvData: normalized });
     }),
 
+
+
+  // ── Stock Reconciliation (read-only canonical availability) ───────────────
+  stockReconciliation: protectedProcedure
+    .input(z.object({ storeId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      const { sql } = await import("drizzle-orm");
+      const result = await db.execute(sql`
+        SELECT
+          bl.productId AS productId,
+          bl.storeId AS storeId,
+          MAX(p.name) AS productName,
+          MAX(st.name) AS storeName,
+          SUM(bl.qtyOnHand) AS ledgerOnHand,
+          SUM(bl.qtyReserved) AS ledgerReserved,
+          SUM(bl.qtyQuarantined) AS ledgerQuarantined,
+          SUM(bl.qtyExpired) AS ledgerExpired,
+          COALESCE((
+            SELECT SUM(COALESCE(sr.qty, sr.qtyReserved))
+            FROM stock_reservations sr
+            WHERE sr.productId = bl.productId
+              AND sr.storeId = bl.storeId
+              AND sr.status = 'active'
+              AND (sr.expiresAt IS NULL OR sr.expiresAt > NOW())
+          ), 0) AS activeReservationQty,
+          COALESCE(MAX(ss.stockQty), 0) AS storeSkuStock,
+          COALESCE(MAX(ss.softLockedQty), 0) AS storeSkuSoftLocked,
+          COALESCE((
+            SELECT SUM(last_moves.qtyAfter)
+            FROM (
+              SELECT sm.batchId, sm.qtyAfter
+              FROM stock_movements sm
+              INNER JOIN (
+                SELECT batchId, MAX(id) AS lastMovementId
+                FROM stock_movements
+                GROUP BY batchId
+              ) newest ON newest.lastMovementId = sm.id
+            ) last_moves
+            INNER JOIN batch_ledger movement_bl ON movement_bl.id = last_moves.batchId
+            WHERE movement_bl.productId = bl.productId AND movement_bl.storeId = bl.storeId
+          ), 0) AS movementProjectedOnHand,
+          SUM(bl.qtyOnHand) - SUM(bl.qtyReserved) - SUM(bl.qtyQuarantined) - SUM(bl.qtyExpired) - COALESCE((
+            SELECT SUM(COALESCE(sr.qty, sr.qtyReserved))
+            FROM stock_reservations sr
+            WHERE sr.productId = bl.productId
+              AND sr.storeId = bl.storeId
+              AND sr.status = 'active'
+              AND (sr.expiresAt IS NULL OR sr.expiresAt > NOW())
+          ), 0) AS canonicalAvailable,
+          COUNT(*) AS batchCount
+        FROM batch_ledger bl
+        LEFT JOIN products p ON p.id = bl.productId
+        LEFT JOIN stores st ON st.id = bl.storeId
+        LEFT JOIN store_skus ss ON ss.productId = bl.productId AND ss.storeId = bl.storeId
+        WHERE bl.status IN ('active', 'quarantined', 'expired')
+          AND (${scopedStoreId ?? null} IS NULL OR bl.storeId = ${scopedStoreId ?? null})
+        GROUP BY bl.productId, bl.storeId
+        ORDER BY MAX(p.name), bl.storeId
+      `);
+
+      return buildStockReconciliationReport(resultRows(result));
+    }),
+
+  // ── H1 Completeness (current schema tolerant) ─────────────────────────────
+  h1Completeness: protectedProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      if (!["admin", "super_admin", "store_manager", "pharmacist", "auditor"].includes(ctx.user!.role)) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      const { h1Register } = await import("../../drizzle/schema");
+      const { eq, and, gte, lte, desc } = await import("drizzle-orm");
+      const { from, to } = dateBounds(input);
+      const conditions = [gte(h1Register.dispensedAt, from), lte(h1Register.dispensedAt, to)];
+      if (scopedStoreId !== undefined) conditions.push(eq(h1Register.storeId, scopedStoreId));
+      const rows = await db.select().from(h1Register).where(and(...conditions)).orderBy(desc(h1Register.dispensedAt));
+      return buildH1CompletenessReport(rows);
+    }),
+
+  // ── Payment / Refund / Invoice Consistency (current refund source) ────────
+  paymentInvoiceConsistency: protectedProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      const { sql } = await import("drizzle-orm");
+      const { from, to } = dateBounds(input);
+      const result = await db.execute(sql`
+        SELECT
+          o.id AS orderId,
+          o.storeId AS storeId,
+          o.status AS status,
+          o.total AS orderTotal,
+          COALESCE(SUM(CASE WHEN pr.status = 'paid' THEN pr.amount ELSE 0 END), 0) AS paidAmountPaise,
+          SUM(CASE WHEN pr.status = 'paid' THEN 1 ELSE 0 END) AS paidRecordCount,
+          COUNT(pr.id) AS paymentRecordCount,
+          COALESCE(SUM(CASE WHEN pr.status = 'refunded' OR pr.refundId IS NOT NULL OR pr.refundedAt IS NOT NULL THEN pr.amount ELSE 0 END), 0) AS refundedAmountPaise,
+          SUM(CASE WHEN pr.status = 'refunded' OR pr.refundId IS NOT NULL OR pr.refundedAt IS NOT NULL THEN 1 ELSE 0 END) AS refundRecordCount,
+          o.invoiceUrl AS invoiceUrl,
+          o.invoiceKey AS invoiceKey,
+          COUNT(h1.billNo) AS billNoCount,
+          COUNT(DISTINCT h1.billNo) AS distinctBillNoCount
+        FROM orders o
+        LEFT JOIN payment_records pr ON pr.orderId = o.id
+        LEFT JOIN h1_register h1 ON h1.saleId = o.id
+        WHERE o.createdAt >= ${from}
+          AND o.createdAt <= ${to}
+          AND (${scopedStoreId ?? null} IS NULL OR o.storeId = ${scopedStoreId ?? null})
+        GROUP BY o.id, o.storeId, o.status, o.total, o.invoiceUrl, o.invoiceKey
+        ORDER BY o.createdAt DESC
+      `);
+      return buildPaymentConsistencyReport(resultRows(result));
+    }),
+
+  // ── Supplier Outstanding (current payable/payment data) ──────────────────
+  supplierOutstanding: protectedProcedure
+    .input(z.object({ storeId: z.number().optional(), supplierId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      const { sql } = await import("drizzle-orm");
+      const result = await db.execute(sql`
+        SELECT
+          pi.supplierId AS supplierId,
+          MAX(s.supplierName) AS supplierName,
+          pi.storeId AS storeId,
+          COALESCE(SUM(pi.netAmount), 0) AS invoiceTotal,
+          COUNT(pi.id) AS committedInvoiceCount,
+          COALESCE((
+            SELECT SUM(sp.amount)
+            FROM supplier_payments sp
+            WHERE sp.supplierId = pi.supplierId AND sp.storeId = pi.storeId
+          ), 0) AS paymentTotal,
+          COALESCE((
+            SELECT SUM(pr.totalAmount)
+            FROM purchase_returns pr
+            WHERE pr.supplierId = pi.supplierId AND pr.storeId = pi.storeId AND pr.status = 'committed'
+          ), 0) AS returnCreditTotal
+        FROM purchase_invoices pi
+        LEFT JOIN suppliers s ON s.id = pi.supplierId
+        WHERE pi.status IN ('committed', 'partially_returned')
+          AND (${scopedStoreId ?? null} IS NULL OR pi.storeId = ${scopedStoreId ?? null})
+          AND (${input.supplierId ?? null} IS NULL OR pi.supplierId = ${input.supplierId ?? null})
+        GROUP BY pi.supplierId, pi.storeId
+        ORDER BY MAX(s.supplierName), pi.storeId
+      `);
+      return buildSupplierOutstandingReport(resultRows(result));
+    }),
+
+  // ── Daily Sale GST Summary ────────────────────────────────────────────────
+  dailySaleGst: protectedProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const scopedStoreId = resolveScopedStoreId(ctx.user, input.storeId);
+      const db = await getDbSafe();
+      const { sql } = await import("drizzle-orm");
+      const { from, to } = dateBounds(input);
+      const result = await db.execute(sql`
+        SELECT
+          DATE(o.createdAt) AS date,
+          o.storeId AS storeId,
+          COALESCE(SUM(oi.lineTotal / (1 + COALESCE(p.gstRate, 0) / 100)), 0) AS taxableValue,
+          COALESCE(SUM(oi.lineTotal - (oi.lineTotal / (1 + COALESCE(p.gstRate, 0) / 100))), 0) AS gstAmount,
+          COALESCE(SUM(oi.lineTotal), 0) AS grossSales,
+          0 AS discounts,
+          COALESCE(SUM(CASE WHEN o.status = 'returned' THEN oi.lineTotal ELSE 0 END), 0) AS refundsOrReturns,
+          COUNT(DISTINCT CASE WHEN o.invoiceUrl IS NOT NULL OR o.invoiceKey IS NOT NULL OR h1.billNo IS NOT NULL THEN o.id END) AS invoiceCount
+        FROM orders o
+        LEFT JOIN order_items oi ON oi.orderId = o.id
+        LEFT JOIN products p ON p.id = oi.productId
+        LEFT JOIN h1_register h1 ON h1.saleId = o.id
+        WHERE o.createdAt >= ${from}
+          AND o.createdAt <= ${to}
+          AND o.status IN ('delivered', 'closed', 'returned')
+          AND (${scopedStoreId ?? null} IS NULL OR o.storeId = ${scopedStoreId ?? null})
+        GROUP BY DATE(o.createdAt), o.storeId
+        ORDER BY DATE(o.createdAt), o.storeId
+      `);
+      return buildDailyGstReport(resultRows(result));
+    }),
   // ── SLA Performance Report ────────────────────────────────────────────────
   slaPerformance: protectedProcedure
     .input(dateRangeInput)
