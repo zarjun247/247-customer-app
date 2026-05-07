@@ -302,6 +302,14 @@ export async function softLockCart(userId: number) {
   await db.update(cartItems).set({ isLocked: true, lockedAt: now }).where(eq(cartItems.userId, userId));
 }
 
+export async function releaseCartLock(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(cartItems)
+    .set({ isLocked: false, lockedAt: null })
+    .where(and(eq(cartItems.userId, userId), eq(cartItems.isLocked, true)));
+}
+
 export async function applySoftLockToSkus(items: { skuId: number; qty: number }[]) {
   const db = await getDb();
   if (!db) return;

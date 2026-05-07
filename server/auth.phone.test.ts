@@ -92,3 +92,28 @@ describe("verifyOtp response shape", () => {
     expect("assignedStoreId" in validResponse).toBe(true);
   });
 });
+
+
+describe("authenticateRequest phone session", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.JWT_SECRET = "test-secret-for-phone-session";
+    process.env.VITE_APP_ID = "test-app-id";
+  });
+
+  it("authenticateRequest accepts a signed OTP phone session", async () => {
+    const phoneUser = makeUser({ id: 7, phone: "+919999999999" });
+    vi.mocked(db.getUserByPhone).mockResolvedValue(phoneUser);
+
+    const { sdk } = await import("./_core/sdk");
+    const { COOKIE_NAME } = await import("@shared/const");
+    const token = await sdk.signSession(
+      { openId: "phone:+919999999999", appId: "test-app-id", name: "Phone User" },
+      { expiresInMs: 60_000 },
+    );
+
+    const req = { headers: { cookie: `${COOKIE_NAME}=${token}` } };
+    await expect(sdk.authenticateRequest(req as any)).resolves.toMatchObject({ id: 7, phone: "+919999999999" });
+    expect(db.getUserByPhone).toHaveBeenCalledWith("+919999999999");
+  });
+});
