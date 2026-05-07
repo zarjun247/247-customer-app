@@ -1797,7 +1797,9 @@ export const sales = mysqlTable("sales", {
   confirmedAt: bigint("confirmed_at", { mode: "number" }),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-});
+}, (t) => ({
+  uqSalesBillNo: uniqueIndex("uq_sales_bill_no").on(t.billNo),
+}));
 
 export const saleLines = mysqlTable("sale_lines", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1837,7 +1839,9 @@ export const saleReturns = mysqlTable("sale_returns", {
   createdBy: varchar("created_by", { length: 36 }).notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-});
+}, (t) => ({
+  uqSaleReturnsReturnNo: uniqueIndex("uq_sale_returns_return_no").on(t.returnNo),
+}));
 
 export const saleReturnLines = mysqlTable("sale_return_lines", {
   id: varchar("id", { length: 36 }).primaryKey(),

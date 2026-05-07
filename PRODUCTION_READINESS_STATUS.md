@@ -310,3 +310,27 @@ production chain operations require store-scoped staff/admin access.
 ### New score estimate
 - Overall readiness: 7.4 / 10.
 - Stock/reservation truth readiness: 8.1 / 10.
+
+## 2026-05-07 Mega 03 idempotency + invoice race-safety update
+
+### Fixed items
+- Atomic idempotency begin path now inserts first and handles duplicate-key races deterministically.
+- Stable mutation fingerprints now use canonical JSON plus SHA-256.
+- Existing completed idempotency operations replay only for matching request hashes; different payloads conflict; in-progress duplicates fail fast; failed operations may retry only with the same hash.
+- Invoice reservation now uses transaction row locks or a named-lock fallback, and draft numbers include UUID entropy.
+- Financial-year calculations for invoices/returns/credit notes now use Asia/Kolkata business dates.
+- Schema metadata now reflects unique constraints for idempotency keys, invoice sequences, sales bill numbers, and sale return numbers.
+
+### Remaining P0/P1/P2 risks
+- P0: production is not yet safe to claim complete until DB-backed concurrency tests run against a production-like MySQL instance for idempotency and invoice sequence races.
+- P1: idempotency wrapping is not universal across every mutation endpoint.
+- P1: dedicated audit `entity_ref` column/index migration is still pending.
+- P2: credit-note statutory lifecycle and invoice PDF persistence remain incomplete.
+
+### Deferred with reason
+- H1/Rx/payment/refund/accounting/barcode UX and broader workflow redesigns were intentionally not changed in this PR.
+- New migrations were not added because existing migrations `0026` and `0027` already contain the required constraints; only schema metadata needed alignment.
+
+### New score estimate
+- Overall production readiness: 8.2 / 10.
+- Safe-to-merge assessment: safe as a focused hardening PR after validation, but not sufficient alone for full production readiness claims.
