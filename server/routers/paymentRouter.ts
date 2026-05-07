@@ -25,6 +25,7 @@ import {
 } from "../payment";
 import { getOrderById, updateOrderStatus, getOrderItems } from "../db";
 import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
+import { initiateRefund, verifyRefundStatus } from "../services/refundService";
 
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
 
@@ -126,6 +127,41 @@ export const paymentRouter = router({
       await markPaymentFailed({ gatewayOrderId: input.gatewayOrderId, reason: input.reason });
       return { success: true };
     }),
+
+  /**
+   * Initiate a payment refund while recording refund-ledger truth.
+   */
+  refundPayment: protectedProcedure
+    .input(z.object({
+      gatewayOrderId: z.string(),
+      amountPaise: z.number().int().positive(),
+      reason: z.string().optional(),
+      refundId: z.string().optional(),
+      creditNoteId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
+      if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
+      const canRefund = payment.userId === ctx.user.id || MANAGER_ROLES.includes(ctx.user.role as (typeof MANAGER_ROLES)[number]);
+      if (!canRefund) throw new TRPCError({ code: "FORBIDDEN", message: "Cannot refund this payment" });
+      const result = await initiateRefund({ ...input, ctx });
+      return {
+        ok: result.ok,
+        refundId: result.refundId,
+        status: result.status,
+        amountPaise: result.amountPaise,
+        providerRefundId: result.providerRefundId,
+        providerState: result.providerState,
+        failureReason: "failureReason" in result ? result.failureReason : undefined,
+      };
+    }),
+
+  /**
+   * Read refund-ledger status for a payment.
+   */
+  getRefundStatus: protectedProcedure
+    .input(z.object({ gatewayOrderId: z.string() }))
+    .query(async ({ input }) => verifyRefundStatus(input)),
 
   /**
    * Get payment status for an order.
