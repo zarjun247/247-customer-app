@@ -15,7 +15,7 @@ import {
   RefreshCw, AlertTriangle, CheckCircle, Clock, Package,
   Truck, Users, MessageSquare, ShoppingCart, Pill, BarChart3,
   Activity, Zap, Shield, TrendingUp, MapPin, FileText,
-  Thermometer, Calendar, Eye, AlertCircle, Wifi,
+  Thermometer, Calendar, Eye, AlertCircle, Wifi, Wallet, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -112,6 +112,7 @@ export default function AdminCommandCenter() {
 
   const d = snapshot.data;
   const loading = snapshot.isLoading;
+  const snapshotUnavailable = snapshot.isError || (!loading && !d);
 
   function refresh() {
     snapshot.refetch();
@@ -176,6 +177,16 @@ export default function AdminCommandCenter() {
           </div>
         )}
 
+        {snapshotUnavailable && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <span className="font-semibold text-amber-300">Command center snapshot unavailable.</span>
+              <span className="text-muted-foreground ml-2">Risk cards are showing safe fallback values until the endpoint recovers.</span>
+            </div>
+          </div>
+        )}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -187,6 +198,72 @@ export default function AdminCommandCenter() {
 
           {/* ─── OVERVIEW TAB ─────────────────────────────────────────────── */}
           <TabsContent value="overview" className="space-y-6 mt-4">
+            {/* Cockpit-level risk foundation */}
+            <section>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Risk Cockpit Foundation</h2>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wide">No synthetic metrics</Badge>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+                <MiniCard
+                  title="Stock Risk"
+                  value={loading ? "…" : snapshotUnavailable ? "Unavailable" : fmt(d?.stockouts?.count)}
+                  sub="stockout SKUs"
+                  severity={(d?.stockouts?.count ?? 0) > 0 ? "warn" : snapshotUnavailable ? "warn" : "ok"}
+                  icon={<Package className="h-5 w-5" />}
+                  loading={loading}
+                />
+                <MiniCard
+                  title="Near-expiry Risk"
+                  value={loading ? "…" : snapshotUnavailable ? "Unavailable" : fmt(d?.nearExpiry?.count)}
+                  sub="batches ≤90 days"
+                  severity={(d?.nearExpiry?.count ?? 0) > 20 ? "warn" : snapshotUnavailable ? "warn" : "ok"}
+                  icon={<Thermometer className="h-5 w-5" />}
+                  loading={loading}
+                />
+                <MiniCard
+                  title="Rx/H1 Review"
+                  value={loading ? "…" : snapshotUnavailable ? "Unavailable" : fmt(d?.pharmacistQueue?.pending)}
+                  sub="pending regulatory review"
+                  severity={(d?.pharmacistQueue?.pending ?? 0) > 10 ? "warn" : snapshotUnavailable ? "warn" : "ok"}
+                  icon={<Shield className="h-5 w-5" />}
+                  loading={loading}
+                />
+                <MiniCard
+                  title="Payment/Refund Risk"
+                  value="Not wired"
+                  sub="awaiting safe endpoint"
+                  severity="warn"
+                  icon={<Wallet className="h-5 w-5" />}
+                  loading={false}
+                />
+                <MiniCard
+                  title="SLA Breach Risk"
+                  value={loading ? "…" : snapshotUnavailable ? "Unavailable" : fmt(d?.slaRisk?.breachedCount)}
+                  sub={`${fmt(d?.slaRisk?.atRiskCount)} at risk`}
+                  severity={(d?.slaRisk?.breachedCount ?? 0) > 0 ? "critical" : (d?.slaRisk?.atRiskCount ?? 0) > 0 ? "warn" : snapshotUnavailable ? "warn" : "ok"}
+                  icon={<Clock className="h-5 w-5" />}
+                  loading={loading}
+                />
+                <MiniCard
+                  title="Supplier Outstanding"
+                  value="Not wired"
+                  sub="awaiting safe endpoint"
+                  severity="warn"
+                  icon={<Truck className="h-5 w-5" />}
+                  loading={false}
+                />
+                <MiniCard
+                  title="Provider Failures"
+                  value={events.isLoading ? "…" : events.isError ? "Unavailable" : fmt(events.data?.events.length)}
+                  sub="critical notification/provider events"
+                  severity={(events.data?.events.length ?? 0) > 0 ? "critical" : events.isError ? "warn" : "ok"}
+                  icon={<Bell className="h-5 w-5" />}
+                  loading={events.isLoading}
+                />
+              </div>
+            </section>
+
             {/* Row 1: Order pipeline */}
             <section>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Order Pipeline</h2>
