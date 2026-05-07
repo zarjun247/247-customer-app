@@ -35,3 +35,25 @@ The prior `-32` lines were only the two local helper functions (`generateBillNo`
 
 ## Next recommended prompt
 `feat/accounting-supplier-tally-production`
+
+## Mega 03 invoice race-safety update (2026-05-07)
+
+### Fixed items
+- `reserveInvoiceNumber` now reserves inside a transaction with row locking when available, with a MySQL named-lock fallback for non-transaction adapters.
+- Invoice sequence FY and prefixes now use the Asia/Kolkata business date helper consistently for sale invoices, credit notes, and return notes.
+- Draft bill numbers now include a UUID suffix so multiple drafts created in the same second do not collide with the `sales.bill_no` unique constraint.
+- Drizzle schema now mirrors existing migration uniqueness for `sales.bill_no`, `sale_returns.return_no`, and `(storeId, financialYear, documentType)` invoice sequences.
+
+### Remaining risks
+- Real concurrent reservation tests should be added against a MySQL test database; current coverage is source/guard plus deterministic helper coverage.
+- Credit-note lifecycle remains foundation-only; numbering helper is safe, but full credit-note statutory workflow is still pending.
+
+### Deferred with reason
+- No PDF/statutory rendering redesign was attempted; this pass only addressed numbering race safety and FY correctness.
+
+### DB constraint / migration notes
+- No new migration was added. `drizzle/0027_invoice_sequences.sql` already contains sequence uniqueness plus unique constraints for `sales.bill_no` and `sale_returns.return_no`.
+- Backfill assumption: environments applying the existing migration must have no duplicate draft/final bill numbers or duplicate return numbers before adding constraints.
+
+### New score estimate
+- Invoice numbering race/FY safety: 8.2 / 10.

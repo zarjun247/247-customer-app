@@ -51,3 +51,23 @@ Branch: feat/mega-01-auth-checkout-customer-safety
 
 ### New score estimate
 - Bug hygiene / stock truth area: 8.0 / 10.
+
+## Mega 03 idempotency/audit UUID safety update (2026-05-07)
+
+### Fixed items
+- Idempotency audit events no longer coerce UUID/string entity IDs with unsafe `Number(input.entityId)` or `Number(params.entityId)` conversions.
+- Sales audit events touched by idempotency/numbering now preserve sale and return UUIDs via `entityRef` and JSON payload references instead of producing `NaN` entity IDs.
+- Regression guards cover the known unsafe patterns: `Number(input.entityId)`, `Number(params.entityId)`, `Number(saleId)`, and `Number(line.id)` in idempotency/audit paths.
+
+### Remaining risks
+- Full audit-log schema normalization with a dedicated indexed string `entity_ref` column remains pending.
+- Legacy non-idempotency stock/reference paths still contain numeric fallbacks for older integer-ledger services and need separate domain-specific migration planning.
+
+### Deferred with reason
+- No broad H1/payment/refund/accounting audit rewrite was done to keep this PR focused on idempotency/audit race-safety blast radius.
+
+### DB constraint / migration notes
+- No audit-table migration was added; `entityRef` is carried in the existing audit payload channel for compatibility.
+
+### New score estimate
+- Bug hygiene/audit reference safety: 8.3 / 10.
