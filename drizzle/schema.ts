@@ -221,11 +221,21 @@ export const prescriptions = mysqlTable("prescriptions", {
   lane: mysqlEnum("lane", ["otc", "digital", "on_file", "fallback", "doctor_consult"]).default("digital").notNull(),
   // Doctor / prescription metadata
   doctorName: varchar("doctorName", { length: 200 }),
-  doctorReg: varchar("doctorReg", { length: 100 }),  // MCI/state registration number
+  doctorReg: varchar("doctorReg", { length: 100 }),  // MCI/state registration number (legacy)
+  doctorRegNo: varchar("doctorRegNo", { length: 100 }),
+  clinicName: varchar("clinicName", { length: 200 }),
   prescribedDate: timestamp("prescribedDate"),
-  expiryDate: timestamp("expiryDate"),               // Rx valid until (typically 6 months)
+  prescriptionDate: timestamp("prescriptionDate"),
+  expiryDate: timestamp("expiryDate"),               // Rx valid until (typically 6 months; legacy)
+  validUntil: timestamp("validUntil"),
   // Linked products (JSON array of productIds extracted from Rx)
   linkedProductIds: text("linkedProductIds"),
+  source: mysqlEnum("source", ["upload", "whatsapp", "doctor", "pharmacist", "manual"]).default("upload"),
+  consentGivenAt: timestamp("consentGivenAt"),
+  consentSource: mysqlEnum("consentSource", ["app", "whatsapp", "pharmacist", "doctor", "manual"]),
+  consentRevokedAt: timestamp("consentRevokedAt"),
+  onFileMarkedBy: int("onFileMarkedBy"),
+  onFileMarkedAt: timestamp("onFileMarkedAt"),
   // Patient note (e.g. "chronic patient, 3-month supply")
   patientNote: text("patientNote"),
   // Prior approval reference
@@ -1919,10 +1929,14 @@ export const prescriptionAccessLog = mysqlTable("prescription_access_log", {
   id: int("id").autoincrement().primaryKey(),
   prescriptionId: int("prescriptionId").notNull(),
   accessedBy: int("accessedBy").notNull(),
+  actorId: int("actorId"),
+  actorRole: varchar("actorRole", { length: 50 }),
   accessType: mysqlEnum("accessType", ["view", "download", "print", "api_check", "audit"]).default("view"),
   ipAddress: varchar("ipAddress", { length: 50 }),
   userAgent: text("userAgent"),
   purpose: text("purpose"),
+  channel: varchar("channel", { length: 50 }).default("app"),
+  accessedAt: timestamp("accessedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

@@ -107,6 +107,7 @@ export default function RxUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [vaultConsent, setVaultConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [activeLane, setActiveLane] = useState<Lane | null>(null);
 
@@ -324,6 +325,22 @@ export default function RxUpload() {
 
         {/* ── Vault lane ───────────────────────────────────────────────── */}
         {activeLane === "vault" && (
+          <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={vaultConsent}
+                onChange={(event) => setVaultConsent(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                I explicitly consent to keeping selected approved prescriptions on file for pharmacist review and future regulated checkout checks.
+              </span>
+            </label>
+          </div>
+        )}
+
+        {activeLane === "vault" && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>Saved prescriptions</p>
@@ -367,8 +384,8 @@ export default function RxUpload() {
                         </div>
                         {!rx.isOnFile && (
                           <button
-                            onClick={() => markOnFile.mutate({ id: rx.id })}
-                            disabled={markOnFile.isPending}
+                            onClick={() => markOnFile.mutate({ id: rx.id, consentGiven: true, consentSource: "app" })}
+                            disabled={markOnFile.isPending || !vaultConsent}
                             className="text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-40"
                             style={{ color: "#2B7FFF" }}>
                             Save to vault for future use →
@@ -415,8 +432,8 @@ export default function RxUpload() {
                         </p>
                         {rx.status === "approved" && !rx.isOnFile && (
                           <button
-                            onClick={() => markOnFile.mutate({ id: rx.id })}
-                            disabled={markOnFile.isPending}
+                            onClick={() => markOnFile.mutate({ id: rx.id, consentGiven: true, consentSource: "app" })}
+                            disabled={markOnFile.isPending || !vaultConsent}
                             className="mt-1.5 text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-40"
                             style={{ color: "#2B7FFF" }}>
                             Save to vault →
