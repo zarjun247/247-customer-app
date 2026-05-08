@@ -798,6 +798,36 @@ export const paymentRecords = mysqlTable("payment_records", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+
+export const providerWebhookEvents = mysqlTable("provider_webhook_events", {
+  id: int("id").autoincrement().primaryKey(),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  providerEventId: varchar("providerEventId", { length: 150 }),
+  eventType: varchar("eventType", { length: 100 }).notNull(),
+  paymentId: int("paymentId"),
+  orderId: int("orderId"),
+  refundId: varchar("refundId", { length: 150 }),
+  rawPayloadHash: varchar("rawPayloadHash", { length: 64 }).notNull(),
+  payloadJson: json("payloadJson"),
+  signatureVerified: boolean("signatureVerified").default(false).notNull(),
+  processingStatus: mysqlEnum("processingStatus", ["received", "verified", "ignored_duplicate", "processed", "failed", "rejected_signature", "unsupported_event"]).default("received").notNull(),
+  processedAt: timestamp("processedAt"),
+  failureReason: text("failureReason"),
+  idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqProviderEventId: uniqueIndex("provider_webhook_events_provider_event_id_uq").on(t.provider, t.providerEventId),
+  uqProviderIdempotencyKey: uniqueIndex("provider_webhook_events_idempotency_key_uq").on(t.provider, t.idempotencyKey),
+  idxProviderWebhookPayloadHash: index("idx_provider_webhook_events_payload_hash").on(t.rawPayloadHash),
+  idxProviderWebhookPayment: index("idx_provider_webhook_events_payment").on(t.paymentId),
+  idxProviderWebhookOrder: index("idx_provider_webhook_events_order").on(t.orderId),
+  idxProviderWebhookRefund: index("idx_provider_webhook_events_refund").on(t.refundId),
+}));
+
+export type ProviderWebhookEvent = typeof providerWebhookEvents.$inferSelect;
+export type InsertProviderWebhookEvent = typeof providerWebhookEvents.$inferInsert;
+
 export const refunds = mysqlTable("refunds", {
   id: int("id").autoincrement().primaryKey(),
   paymentId: int("paymentId").notNull(),
