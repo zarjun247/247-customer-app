@@ -1,84 +1,67 @@
 # MERGE_GOVERNANCE_STATUS
 
-Documentation-only CI and merge governance note for the current parallel production-hardening workstream.
+Canonical merge governance controls as of 2026-05-08.
 
-## Purpose
-- Reduce merge conflicts and production risk while many backend/domain branches are active.
-- Ensure migration numbering, runtime ownership, and readiness claims are reviewed before merge.
-- Require a final merge-captain pass after accepted PRs land.
+## 1. Non-negotiable merge rules
 
-## Parallel branch merge order
+- Never merge stale duplicate branches.
+- Never merge conflict resolution that reverts latest main.
+- Latest main wins unless the active branch owns the exact domain being intentionally changed.
+- Never use a stale branch to make production-readiness claims.
+- Never claim production is 10/10 without final merge-captain audit evidence and proof dashboard validation.
+- Documentation-only branches must not add migrations or runtime behavior.
 
-Recommended order for currently parallel branches, subject to maintainer review and CI status:
+## 2. Required PR checklist
 
-1. Branches with **no runtime/migration changes** and low conflict risk, such as documentation-only runbooks.
-2. Cross-cutting safety foundations with broad downstream impact:
-   - idempotency + invoice numbering race safety
-   - payment provider fail-closed / non-payment provider fail-closed behavior
-   - WhatsApp notification safety
-   - product master runtime gates
-3. Schema/statutory/data model branches, one at a time with migration review:
-   - H1 statutory schema
-   - prescription vault consent
-   - refund ledger
-   - accounting journal batches
-   - immutable invoice snapshot
-4. Domain workflows that depend on the above contracts:
-   - supplier ageing/reconciliation
-   - OCR invoice exception workflow
-   - reports/audit reconciliation
-   - Tally export proof
-5. UI/admin/UX branches after API contracts stabilize:
-   - admin route/cockpit UI
-   - barcode UX rebased
-6. Final merge-captain PR after all accepted PRs merge, rebased on latest `main`, with full CI and smoke/migration review.
+Every PR must list the following before it is considered merge-ready:
 
-If two PRs touch the same runtime modules, the later PR must rebase after the earlier accepted PR merges and repeat validation.
+- Files changed.
+- Migrations added, or an explicit `None`.
+- Tests added, or an explicit `None` with rationale.
+- Validation results for:
+  - `pnpm install`
+  - `pnpm run check`
+  - `pnpm test -- --runInBand`
+  - `pnpm run build`
+  - `git diff --check`
+- Remaining risks.
+- Safe-to-merge assessment.
 
-## Stale PR warning
+## 3. Conflict-resolution policy
 
-- Do **not** merge stale PR #46 or PR #47 directly.
-- Rebase/recreate stale work on latest protected `main`, review changed files, rerun CI, and re-check migrations before considering merge.
+- Rebase old branches onto latest main before review.
+- When conflicts appear, preserve latest-main behavior by default.
+- Only keep branch-side changes where the branch explicitly owns the domain under review.
+- Do not resolve conflicts by deleting newer tests, newer safety checks, newer schema fields, newer provider fail-closed behavior, or newer lifecycle proof.
+- If a branch has drifted too far, close it and recreate only the unique wanted changes from latest main.
 
-## Per-PR requirements
+## 4. Migration governance
 
-Every PR must include and reviewers must verify:
+- Migration-heavy branches must not run simultaneously against `drizzle/schema.ts` unless explicitly coordinated.
+- Only one schema/migration branch should merge at a time unless maintainers pre-approve sequencing and migration renumbering.
+- Migration files must match the final `drizzle/schema.ts` state.
+- Destructive migrations require explicit backup/restore review and rollback or forward-fix instructions.
+- Documentation/control PRs must add no migrations.
 
-- [ ] CI green for the exact commit being merged.
-- [ ] Migrations checked, including whether migrations were added or intentionally absent.
-- [ ] No conflicting migration number and no reserved migration violation.
-- [ ] Files changed reviewed against parallel ownership and do-not-touch lists.
-- [ ] Runtime code ownership reviewed when touching shared services/routers/schema/client flows.
-- [ ] Security/provider fail-closed posture reviewed for integrations.
-- [ ] Rollback or forward-fix plan documented for schema/runtime risk.
-- [ ] Tests added or explicitly not needed with rationale.
-- [ ] Safe-to-merge assessment included without unsupported production-ready claims.
+## 5. Domain ownership during parallel work
 
-## Migration governance
+| Domain | Merge control |
+| --- | --- |
+| Product-master runtime gates | Keep `#66` active if still open; rebase/resolve separately. |
+| Barcode UX / barcode scan | Close stale duplicates such as `#46` and `#47`; recreate needed work from latest main. |
+| Payment fail-closed / webhook lifecycle | Do not merge stale duplicate `#62`; verify later merged payment behavior before any new changes. |
+| Accounting / reconciliation / commercial lifecycle | Do not merge stale duplicate `#68`; new accounting work must build on latest main. |
+| Schema / migrations | Coordinate one branch at a time; no surprise migration additions. |
+| Docs / control | May merge independently only when it does not alter runtime, package manifests, lockfiles, or migrations. |
 
-- Only one migration-numbering branch should merge at a time unless maintainers explicitly coordinate renumbering.
-- Migration files must match schema changes and migration metadata expectations.
-- Reserved migration slots must be honored.
-- Destructive migrations require explicit backup/restore and rollback review.
-- Documentation-only branches must not add migrations.
+## 6. Final merge-captain audit
 
-## Final merge-captain PR
+A final merge-captain audit must run after all accepted PRs merge. It must:
 
-After all accepted PRs have merged:
-
-- [ ] Create/rebase final merge-captain branch from latest protected `main`.
-- [ ] Resolve integration conflicts across runtime, schema, docs, tests, and generated artifacts.
-- [ ] Run full install/check/test/build validation.
-- [ ] Review all migration numbers and final schema state.
-- [ ] Run smoke tests against staging or restored staging data.
-- [ ] Confirm monitoring, healthcheck, backup/restore, deployment, and go-live runbooks are current.
-- [ ] Publish final safe-to-merge assessment with remaining risks.
-
-## Merge-blocking examples
-
-- CI red or missing for the merge commit.
-- Duplicate/conflicting migration number.
-- PR touches prohibited files without explicit scope approval.
-- Provider failure path can fake success for critical flows.
-- Store-scoped operation falls back to an unsafe default store.
-- Production-ready claim is made without evidence.
+- Start from latest protected main.
+- Confirm no stale PR branch was merged directly.
+- Re-run full required validation.
+- Review final files changed by all accepted PRs.
+- Review final schema and migration ordering.
+- Confirm proof for CI/security scan, test DB lifecycle, HTTP security middleware, provider contract matrix, observability healthchecks, privacy/staff session, DB index audit, API abuse protection, backup/restore/deployment, and production smoke/UAT.
+- Publish the final launch-mode decision with remaining risks and explicit safe-to-merge assessment.
