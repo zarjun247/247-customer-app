@@ -2755,3 +2755,71 @@ export const orderRatings = mysqlTable("order_ratings", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({ orderUserUnique: uniqueIndex("order_ratings_order_user_uq").on(t.orderId, t.userId) }));
+
+// ─── Privacy / Consent / Staff Session Security Foundation ───────────────────
+export const privacyConsents = mysqlTable("privacy_consents", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  userId: int("userId"),
+  customerId: int("customerId"),
+  phone: varchar("phone", { length: 20 }),
+  email: varchar("email", { length: 320 }),
+  consentType: mysqlEnum("consentType", [
+    "prescription_storage",
+    "refill_reminder",
+    "dosage_reminder",
+    "whatsapp_transactional",
+    "whatsapp_marketing",
+    "sms_transactional",
+    "sms_marketing",
+    "family_profile_access",
+    "invoice_claim_bundle",
+  ]).notNull(),
+  status: mysqlEnum("status", ["granted", "revoked", "pending"]).default("pending").notNull(),
+  source: mysqlEnum("source", ["app", "staff", "whatsapp", "import", "system"]).default("app").notNull(),
+  grantedAt: timestamp("grantedAt"),
+  revokedAt: timestamp("revokedAt"),
+  changedBy: int("changedBy"),
+  auditRef: varchar("auditRef", { length: 200 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PrivacyConsent = typeof privacyConsents.$inferSelect;
+export type NewPrivacyConsent = typeof privacyConsents.$inferInsert;
+
+export const staffAcknowledgements = mysqlTable("staff_acknowledgements", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  acknowledgementType: mysqlEnum("acknowledgementType", [
+    "patient_data_confidentiality",
+    "prescription_handling",
+    "H1_register_handling",
+    "payment_data_handling",
+    "no_shared_accounts",
+  ]).notNull(),
+  version: varchar("version", { length: 40 }).notNull(),
+  acceptedAt: timestamp("acceptedAt").notNull(),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: varchar("userAgent", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StaffAcknowledgement = typeof staffAcknowledgements.$inferSelect;
+export type NewStaffAcknowledgement = typeof staffAcknowledgements.$inferInsert;
+
+export const staffDeviceSessions = mysqlTable("staff_device_sessions", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  sessionId: varchar("sessionId", { length: 200 }).notNull(),
+  deviceId: varchar("deviceId", { length: 200 }),
+  terminalId: varchar("terminalId", { length: 100 }),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: varchar("userAgent", { length: 500 }),
+  status: mysqlEnum("status", ["active", "revoked", "expired"]).default("active").notNull(),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+  revokedAt: timestamp("revokedAt"),
+  revokedBy: int("revokedBy"),
+  revokeReason: varchar("revokeReason", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({ staffSessionUnique: uniqueIndex("staff_device_sessions_staff_session_uq").on(t.staffId, t.sessionId) }));
+export type StaffDeviceSession = typeof staffDeviceSessions.$inferSelect;
+export type NewStaffDeviceSession = typeof staffDeviceSessions.$inferInsert;
