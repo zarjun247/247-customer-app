@@ -1839,8 +1839,9 @@ export const stockReservations = mysqlTable("stock_reservations", {
   storeId: int("storeId").notNull(),
   qty: int("qty").notNull(),
   qtyReserved: int("qtyReserved").notNull(),
-  status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled"]).default("active").notNull(),
+  status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled", "failed"]).default("active").notNull(),
   releaseReason: varchar("releaseReason", { length: 200 }),
+  reservationMeta: json("reservationMeta"),
   reservedAt: timestamp("reservedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -1853,6 +1854,7 @@ export const stockReservations = mysqlTable("stock_reservations", {
   idxStockReservationsProductStatus: index("idx_stock_reservations_product_status").on(t.productId, t.status),
   idxStockReservationsOrderStatus: index("idx_stock_reservations_order_status").on(t.orderId, t.status),
   idxStockReservationsCartStatus: index("idx_stock_reservations_cart_status").on(t.cartId, t.status),
+  idxStockReservationsBatchStatus: index("idx_stock_reservations_batch_status").on(t.batchId, t.status),
 }));
 
 // ─── Stock Transfers ──────────────────────────────────────────────────────────

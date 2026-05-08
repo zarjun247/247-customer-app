@@ -26,6 +26,7 @@ import {
 import { getOrderById, updateOrderStatus, getOrderItems } from "../db";
 import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
 import { initiateRefund, verifyRefundStatus } from "../services/refundService";
+import { consumeReservation, releaseReservationOnPaymentFailure } from "../services/reservationService";
 
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
 
@@ -105,6 +106,7 @@ export const paymentRouter = router({
         const items = await getOrderItems(payment.orderId);
         const needsRx = items.some((i) => (i as { requiresPrescription?: boolean }).requiresPrescription);
         const nextStatus = needsRx ? "pharmacist_reviewing" : "picking";
+        await consumeReservation({ orderId: payment.orderId, ctx, releaseReason: "payment_verified", idempotencyKey: buildIdempotencyKey(["payment", "reservation", "consume", payment.orderId, input.gatewayPaymentId]) });
         await updateOrderStatus(payment.orderId, nextStatus);
 
         // Start SLA clock
@@ -128,7 +130,9 @@ export const paymentRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
       await markPaymentFailed({ gatewayOrderId: input.gatewayOrderId, reason: input.reason });
+      if (payment) await releaseReservationOnPaymentFailure({ orderId: payment.orderId, ctx, releaseReason: input.reason ?? "payment_failed", idempotencyKey: buildIdempotencyKey(["payment", "reservation", "failed", payment.orderId, input.gatewayOrderId]) });
       return { success: true };
     }),
 

@@ -250,6 +250,11 @@ export async function rejectRx(rxId: number, pharmacistId: number, note: string)
     toState: "rejected",
     triggeredByUserId: pharmacistId,
   });
+  const linkedOrders = await db.select({ id: orders.id }).from(orders).where(eq(orders.prescriptionId, rxId));
+  const { releaseReservationOnRxReject } = await import("./services/reservationService");
+  for (const order of linkedOrders) {
+    await releaseReservationOnRxReject({ orderId: order.id, releaseReason: note || "rx_rejected", idempotencyKey: `rx_rejected:${rxId}:${order.id}` });
+  }
   return { success: true };
 }
 

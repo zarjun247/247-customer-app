@@ -24,6 +24,7 @@ import { ENV } from "./_core/env";
 import { redactSensitive } from "./_core/redact";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
 import { reserveStockForOrder, releaseReservationOnOrderCancel } from "./services/reservationService";
+import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "./services/idempotencyService";
 import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
 import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
 import { ingestionRouter } from "./routers/ingestionRouter";
@@ -324,6 +325,7 @@ const orderRouter = router({
           message: ONBOARDING_REQUIRED_MSG,
         });
       }
+      const authoritativeStoreId = user.assignedStoreId;
       const cartData = await getCart(ctx.user.id);
       if (cartData.length === 0) throw new Error("Cart is empty");
 
@@ -361,13 +363,15 @@ const orderRouter = router({
       }
       // Initial status: Rx orders enter pharmacist review; OTC orders go to awaiting_allocation
       const initialStatus = needsRx ? "awaiting_pharmacist_review" : "awaiting_allocation";
-      let orderId: number | null = null;
-      await softLockCart(ctx.user.id);
-      await applySoftLockToSkus(lockItems);
-      try {
+      const idemKey = buildIdempotencyKey(["checkout", ctx.user.id, getRequestIdFromContext(ctx) ?? cartData.map(i => `${i.skuId}:${i.quantity}`).join("|")]);
+      return withIdempotency({ key: idemKey, scope: "order.checkout", operationType: "checkout_reservation", actorId: ctx.user.id, storeId: authoritativeStoreId, entityType: "order", entityId: ctx.user.id, requestHash: createMutationFingerprint({ prescriptionId: input.prescriptionId, cart: cartData.map(i => ({ skuId: i.skuId, quantity: i.quantity })) }), ctx }, async () => {
+        let orderId: number | null = null;
+        await softLockCart(ctx.user.id);
+        await applySoftLockToSkus(lockItems);
+        try {
         orderId = await createOrder({
           userId: ctx.user.id,
-          storeId: user.assignedStoreId,
+          storeId: authoritativeStoreId,
           prescriptionId: input.prescriptionId,
           subtotal: subtotal.toFixed(2),
           total: total.toFixed(2),
@@ -391,11 +395,12 @@ const orderRouter = router({
         for (const item of cartData) {
           await reserveStockForOrder({
             orderId,
-            storeId: user.assignedStoreId,
+            storeId: authoritativeStoreId,
             productId: item.productId,
             variantId: item.variantId ?? null,
             skuId: item.skuId,
             qty: item.quantity,
+            idempotencyKey: buildIdempotencyKey(["checkout", "reservation", orderId, item.skuId]),
             ctx,
           });
         }
@@ -429,13 +434,14 @@ const orderRouter = router({
           }
         }
 
-        return { orderId, status: initialStatus, promisedSlaMins: slaMins };
-      } catch (error) {
-        if (orderId) await releaseReservationOnOrderCancel({ orderId, ctx, releaseReason: "checkout_failed" });
-        await releaseSoftLock(lockItems);
-        await releaseCartLock(ctx.user.id);
-        throw error;
-      }
+          return { orderId, status: initialStatus, promisedSlaMins: slaMins };
+        } catch (error) {
+          if (orderId) await releaseReservationOnOrderCancel({ orderId, ctx, releaseReason: "checkout_failed", idempotencyKey: buildIdempotencyKey(["checkout", "release", orderId]) });
+          await releaseSoftLock(lockItems);
+          await releaseCartLock(ctx.user.id);
+          throw error;
+        }
+      });
     }),
 
   list: protectedProcedure.query(async ({ ctx }) => getOrdersByUser(ctx.user.id)),
@@ -504,6 +510,9 @@ const orderRouter = router({
       requireOrderOwnershipOrStaff(ctx.user.id, order.userId, userRole);
       const before = { status: order.status };
       await updateOrderStatus(input.orderId, input.status, { reason: input.reason, changedBy: ctx.user.id });
+      if (["cancelled", "rejected", "returned", "return_to_stock"].includes(input.status)) {
+        await releaseReservationOnOrderCancel({ orderId: input.orderId, ctx, releaseReason: input.reason ?? `order_${input.status}`, idempotencyKey: buildIdempotencyKey(["order", "reservation", "release", input.orderId, input.status]) });
+      }
       await writeAuditLog(ctx.user.id, "order_status_changed", "order", input.orderId, undefined, {
         actorRole: userRole,
         beforeJson: before,

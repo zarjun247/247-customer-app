@@ -14,7 +14,7 @@ import { assertCanConfirmSale, createOrVerifyH1RegisterEntry } from "../services
 import { applyDiscountCode, assertDiscountWithinCaps, assertNoLossWithoutApproval, recordDiscountCodeUsage } from "../services/marginGuard";
 import { resolveBarcodeForSale, resolveBarcodeForReturn } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
-import { getCanonicalAvailability } from "../services/reservationService";
+import { assertReservationCanBeConsumed, consumeReservation, createReservation, getCanonicalAvailability, releaseReservation } from "../services/reservationService";
 import { reserveInvoiceNumber, generateReturnNoteNumber, buildDraftBillNumber } from "../services/invoiceNumbering";
 import { createSaleInvoiceSnapshot, getInvoiceSnapshotPackageForSale } from "../services/invoiceSnapshotService";
 import { assertRuntimeGate, normalizeScheduleCode, productToMasterLike, validateProductForRegulatedSale } from "../services/productMasterValidation";
@@ -367,7 +367,8 @@ export const salesRouter = router({
         const [product] = await db.select().from(products).where(eq(products.id, parseInt(line.productId) || 0)).limit(1);
         if (!product) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Persisted product metadata is required for product ${line.productId}` });
         assertRuntimeGate(validateProductForRegulatedSale(productToMasterLike(product), undefined, { saleType: sale.saleType }), `Product master is incomplete for product ${line.productId}`);
-        const availability = await getCanonicalAvailability(Number(sale.storeId), Number(line.productId), null);
+        const reservationCheck = await assertReservationCanBeConsumed({ saleId: input.saleId, productId: Number(line.productId), storeId: Number(sale.storeId), batchId: line.batchLedgerId ? Number(line.batchLedgerId) : undefined }).catch((error) => ({ error }));
+        const availability = (reservationCheck as any).consumable ? { availableQty: line.qty } : await getCanonicalAvailability(Number(sale.storeId), Number(line.productId), null, line.batchLedgerId ? Number(line.batchLedgerId) : undefined);
         if (availability.availableQty < line.qty) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Insufficient canonical availability for product ${line.productId}` });
       }
 
@@ -392,11 +393,29 @@ export const salesRouter = router({
 
       const finalBillNo = sale.billNo?.startsWith("DRF-") ? await reserveInvoiceNumber(db, sale.storeId, "sale_invoice") : sale.billNo;
 
-      // Decrement batch qty and create stock movements
-      for (const line of lines) {
-        if (line.batchLedgerId) {
-          await decreaseStockForSaleConfirmation({ batchId: parseInt(line.batchLedgerId ?? "0") || 0, storeId: parseInt(sale.storeId) || 0, qtyDelta: -line.qty, referenceType: "sale", referenceId: parseInt(sale.id) || 0, reason: `Bill ${finalBillNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: Number(line.productId) });
+      const createdReservationIds: number[] = [];
+      try {
+        for (const line of lines) {
+          const reservationCheck = await assertReservationCanBeConsumed({ saleId: input.saleId, productId: Number(line.productId), storeId: Number(sale.storeId), batchId: line.batchLedgerId ? Number(line.batchLedgerId) : undefined }).catch((error) => ({ error }));
+          if (!(reservationCheck as any).consumable && !(reservationCheck as any).idempotent) {
+            const reservation = await createReservation({ saleId: input.saleId, storeId: Number(sale.storeId), productId: Number(line.productId), batchId: line.batchLedgerId ? Number(line.batchLedgerId) : null, qty: line.qty, expiresAt: null, idempotencyKey: buildIdempotencyKey(["sale", "reservation", input.saleId, line.id]), ctx });
+            if (reservation.id) createdReservationIds.push(Number(reservation.id));
+          }
         }
+
+        // Decrement batch qty and create stock movements through stockInvariant only.
+        for (const line of lines) {
+          if (line.batchLedgerId) {
+            await decreaseStockForSaleConfirmation({ batchId: parseInt(line.batchLedgerId ?? "0") || 0, storeId: parseInt(sale.storeId) || 0, qtyDelta: -line.qty, referenceType: "sale", referenceId: parseInt(sale.id) || 0, reason: `Bill ${finalBillNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: Number(line.productId) });
+          }
+        }
+      } catch (error) {
+        for (const id of createdReservationIds) await releaseReservation({ id, releaseReason: "sale_confirm_rollback", ctx }).catch(() => undefined);
+        throw error;
+      }
+
+      for (const line of lines) {
+        await consumeReservation({ saleId: input.saleId, productId: Number(line.productId), storeId: Number(sale.storeId), batchId: line.batchLedgerId ? Number(line.batchLedgerId) : undefined, ctx, releaseReason: "sale_confirmed", idempotencyKey: buildIdempotencyKey(["sale", "reservation", "consume", input.saleId, line.id]) });
       }
 
       // Update sale to confirmed

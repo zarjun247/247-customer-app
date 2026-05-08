@@ -24,11 +24,11 @@ describe("mega stock reservation truth hardening", () => {
   });
 
   it("durable reservations persist explicit rows and statuses", () => {
-    expect(schema).toContain('status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled"])');
+    expect(schema).toContain('status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled", "failed"])');
     for (const field of ["cartId", "variantId", "skuId", "qty", "releaseReason", "createdAt", "updatedAt"]) {
       expect(schema).toContain(field);
     }
-    expect(reservationService).toContain("db.insert(stockReservations)");
+    expect(reservationService).toContain("insert(stockReservations)");
     expect(reservationService).toContain("eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)");
   });
 
@@ -39,8 +39,8 @@ describe("mega stock reservation truth hardening", () => {
   });
 
   it("expired, cancelled, payment-failed, and Rx-rejected releases restore availability by leaving active status", () => {
-    expect(reservationService).toContain('updateReservationStatus(input, "expired"');
-    expect(reservationService).toContain('updateReservationStatus(input, "cancelled"');
+    expect(reservationService).toContain('transitionActiveReservation(input, "expired"');
+    expect(reservationService).toContain('transitionActiveReservation(input, "cancelled"');
     expect(reservationService).toContain('payment_failed');
     expect(reservationService).toContain('rx_rejected');
   });
