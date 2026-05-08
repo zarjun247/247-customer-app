@@ -16,6 +16,33 @@
 import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
+import { executeProviderOperation, type ProviderOperationName } from "./services/providerRuntime";
+
+
+function connectorIdempotencyKey(operation: ProviderOperationName, seed: unknown): string {
+  return `${operation}:${crypto.createHash("sha256").update(JSON.stringify(seed)).digest("hex")}`;
+}
+
+async function enforceConnectorRuntime<T extends ProviderResult<string>>(input: {
+  provider: string;
+  operation: ProviderOperationName;
+  idempotencySeed: unknown;
+  requestPayload?: unknown;
+  result: T;
+}): Promise<T> {
+  try {
+    await executeProviderOperation({
+      provider: input.provider,
+      operation: input.operation,
+      idempotencyKey: connectorIdempotencyKey(input.operation, input.idempotencySeed),
+      requestPayload: input.requestPayload,
+      call: async () => input.result,
+    });
+  } catch (error) {
+    console.warn("[ProviderRuntime] connector runtime recording failed", error);
+  }
+  return input.result;
+}
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
@@ -140,7 +167,7 @@ export const smsConnector: SmsConnector = {
         console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${message}`);
       }
 
-      return result;
+      return enforceConnectorRuntime({ provider: "sms", operation: "sms.send", idempotencySeed: { phone, message }, requestPayload: { phone, message }, result });
     }
 
     try {
@@ -169,22 +196,31 @@ export const smsConnector: SmsConnector = {
         const text = await res.text();
         console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
 
-        return {
-          status: "failed",
-          ok: false,
-          reason: `MSG91 error: ${res.status}`,
-        };
+        return enforceConnectorRuntime({
+          provider: "sms",
+          operation: "sms.send",
+          idempotencySeed: { phone, message },
+          requestPayload: { phone, message, httpStatus: res.status },
+          result: {
+            status: "failed",
+            ok: false,
+            reason: `MSG91 error: ${res.status}`,
+            failureType: res.status === 429 ? "rate_limited" : res.status >= 500 ? "provider_5xx" : "provider_4xx",
+          } as MessageProviderResult & { failureType: string },
+        });
       }
 
-      return { status: "sent", ok: true };
+      return enforceConnectorRuntime({ provider: "sms", operation: "sms.send", idempotencySeed: { phone, message }, requestPayload: { phone, message }, result: { status: "sent", ok: true } });
     } catch (err) {
       console.error("[SMS] Failed to send via MSG91:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "MSG91 request failed",
-      };
+      return enforceConnectorRuntime({
+        provider: "sms",
+        operation: "sms.send",
+        idempotencySeed: { phone, message },
+        requestPayload: { phone, message },
+        result: { status: "failed", ok: false, reason: "MSG91 request failed", failureType: "network" } as MessageProviderResult & { failureType: string },
+      });
     }
   },
 
@@ -213,7 +249,7 @@ export const smsConnector: SmsConnector = {
         );
       }
 
-      return result;
+      return enforceConnectorRuntime({ provider: "whatsapp", operation: "whatsapp.send", idempotencySeed: { phone, templateName, variables }, requestPayload: { phone, templateName, variables }, result });
     }
 
     try {
@@ -260,22 +296,31 @@ export const smsConnector: SmsConnector = {
         const text = await res.text();
         console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
 
-        return {
-          status: "failed",
-          ok: false,
-          reason: `WhatsApp Cloud API error: ${res.status}`,
-        };
+        return enforceConnectorRuntime({
+          provider: "whatsapp",
+          operation: "whatsapp.send",
+          idempotencySeed: { phone, templateName, variables },
+          requestPayload: { phone, templateName, variables, httpStatus: res.status },
+          result: {
+            status: "failed",
+            ok: false,
+            reason: `WhatsApp Cloud API error: ${res.status}`,
+            failureType: res.status === 429 ? "rate_limited" : res.status >= 500 ? "provider_5xx" : "provider_4xx",
+          } as MessageProviderResult & { failureType: string },
+        });
       }
 
-      return { status: "sent", ok: true };
+      return enforceConnectorRuntime({ provider: "whatsapp", operation: "whatsapp.send", idempotencySeed: { phone, templateName, variables }, requestPayload: { phone, templateName, variables }, result: { status: "sent", ok: true } });
     } catch (err) {
       console.error("[WhatsApp] Failed to send:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "WhatsApp Cloud API request failed",
-      };
+      return enforceConnectorRuntime({
+        provider: "whatsapp",
+        operation: "whatsapp.send",
+        idempotencySeed: { phone, templateName, variables },
+        requestPayload: { phone, templateName, variables },
+        result: { status: "failed", ok: false, reason: "WhatsApp Cloud API request failed", failureType: "network" } as MessageProviderResult & { failureType: string },
+      });
     }
   },
 };
@@ -559,7 +604,7 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         );
       }
 
-      return { ...result, zpl };
+      return enforceConnectorRuntime({ provider: "printer_label_printing", operation: "printer.printDispatchLabel", idempotencySeed: { orderId: params.orderId }, requestPayload: { orderId: params.orderId, labelType: "dispatch" }, result: { ...result, zpl } });
     }
 
     try {
@@ -580,16 +625,17 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         });
       });
 
-      return { status: "printed", ok: true, zpl };
+      return enforceConnectorRuntime({ provider: "printer_label_printing", operation: "printer.printDispatchLabel", idempotencySeed: { orderId: params.orderId }, requestPayload: { orderId: params.orderId, labelType: "dispatch" }, result: { status: "printed", ok: true, zpl } });
     } catch (err) {
       console.error("[Printer] Failed to send dispatch label:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "Printer delivery failed",
-        zpl,
-      };
+      return enforceConnectorRuntime({
+        provider: "printer_label_printing",
+        operation: "printer.printDispatchLabel",
+        idempotencySeed: { orderId: params.orderId },
+        requestPayload: { orderId: params.orderId, labelType: "dispatch" },
+        result: { status: "failed", ok: false, reason: "Printer delivery failed", zpl, failureType: "network" } as PrinterProviderResult & { failureType: string },
+      });
     }
   },
 
@@ -614,7 +660,7 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         );
       }
 
-      return { ...result, zpl };
+      return enforceConnectorRuntime({ provider: "printer_label_printing", operation: "printer.printBatchLabel", idempotencySeed: { batchNumber: params.batchNumber, barcode: params.barcode }, requestPayload: { batchNumber: params.batchNumber, labelType: "batch" }, result: { ...result, zpl } });
     }
 
     try {
@@ -635,16 +681,17 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         });
       });
 
-      return { status: "printed", ok: true, zpl };
+      return enforceConnectorRuntime({ provider: "printer_label_printing", operation: "printer.printBatchLabel", idempotencySeed: { batchNumber: params.batchNumber, barcode: params.barcode }, requestPayload: { batchNumber: params.batchNumber, labelType: "batch" }, result: { status: "printed", ok: true, zpl } });
     } catch (err) {
       console.error("[Printer] Failed to send batch label:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "Printer delivery failed",
-        zpl,
-      };
+      return enforceConnectorRuntime({
+        provider: "printer_label_printing",
+        operation: "printer.printBatchLabel",
+        idempotencySeed: { batchNumber: params.batchNumber, barcode: params.barcode },
+        requestPayload: { batchNumber: params.batchNumber, labelType: "batch" },
+        result: { status: "failed", ok: false, reason: "Printer delivery failed", zpl, failureType: "network" } as PrinterProviderResult & { failureType: string },
+      });
     }
   },
 };
@@ -707,7 +754,7 @@ export const erpConnector: ErpSyncConnector = {
         );
       }
 
-      return { ...result, erpRef: null };
+      return enforceConnectorRuntime({ provider: "tally_erp_export", operation: "tally.export", idempotencySeed: { ingestionId, storeId }, requestPayload: { ingestionId, storeId, itemCount: items.length }, result: { ...result, erpRef: null } });
     }
 
     try {
@@ -725,31 +772,45 @@ export const erpConnector: ErpSyncConnector = {
         const text = await res.text();
         console.error(`[ERP] pushGrn error: ${res.status} ${text}`);
 
-        return {
-          erpRef: null,
-          status: "failed",
-          ok: false,
-          reason: `ERP GRN sync failed: ${res.status}`,
-        };
+        return enforceConnectorRuntime({
+          provider: "tally_erp_export",
+          operation: "tally.export",
+          idempotencySeed: { ingestionId, storeId },
+          requestPayload: { ingestionId, storeId, itemCount: items.length, httpStatus: res.status },
+          result: {
+            erpRef: null,
+            status: "failed",
+            ok: false,
+            reason: `ERP GRN sync failed: ${res.status}`,
+            failureType: res.status === 429 ? "rate_limited" : res.status >= 500 ? "provider_5xx" : "provider_4xx",
+          } as ErpProviderResult & { failureType: string },
+        });
       }
 
       const data = (await res.json()) as { ref?: string; status?: string };
 
-      return {
-        erpRef: data.ref ?? `GRN-${ingestionId}`,
-        status: "synced",
-        ok: true,
-        reason: data.status,
-      };
+      return enforceConnectorRuntime({
+        provider: "tally_erp_export",
+        operation: "tally.export",
+        idempotencySeed: { ingestionId, storeId },
+        requestPayload: { ingestionId, storeId, itemCount: items.length },
+        result: {
+          erpRef: data.ref ?? `GRN-${ingestionId}`,
+          status: "synced",
+          ok: true,
+          reason: data.status,
+        },
+      });
     } catch (err) {
       console.error("[ERP] pushGrn failed:", err);
 
-      return {
-        erpRef: null,
-        status: "failed",
-        ok: false,
-        reason: "ERP GRN sync failed",
-      };
+      return enforceConnectorRuntime({
+        provider: "tally_erp_export",
+        operation: "tally.export",
+        idempotencySeed: { ingestionId, storeId },
+        requestPayload: { ingestionId, storeId, itemCount: items.length },
+        result: { erpRef: null, status: "failed", ok: false, reason: "ERP GRN sync failed", failureType: "network" } as ErpProviderResult & { failureType: string },
+      });
     }
   },
 
@@ -774,7 +835,7 @@ export const erpConnector: ErpSyncConnector = {
         );
       }
 
-      return { ...result, erpRef: null };
+      return enforceConnectorRuntime({ provider: "tally_erp_export", operation: "tally.export", idempotencySeed: { orderId, storeId }, requestPayload: { orderId, storeId, itemCount: items.length }, result: { ...result, erpRef: null } });
     }
 
     try {
@@ -792,31 +853,45 @@ export const erpConnector: ErpSyncConnector = {
         const text = await res.text();
         console.error(`[ERP] pushSalesOrder error: ${res.status} ${text}`);
 
-        return {
-          erpRef: null,
-          status: "failed",
-          ok: false,
-          reason: `ERP sales order sync failed: ${res.status}`,
-        };
+        return enforceConnectorRuntime({
+          provider: "tally_erp_export",
+          operation: "tally.export",
+          idempotencySeed: { orderId, storeId },
+          requestPayload: { orderId, storeId, itemCount: items.length, httpStatus: res.status },
+          result: {
+            erpRef: null,
+            status: "failed",
+            ok: false,
+            reason: `ERP sales order sync failed: ${res.status}`,
+            failureType: res.status === 429 ? "rate_limited" : res.status >= 500 ? "provider_5xx" : "provider_4xx",
+          } as ErpProviderResult & { failureType: string },
+        });
       }
 
       const data = (await res.json()) as { ref?: string; status?: string };
 
-      return {
-        erpRef: data.ref ?? `SO-${orderId}`,
-        status: "synced",
-        ok: true,
-        reason: data.status,
-      };
+      return enforceConnectorRuntime({
+        provider: "tally_erp_export",
+        operation: "tally.export",
+        idempotencySeed: { orderId, storeId },
+        requestPayload: { orderId, storeId, itemCount: items.length },
+        result: {
+          erpRef: data.ref ?? `SO-${orderId}`,
+          status: "synced",
+          ok: true,
+          reason: data.status,
+        },
+      });
     } catch (err) {
       console.error("[ERP] pushSalesOrder failed:", err);
 
-      return {
-        erpRef: null,
-        status: "failed",
-        ok: false,
-        reason: "ERP sales order sync failed",
-      };
+      return enforceConnectorRuntime({
+        provider: "tally_erp_export",
+        operation: "tally.export",
+        idempotencySeed: { orderId, storeId },
+        requestPayload: { orderId, storeId, itemCount: items.length },
+        result: { erpRef: null, status: "failed", ok: false, reason: "ERP sales order sync failed", failureType: "network" } as ErpProviderResult & { failureType: string },
+      });
     }
   },
 };

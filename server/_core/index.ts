@@ -13,6 +13,8 @@ import { processQueue } from "../worker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
+import { buildProviderRuntimeHealthSummary } from "../services/providerRuntime";
+import { buildProviderFailureReport } from "../services/providerDeadLetter";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,11 +53,17 @@ async function startServer() {
     } catch {
       dbConnected = false;
     }
+    const providerRuntime = buildProviderRuntimeHealthSummary();
+    const providerFailures = await buildProviderFailureReport();
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
       dbConnected,
       version: "1.0.0",
+      providerRuntime: {
+        ...providerRuntime,
+        recentDeadLetterCount: providerFailures.deadLetterCount,
+      },
       // TODO: Add Sentry DSN check, Redis ping, storage ping
     });
   });

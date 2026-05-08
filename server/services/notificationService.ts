@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { notificationEvents, notificationPreferences } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { classifyProviderResult, normalizeProviderResult as normalizeRuntimeProviderResult } from "./providerRuntime";
 
 export type NotificationChannel = "in_app" | "push" | "email" | "whatsapp" | "sms";
 export type NotificationSendStatus =
@@ -10,7 +11,9 @@ export type NotificationSendStatus =
   | "provider_unconfigured"
   | "retry_scheduled"
   | "dead_letter"
-  | "skipped_demo";
+  | "skipped_demo"
+  | "demo_skipped"
+  | "preview_only";
 
 const defaultChannels: Array<{ channel: NotificationChannel; enabled: boolean }> = [
   { channel: "in_app", enabled: true },
@@ -96,19 +99,25 @@ export async function sendNotification(id: number, providerResult: boolean | { o
   return { id, status: normalized.status };
 }
 
-export function normalizeProviderResult(providerResult: boolean | { ok?: boolean; status?: NotificationSendStatus; providerMessageId?: string; error?: string } | null | undefined) {
+export function normalizeProviderResult(providerResult: boolean | { ok?: boolean; status?: NotificationSendStatus; providerMessageId?: string; error?: string; failureType?: string; attemptNo?: number } | null | undefined) {
   if (providerResult === true) return { status: "sent" as const };
   if (providerResult === false) return { status: "failed" as const, error: "provider_returned_false" };
   if (!providerResult) return { status: "provider_unconfigured" as const, error: "provider_unavailable" };
-  if (providerResult.status) {
-    return {
-      status: providerResult.status,
-      providerMessageId: providerResult.providerMessageId,
-      error: providerResult.error,
-    };
-  }
-  if (providerResult.ok === true) return { status: "sent" as const, providerMessageId: providerResult.providerMessageId };
-  return { status: "failed" as const, error: providerResult.error ?? "provider_failed" };
+  if (!providerResult.status && providerResult.ok === false) return { status: "failed" as const, error: providerResult.error ?? "provider_failed" };
+
+  const runtime = classifyProviderResult(normalizeRuntimeProviderResult(
+    { ...providerResult, reason: providerResult.error },
+    { provider: "notification", operation: "email.send", idempotencyKey: `notification-${providerResult.providerMessageId ?? "unknown"}`, attemptNo: providerResult.attemptNo ?? 1 },
+  ));
+
+  if (runtime.status === "success") return { status: "sent" as const, providerMessageId: providerResult.providerMessageId };
+  if (runtime.status === "demo_skipped") return { status: "demo_skipped" as const, error: providerResult.error ?? runtime.reason };
+  if (runtime.status === "preview_only") return { status: "preview_only" as const, error: providerResult.error ?? runtime.reason };
+  if (runtime.status === "retry_scheduled") return { status: "retry_scheduled" as const, error: providerResult.error ?? runtime.reason };
+  if (runtime.status === "dead_letter") return { status: "dead_letter" as const, error: providerResult.error ?? runtime.deadLetterReason ?? runtime.reason };
+  if (runtime.status === "provider_unconfigured") return { status: "provider_unconfigured" as const, error: providerResult.error ?? runtime.reason };
+  if (providerResult.status === "skipped_demo") return { status: "skipped_demo" as const, error: providerResult.error };
+  return { status: "failed" as const, error: providerResult.error ?? runtime.reason ?? "provider_failed" };
 }
 
 export async function scheduleNotification(id: number, scheduledAt: Date) {

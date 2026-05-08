@@ -2693,7 +2693,7 @@ export const notificationEvents = mysqlTable("notification_events", {
   title: varchar("title", { length: 200 }).notNull(),
   body: text("body").notNull(),
   safePayloadJson: text("safePayloadJson"),
-  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "provider_unconfigured", "retry_scheduled", "dead_letter", "skipped_demo"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "provider_unconfigured", "retry_scheduled", "dead_letter", "skipped_demo", "demo_skipped", "preview_only"]).default("pending").notNull(),
   provider: varchar("provider", { length: 80 }),
   providerMessageId: varchar("providerMessageId", { length: 150 }),
   scheduledFor: timestamp("scheduledFor"),
@@ -2702,6 +2702,58 @@ export const notificationEvents = mysqlTable("notification_events", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
+
+
+export const providerOperationAttempts = mysqlTable("provider_operation_attempts", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  provider: varchar("provider", { length: 100 }).notNull(),
+  operation: varchar("operation", { length: 120 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+  status: mysqlEnum("status", ["success", "failed", "provider_unconfigured", "disabled", "demo_skipped", "preview_only", "retry_scheduled", "dead_letter", "timeout", "rate_limited", "unknown"]).notNull(),
+  attemptNo: int("attemptNo").default(1).notNull(),
+  maxAttempts: int("maxAttempts").default(1).notNull(),
+  retryable: boolean("retryable").default(false).notNull(),
+  nextRetryAt: timestamp("nextRetryAt"),
+  deadLetterReason: varchar("deadLetterReason", { length: 500 }),
+  requestHash: varchar("requestHash", { length: 64 }),
+  responseSummaryJson: text("responseSummaryJson"),
+  correlationId: varchar("correlationId", { length: 191 }),
+  relatedEntityType: varchar("relatedEntityType", { length: 80 }),
+  relatedEntityId: varchar("relatedEntityId", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  providerOperationStatusIdx: index("provider_attempt_provider_operation_status_idx").on(t.provider, t.operation, t.status),
+  idempotencyKeyIdx: index("provider_attempt_idempotency_key_idx").on(t.idempotencyKey),
+  createdAtIdx: index("provider_attempt_created_at_idx").on(t.createdAt),
+  nextRetryAtIdx: index("provider_attempt_next_retry_at_idx").on(t.nextRetryAt),
+}));
+
+export const providerDeadLetters = mysqlTable("provider_dead_letters", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  provider: varchar("provider", { length: 100 }).notNull(),
+  operation: varchar("operation", { length: 120 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 191 }).notNull(),
+  status: mysqlEnum("status", ["success", "failed", "provider_unconfigured", "disabled", "demo_skipped", "preview_only", "retry_scheduled", "dead_letter", "timeout", "rate_limited", "unknown"]).default("dead_letter").notNull(),
+  attemptNo: int("attemptNo").default(1).notNull(),
+  maxAttempts: int("maxAttempts").default(1).notNull(),
+  retryable: boolean("retryable").default(false).notNull(),
+  nextRetryAt: timestamp("nextRetryAt"),
+  deadLetterReason: varchar("deadLetterReason", { length: 500 }),
+  requestHash: varchar("requestHash", { length: 64 }),
+  responseSummaryJson: text("responseSummaryJson"),
+  correlationId: varchar("correlationId", { length: 191 }),
+  relatedEntityType: varchar("relatedEntityType", { length: 80 }),
+  relatedEntityId: varchar("relatedEntityId", { length: 120 }),
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  providerOperationStatusIdx: index("provider_dead_provider_operation_status_idx").on(t.provider, t.operation, t.status),
+  idempotencyKeyIdx: index("provider_dead_idempotency_key_idx").on(t.idempotencyKey),
+  createdAtIdx: index("provider_dead_created_at_idx").on(t.createdAt),
+  nextRetryAtIdx: index("provider_dead_next_retry_at_idx").on(t.nextRetryAt),
+}));
 
 export const notificationPreferences = mysqlTable("notification_preferences", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
