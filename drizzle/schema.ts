@@ -778,6 +778,38 @@ export type MetricsEvent = typeof metricsEvents.$inferSelect;
 export type RxPriorApproval = typeof rxPriorApprovals.$inferSelect;
 export type DoctorConsultRequest = typeof doctorConsultRequests.$inferSelect;
 
+
+// ─── Commercial Event Ledger (append-only lifecycle truth foundation) ─────────
+export const commercialEvents = mysqlTable("commercial_events", {
+  eventId: varchar("event_id", { length: 64 }).primaryKey(),
+  aggregateType: varchar("aggregate_type", { length: 50 }).notNull(),
+  aggregateId: varchar("aggregate_id", { length: 100 }).notNull(),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  eventVersion: int("event_version").default(1).notNull(),
+  actorType: varchar("actor_type", { length: 40 }).default("system").notNull(),
+  actorId: varchar("actor_id", { length: 100 }),
+  storeId: varchar("store_id", { length: 100 }),
+  orderId: varchar("order_id", { length: 100 }),
+  saleId: varchar("sale_id", { length: 100 }),
+  invoiceId: varchar("invoice_id", { length: 100 }),
+  reservationId: varchar("reservation_id", { length: 100 }),
+  paymentId: varchar("payment_id", { length: 100 }),
+  refundId: varchar("refund_id", { length: 100 }),
+  eventPayload: json("event_payload").notNull(),
+  occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 191 }),
+  correlationId: varchar("correlation_id", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxCommercialEventsAggregate: index("idx_commercial_events_aggregate").on(t.aggregateType, t.aggregateId),
+  idxCommercialEventsOccurred: index("idx_commercial_events_occurred").on(t.occurredAt),
+  idxCommercialEventsCorrelation: index("idx_commercial_events_correlation").on(t.correlationId),
+  uqCommercialEventsIdempotency: uniqueIndex("uq_commercial_events_idempotency").on(t.idempotencyKey),
+  idxCommercialEventsOrder: index("idx_commercial_events_order").on(t.orderId, t.occurredAt),
+  idxCommercialEventsPayment: index("idx_commercial_events_payment").on(t.paymentId, t.occurredAt),
+  idxCommercialEventsInvoice: index("idx_commercial_events_invoice").on(t.invoiceId, t.occurredAt),
+}));
+
 // ─── Payment Records ──────────────────────────────────────────────────────────
 export const paymentRecords = mysqlTable("payment_records", {
   id: int("id").autoincrement().primaryKey(),
