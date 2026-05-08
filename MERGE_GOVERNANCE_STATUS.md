@@ -65,3 +65,11 @@ A final merge-captain audit must run after all accepted PRs merge. It must:
 - Review final schema and migration ordering.
 - Confirm proof for CI/security scan, test DB lifecycle, HTTP security middleware, provider contract matrix, observability healthchecks, privacy/staff session, DB index audit, API abuse protection, backup/restore/deployment, and production smoke/UAT.
 - Publish the final launch-mode decision with remaining risks and explicit safe-to-merge assessment.
+
+## 7. Governance/security scan layer
+
+As of 2026-05-08, governance/security scanning is rebuilt from the current branch baseline in `scripts/ci-governance-guards.mjs` and should run in CI as `governance-security-scans`.
+
+The scan layer is intended to catch unsafe parallel-work artifacts before merge, including unresolved conflict markers, provider success shortcuts, direct stock mutations outside approved gateways, unsafe audit reference coercion, unguarded admin/pharmacy routes, obvious secrets, migration numbering/destructive-SQL risks, and placeholder production success paths.
+
+This governance layer changes controls only. It does not change runtime business behavior and does not add migrations.
