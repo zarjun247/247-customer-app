@@ -715,7 +715,7 @@ export const erpConnector: ErpSyncConnector = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": apiKey,
+          "X-API-Key": apiKey as string,
           ...(companyId ? { "X-Company-ID": companyId } : {}),
         },
         body: JSON.stringify({ ingestionId, storeId, items }),
@@ -782,7 +782,7 @@ export const erpConnector: ErpSyncConnector = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": apiKey,
+          "X-API-Key": apiKey as string,
           ...(companyId ? { "X-Company-ID": companyId } : {}),
         },
         body: JSON.stringify({ orderId, storeId, totalAmount, items }),
