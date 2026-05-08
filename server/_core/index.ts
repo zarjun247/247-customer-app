@@ -13,6 +13,7 @@ import { processQueue } from "../worker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
+import { registerPaymentWebhookRoutes } from "../paymentWebhookRoutes";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,6 +40,7 @@ async function startServer() {
   applyHttpSecurity(app);
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerPaymentWebhookRoutes(app);
 
   // ─── Health Check ──────────────────────────────────────────────────────────
   // GET /api/health — returns service status for load balancers and monitoring

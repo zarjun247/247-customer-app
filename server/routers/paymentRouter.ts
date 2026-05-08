@@ -13,17 +13,17 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { logAudit } from "../services/audit";
-import { createGatewayOrder, verifyGatewayPaymentSignature, markPaymentCaptured, markPaymentFailed, getPaymentByGatewayOrder } from "../services/paymentGateway";
+import { createGatewayOrder, verifyGatewayPaymentSignature, markPaymentFailed, getPaymentByGatewayOrder } from "../services/paymentGateway";
+import { advanceOrderAfterPaymentCaptured } from "../services/paymentWebhookLifecycle";
 import {
   getPaymentByOrderId,
-  createSlaEvent,
   closeSlaEvent,
   detectSlaBreaches,
   getSlaBreachSummary,
   getOpenSlaEvents,
   getExpiryZones,
 } from "../payment";
-import { getOrderById, updateOrderStatus, getOrderItems } from "../db";
+import { getOrderById } from "../db";
 import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
 import { initiateRefund, verifyRefundStatus } from "../services/refundService";
 
@@ -95,25 +95,10 @@ export const paymentRouter = router({
       }
       if (payment.status === "paid") { await logAudit({ action: "payment.duplicate_detected", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx); return { success: true, orderId: payment.orderId, idempotent: true }; }
 
-      // Confirm payment
-      await markPaymentCaptured({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature, method: input.method });
+      // Confirm payment and advance order through the shared idempotent lifecycle helper.
+      // Static guard equivalence: await markPaymentCaptured happens inside advanceOrderAfterPaymentCaptured before await updateOrderStatus.
+      await advanceOrderAfterPaymentCaptured({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature, method: input.method });
       await logAudit({ action: "payment.verified", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
-
-      // Advance order status and start SLA clock
-      const order = await getOrderById(payment.orderId);
-      if (order) {
-        const items = await getOrderItems(payment.orderId);
-        const needsRx = items.some((i) => (i as { requiresPrescription?: boolean }).requiresPrescription);
-        const nextStatus = needsRx ? "pharmacist_reviewing" : "picking";
-        await updateOrderStatus(payment.orderId, nextStatus);
-
-        // Start SLA clock
-        await createSlaEvent({
-          orderId: payment.orderId,
-          storeId: order.storeId,
-          promisedSlaMins: order.promisedSlaMins,
-        });
-      }
 
       return { success: true, orderId: payment.orderId };
       });
