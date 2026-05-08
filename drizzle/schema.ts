@@ -2853,3 +2853,36 @@ export const staffDeviceSessions = mysqlTable("staff_device_sessions", {
 }, (t) => ({ staffSessionUnique: uniqueIndex("staff_device_sessions_staff_session_uq").on(t.staffId, t.sessionId) }));
 export type StaffDeviceSession = typeof staffDeviceSessions.$inferSelect;
 export type NewStaffDeviceSession = typeof staffDeviceSessions.$inferInsert;
+
+// ─── Pharmacy Legal Operations Evidence ───────────────────────────────────────
+export const regulatedReleaseEvents = mysqlTable("regulated_release_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  orderId: varchar("orderId", { length: 100 }),
+  saleId: varchar("saleId", { length: 100 }),
+  saleLineRef: varchar("saleLineRef", { length: 100 }),
+  productId: varchar("productId", { length: 100 }),
+  batchId: varchar("batchId", { length: 100 }),
+  batchLedgerId: varchar("batchLedgerId", { length: 100 }),
+  prescriptionId: varchar("prescriptionId", { length: 100 }),
+  h1RegisterId: varchar("h1RegisterId", { length: 100 }),
+  h1Ref: varchar("h1Ref", { length: 100 }),
+  customerId: varchar("customerId", { length: 100 }),
+  storeId: varchar("storeId", { length: 100 }),
+  pharmacistId: varchar("pharmacistId", { length: 100 }),
+  scheduleFlag: varchar("scheduleFlag", { length: 20 }),
+  decision: mysqlEnum("decision", ["approved", "rejected", "clarification_required"]).notNull(),
+  checklistJson: json("checklistJson"),
+  missingFieldsJson: json("missingFieldsJson"),
+  evidenceHash: varchar("evidenceHash", { length: 64 }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxRegReleaseSale: index("idx_reg_release_sale").on(t.saleId),
+  idxRegReleaseOrder: index("idx_reg_release_order").on(t.orderId),
+  idxRegReleasePrescription: index("idx_reg_release_prescription").on(t.prescriptionId),
+  idxRegReleaseProduct: index("idx_reg_release_product").on(t.productId),
+  idxRegReleasePharmacist: index("idx_reg_release_pharmacist").on(t.pharmacistId),
+  idxRegReleaseCreated: index("idx_reg_release_created").on(t.createdAt),
+}));
+export type RegulatedReleaseEvent = typeof regulatedReleaseEvents.$inferSelect;
+export type NewRegulatedReleaseEvent = typeof regulatedReleaseEvents.$inferInsert;
