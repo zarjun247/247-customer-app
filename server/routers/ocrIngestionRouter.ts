@@ -14,6 +14,7 @@ import {
   classifyOcrLineException,
 } from "../services/ocrPurchaseInwarding";
 import { normalizeProductName } from "../services/productNormalization";
+import { assertRuntimeGate, productToMasterLike, validatePurchaseLineMaster } from "../services/productMasterValidation";
 
 async function getDb() {
   const { getDb: _getDb } = await import("../db");
@@ -256,7 +257,7 @@ export const ocrIngestionRouter = router({
     .mutation(async ({ ctx, input }) => {
       requirePurchaseRole(ctx.user.role);
       const db = await getDb();
-      const { ocrExtractedLines, ocrMatchCandidates, ocrReviewTasks } = await import("../../drizzle/schema");
+      const { ocrExtractedLines, ocrMatchCandidates, ocrReviewTasks, products } = await import("../../drizzle/schema");
       const [line] = await db.select().from(ocrExtractedLines).where(eq(ocrExtractedLines.id, input.lineId)).limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND" });
       const u: any = { reviewedBy: ctx.user.id, reviewedAt: new Date() };
@@ -279,6 +280,12 @@ export const ocrIngestionRouter = router({
       if (input.gstRate !== undefined) u.gstRate = String(input.gstRate);
       if (input.hsnCode !== undefined) u.hsnCode = input.hsnCode;
       if (input.correctionNotes !== undefined) u.correctionNotes = input.correctionNotes;
+      if (input.action === "approve" || input.action === "reassign") {
+        const productId = u.mappedProductId ?? u.matchedProductId ?? line.mappedProductId ?? line.matchedProductId;
+        const [product] = productId ? await db.select().from(products).where(eq(products.id, productId)).limit(1) : [];
+        const mergedLine = { ...line, ...u };
+        assertRuntimeGate(validatePurchaseLineMaster({ product: product ? productToMasterLike(product) : null, productId, batchNo: mergedLine.batchNo, expiryDate: mergedLine.expiryDate, mrp: mergedLine.mrp, purchaseRate: mergedLine.purchaseRate, hsnCode: mergedLine.hsnCode, gstRate: mergedLine.gstRate }), "OCR line has incomplete product master or purchase metadata");
+      }
       await db.update(ocrExtractedLines).set(u).where(eq(ocrExtractedLines.id, input.lineId));
       await db.update(ocrReviewTasks).set({ status: "resolved", resolvedBy: ctx.user.id, resolvedAt: new Date() }).where(and(eq(ocrReviewTasks.ocrLineId, input.lineId), eq(ocrReviewTasks.status, "pending")));
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, actorType: "user", entityType: "ocr_extracted_line", entityId: input.lineId, action: `ocr.review_${input.action}`, beforeJson: { matchStatus: line.matchStatus }, afterJson: u, reason: input.rejectionReason, source: "admin" });
@@ -500,7 +507,7 @@ export const ocrIngestionRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (!["admin", "super_admin", "store_manager", "purchase_manager"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN", message: "Manager role required" });
       const db = await getDb();
-      const { purchaseDrafts, purchaseDraftLines, purchaseInvoices, purchaseLines, ingestionJobs } = await import("../../drizzle/schema");
+      const { purchaseDrafts, purchaseDraftLines, purchaseInvoices, purchaseLines, ingestionJobs, products } = await import("../../drizzle/schema");
       const [draft] = await db.select().from(purchaseDrafts).where(eq(purchaseDrafts.id, input.draftId)).limit(1);
       if (!draft) throw new TRPCError({ code: "NOT_FOUND" });
       if (draft.status === "committed") return { success: true, invoiceId: draft.committedInvoiceId, idempotent: true };
@@ -510,7 +517,10 @@ export const ocrIngestionRouter = router({
       assertOcrDraftApprovedForHandoff(draft, lines as any);
       const [invoice] = await db.insert(purchaseInvoices).values({ supplierId: draft.supplierId ?? 0, storeId: job?.storeId ?? 0, invoiceNo: draft.invoiceNo ?? `OCR-${Date.now()}`, invoiceDate: draft.invoiceDate ? new Date(draft.invoiceDate) : new Date(), sourceType: "ocr", status: "draft", createdBy: ctx.user.id }).$returningId();
       for (const line of lines) {
-        await db.insert(purchaseLines).values({ purchaseInvoiceId: invoice.id, productId: line.productId, batchNo: line.batchNo, expiryDate: new Date(line.expiryDate as string), mrp: line.mrp, purchaseRate: line.purchaseRate, qty: line.qty, freeQty: line.freeQty ?? 0, schemeDiscount: line.discount ?? "0", gstRate: line.gstRate ?? "0", hsnCode: line.hsnCode ?? undefined, rawLineText: line.rawLineText ?? null, confidence: line.confidence ?? null, reviewerId: line.approvedBy ?? ctx.user.id } as any);
+        const productId = line.productId ?? line.mappedProductId;
+        const [product] = productId ? await db.select().from(products).where(eq(products.id, productId)).limit(1) : [];
+        assertRuntimeGate(validatePurchaseLineMaster({ product: product ? productToMasterLike(product) : null, productId, batchNo: line.batchNo, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, hsnCode: line.hsnCode, gstRate: line.gstRate }), "OCR approved draft has incomplete product master or purchase metadata");
+        await db.insert(purchaseLines).values({ purchaseInvoiceId: invoice.id, productId, batchNo: line.batchNo, expiryDate: new Date(line.expiryDate as string), mrp: line.mrp, purchaseRate: line.purchaseRate, qty: line.qty, freeQty: line.freeQty ?? 0, schemeDiscount: line.discount ?? "0", gstRate: line.gstRate ?? "0", hsnCode: line.hsnCode ?? undefined, rawLineText: line.rawLineText ?? null, confidence: line.confidence ?? null, reviewerId: line.approvedBy ?? ctx.user.id } as any);
       }
       await db.update(purchaseDrafts).set({ status: "committed", committedInvoiceId: invoice.id }).where(eq(purchaseDrafts.id, input.draftId));
       await db.update(ingestionJobs).set({ status: "committed", committedAt: new Date() }).where(eq(ingestionJobs.id, draft.ingestionJobId));

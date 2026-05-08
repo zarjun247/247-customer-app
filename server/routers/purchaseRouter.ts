@@ -13,6 +13,7 @@ import { syncStoreSkuAggregate } from "../services/reservationService";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding, allocatePaymentToInvoice, allocateSupplierPayment, applyPurchaseReturnCredit, getSupplierAgeing, getSupplierReconciliationReport } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
+import { assertRuntimeGate, productToMasterLike, validatePurchaseLineMaster } from "../services/productMasterValidation";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -185,9 +186,11 @@ export const purchaseRouter = router({
       requirePurchase(ctx.user!.role);
       if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
-      const { purchaseInvoices, purchaseLines } = await import("../../drizzle/schema");
+      const { purchaseInvoices, purchaseLines, products } = await import("../../drizzle/schema");
       const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.purchaseInvoiceId));
       if (!inv || inv.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
+      const [product] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
+      assertRuntimeGate(validatePurchaseLineMaster({ product: product ? productToMasterLike(product) : null, productId: input.productId, batchNo: input.batchNo, expiryDate: input.expiryDate, mrp: input.mrp, purchaseRate: input.purchaseRate, hsnCode: input.hsnCode, gstRate: input.gstRate }), "Purchase line has incomplete product master or batch metadata");
       const pr = parseFloat(input.purchaseRate), gr = parseFloat(input.gstRate), sd = parseFloat(input.schemeDiscount), cd = parseFloat(input.cashDiscount);
       const { landingCost, gstAmount, taxableAmount } = calcGst(pr, gr, input.qty, sd, cd);
       const mrp = parseFloat(input.mrp);
