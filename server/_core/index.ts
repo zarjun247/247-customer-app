@@ -13,6 +13,7 @@ import { processQueue } from "../worker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
+import { buildOfflineQueueHealthSummaryFromDb } from "../services/offlineOperationQueue";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,11 +52,18 @@ async function startServer() {
     } catch {
       dbConnected = false;
     }
+    let offlineQueue = { queuedCount: 0, conflictCount: 0, oldestQueuedAgeMs: null as number | null, highRiskBlockedCount: 0 };
+    try {
+      offlineQueue = await buildOfflineQueueHealthSummaryFromDb();
+    } catch {
+      offlineQueue = { queuedCount: 0, conflictCount: 0, oldestQueuedAgeMs: null, highRiskBlockedCount: 0 };
+    }
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
       dbConnected,
       version: "1.0.0",
+      offlineQueue,
       // TODO: Add Sentry DSN check, Redis ping, storage ping
     });
   });

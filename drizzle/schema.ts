@@ -2685,6 +2685,33 @@ export const systemEvents = mysqlTable("system_events", {
 export type SystemEvent = typeof systemEvents.$inferSelect;
 export type InsertSystemEvent = typeof systemEvents.$inferInsert;
 
+
+export const offlineOperationQueue = mysqlTable("offline_operation_queue", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  terminalId: varchar("terminalId", { length: 120 }).notNull(),
+  actorId: int("actorId"),
+  operationType: varchar("operationType", { length: 120 }).notNull(),
+  operationCategory: mysqlEnum("operationCategory", ["draft_intent", "reconcile_intent", "never_finalize_offline"]).notNull(),
+  payloadJson: text("payloadJson").notNull(),
+  payloadHash: varchar("payloadHash", { length: 64 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 160 }).notNull(),
+  status: mysqlEnum("status", ["queued", "replaying", "applied", "rejected", "conflict", "expired", "cancelled"]).default("queued").notNull(),
+  replayAttempts: int("replayAttempts").default(0).notNull(),
+  lastReplayAt: timestamp("lastReplayAt"),
+  conflictReason: varchar("conflictReason", { length: 500 }),
+  rejectionReason: varchar("rejectionReason", { length: 500 }),
+  duplicateCount: int("duplicateCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idempotencyKeyUnique: uniqueIndex("offline_operation_queue_idempotency_uq").on(t.idempotencyKey),
+  storeStatusCreatedIdx: index("offline_operation_queue_store_status_created_idx").on(t.storeId, t.status, t.createdAt),
+  storeCreatedIdx: index("offline_operation_queue_store_created_idx").on(t.storeId, t.createdAt),
+}));
+export type OfflineOperationQueueRow = typeof offlineOperationQueue.$inferSelect;
+export type InsertOfflineOperationQueueRow = typeof offlineOperationQueue.$inferInsert;
+
 export const notificationEvents = mysqlTable("notification_events", {
   id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
   userId: int("userId").notNull(),
