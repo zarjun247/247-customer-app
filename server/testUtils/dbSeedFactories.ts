@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { batches, productVariants, products, stores, storeSkus, users } from "../../drizzle/schema";
+import { batchLedger, batches, productVariants, products, stores, storeSkus, users } from "../../drizzle/schema";
 import type { DbTestContext } from "./dbTestLifecycle";
 
 function insertedId(result: unknown): number {
@@ -137,5 +137,83 @@ export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext,
     variant: (await ctx.db.select().from(productVariants).where(eq(productVariants.id, variantId)).limit(1))[0],
     storeSku: (await ctx.db.select().from(storeSkus).where(eq(storeSkus.id, storeSkuId)).limit(1))[0],
     batch: (await ctx.db.select().from(batches).where(eq(batches.id, batchId)).limit(1))[0],
+  };
+}
+
+
+export async function createDeterministicTestProductSkuBatchLedger(ctx: DbTestContext, storeId: number, options?: { qtyOnHand?: number; qtyReserved?: number; schedule?: "OTC" | "H" | "H1" | "X"; requiresPrescription?: boolean }) {
+  const productResult = await ctx.db.insert(products).values({
+    name: `Test Ledger Product ${ctx.runId}`,
+    brand: "Test Brand",
+    genericName: "test-ledger-only generic",
+    form: "tablet",
+    strength: "10mg",
+    packSize: "10 tablets",
+    schedule: options?.schedule ?? "OTC",
+    requiresPrescription: options?.requiresPrescription ?? false,
+    isChronicMedication: false,
+    category: "medicine",
+    companyName: "Test Manufacturer",
+    hsnCode: "300490",
+    barcode: `TEST-LEDGER-BARCODE-${ctx.runId}`,
+    gstRate: "12.00",
+    searchableTokens: `test ledger product ${ctx.runId}`,
+    canonicalName: `test ledger product ${ctx.runId}`,
+  });
+  const productId = insertedId(productResult);
+  ctx.created.productIds.push(productId);
+
+  const variantResult = await ctx.db.insert(productVariants).values({
+    productId,
+    strength: "10mg",
+    packSize: "10 tablets",
+    form: "tablet",
+    unit: "strip",
+    displayLabel: "10mg strip",
+    isActive: true,
+  });
+  const variantId = insertedId(variantResult);
+  ctx.created.variantIds.push(variantId);
+
+  const skuResult = await ctx.db.insert(storeSkus).values({
+    storeId,
+    productId,
+    variantId,
+    mrp: "100.00",
+    sellingPrice: "95.00",
+    isActive: true,
+    stockQty: options?.qtyOnHand ?? 5,
+    softLockedQty: 0,
+  });
+  const storeSkuId = insertedId(skuResult);
+  ctx.created.storeSkuIds.push(storeSkuId);
+
+  const ledgerResult = await ctx.db.insert(batchLedger).values({
+    storeId,
+    productId,
+    variantId,
+    batchNo: `TEST-LEDGER-BATCH-${ctx.runId}`,
+    expiryDate: new Date("2035-12-31T00:00:00.000Z"),
+    mrp: "100.00",
+    purchaseRate: "70.00",
+    saleRate: "95.00",
+    landingCost: "72.00",
+    margin: "23.00",
+    qtyOnHand: options?.qtyOnHand ?? 5,
+    qtyReserved: options?.qtyReserved ?? 0,
+    qtyQuarantined: 0,
+    qtyExpired: 0,
+    internalBarcode: `TEST-LEDGER-INTERNAL-${ctx.runId}`,
+    manufacturerBarcode: `TEST-LEDGER-MFG-${ctx.runId}`,
+    status: "active",
+  });
+  const batchLedgerId = insertedId(ledgerResult);
+  ctx.created.batchLedgerIds.push(batchLedgerId);
+
+  return {
+    product: (await ctx.db.select().from(products).where(eq(products.id, productId)).limit(1))[0],
+    variant: (await ctx.db.select().from(productVariants).where(eq(productVariants.id, variantId)).limit(1))[0],
+    storeSku: (await ctx.db.select().from(storeSkus).where(eq(storeSkus.id, storeSkuId)).limit(1))[0],
+    batchLedger: (await ctx.db.select().from(batchLedger).where(eq(batchLedger.id, batchLedgerId)).limit(1))[0],
   };
 }

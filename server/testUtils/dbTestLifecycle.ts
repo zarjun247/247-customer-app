@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { eq } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
-import { batches, productVariants, products, stores, storeSkus, users } from "../../drizzle/schema";
+import { batchLedger, batches, h1Register, invoiceSequences, paymentRecords, productVariants, products, purchaseInvoices, refunds, stockMovements, stockReservations, stores, storeSkus, users } from "../../drizzle/schema";
 
 export const TEST_DB_ENV_VAR = "TEST_DATABASE_URL";
 export const TEST_DB_NAME = "247_customer_app_test";
@@ -19,6 +19,14 @@ export type DbTestContext = {
   runId: string;
   created: {
     batchIds: number[];
+    batchLedgerIds: number[];
+    stockMovementIds: number[];
+    stockReservationIds: number[];
+    refundIds: number[];
+    paymentRecordIds: number[];
+    h1RegisterIds: number[];
+    invoiceSequenceIds: number[];
+    purchaseInvoiceIds: number[];
     storeSkuIds: number[];
     variantIds: number[];
     productIds: number[];
@@ -48,8 +56,20 @@ export function requireSafeTestDatabaseUrl(rawUrl = getTestDatabaseUrl()): strin
   }
 
   const databaseName = parsed.pathname.replace(/^\//, "");
-  if (!databaseName.toLowerCase().includes("test")) {
-    throw new Error(`${TEST_DB_ENV_VAR} database name must include "test"; refusing to touch ${databaseName || "<empty>"}.`);
+  const safeHostAllowlist = (process.env.TEST_DATABASE_ALLOWLIST_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  const hostLooksLocal = ["localhost", "127.0.0.1", "::1", "mysql", "db"].includes(parsed.hostname.toLowerCase());
+  const databaseLooksTest = databaseName.toLowerCase().includes("test");
+  const hostAllowlisted = safeHostAllowlist.includes(parsed.hostname.toLowerCase());
+
+  if (!databaseLooksTest && !hostAllowlisted) {
+    throw new Error(`${TEST_DB_ENV_VAR} database name must include "test" or host must be in TEST_DATABASE_ALLOWLIST_HOSTS; refusing to touch ${databaseName || "<empty>"} on ${parsed.hostname}.`);
+  }
+
+  if (!databaseLooksTest && hostLooksLocal === false && !hostAllowlisted) {
+    throw new Error(`${TEST_DB_ENV_VAR} must point at a test database or explicitly allowlisted test host.`);
   }
 
   if (process.env.DATABASE_URL && process.env.DATABASE_URL === rawUrl) {
@@ -59,9 +79,25 @@ export function requireSafeTestDatabaseUrl(rawUrl = getTestDatabaseUrl()): strin
   return rawUrl;
 }
 
+export async function assertConnectedToSafeTestDatabase(connection: mysql.Connection): Promise<void> {
+  const [rows] = await connection.query<mysql.RowDataPacket[]>("SELECT DATABASE() AS databaseName, @@hostname AS hostName");
+  const databaseName = String(rows[0]?.databaseName ?? "");
+  const hostName = String(rows[0]?.hostName ?? "").toLowerCase();
+  const safeHostAllowlist = (process.env.TEST_DATABASE_ALLOWLIST_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!databaseName.toLowerCase().includes("test") && !safeHostAllowlist.includes(hostName)) {
+    await connection.end();
+    throw new Error(`${TEST_DB_ENV_VAR} connected to ${databaseName || "<empty>"} on ${hostName}; refusing because it is not test-named or host-allowlisted.`);
+  }
+}
+
 export async function openTestConnection(rawUrl = requireSafeTestDatabaseUrl()): Promise<mysql.Connection> {
   const connection = await mysql.createConnection(rawUrl);
   await connection.ping();
+  await assertConnectedToSafeTestDatabase(connection);
   return connection;
 }
 
@@ -117,6 +153,14 @@ export async function createDbTestContext(runId = `mysql_lifecycle_${Date.now()}
     runId,
     created: {
       batchIds: [],
+      batchLedgerIds: [],
+      stockMovementIds: [],
+      stockReservationIds: [],
+      refundIds: [],
+      paymentRecordIds: [],
+      h1RegisterIds: [],
+      invoiceSequenceIds: [],
+      purchaseInvoiceIds: [],
       storeSkuIds: [],
       variantIds: [],
       productIds: [],
@@ -127,6 +171,30 @@ export async function createDbTestContext(runId = `mysql_lifecycle_${Date.now()}
 }
 
 export async function cleanupDbTestContext(ctx: DbTestContext): Promise<void> {
+  for (const id of ctx.created.stockMovementIds.reverse()) {
+    await ctx.db.delete(stockMovements).where(eq(stockMovements.id, id));
+  }
+  for (const id of ctx.created.stockReservationIds.reverse()) {
+    await ctx.db.delete(stockReservations).where(eq(stockReservations.id, id));
+  }
+  for (const id of ctx.created.refundIds.reverse()) {
+    await ctx.db.delete(refunds).where(eq(refunds.id, id));
+  }
+  for (const id of ctx.created.paymentRecordIds.reverse()) {
+    await ctx.db.delete(paymentRecords).where(eq(paymentRecords.id, id));
+  }
+  for (const id of ctx.created.h1RegisterIds.reverse()) {
+    await ctx.db.delete(h1Register).where(eq(h1Register.id, id));
+  }
+  for (const id of ctx.created.invoiceSequenceIds.reverse()) {
+    await ctx.db.delete(invoiceSequences).where(eq(invoiceSequences.id, id));
+  }
+  for (const id of ctx.created.purchaseInvoiceIds.reverse()) {
+    await ctx.db.delete(purchaseInvoices).where(eq(purchaseInvoices.id, id));
+  }
+  for (const id of ctx.created.batchLedgerIds.reverse()) {
+    await ctx.db.delete(batchLedger).where(eq(batchLedger.id, id));
+  }
   for (const id of ctx.created.batchIds.reverse()) {
     await ctx.db.delete(batches).where(eq(batches.id, id));
   }
