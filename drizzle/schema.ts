@@ -2887,3 +2887,45 @@ export const commercialEvents = mysqlTable("commercial_events", {
 
 export type CommercialEvent = typeof commercialEvents.$inferSelect;
 export type NewCommercialEvent = typeof commercialEvents.$inferInsert;
+
+// ─── Worker Queue Reliability Layer ──────────────────────────────────────────
+export const workerJobs = mysqlTable("worker_jobs", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  queueName: varchar("queueName", { length: 100 }).notNull(),
+  jobType: varchar("jobType", { length: 150 }).notNull(),
+  payloadJson: json("payloadJson").notNull(),
+  payloadHash: varchar("payloadHash", { length: 64 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 200 }).notNull(),
+  correlationId: varchar("correlationId", { length: 100 }),
+  relatedEntityType: varchar("relatedEntityType", { length: 100 }),
+  relatedEntityId: varchar("relatedEntityId", { length: 100 }),
+  status: mysqlEnum("status", ["queued", "reserved", "running", "completed", "failed", "retry_scheduled", "dead_letter", "cancelled", "expired"]).default("queued").notNull(),
+  priority: int("priority").default(0).notNull(),
+  retryCount: int("retryCount").default(0).notNull(),
+  maxRetries: int("maxRetries").default(3).notNull(),
+  nextRetryAt: timestamp("nextRetryAt"),
+  workerId: varchar("workerId", { length: 100 }),
+  reservedAt: timestamp("reservedAt"),
+  completedAt: timestamp("completedAt"),
+  failureReason: text("failureReason"),
+  deadLetterReason: text("deadLetterReason"),
+  deadLetterClass: varchar("deadLetterClass", { length: 80 }),
+  resolvedAt: timestamp("resolvedAt"),
+  resolvedBy: varchar("resolvedBy", { length: 100 }),
+  resolutionNote: text("resolutionNote"),
+  heartbeatAt: timestamp("heartbeatAt"),
+  replayOfJobId: bigint("replayOfJobId", { mode: "number" }),
+  auditTrailJson: json("auditTrailJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxWorkerJobsQueueStatus: index("idx_worker_jobs_queue_status").on(t.queueName, t.status),
+  idxWorkerJobsNextRetryAt: index("idx_worker_jobs_next_retry_at").on(t.nextRetryAt),
+  uqWorkerJobsIdempotencyKey: uniqueIndex("uq_worker_jobs_idempotency_key").on(t.idempotencyKey),
+  idxWorkerJobsCorrelationId: index("idx_worker_jobs_correlation_id").on(t.correlationId),
+  idxWorkerJobsCreatedAt: index("idx_worker_jobs_created_at").on(t.createdAt),
+  idxWorkerJobsHeartbeatAt: index("idx_worker_jobs_heartbeat_at").on(t.heartbeatAt),
+}));
+
+export type WorkerJobRecord = typeof workerJobs.$inferSelect;
+export type NewWorkerJobRecord = typeof workerJobs.$inferInsert;

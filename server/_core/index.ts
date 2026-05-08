@@ -14,6 +14,7 @@ import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
 import { registerPaymentWebhookRoutes } from "../paymentWebhookRoutes";
+import { getQueueStats } from "../services/jobQueue";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -53,11 +54,21 @@ async function startServer() {
     } catch {
       dbConnected = false;
     }
+    const queue = await getQueueStats();
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
       dbConnected,
       version: "1.0.0",
+      queue: {
+        queuedCount: queue.queuedCount,
+        runningCount: queue.runningCount,
+        retryCount: queue.retryCount,
+        deadLetterCount: queue.deadLetterCount,
+        staleRunningCount: queue.staleRunningCount,
+        oldestQueuedAgeMs: queue.oldestQueuedAgeMs,
+        oldestRetryAgeMs: queue.oldestRetryAgeMs,
+      },
       // TODO: Add Sentry DSN check, Redis ping, storage ping
     });
   });
