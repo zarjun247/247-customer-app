@@ -108,3 +108,25 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Placeholder guard suite
         run: pnpm test -- server/placeholder-production.guard.test.ts --runInBand
+
+
+  governance-security-scans:
+    name: governance-security-scans
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lockfile integrity
+        run: pnpm install --frozen-lockfile --offline
+      - name: Migration smoke and unsafe-merge static guards
+        run: node scripts/ci-governance-guards.mjs all
+      - name: Dependency audit advisory
+        run: pnpm audit --audit-level high || echo "pnpm audit reported advisories; see CI_SECURITY_STATUS.md for current triage limitations."

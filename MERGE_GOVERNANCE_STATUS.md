@@ -40,6 +40,15 @@ If two PRs touch the same runtime modules, the later PR must rebase after the ea
 - Do **not** merge stale PR #46 or PR #47 directly.
 - Rebase/recreate stale work on latest protected `main`, review changed files, rerun CI, and re-check migrations before considering merge.
 
+
+## Active branch and merge rules
+
+- Maintain one active branch per domain/workstream; duplicate stale PRs for the same domain must be closed or superseded before merge.
+- Migration numbers must be reserved and reviewed before merge; duplicate migration numbers are merge-blocking.
+- Latest `main` wins for shared files except where a domain-owned branch has explicit maintainer approval for its owned changes.
+- No merge without CI green for the exact commit being merged, including check, test, build, migration, security, placeholder, and governance guard checks once branch protection is configured.
+- CI/governance-only PRs must not claim GitHub branch protection is enabled until repository settings prove it.
+
 ## Per-PR requirements
 
 Every PR must include and reviewers must verify:
