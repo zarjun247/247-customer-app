@@ -108,6 +108,26 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Placeholder guard suite
         run: pnpm test -- server/placeholder-production.guard.test.ts --runInBand
+
+  release-gate-advisory:
+    name: release-gate-advisory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Migration verification
+        run: pnpm run migrations:verify
+      - name: Release gate (test mode)
+        run: pnpm run release:gate -- --mode test
+
   mysql-db-lifecycle:
     name: mysql-db-lifecycle
     runs-on: ubuntu-latest
