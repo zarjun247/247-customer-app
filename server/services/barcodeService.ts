@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import { batchLedger, labelPrintJobs, products, productBarcodes, barcodeAliases } from "../../drizzle/schema";
 import { getCanonicalAvailability } from "./reservationService";
+import { validateBarcodeLabelMaster } from "./productMasterValidation";
 
 export function normalizeBarcodeInput(value: string) { return value.trim().replace(/\s+/g, "").toUpperCase(); }
 export function generateInternalBarcode(seed: { productId: number; batchId?: number; storeId?: number }) {
@@ -43,8 +44,18 @@ export async function resolveBarcode(barcodeInput: string, storeId?: number) {
 export const resolveBarcodeForSale = resolveBarcode;
 export const resolveBarcodeForReturn = resolveBarcode;
 export const resolveBarcodeForStockAudit = resolveBarcode;
-export function getBarcodeLabelPayload(input: { productName: string; strength?: string|null; packSize?: string|null; batchNo?: string|null; expiryDate?: string|null; mrp?: string|number|null; internalBarcode: string; storeId?: number|null; }) {
-  return { productName: input.productName, strength: input.strength ?? null, packSize: input.packSize ?? null, batchNo: input.batchNo ?? null, expiryDate: input.expiryDate ?? null, mrp: input.mrp ?? null, internalBarcode: input.internalBarcode, storeId: input.storeId ?? null };
+export function getBarcodeLabelPayload(input: { productName: string; strength?: string|null; packSize?: string|null; batchNo?: string|null; expiryDate?: string|null; mrp?: string|number|null; internalBarcode: string; storeId?: number|null; barcode?: string|null; }) {
+  const masterValidation = validateBarcodeLabelMaster({
+    name: input.productName,
+    strength: input.strength,
+    packSize: input.packSize,
+    batchNo: input.batchNo,
+    expiryDate: input.expiryDate,
+    mrp: input.mrp,
+    internalBarcode: input.internalBarcode,
+    barcode: input.barcode,
+  });
+  return { productName: input.productName, strength: input.strength ?? null, packSize: input.packSize ?? null, batchNo: input.batchNo ?? null, expiryDate: input.expiryDate ?? null, mrp: input.mrp ?? null, internalBarcode: input.internalBarcode, storeId: input.storeId ?? null, masterValidation, status: masterValidation.status };
 }
 export async function createLabelPrintJob(input: { barcodeAliasId?: number|null; productId?: number|null; batchId?: number|null; storeId?: number|null; labelType: "batch"|"shelf"|"mrp"|"return"|"audit"; payloadJson: any; printerName?: string|null; requestedBy?: number|null; }) {
   const db = await getDb(); if (!db) return null;

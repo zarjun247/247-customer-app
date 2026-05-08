@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
+import { detectPotentialDuplicateProducts } from "../services/productNormalization";
 
 function requireStaff(role: string) {
   const STAFF = ["admin", "super_admin", "store_manager", "pharmacist", "purchase_manager", "accountant", "cashier", "salesman", "inventory_operator", "delivery_operator", "auditor"];
@@ -634,6 +635,31 @@ export const productMasterRouter = router({
       // Instead, we log the deactivation as an audit event for now
       await logAudit({ actorId: ctx.user!.id, actorType: "user", action: "master.product.deactivate", entityType: "product", entityId: input.id, beforeJson: null, afterJson: null, reason: input.reason, source: "admin" });
       return { success: true };
+    }),
+
+  duplicateCandidates: protectedProcedure
+    .input(z.object({ productIds: z.array(z.number()).optional(), limit: z.number().default(500) }))
+    .query(async ({ ctx, input }) => {
+      requireStaff(ctx.user!.role);
+      const db = await getDb();
+      const { products } = await import("../../drizzle/schema");
+      const { inArray } = await import("drizzle-orm");
+      const rows = await db.select({
+        id: products.id,
+        name: products.name,
+        brand: products.brand,
+        genericName: products.genericName,
+        form: products.form,
+        strength: products.strength,
+        packSize: products.packSize,
+        companyName: products.companyName,
+        hsnCode: products.hsnCode,
+        barcode: products.barcode,
+        gstRate: products.gstRate,
+        schedule: products.schedule,
+        requiresPrescription: products.requiresPrescription,
+      }).from(products).where(input.productIds?.length ? inArray(products.id, input.productIds) : undefined).limit(input.limit);
+      return { candidates: detectPotentialDuplicateProducts(rows), behavior: "review_only", autoMerge: false };
     }),
   addAlias: protectedProcedure
     .input(z.object({ productId: z.number(), alias: z.string().min(1), aliasType: z.enum(["supplier_code", "legacy_code", "medivision_code", "samarth_code", "barcode", "other"]).default("other"), supplierId: z.number().optional() }))
