@@ -2848,9 +2848,15 @@ export const staffDeviceSessions = mysqlTable("staff_device_sessions", {
   revokedAt: timestamp("revokedAt"),
   revokedBy: int("revokedBy"),
   revokeReason: varchar("revokeReason", { length: 500 }),
+  privilegedLastSeenAt: timestamp("privilegedLastSeenAt"),
+  requiresReauth: boolean("requiresReauth").default(false).notNull(),
+  suspicious: boolean("suspicious").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (t) => ({ staffSessionUnique: uniqueIndex("staff_device_sessions_staff_session_uq").on(t.staffId, t.sessionId) }));
+}, (t) => ({
+  staffSessionUnique: uniqueIndex("staff_device_sessions_staff_session_uq").on(t.staffId, t.sessionId),
+  staffSessionLookupIdx: index("staff_device_sessions_staff_session_status_idx").on(t.staffId, t.sessionId, t.status),
+}));
 export type StaffDeviceSession = typeof staffDeviceSessions.$inferSelect;
 export type NewStaffDeviceSession = typeof staffDeviceSessions.$inferInsert;
 

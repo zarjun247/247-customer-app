@@ -8,6 +8,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
+import { assertSensitiveActionAllowed, requirePermission } from "../services/rbacPolicy";
 import { canUsePrescriptionOnFile, isPrescriptionExpired, logPrescriptionVaultAccess } from "../services/prescriptionVault";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 
@@ -62,7 +63,8 @@ export const prescriptionGovRouter = router({
       pageSize: z.number().int().min(1).max(100).default(20),
     }))
     .query(async ({ ctx, input }) => {
-      requireManager(ctx.user.role);
+      requirePermission(ctx, "prescription.view");
+      await assertSensitiveActionAllowed(ctx, "prescription.vault.access");
       const db = await getDbSafe();
       const { prescriptions, users } = await import("../../drizzle/schema");
       const offset = (input.page - 1) * input.pageSize;
@@ -136,7 +138,8 @@ export const prescriptionGovRouter = router({
   get: protectedProcedure
     .input(z.object({ id: z.number().int() }))
     .query(async ({ ctx, input }) => {
-      requireManager(ctx.user.role);
+      requirePermission(ctx, "prescription.view");
+      await assertSensitiveActionAllowed(ctx, "prescription.vault.access");
       const db = await getDbSafe();
       const { prescriptions, prescriptionLines, users } = await import("../../drizzle/schema");
 
@@ -181,7 +184,8 @@ export const prescriptionGovRouter = router({
       repeatDispenseMax: z.number().int().min(1).max(12).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      requirePharmacist(ctx.user.role);
+      requirePermission(ctx, "prescription.review");
+      await assertSensitiveActionAllowed(ctx, "prescription.review");
       const db = await getDbSafe();
       const { prescriptions } = await import("../../drizzle/schema");
 
@@ -236,7 +240,8 @@ export const prescriptionGovRouter = router({
       linkedProductId: z.number().int().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      requirePharmacist(ctx.user.role);
+      requirePermission(ctx, "prescription.review");
+      await assertSensitiveActionAllowed(ctx, "prescription.review");
       const db = await getDbSafe();
       const { prescriptionLines } = await import("../../drizzle/schema");
 
@@ -270,7 +275,8 @@ export const prescriptionGovRouter = router({
       linkedBatchNo: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      requirePharmacist(ctx.user.role);
+      requirePermission(ctx, "regulated.release.approve");
+      await assertSensitiveActionAllowed(ctx, "regulated.release.approve");
       const db = await getDbSafe();
       const { prescriptionLines } = await import("../../drizzle/schema");
 

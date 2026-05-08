@@ -48,6 +48,9 @@ export interface StaffDeviceSessionRecord {
   revokedAt?: Date | null;
   revokedBy?: number | null;
   revokeReason?: string | null;
+  privilegedLastSeenAt?: Date | null;
+  requiresReauth?: boolean | null;
+  suspicious?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -141,7 +144,7 @@ export async function hasActiveStaffAcknowledgement(staffId: number, acknowledge
 }
 
 export async function recordStaffDeviceSession(input: Omit<StaffDeviceSessionRecord, "id" | "status" | "lastSeenAt" | "createdAt" | "updatedAt"> & { status?: StaffSessionStatus; lastSeenAt?: Date }, store?: InMemoryStaffSecurityStore) {
-  const record = { ...input, status: input.status ?? "active", lastSeenAt: input.lastSeenAt ?? new Date() };
+  const record = { ...input, status: input.status ?? "active", lastSeenAt: input.lastSeenAt ?? new Date(), requiresReauth: input.requiresReauth ?? false, suspicious: input.suspicious ?? false };
   const saved = store ? await store.upsertSession(record) : await upsertDbSession(record);
   await auditStaffSecurity("staff.session.recorded", input.staffId, {
     staffId: input.staffId,
