@@ -8,6 +8,7 @@ import { getDb } from "./db";
 import { paymentRecords, slaEvents, orders } from "../drizzle/schema";
 import { eq, and, lte, isNull, gt } from "drizzle-orm";
 import { sendOpsAlert } from "./notifications";
+import { appendCommercialEventBestEffort } from "./services/commercialLifecycle";
 
 // ─── Payment Record Helpers ───────────────────────────────────────────────────
 
@@ -49,6 +50,18 @@ export async function confirmPaymentRecord(params: {
       paidAt: new Date(),
     })
     .where(eq(paymentRecords.gatewayOrderId, params.gatewayOrderId));
+  const payment = await getPaymentByGatewayOrderId(params.gatewayOrderId);
+  await appendCommercialEventBestEffort({
+    aggregateType: "payment",
+    aggregateId: payment?.id ?? params.gatewayOrderId,
+    eventType: "payment_verified",
+    actorType: "provider",
+    orderId: payment?.orderId ?? null,
+    paymentId: payment?.id ?? null,
+    eventPayload: { gatewayOrderId: params.gatewayOrderId, gatewayPaymentId: params.gatewayPaymentId, method: params.method, amountPaise: payment?.amount ?? null },
+    idempotencyKey: `payment_verified:${params.gatewayPaymentId}`,
+    correlationId: params.gatewayOrderId,
+  });
 }
 
 export async function failPaymentRecord(params: {
@@ -61,6 +74,18 @@ export async function failPaymentRecord(params: {
     .update(paymentRecords)
     .set({ status: "failed", failureReason: params.reason ?? "Payment failed" })
     .where(eq(paymentRecords.gatewayOrderId, params.gatewayOrderId));
+  const payment = await getPaymentByGatewayOrderId(params.gatewayOrderId);
+  await appendCommercialEventBestEffort({
+    aggregateType: "payment",
+    aggregateId: payment?.id ?? params.gatewayOrderId,
+    eventType: "payment_failed",
+    actorType: "provider",
+    orderId: payment?.orderId ?? null,
+    paymentId: payment?.id ?? null,
+    eventPayload: { gatewayOrderId: params.gatewayOrderId, reason: params.reason ?? "Payment failed", amountPaise: payment?.amount ?? null },
+    idempotencyKey: `payment_failed:${params.gatewayOrderId}`,
+    correlationId: params.gatewayOrderId,
+  });
 }
 
 export async function getPaymentByOrderId(orderId: number) {

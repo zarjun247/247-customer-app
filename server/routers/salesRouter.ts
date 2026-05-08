@@ -18,6 +18,7 @@ import { getCanonicalAvailability } from "../services/reservationService";
 import { reserveInvoiceNumber, generateReturnNoteNumber, buildDraftBillNumber } from "../services/invoiceNumbering";
 import { createSaleInvoiceSnapshot, getInvoiceSnapshotPackageForSale } from "../services/invoiceSnapshotService";
 import { assertRuntimeGate, normalizeScheduleCode, productToMasterLike, validateProductForRegulatedSale } from "../services/productMasterValidation";
+import { appendCommercialEventBestEffort } from "../services/commercialLifecycle";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -426,6 +427,32 @@ export const salesRouter = router({
       });
 
       await createSaleInvoiceSnapshot(db, input.saleId, { generatedBy: ctx.user?.id });
+      await appendCommercialEventBestEffort({
+        aggregateType: "sale",
+        aggregateId: input.saleId,
+        eventType: "order_confirmed",
+        actorType: "staff",
+        actorId: ctx.user?.id ?? null,
+        storeId: sale.storeId,
+        saleId: input.saleId,
+        invoiceId: finalBillNo,
+        eventPayload: { billNo: finalBillNo, total: sale.total, paymentMode: input.paymentMode, paymentRef: input.paymentRef ?? null },
+        idempotencyKey: `sale:${input.saleId}:order_confirmed`,
+        correlationId: input.saleId,
+      });
+      await appendCommercialEventBestEffort({
+        aggregateType: "invoice",
+        aggregateId: finalBillNo,
+        eventType: "invoice_generated",
+        actorType: "staff",
+        actorId: ctx.user?.id ?? null,
+        storeId: sale.storeId,
+        saleId: input.saleId,
+        invoiceId: finalBillNo,
+        eventPayload: { invoiceNumber: finalBillNo, saleId: input.saleId, total: sale.total },
+        idempotencyKey: `invoice:${finalBillNo}:generated`,
+        correlationId: input.saleId,
+      });
       if (discountUsageCodeId !== null) await recordDiscountCodeUsage(discountUsageCodeId, input.saleId, ctx);
       await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
       await logAudit({ action: "compliance.sale_approved", entityType: "sale", entityId: null, entityRef: input.saleId, afterJson: { ok: true } }, ctx);

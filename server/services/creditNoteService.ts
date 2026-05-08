@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { getDb } from "../db";
 import { creditNotes, orders, saleReturns, sales } from "../../drizzle/schema";
+import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 
 export type CreditNoteStatus = "draft" | "issued" | "cancelled" | "failed";
 export type CreditNoteLineSplit = {
@@ -243,6 +244,21 @@ export async function issueCreditNote(input: { creditNoteId: string; creditNoteN
   assertCreditNoteAmountAllowed({ invoiceAmountPaise: invoiceAmountFromTruth(truth), requestedAmountPaise: Number(draft.amountPaise), existingIssuedCreditNotePaise });
   const at = nowMs();
   await db.update(creditNotes).set({ creditNoteNo: finalNo, status: "issued", issuedBy: input.issuedBy, issuedAt: at, updatedAt: at }).where(eq(creditNotes.id, input.creditNoteId));
+  await appendCommercialEventBestEffort({
+    aggregateType: "credit_note",
+    aggregateId: input.creditNoteId,
+    eventType: "credit_note_generated",
+    actorType: "staff",
+    actorId: input.issuedBy,
+    storeId: draft.storeId,
+    orderId: draft.orderId ?? null,
+    saleId: draft.saleId ?? null,
+    invoiceId: draft.originalInvoiceNo,
+    refundId: draft.refundId ?? null,
+    eventPayload: { creditNoteNo: finalNo, originalInvoiceNo: draft.originalInvoiceNo, amountPaise: draft.amountPaise, taxableAmountPaise: draft.taxableAmountPaise, gstAmountPaise: draft.gstAmountPaise },
+    idempotencyKey: `credit_note:${finalNo}:generated`,
+    correlationId: draft.saleId ?? (draft.orderId != null ? String(draft.orderId) : null),
+  });
   return { ...draft, creditNoteNo: finalNo, status: "issued" as CreditNoteStatus, issuedBy: input.issuedBy, issuedAt: at, updatedAt: at };
 }
 
@@ -255,6 +271,21 @@ export async function cancelCreditNote(input: { creditNoteId: string; reason: st
   }
   const at = nowMs();
   await db.update(creditNotes).set({ status: "cancelled", updatedAt: at }).where(eq(creditNotes.id, input.creditNoteId));
+  await appendCommercialEventBestEffort({
+    aggregateType: "cancellation",
+    aggregateId: input.creditNoteId,
+    eventType: "cancellation_completed",
+    actorType: "staff",
+    actorId: input.actorId,
+    storeId: note.storeId,
+    orderId: note.orderId ?? null,
+    saleId: note.saleId ?? null,
+    invoiceId: note.originalInvoiceNo,
+    refundId: note.refundId ?? null,
+    eventPayload: { entityType: "credit_note", creditNoteNo: note.creditNoteNo, reason: input.reason },
+    idempotencyKey: `credit_note:${input.creditNoteId}:cancelled`,
+    correlationId: note.saleId ?? (note.orderId != null ? String(note.orderId) : null),
+  });
   return { ...note, status: "cancelled" as CreditNoteStatus, cancellationReason: input.reason, cancelledBy: input.actorId, updatedAt: at };
 }
 

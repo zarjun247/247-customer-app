@@ -1,6 +1,7 @@
 import { and, eq, lt, ne, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "./audit";
+import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 
 const ACTIVE_RESERVATION_STATUS = "active" as const;
 const TERMINAL_RESERVATION_STATUSES = ["released", "expired", "consumed", "cancelled"] as const;
@@ -122,8 +123,22 @@ export async function reserveStockForOrder(input: any) {
     status: ACTIVE_RESERVATION_STATUS,
     expiresAt,
   });
-  await logAudit({ action: "reservation.created", entityType: "stock_reservation", entityId: (row as any)?.insertId ?? Number(input.orderId ?? 0), afterJson: { ...input, expiresAt } }, input.ctx);
-  return { id: (row as any)?.insertId, status: ACTIVE_RESERVATION_STATUS, expiresAt, ...input };
+  const reservationId = (row as any)?.insertId;
+  await logAudit({ action: "reservation.created", entityType: "stock_reservation", entityId: reservationId ?? Number(input.orderId ?? 0), afterJson: { ...input, expiresAt } }, input.ctx);
+  await appendCommercialEventBestEffort({
+    aggregateType: "reservation",
+    aggregateId: reservationId ?? input.orderId ?? input.cartId ?? `${input.storeId}:${input.productId}`,
+    eventType: "reservation_created",
+    actorType: input.ctx?.user ? "staff" : "system",
+    actorId: input.ctx?.user?.id ?? null,
+    storeId: input.storeId,
+    orderId: input.orderId ?? null,
+    reservationId,
+    eventPayload: { productId: input.productId, variantId: input.variantId ?? null, skuId: input.skuId ?? null, qty: input.qty, expiresAt },
+    idempotencyKey: input.idempotencyKey ?? (reservationId ? `reservation:${reservationId}:created` : null),
+    correlationId: input.correlationId ?? input.ctx?.requestId ?? null,
+  });
+  return { id: reservationId, status: ACTIVE_RESERVATION_STATUS, expiresAt, ...input };
 }
 
 async function updateReservationStatus(input: any, status: ReservationReleaseStatus, defaultReason: string) {
@@ -138,6 +153,20 @@ async function updateReservationStatus(input: any, status: ReservationReleaseSta
   if (input.productId) conds.push(eq(stockReservations.productId, input.productId));
   await db.update(stockReservations).set({ status, releaseReason }).where(and(...conds));
   await logAudit({ action: `reservation.${status}`, entityType: "stock_reservation", entityId: Number(input.id ?? input.orderId ?? 0), afterJson: { ...input, status, releaseReason } }, input.ctx);
+  const eventType = status === "consumed" ? "reservation_consumed" : status === "expired" ? "reservation_expired" : "reservation_released";
+  await appendCommercialEventBestEffort({
+    aggregateType: "reservation",
+    aggregateId: input.id ?? input.orderId ?? input.cartId ?? "unknown",
+    eventType,
+    actorType: input.ctx?.user ? "staff" : "system",
+    actorId: input.ctx?.user?.id ?? null,
+    storeId: input.storeId ?? null,
+    orderId: input.orderId ?? null,
+    reservationId: input.id ?? null,
+    eventPayload: { status, releaseReason },
+    idempotencyKey: input.idempotencyKey ?? `${eventType}:${input.id ?? input.orderId ?? input.cartId ?? "unknown"}`,
+    correlationId: input.correlationId ?? input.ctx?.requestId ?? null,
+  });
   return { status, releaseReason };
 }
 
