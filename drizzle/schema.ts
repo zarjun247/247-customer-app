@@ -10,6 +10,7 @@ import {
   bigint,
   date,
   json,
+  index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
@@ -123,7 +124,13 @@ export const products = mysqlTable("products", {
   masterProductId: int("masterProductId"),  // FK to canonical product (for dedup)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxProductsCanonicalName: index("idx_products_canonical_name").on(t.canonicalName),
+  idxProductsCompanyName: index("idx_products_company_name").on(t.companyName),
+  idxProductsHsnCode: index("idx_products_hsn_code").on(t.hsnCode),
+  idxProductsSchedule: index("idx_products_schedule").on(t.schedule),
+  idxProductsBarcode: index("idx_products_barcode").on(t.barcode),
+}));
 
 // ─── Product Variants ─────────────────────────────────────────────────────────
 export const productVariants = mysqlTable("product_variants", {
@@ -158,7 +165,11 @@ export const storeSkus = mysqlTable("store_skus", {
   softLockedQty: int("softLockedQty").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxStoreSkusStoreProduct: index("idx_store_skus_store_product").on(t.storeId, t.productId),
+  idxStoreSkusStoreActiveStock: index("idx_store_skus_store_active_stock").on(t.storeId, t.isActive, t.stockQty),
+  idxStoreSkusProductVariant: index("idx_store_skus_product_variant").on(t.productId, t.variantId),
+}));
 
 // ─── Batches (FEFO tracking) ──────────────────────────────────────────────────
 export const batches = mysqlTable("batches", {
@@ -199,7 +210,13 @@ export const batches = mysqlTable("batches", {
   grnId: int("grnId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
-});
+}, (t) => ({
+  idxBatchesStoreProductExpiry: index("idx_batches_store_product_expiry").on(t.storeId, t.productId, t.expiryDate),
+  idxBatchesStoreProductBatch: index("idx_batches_store_product_batch").on(t.storeId, t.productId, t.batchNumber),
+  idxBatchesInternalBarcode: index("idx_batches_internal_barcode").on(t.internalBarcode),
+  idxBatchesManufacturerBarcode: index("idx_batches_manufacturer_barcode").on(t.manufacturerBarcode),
+  idxBatchesStatusExpiry: index("idx_batches_status_expiry").on(t.status, t.expiryDate),
+}));
 
 // ─── Prescriptions ────────────────────────────────────────────────────────────
 export const prescriptions = mysqlTable("prescriptions", {
@@ -354,7 +371,12 @@ export const orders = mysqlTable("orders", {
   cancellationReason: text("cancellationReason"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxOrdersStoreStatusCreated: index("idx_orders_store_status_created").on(t.storeId, t.status, t.createdAt),
+  idxOrdersUserStatusCreated: index("idx_orders_user_status_created").on(t.userId, t.status, t.createdAt),
+  idxOrdersStoreCreated: index("idx_orders_store_created").on(t.storeId, t.createdAt),
+  idxOrdersPrescription: index("idx_orders_prescription").on(t.prescriptionId),
+}));
 
 // ─── Order Items ──────────────────────────────────────────────────────────────
 export const orderItems = mysqlTable("order_items", {
@@ -370,7 +392,11 @@ export const orderItems = mysqlTable("order_items", {
   requiresPrescription: boolean("requiresPrescription").default(false).notNull(),
   rxGateCleared: boolean("rxGateCleared").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  idxOrderItemsOrder: index("idx_order_items_order").on(t.orderId),
+  idxOrderItemsProduct: index("idx_order_items_product").on(t.productId),
+  idxOrderItemsSku: index("idx_order_items_sku").on(t.storeSkuId),
+}));
 
 // ─── Cart Items ───────────────────────────────────────────────────────────────
 export const cartItems = mysqlTable("cart_items", {
@@ -446,7 +472,11 @@ export const auditLogs = mysqlTable("audit_logs", {
   deviceId: varchar("deviceId", { length: 200 }),
   channel: varchar("channel", { length: 50 }).default("app"),  // app | whatsapp | admin | api
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  idxAuditLogsActorCreated: index("idx_audit_logs_actor_created").on(t.actorId, t.createdAt),
+  idxAuditLogsEntityCreated: index("idx_audit_logs_entity_created").on(t.entityType, t.entityId, t.createdAt),
+  idxAuditLogsActionCreated: index("idx_audit_logs_action_created").on(t.action, t.createdAt),
+}));
 
 // ─── Phase 5: Vendors ─────────────────────────────────────────────────────────
 export const vendors = mysqlTable("vendors", {
@@ -785,6 +815,10 @@ export const refunds = mysqlTable("refunds", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   uqProviderRefundId: uniqueIndex("refunds_provider_refund_id_uq").on(t.provider, t.providerRefundId),
+  idxRefundsOrderStatus: index("idx_refunds_order_status").on(t.orderId, t.status),
+  idxRefundsPaymentStatus: index("idx_refunds_payment_status").on(t.paymentId, t.status),
+  idxRefundsSaleStatus: index("idx_refunds_sale_status").on(t.saleId, t.status),
+  idxRefundsStatusCreated: index("idx_refunds_status_created").on(t.status, t.createdAt),
 }));
 
 export type Refund = typeof refunds.$inferSelect;
@@ -868,7 +902,10 @@ export const suppliers = mysqlTable("suppliers", {
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxSuppliersActiveName: index("idx_suppliers_active_name").on(t.isActive, t.supplierName),
+  idxSuppliersGstin: index("idx_suppliers_gstin").on(t.gstin),
+}));
 
 // ─── Manufacturers / Companies ────────────────────────────────────────────────
 export const manufacturers = mysqlTable("manufacturers", {
@@ -1065,7 +1102,11 @@ export const stockMovements = mysqlTable("stock_movements", {
   reason: text("reason"),
   performedBy: int("performedBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  idxStockMovementsStoreBatchDate: index("idx_stock_movements_store_batch_date").on(t.storeId, t.batchId, t.createdAt),
+  idxStockMovementsBatchDate: index("idx_stock_movements_batch_date").on(t.batchId, t.createdAt),
+  idxStockMovementsTypeDate: index("idx_stock_movements_type_date").on(t.movementType, t.createdAt),
+}));
 
 // ─── Stock Adjustments ────────────────────────────────────────────────────────
 export const stockAdjustments = mysqlTable("stock_adjustments", {
@@ -1107,7 +1148,11 @@ export const purchaseInvoices = mysqlTable("purchase_invoices", {
   committedAt: timestamp("committedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxPurchaseInvoicesSupplierStatusDue: index("idx_purchase_invoices_supplier_status_due").on(t.supplierId, t.status, t.invoiceDate),
+  idxPurchaseInvoicesStoreInvoiceDate: index("idx_purchase_invoices_store_invoice_date").on(t.storeId, t.invoiceDate),
+  idxPurchaseInvoicesInvoiceNo: index("idx_purchase_invoices_invoice_no").on(t.invoiceNo),
+}));
 
 // ─── Purchase Lines ───────────────────────────────────────────────────────────
 export const purchaseLines = mysqlTable("purchase_lines", {
@@ -1183,7 +1228,11 @@ export const supplierPayments = mysqlTable("supplier_payments", {
   createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
-});
+}, (t) => ({
+  idxSupplierPaymentsSupplierDate: index("idx_supplier_payments_supplier_date").on(t.supplierId, t.paymentDate),
+  idxSupplierPaymentsPurchaseInvoice: index("idx_supplier_payments_purchase_invoice").on(t.purchaseInvoiceId),
+  idxSupplierPaymentsVoucherNo: index("idx_supplier_payments_voucher_no").on(t.voucherNo),
+}));
 
 export const supplierPaymentAllocations = mysqlTable("supplier_payment_allocations", {
   id: int("id").autoincrement().primaryKey(),
@@ -1198,6 +1247,8 @@ export const supplierPaymentAllocations = mysqlTable("supplier_payment_allocatio
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (t) => ({
   uqPaymentInvoiceType: uniqueIndex("uq_supplier_alloc_payment_invoice_type").on(t.supplierPaymentId, t.purchaseInvoiceId, t.allocationType),
+  idxSupplierAllocPurchaseInvoice: index("idx_supplier_alloc_purchase_invoice").on(t.purchaseInvoiceId),
+  idxSupplierAllocPayment: index("idx_supplier_alloc_payment").on(t.supplierPaymentId),
 }));
 
 export const accountingJournalBatches = mysqlTable("accounting_journal_batches", {
@@ -1514,6 +1565,11 @@ export const h1Register = mysqlTable("h1_register", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (t) => ({
   uqH1SaleLine: uniqueIndex("uq_h1_register_sale_line_ref").on(t.saleRef, t.saleLineRef),
+  idxH1StoreCreated: index("idx_h1_register_store_created").on(t.storeId, t.createdAt),
+  idxH1PrescriptionRef: index("idx_h1_register_prescription_ref").on(t.prescriptionRef),
+  idxH1BillNo: index("idx_h1_register_bill_no").on(t.billNo),
+  idxH1BatchNo: index("idx_h1_register_batch_no").on(t.batchNo),
+  idxH1PatientPhone: index("idx_h1_register_patient_phone").on(t.patientPhone),
 }));
 
 // ─── Ledgers ──────────────────────────────────────────────────────────────────
@@ -1651,7 +1707,10 @@ export const productBarcodes = mysqlTable("product_barcodes", {
   barcodeType: mysqlEnum("barcodeType", ["ean13", "ean8", "code128", "qr", "datamatrix", "other"]).default("ean13").notNull(),
   isPrimary: boolean("isPrimary").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (t) => ({
+  idxProductBarcodesBarcode: index("idx_product_barcodes_barcode").on(t.barcode),
+  idxProductBarcodesProduct: index("idx_product_barcodes_product").on(t.productId),
+}));
 
 // ─── Product Margin Rules ─────────────────────────────────────────────────────
 export const productMarginRules = mysqlTable("product_margin_rules", {
@@ -1685,7 +1744,10 @@ export const barcodeAliases = mysqlTable("barcode_aliases", {
   metadata: text("metadata"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxBarcodeAliasesProductBatch: index("idx_barcode_aliases_product_batch").on(t.productId, t.batchId),
+  idxBarcodeAliasesStoreActive: index("idx_barcode_aliases_store_active").on(t.storeId, t.isActive),
+}));
 
 export const labelPrintJobs = mysqlTable("label_print_jobs", {
   id: int("id").autoincrement().primaryKey(),
@@ -1756,7 +1818,14 @@ export const batchLedger = mysqlTable("batch_ledger", {
   createdBy: int("createdBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  idxBatchLedgerStoreProductBatch: index("idx_batch_ledger_store_product_batch").on(t.storeId, t.productId, t.batchNo),
+  idxBatchLedgerStoreProductExpiry: index("idx_batch_ledger_store_product_expiry").on(t.storeId, t.productId, t.expiryDate),
+  idxBatchLedgerInternalBarcode: index("idx_batch_ledger_internal_barcode").on(t.internalBarcode),
+  idxBatchLedgerManufacturerBarcode: index("idx_batch_ledger_manufacturer_barcode").on(t.manufacturerBarcode),
+  idxBatchLedgerStatusExpiry: index("idx_batch_ledger_status_expiry").on(t.status, t.expiryDate),
+  idxBatchLedgerSupplierInvoice: index("idx_batch_ledger_supplier_invoice").on(t.supplierId, t.purchaseInvoiceId),
+}));
 
 // ─── Stock Reservations ───────────────────────────────────────────────────────
 export const stockReservations = mysqlTable("stock_reservations", {
@@ -1778,7 +1847,13 @@ export const stockReservations = mysqlTable("stock_reservations", {
   expiresAt: timestamp("expiresAt"),
   fulfilledAt: timestamp("fulfilledAt"),
   cancelledAt: timestamp("cancelledAt"),
-});
+}, (t) => ({
+  idxStockReservationsStoreStatusExpires: index("idx_stock_reservations_store_status_expires").on(t.storeId, t.status, t.expiresAt),
+  idxStockReservationsSkuStatusExpires: index("idx_stock_reservations_sku_status_expires").on(t.skuId, t.status, t.expiresAt),
+  idxStockReservationsProductStatus: index("idx_stock_reservations_product_status").on(t.productId, t.status),
+  idxStockReservationsOrderStatus: index("idx_stock_reservations_order_status").on(t.orderId, t.status),
+  idxStockReservationsCartStatus: index("idx_stock_reservations_cart_status").on(t.cartId, t.status),
+}));
 
 // ─── Stock Transfers ──────────────────────────────────────────────────────────
 export const stockTransfers = mysqlTable("stock_transfers", {
@@ -1906,6 +1981,10 @@ export const sales = mysqlTable("sales", {
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 }, (t) => ({
   uqSalesBillNo: uniqueIndex("uq_sales_bill_no").on(t.billNo),
+  idxSalesStoreStatusCreated: index("idx_sales_store_status_created").on(t.storeId, t.status, t.createdAt),
+  idxSalesCustomerStatusCreated: index("idx_sales_customer_status_created").on(t.customerId, t.status, t.createdAt),
+  idxSalesSaleTypeCreated: index("idx_sales_sale_type_created").on(t.saleType, t.createdAt),
+  idxSalesPaymentRef: index("idx_sales_payment_ref").on(t.paymentRef),
 }));
 
 export const saleLines = mysqlTable("sale_lines", {
@@ -1928,7 +2007,11 @@ export const saleLines = mysqlTable("sale_lines", {
   scheduleCode: varchar("schedule_code", { length: 10 }),
   rxCleared: int("rx_cleared").notNull().default(0),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
-});
+}, (t) => ({
+  idxSaleLinesSale: index("idx_sale_lines_sale").on(t.saleId),
+  idxSaleLinesProductBatch: index("idx_sale_lines_product_batch").on(t.productId, t.batchNo),
+  idxSaleLinesHsn: index("idx_sale_lines_hsn").on(t.hsnCode),
+}));
 
 
 export const invoiceSnapshots = mysqlTable("invoice_snapshots", {
@@ -1950,6 +2033,10 @@ export const invoiceSnapshots = mysqlTable("invoice_snapshots", {
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxSaleId: uniqueIndex("idx_invoice_snapshots_sale_id_status_hash").on(t.saleId, t.status, t.snapshotHash),
+  idxInvoiceSnapshotsBillNo: index("idx_invoice_snapshots_bill_no").on(t.billNo),
+  idxInvoiceSnapshotsStoreGenerated: index("idx_invoice_snapshots_store_generated").on(t.storeId, t.generatedAt),
+  idxInvoiceSnapshotsCustomerGenerated: index("idx_invoice_snapshots_customer_generated").on(t.customerId, t.generatedAt),
+  idxInvoiceSnapshotsOrder: index("idx_invoice_snapshots_order").on(t.orderId),
 }));
 
 export const saleReturns = mysqlTable("sale_returns", {
@@ -2009,6 +2096,9 @@ export const creditNotes = mysqlTable("credit_notes", {
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 }, (table) => ({
   creditNoteNoUnique: uniqueIndex("credit_notes_credit_note_no_unique").on(table.creditNoteNo),
+  idxCreditNotesBillNo: index("idx_credit_notes_bill_no").on(table.billNo),
+  idxCreditNotesCustomerCreated: index("idx_credit_notes_customer_created").on(table.customerId, table.createdAt),
+  idxCreditNotesStoreIssued: index("idx_credit_notes_store_issued").on(table.storeId, table.issuedAt),
 }));
 
 
@@ -2025,7 +2115,12 @@ export const counterPayments = mysqlTable("counter_payments", {
   status: mysqlEnum("status", ["pending", "confirmed", "failed", "refunded"]).notNull().default("confirmed"),
   createdBy: varchar("created_by", { length: 36 }).notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
-});
+}, (t) => ({
+  idxCounterPaymentsSaleCreated: index("idx_counter_payments_sale_created").on(t.saleId, t.createdAt),
+  idxCounterPaymentsStatusCreated: index("idx_counter_payments_status_created").on(t.status, t.createdAt),
+  idxCounterPaymentsPaymentRef: index("idx_counter_payments_payment_ref").on(t.paymentRef),
+  idxCounterPaymentsGatewayRef: index("idx_counter_payments_gateway_ref").on(t.gatewayRef),
+}));
 
 export type Sale = typeof sales.$inferSelect;
 export type SaleLine = typeof saleLines.$inferSelect;
