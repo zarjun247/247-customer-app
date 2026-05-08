@@ -2853,3 +2853,37 @@ export const staffDeviceSessions = mysqlTable("staff_device_sessions", {
 }, (t) => ({ staffSessionUnique: uniqueIndex("staff_device_sessions_staff_session_uq").on(t.staffId, t.sessionId) }));
 export type StaffDeviceSession = typeof staffDeviceSessions.$inferSelect;
 export type NewStaffDeviceSession = typeof staffDeviceSessions.$inferInsert;
+
+// ─── Commercial Event Ledger (append-only lifecycle foundation) ───────────────
+export const commercialEvents = mysqlTable("commercial_events", {
+  eventId: varchar("eventId", { length: 36 }).primaryKey(),
+  aggregateType: varchar("aggregateType", { length: 64 }).notNull(),
+  aggregateId: varchar("aggregateId", { length: 100 }).notNull(),
+  eventType: varchar("eventType", { length: 100 }).notNull(),
+  eventVersion: int("eventVersion").notNull().default(1),
+  actorType: varchar("actorType", { length: 50 }).notNull().default("system"),
+  actorId: varchar("actorId", { length: 100 }),
+  storeId: varchar("storeId", { length: 100 }),
+  orderId: varchar("orderId", { length: 100 }),
+  saleId: varchar("saleId", { length: 100 }),
+  invoiceId: varchar("invoiceId", { length: 100 }),
+  reservationId: varchar("reservationId", { length: 100 }),
+  paymentId: varchar("paymentId", { length: 100 }),
+  refundId: varchar("refundId", { length: 100 }),
+  eventPayload: text("eventPayload").notNull(),
+  occurredAt: timestamp("occurredAt").defaultNow().notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 200 }),
+  correlationId: varchar("correlationId", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxCommercialEventsAggregate: index("idx_commercial_events_aggregate").on(t.aggregateType, t.aggregateId),
+  idxCommercialEventsOccurredAt: index("idx_commercial_events_occurred_at").on(t.occurredAt),
+  uqCommercialEventsIdempotencyKey: uniqueIndex("uq_commercial_events_idempotency_key").on(t.idempotencyKey),
+  idxCommercialEventsCorrelationId: index("idx_commercial_events_correlation_id").on(t.correlationId),
+  idxCommercialEventsOrderId: index("idx_commercial_events_order_id").on(t.orderId),
+  idxCommercialEventsPaymentId: index("idx_commercial_events_payment_id").on(t.paymentId),
+  idxCommercialEventsInvoiceId: index("idx_commercial_events_invoice_id").on(t.invoiceId),
+}));
+
+export type CommercialEvent = typeof commercialEvents.$inferSelect;
+export type NewCommercialEvent = typeof commercialEvents.$inferInsert;

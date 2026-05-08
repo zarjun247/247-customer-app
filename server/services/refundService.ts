@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { paymentRecords, refunds } from "../../drizzle/schema";
 import { paymentConnector } from "../connectors";
 import { logAudit } from "./audit";
+import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 
 export type RefundProviderState = "pending_provider" | "provider_not_configured" | "manual_required" | "succeeded" | "failed";
 export type RefundLedgerStatus = "pending" | "success" | "failed" | "cancelled";
@@ -151,6 +152,19 @@ export async function initiateRefundRecord(input: {
   await assertRefundAmountAllowed({ gatewayOrderId: input.gatewayOrderId, amountPaise: input.amountPaise });
   const created = await createRefundRecord(input);
   await logAudit({ action: "refund.initiated", entityType: "refund", entityId: created.refundId, afterJson: { gatewayOrderId: input.gatewayOrderId, amountPaise: input.amountPaise, provider: input.provider ?? DEFAULT_REFUND_PROVIDER } }, input.ctx);
+  await appendCommercialEventBestEffort({
+    aggregateType: "refund",
+    aggregateId: created.refundId,
+    eventType: "refund_initiated",
+    actorType: input.ctx?.user ? "staff" : "system",
+    actorId: input.ctx?.user?.id ?? input.initiatedBy ?? null,
+    orderId: created.payment.orderId,
+    paymentId: created.payment.id,
+    refundId: created.refundId,
+    eventPayload: { gatewayOrderId: input.gatewayOrderId, amountPaise: input.amountPaise, provider: input.provider ?? DEFAULT_REFUND_PROVIDER, providerRefundId: input.providerRefundId ?? null },
+    idempotencyKey: input.providerRefundId ? `refund_initiated:${input.providerRefundId}` : `refund:${created.refundId}:initiated`,
+    correlationId: input.gatewayOrderId,
+  });
   return created;
 }
 
@@ -167,6 +181,20 @@ export async function markRefundSuccess(input: { refundId: number; providerRefun
   const fullyRefunded = payment ? successfulTotal >= Number(payment.amount ?? 0) : false;
   await db.update(paymentRecords).set({ refundId: input.providerRefundId ?? refund.providerRefundId, refundedAt: fullyRefunded ? new Date() : payment?.refundedAt ?? null, status: fullyRefunded ? "refunded" : payment?.status }).where(eq(paymentRecords.id, refund.paymentId));
   await logAudit({ action: "refund.succeeded", entityType: "refund", entityId: input.refundId, afterJson: input }, input.ctx);
+  await appendCommercialEventBestEffort({
+    aggregateType: "refund",
+    aggregateId: input.refundId,
+    eventType: "refund_completed",
+    actorType: input.ctx?.user ? "staff" : "provider",
+    actorId: input.ctx?.user?.id ?? null,
+    orderId: refund.orderId ?? payment?.orderId ?? null,
+    saleId: refund.saleId ?? null,
+    paymentId: refund.paymentId,
+    refundId: input.refundId,
+    eventPayload: { amountPaise: refund.amountPaise, providerRefundId: input.providerRefundId ?? refund.providerRefundId ?? null, fullyRefunded },
+    idempotencyKey: input.providerRefundId ? `refund_completed:${input.providerRefundId}` : `refund:${input.refundId}:completed`,
+    correlationId: payment?.gatewayOrderId ?? null,
+  });
 }
 
 export async function markRefundFailedRecord(input: { refundId: number; reason: string; providerRefundId?: string | null; provider?: string; ctx?: any }) {
