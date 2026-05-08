@@ -1,53 +1,52 @@
-# PRODUCTION_HEALTHCHECK_STATUS
+# Production Healthcheck Status — Wave 0 Prompt 3
 
-Documentation-only healthcheck specification. No healthcheck code is implemented here. The requirements below describe what production health endpoints, startup checks, deploy smoke tests, or dashboards should cover before go-live.
+## Component status matrix
 
-## Healthcheck principles
-- Separate **liveness** (process is running) from **readiness** (safe to receive traffic) and **dependency health** (providers/workers are usable).
-- Healthchecks must not mutate business data.
-- Sensitive secrets must never be returned in healthcheck responses.
-- Production readiness must fail closed when a required dependency is unavailable for an enabled feature.
-- Healthcheck output should include environment, app version/commit, timestamp, and degraded dependency list.
+| Component | Endpoint visibility | Probe type | Status behavior | Production note |
+|---|---:|---|---|---|
+| App runtime | liveness/readiness/admin | In-process | `healthy` when process responds | Does not prove dependencies are ready. |
+| Database | readiness/admin | `select 1` read-only probe | `healthy`, `degraded`, or `not_configured` | No writes or migrations are performed. |
+| Migrations | readiness/admin | Read-only metadata-table visibility check | `healthy` or `unknown` | `unknown` requires operator review; healthcheck never runs migrations. |
+| Object storage | readiness/admin | Provider contract/env configuration summary | `healthy`, `not_configured`, `disabled`, or `unknown` | Does not call live storage APIs. |
+| Payments | readiness/admin | Provider contract/env configuration summary | `healthy`, `not_configured`, `disabled`, or `unknown` | `provider_unconfigured` is not treated as success. |
+| WhatsApp/SMS/email | readiness/admin | Provider contract/env configuration summary | `healthy`, `not_configured`, `disabled`, or `unknown` | No live send is attempted. |
+| OCR | readiness/admin | Provider contract/env configuration summary | `healthy`, `not_configured`, `disabled`, or `unknown` | No live OCR call is attempted. |
+| Worker/OCR queue | readiness/admin | Read-only queue-table counters | `healthy` or `unknown` | Requires `ocr_jobs` visibility. |
+| Stock sanity | readiness/admin | Read-only anomaly counters | `healthy`, `degraded`, or `unknown` | Negative stock/batch and reservation-over-available anomalies are counted when queryable. |
+| Reservation sanity | readiness/admin | Read-only anomaly counters | `healthy`, `degraded`, or `unknown` | Expired active reservations and missing references are counted when queryable. |
 
-## Required healthcheck requirements
+Allowed health status values are `healthy`, `degraded`, `unhealthy`, `not_configured`, `disabled`, and `unknown`.
 
-| Requirement | Expected check | Readiness impact | Notes |
-| --- | --- | --- | --- |
-| DB connectivity | Open connection and execute a lightweight read-only query. | Fail readiness if unavailable. | Include latency and database role/cluster where safe. |
-| Migration version/current schema | Compare applied migration/schema version against expected release metadata. | Fail readiness if expected migration is missing or drift is detected. | Do not run migrations from healthcheck. |
-| Object storage | Verify configured bucket/prefix exists and app can perform safe read/list or write/delete probe in a healthcheck prefix. | Degrade or fail depending on whether prescriptions/invoices/reports require storage for active flows. | Avoid touching real customer files. |
-| Payment provider config | Confirm payment provider enabled/disabled state and required Razorpay keys/webhook secret presence when enabled. | Fail readiness for payment flows if enabled but incomplete. | Do not expose key values; optionally verify webhook secret presence only. |
-| SMS provider config | Confirm SMS provider enabled/disabled state and required credentials/sender config. | Fail readiness for OTP-critical flows if enabled but incomplete. | If SMS is required for login/OTP, treat as critical. |
-| WhatsApp provider config | Confirm WhatsApp access token, webhook verify token, phone/business IDs, and template mode where applicable. | Degrade notification readiness if incomplete; fail critical WhatsApp-only flows. | Distinguish send capability from webhook verification. |
-| Printer/provider config | Confirm printer host/port/name or queue configuration for store label printing. | Degrade label printing readiness; do not block unrelated app traffic unless labels are mandatory for go-live step. | Include per-store printer config where applicable. |
-| ERP/Tally export config | Confirm export destination/company mapping/provider mode. | Degrade accounting export readiness if incomplete. | Export health must not create duplicate production exports. |
-| Worker/cron health | Check heartbeat/last successful run for workers and cron jobs. | Fail readiness for flows dependent on background processing if stale. | Include reservation expiry, notifications, webhooks/retry, reports, and exports as applicable. |
-| Queue backlog if queue exists | Report oldest job age, ready/retry/dead-letter counts, and queue processing rate. | Degrade or fail when backlog exceeds SLA. | If no queue exists, health should explicitly report `not_applicable`. |
-| Stock invariant sanity check | Read-only query or sampled assertion that aggregate stock values are non-negative and ledger/summary mismatch threshold is acceptable. | Fail operational readiness for affected store/SKU class when invariant breach exists. | Must not auto-correct in healthcheck. |
-| Reservation expiry sanity check | Count expired active reservations and max age beyond expiry. | Degrade/fail when backlog exceeds threshold. | Link to worker runbook for safe replay/repair. |
+## Load balancer usage
 
-## Suggested endpoint shape
+- Use `GET /healthz` or `GET /api/healthz` for liveness only.
+- Use `GET /readyz` or `GET /api/readyz` for readiness before sending traffic.
+- `GET /api/health` is retained as a readiness-compatible API health route for existing monitors.
+- Do not use `/admin/health` as a public load balancer target because it is protected and intended for operators.
 
-If implemented later, expose separate endpoints or modes:
+Recommended behavior:
 
-- `/health/live`: process liveness only; no heavy dependency checks.
-- `/health/ready`: DB, migration, required config, and critical dependency readiness.
-- `/health/dependencies`: detailed provider/worker/storage/queue state for authenticated operators or internal monitoring.
+1. Restart or replace instances only when `/healthz` fails repeatedly.
+2. Remove an instance from service when `/readyz` returns `503` or repeatedly reports a critical dependency as degraded/unhealthy.
+3. Treat `not_configured` provider states as launch blockers for the provider-dependent feature, not as proof the feature is production ready.
 
-## Deployment smoke checklist
+## Admin health usage
 
-- [ ] Liveness returns healthy after deploy.
-- [ ] Readiness remains disabled until migrations are current.
-- [ ] DB connectivity passes with expected latency.
-- [ ] Object storage probe passes in non-customer health prefix.
-- [ ] Required providers report configured or intentionally disabled.
-- [ ] Workers/cron heartbeat after enablement.
-- [ ] Queue backlog is within threshold or explicitly not applicable.
-- [ ] Stock invariant sanity has no critical breach.
-- [ ] Reservation expiry backlog is within threshold.
-- [ ] Health output redacts all secrets.
+- Use `GET /admin/health` or `GET /api/admin/health` for operator checks.
+- In production, configure `ADMIN_HEALTH_TOKEN` or `HEALTHCHECK_ADMIN_TOKEN`.
+- Send the token via `x-admin-health-token`, `x-healthcheck-token`, or `Authorization: Bearer <token>`.
+- If no token is configured in production, admin health fails closed with `admin_health_token_not_configured`.
+- Admin health still never exposes secrets, environment values, DB URLs, provider credentials, customer data, order data, prescription payloads, or raw file data.
 
-## Current status placeholder
+## What remains before multi-store production
 
-- Implementation status: **Specification only**.
-- Required before production go-live: map these checks to actual endpoints, infrastructure probes, CI/deploy smoke scripts, or dashboards and record evidence.
+- Replace the token-only admin health guard with existing admin auth/RBAC when an Express-compatible guard is available.
+- Establish production alert thresholds for database, queue, stock anomaly, and reservation anomaly degradation.
+- Add operational dashboards for request IDs, route latency, error rates, store-level degradation, and provider configuration drift.
+- Validate migration-table naming against the deployed migration runner.
+- Validate stock and reservation query assumptions against the production schema after each schema-changing release.
+- Confirm load balancer and uptime monitor configuration in staging before enabling in production.
+
+## Scope statement
+
+This PR adds read-only observability and healthchecks only; it does not change commercial, stock, payment, prescription, or compliance lifecycle behavior.
