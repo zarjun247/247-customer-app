@@ -8,10 +8,11 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { getDb } from "../db";
 import { processQueue } from "../worker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
+import { registerHealthRoutes } from "../routers/healthRouter";
+import { requestLogger } from "../middleware/requestLogger";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,30 +37,12 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
+  app.use(requestLogger);
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
-
-  // ─── Health Check ──────────────────────────────────────────────────────────
-  // GET /api/health — returns service status for load balancers and monitoring
-  // TODO: Add Sentry/PagerDuty alert if dbConnected is false for >2 minutes
-  app.get("/api/health", async (_req, res) => {
-    let dbConnected = false;
-    try {
-      const db = await getDb();
-      dbConnected = db !== null;
-    } catch {
-      dbConnected = false;
-    }
-    res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      dbConnected,
-      version: "1.0.0",
-      // TODO: Add Sentry DSN check, Redis ping, storage ping
-    });
-  });
+  registerHealthRoutes(app);
 
   // ─── Worker Trigger (scheduled task endpoint) ──────────────────────────────
   // POST /api/worker/run — trigger OCR queue processing
