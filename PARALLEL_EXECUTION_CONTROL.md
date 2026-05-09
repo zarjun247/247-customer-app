@@ -124,3 +124,10 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## 2026-05-09 observability branch coordination note
+
+- Active branch: `feat/production-observability-healthchecks-redaction`.
+- Domain: observability/request logging/redaction/read-only healthchecks.
+- Hard boundaries honored: no Drizzle schema edits, no migration SQL edits, no stock or reservation mutation changes, no payment lifecycle changes, no H1/Rx release changes, and no provider connector mutation behavior changes.
+- Parallel branches touching auth/session, provider connectors, stock/reservation mutation, payment lifecycle, worker mutation behavior, or protected admin routing should coordinate before merge because this branch wires production health endpoints and request logging at the Express boundary.
