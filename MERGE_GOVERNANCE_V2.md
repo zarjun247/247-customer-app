@@ -29,22 +29,44 @@ Canonical merge governance for Wave 0 / Prompt 1 as of 2026-05-08.
 - Do not merge docs/control PRs that change runtime behavior, package manifests, lockfiles, migrations, stock/payment/prescription/compliance logic, or provider connector behavior.
 - Do not claim production readiness or 10/10 status without fresh current-main proof.
 
+
+## Branch-protection merge discipline addendum (2026-05-09)
+
+This repository must treat branch protection as a hard merge gate, not as documentation-only guidance:
+
+- No stale PR can merge. A branch is stale when it was not rebuilt or rebased after the latest protected `main` advanced in a relevant domain or after migration-number surgery.
+- No conflicted PR can merge by accepting the old branch wholesale. Conflict resolution must preserve newer `main` behavior, tests, lifecycle proof, security controls, and migration order unless reviewers document why the PR owns that exact current domain.
+- Latest `main` wins unless the PR owns the exact current domain and the reviewer intentionally accepts the branch diff over current `main`.
+- No migration PR can merge without a green migration audit: duplicate migration-prefix scan, monotonic filename check, destructive-statement review, schema/migration consistency review, and DB lifecycle evidence where available.
+- No PR can merge if it reintroduces any of these blocked regressions:
+  - fake provider success or demo/stub/mock success treated as real production success;
+  - direct stock mutation outside the invariant/reservation gateway;
+  - H1/audit numeric coercion such as `Number(uuid)` or sentinel `entityId: 0`;
+  - unguarded admin/pharmacy routes;
+  - broad global body parser changes that can break webhook signature verification or request-specific parsers;
+  - stale payment verification, stale webhook trust, or provider-unconfigured states treated as settled/verified;
+  - stale product-master runtime gate removal;
+  - stale privacy, consent, prescription-vault, or staff-session bypasses.
+- Required branch protection settings and evidence live in `BRANCH_PROTECTION_ENFORCEMENT_STATUS.md`; do not claim GitHub enforcement is active until GitHub settings/API evidence confirms it.
+
 ## Required PR evidence
 
-Every PR must include:
+Every PR body must include these sections, with explicit `None` where a section does not apply:
 
 1. Files changed.
-2. Migrations added, or explicit `None`.
-3. Runtime behavior changed, or explicit `None`.
-4. Tests added/updated, or explicit `None` with rationale.
+2. Migrations added.
+3. Runtime behavior changed.
+4. Tests added/updated, with rationale if none were added.
 5. Validation results for:
    - `pnpm install`
    - `pnpm run check`
    - `pnpm test -- --runInBand`
    - `pnpm run build`
    - `git diff --check`
+   - plus domain-specific scans such as `pnpm run migrations:verify`, `node scripts/ci-governance-guards.mjs all`, release-gate, DB lifecycle, provider, stock, payment, privacy, or compliance checks when relevant.
 6. Stale PR / migration collision assessment if applicable.
-7. Remaining risks and safe-to-merge assessment.
+7. Remaining risks.
+8. Safe-to-merge assessment.
 
 ## Stale PR merge policy
 
