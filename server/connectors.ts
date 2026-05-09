@@ -16,28 +16,36 @@
 import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
+import {
+  markProviderFailure,
+  markProviderManualRequired,
+  markProviderNotConfigured,
+  markProviderSuccess,
+  recordProviderAttempt,
+  sanitizeProviderErrorMessage,
+} from "./services/providerRuntime";
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
 export type MessageProviderStatus =
   | "sent"
   | "failed"
-  | "provider_unconfigured"
-  | "skipped_demo";
+  | "not_configured"
+  | "manual_required";
 
 export type PrinterProviderStatus =
   | "printed"
   | "failed"
-  | "provider_unconfigured"
-  | "skipped_demo"
+  | "not_configured"
+  | "manual_required"
   | "preview_only"
   | "not_printed";
 
 export type ErpProviderStatus =
   | "synced"
   | "failed"
-  | "provider_unconfigured"
-  | "skipped_demo";
+  | "not_configured"
+  | "manual_required";
 
 export type ProviderResult<TStatus extends string> = {
   status: TStatus;
@@ -58,13 +66,13 @@ export type ErpProviderResult = ProviderResult<ErpProviderStatus> & {
 
 export function isExplicitDemoMode(): boolean {
   const explicit = String(
-    process.env.PROVIDER_DEMO_MODE ?? process.env.DEMO_MODE ?? "",
+    process.env.PROVIDER_DEMO_MODE ?? process.env.DEMO_MODE ?? ""
   ).toLowerCase();
 
   return (
     ["1", "true", "yes", "on", "demo", "local"].includes(explicit) ||
     ["development", "test"].includes(
-      String(process.env.NODE_ENV ?? "").toLowerCase(),
+      String(process.env.NODE_ENV ?? "").toLowerCase()
     )
   );
 }
@@ -74,21 +82,21 @@ export function isProductionMode(): boolean {
 }
 
 export function providerUnavailableResult<
-  TStatus extends "provider_unconfigured" | "skipped_demo",
+  TStatus extends "not_configured" | "manual_required",
 >(provider: string, missing: string[]): ProviderResult<TStatus> {
   if (isProductionMode() && !isExplicitDemoMode()) {
     return {
-      status: "provider_unconfigured" as TStatus,
+      status: "not_configured" as TStatus,
       ok: false,
       reason: `${provider} provider unconfigured: missing ${missing.join(", ")}`,
     };
   }
 
   return {
-    status: "skipped_demo" as TStatus,
+    status: "manual_required" as TStatus,
     ok: false,
     demo: true,
-    reason: `${provider} provider skipped in explicit local/demo mode: missing ${missing.join(", ")}`,
+    reason: `${provider} provider requires manual/local handling in explicit local/demo mode: missing ${missing.join(", ")}`,
   };
 }
 
@@ -130,16 +138,50 @@ export const smsConnector: SmsConnector = {
   async sendSmsDetailed({ phone, message }) {
     const apiKey = process.env.SMS_PROVIDER_API_KEY;
     const senderId = process.env.SMS_SENDER_ID ?? "PHRMCY";
+    const idempotencyKey = `sms:send:${crypto.createHash("sha256").update(`${phone}:${message}`).digest("hex")}`;
+    await recordProviderAttempt({
+      providerType: "sms",
+      operationType: "send",
+      entityType: "phone",
+      entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+      idempotencyKey,
+      requestPayload: {
+        channel: "sms",
+        phoneHash: crypto.createHash("sha256").update(phone).digest("hex"),
+        messageLength: message.length,
+      },
+    });
 
     if (!apiKey) {
       const result = providerUnavailableResult<
-        "provider_unconfigured" | "skipped_demo"
+        "not_configured" | "manual_required"
       >("SMS", ["SMS_PROVIDER_API_KEY"]);
 
-      if (result.status === "skipped_demo") {
-        console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${message}`);
+      if (result.status === "manual_required") {
+        console.log(
+          `[SMS MANUAL REQUIRED] Provider missing; message was not sent.`
+        );
       }
 
+      if (result.status === "not_configured") {
+        await markProviderNotConfigured({
+          providerType: "sms",
+          operationType: "send",
+          entityType: "phone",
+          entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+          idempotencyKey,
+          lastErrorMessage: result.reason,
+        });
+      } else {
+        await markProviderManualRequired({
+          providerType: "sms",
+          operationType: "send",
+          entityType: "phone",
+          entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+          idempotencyKey,
+          lastErrorMessage: result.reason,
+        });
+      }
       return result;
     }
 
@@ -169,6 +211,15 @@ export const smsConnector: SmsConnector = {
         const text = await res.text();
         console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
 
+        await markProviderFailure({
+          providerType: "sms",
+          operationType: "send",
+          entityType: "phone",
+          entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+          idempotencyKey,
+          lastErrorCode: `http_${res.status}`,
+          lastErrorMessage: `MSG91 error: ${res.status}`,
+        });
         return {
           status: "failed",
           ok: false,
@@ -176,10 +227,30 @@ export const smsConnector: SmsConnector = {
         };
       }
 
+      await markProviderSuccess({
+        providerType: "sms",
+        operationType: "send",
+        entityType: "phone",
+        entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+        idempotencyKey,
+        status: "sent",
+        responsePayload: { httpStatus: res.status },
+      });
       return { status: "sent", ok: true };
     } catch (err) {
       console.error("[SMS] Failed to send via MSG91:", err);
 
+      await markProviderFailure({
+        providerType: "sms",
+        operationType: "send",
+        entityType: "phone",
+        entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+        idempotencyKey,
+        error: err,
+        lastErrorMessage: sanitizeProviderErrorMessage(
+          err instanceof Error ? err.message : "MSG91 request failed"
+        ),
+      });
       return {
         status: "failed",
         ok: false,
@@ -196,6 +267,23 @@ export const smsConnector: SmsConnector = {
   async sendWhatsAppDetailed({ phone, templateName, variables }) {
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const token = process.env.WHATSAPP_API_TOKEN;
+    const idempotencyKey = `whatsapp:send:${crypto
+      .createHash("sha256")
+      .update(`${phone}:${templateName}:${variables.join("|")}`)
+      .digest("hex")}`;
+    await recordProviderAttempt({
+      providerType: "whatsapp",
+      operationType: "send",
+      entityType: "phone",
+      entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+      idempotencyKey,
+      requestPayload: {
+        channel: "whatsapp",
+        phoneHash: crypto.createHash("sha256").update(phone).digest("hex"),
+        templateName,
+        variableCount: variables.length,
+      },
+    });
 
     const missing = [
       ...(!phoneNumberId ? ["WHATSAPP_PHONE_NUMBER_ID"] : []),
@@ -204,15 +292,34 @@ export const smsConnector: SmsConnector = {
 
     if (missing.length > 0) {
       const result = providerUnavailableResult<
-        "provider_unconfigured" | "skipped_demo"
+        "not_configured" | "manual_required"
       >("WhatsApp", missing);
 
-      if (result.status === "skipped_demo") {
+      if (result.status === "manual_required") {
         console.log(
-          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`,
+          `[WhatsApp MANUAL REQUIRED] Provider missing; template was not sent.`
         );
       }
 
+      if (result.status === "not_configured") {
+        await markProviderNotConfigured({
+          providerType: "whatsapp",
+          operationType: "send",
+          entityType: "phone",
+          entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+          idempotencyKey,
+          lastErrorMessage: result.reason,
+        });
+      } else {
+        await markProviderManualRequired({
+          providerType: "whatsapp",
+          operationType: "send",
+          entityType: "phone",
+          entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+          idempotencyKey,
+          lastErrorMessage: result.reason,
+        });
+      }
       return result;
     }
 
@@ -253,13 +360,22 @@ export const smsConnector: SmsConnector = {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
-        },
+        }
       );
 
       if (!res.ok) {
         const text = await res.text();
         console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
 
+        await markProviderFailure({
+          providerType: "whatsapp",
+          operationType: "send",
+          entityType: "phone",
+          entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+          idempotencyKey,
+          lastErrorCode: `http_${res.status}`,
+          lastErrorMessage: `WhatsApp Cloud API error: ${res.status}`,
+        });
         return {
           status: "failed",
           ok: false,
@@ -267,10 +383,32 @@ export const smsConnector: SmsConnector = {
         };
       }
 
+      await markProviderSuccess({
+        providerType: "whatsapp",
+        operationType: "send",
+        entityType: "phone",
+        entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+        idempotencyKey,
+        status: "sent",
+        responsePayload: { httpStatus: res.status },
+      });
       return { status: "sent", ok: true };
     } catch (err) {
       console.error("[WhatsApp] Failed to send:", err);
 
+      await markProviderFailure({
+        providerType: "whatsapp",
+        operationType: "send",
+        entityType: "phone",
+        entityRef: crypto.createHash("sha256").update(phone).digest("hex"),
+        idempotencyKey,
+        error: err,
+        lastErrorMessage: sanitizeProviderErrorMessage(
+          err instanceof Error
+            ? err.message
+            : "WhatsApp Cloud API request failed"
+        ),
+      });
       return {
         status: "failed",
         ok: false,
@@ -286,7 +424,7 @@ export const smsConnector: SmsConnector = {
  */
 export async function sendCustomerNotification(
   phone: string,
-  payload: NotificationPayload,
+  payload: NotificationPayload
 ): Promise<void> {
   const message = `${payload.title}\n${payload.content}`;
   const sent = await smsConnector.sendSms({ phone, message });
@@ -324,7 +462,7 @@ export interface PaymentGatewayConnector {
 
 function isExplicitPaymentDemoMode(): boolean {
   const mode = String(
-    process.env.PAYMENT_PROVIDER_MODE ?? process.env.LOCAL_DEMO_MODE ?? "",
+    process.env.PAYMENT_PROVIDER_MODE ?? process.env.LOCAL_DEMO_MODE ?? ""
   )
     .trim()
     .toLowerCase();
@@ -352,7 +490,7 @@ export const paymentConnector: PaymentGatewayConnector = {
 
     if (!keyId || !keySecret) {
       throw new Error(
-        "Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing",
+        "Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing"
       );
     }
 
@@ -388,7 +526,7 @@ export const paymentConnector: PaymentGatewayConnector = {
       if (isExplicitPaymentDemoMode()) return false;
 
       throw new Error(
-        "Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing",
+        "Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing"
       );
     }
 
@@ -547,18 +685,50 @@ export const labelPrinterConnector: LabelPrinterConnector = {
     const zpl = this.generateDispatchLabelZpl(params);
     const host = process.env.PRINTER_HOST;
     const port = parseInt(process.env.PRINTER_PORT ?? "9100", 10);
+    const idempotencyKey = `printer:print:dispatch:${params.orderId}`;
+    await recordProviderAttempt({
+      providerType: "printer",
+      operationType: "print",
+      entityType: "order",
+      entityRef: params.orderId,
+      idempotencyKey,
+      requestPayload: {
+        orderId: params.orderId,
+        itemCount: params.items.length,
+        hasBarcode: Boolean(params.barcodeData),
+      },
+    });
 
     if (!host) {
       const result = providerUnavailableResult<
-        "provider_unconfigured" | "skipped_demo"
+        "not_configured" | "manual_required"
       >("Label printer", ["PRINTER_HOST"]);
 
-      if (result.status === "skipped_demo") {
+      if (result.status === "manual_required") {
         console.log(
-          `[Printer DEMO SKIPPED] Dispatch label for order #${params.orderId}:\n${zpl}`,
+          `[Printer MANUAL REQUIRED] Dispatch label requires manual/browser action for order #${params.orderId}.`
         );
       }
 
+      if (result.status === "not_configured") {
+        await markProviderNotConfigured({
+          providerType: "printer",
+          operationType: "print",
+          entityType: "order",
+          entityRef: params.orderId,
+          idempotencyKey,
+          lastErrorMessage: result.reason,
+        });
+      } else {
+        await markProviderManualRequired({
+          providerType: "printer",
+          operationType: "print",
+          entityType: "order",
+          entityRef: params.orderId,
+          idempotencyKey,
+          lastErrorMessage: result.reason,
+        });
+      }
       return { ...result, zpl };
     }
 
@@ -580,10 +750,28 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         });
       });
 
+      await markProviderSuccess({
+        providerType: "printer",
+        operationType: "print",
+        entityType: "order",
+        entityRef: params.orderId,
+        idempotencyKey,
+        status: "printed",
+        responsePayload: { socketWriteCompleted: true },
+      });
       return { status: "printed", ok: true, zpl };
     } catch (err) {
       console.error("[Printer] Failed to send dispatch label:", err);
 
+      await markProviderFailure({
+        providerType: "printer",
+        operationType: "print",
+        entityType: "order",
+        entityRef: params.orderId,
+        idempotencyKey,
+        error: err,
+        lastErrorMessage: "Printer delivery failed",
+      });
       return {
         status: "failed",
         ok: false,
@@ -602,15 +790,27 @@ export const labelPrinterConnector: LabelPrinterConnector = {
     const zpl = this.generateBatchLabelZpl(params);
     const host = process.env.PRINTER_HOST;
     const port = parseInt(process.env.PRINTER_PORT ?? "9100", 10);
+    const idempotencyKey = `printer:print:batch:${crypto.createHash("sha256").update(`${params.productName}:${params.batchNumber}:${params.expiryDate}`).digest("hex")}`;
+    await recordProviderAttempt({
+      providerType: "printer",
+      operationType: "print",
+      entityType: "batch",
+      entityRef: params.batchNumber,
+      idempotencyKey,
+      requestPayload: {
+        batchNumber: params.batchNumber,
+        hasBarcode: Boolean(params.barcode),
+      },
+    });
 
     if (!host) {
       const result = providerUnavailableResult<
-        "provider_unconfigured" | "skipped_demo"
+        "not_configured" | "manual_required"
       >("Label printer", ["PRINTER_HOST"]);
 
-      if (result.status === "skipped_demo") {
+      if (result.status === "manual_required") {
         console.log(
-          `[Printer DEMO SKIPPED] Batch label for ${params.productName}:\n${zpl}`,
+          `[Printer MANUAL REQUIRED] Batch label requires manual/browser action.`
         );
       }
 
@@ -635,6 +835,15 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         });
       });
 
+      await markProviderSuccess({
+        providerType: "printer",
+        operationType: "print",
+        entityType: "batch",
+        entityRef: params.batchNumber,
+        idempotencyKey,
+        status: "printed",
+        responsePayload: { socketWriteCompleted: true },
+      });
       return { status: "printed", ok: true, zpl };
     } catch (err) {
       console.error("[Printer] Failed to send batch label:", err);
@@ -698,13 +907,11 @@ export const erpConnector: ErpSyncConnector = {
 
     if (missing.length > 0) {
       const result = providerUnavailableResult<
-        "provider_unconfigured" | "skipped_demo"
+        "not_configured" | "manual_required"
       >("ERP", missing);
 
-      if (result.status === "skipped_demo") {
-        console.log(
-          `[ERP DEMO SKIPPED] Push GRN for ingestion #${ingestionId}, store #${storeId}, ${items.length} items`,
-        );
+      if (result.status === "manual_required") {
+        console.log(`[ERP MANUAL REQUIRED] GRN sync was not sent to ERP.`);
       }
 
       return { ...result, erpRef: null };
@@ -765,12 +972,12 @@ export const erpConnector: ErpSyncConnector = {
 
     if (missing.length > 0) {
       const result = providerUnavailableResult<
-        "provider_unconfigured" | "skipped_demo"
+        "not_configured" | "manual_required"
       >("ERP", missing);
 
-      if (result.status === "skipped_demo") {
+      if (result.status === "manual_required") {
         console.log(
-          `[ERP DEMO SKIPPED] Push sales order #${orderId}, store #${storeId}, ₹${totalAmount}`,
+          `[ERP MANUAL REQUIRED] Sales order sync was not sent to ERP.`
         );
       }
 

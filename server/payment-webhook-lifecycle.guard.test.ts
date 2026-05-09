@@ -100,13 +100,13 @@ describe("payment webhook lifecycle safety", () => {
     expect(refund).toBeLessThan(unsupported);
   });
 
-  it("never treats provider_unconfigured or demo_skipped as commercially verified", async () => {
+  it("never treats not_configured or manual_required as commercially verified", async () => {
     process.env.RAZORPAY_KEY_SECRET = "";
     process.env.PAYMENT_DEMO_MODE = "true";
     process.env.NODE_ENV = "test";
-    await expect(verifyGatewayPaymentSignature({ gatewayOrderId: "o", gatewayPaymentId: "p", signature: "s" })).resolves.toMatchObject({ verified: false, status: "demo_skipped" });
-    expect(verificationStatusIsCommerciallySafe("demo_skipped")).toBe(false);
-    expect(verificationStatusIsCommerciallySafe("provider_unconfigured")).toBe(false);
+    await expect(verifyGatewayPaymentSignature({ gatewayOrderId: "o", gatewayPaymentId: "p", signature: "s" })).resolves.toMatchObject({ verified: false, status: "manual_required" });
+    expect(verificationStatusIsCommerciallySafe("manual_required")).toBe(false);
+    expect(verificationStatusIsCommerciallySafe("not_configured")).toBe(false);
     expect(verificationStatusIsCommerciallySafe("verified")).toBe(true);
   });
 

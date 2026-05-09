@@ -164,3 +164,9 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Provider runtime attempts 0049 truth update
+
+- Branch `feat/provider-runtime-attempts-0049` was rebuilt from local main-equivalent SHA `200fafc`; authenticated GitHub main refresh was attempted but unavailable in this container.
+- Migration `0049_provider_operation_attempts.sql` is now assigned to provider operation attempts. Reservation lifecycle/schema work must use `0050` or the next free number after this PR.
+- Canonical provider operation statuses are documented in `PROVIDER_OPERATION_LIFECYCLE.md`; unconfigured/disabled/manual provider outcomes are non-success and must not unlock sent/synced/verified/printed/paid/refunded states.

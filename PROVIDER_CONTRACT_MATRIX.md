@@ -39,3 +39,7 @@ Provider-facing ops/health views should use only non-secret state values:
 - `manual_intervention_required`
 
 The status helper must never expose raw API keys, tokens, webhook secrets, SMTP passwords, or private keys.
+
+## Provider runtime attempt ledger alignment
+
+External provider operations now have a canonical attempt lifecycle in `PROVIDER_OPERATION_LIFECYCLE.md` and a durable ledger in `provider_operation_attempts`. Contract outcomes that are unavailable, disabled, manual-only, or queued are non-success states and must not be reported as sent/synced/verified/printed/paid/refunded without provider confirmation or deterministic local proof.

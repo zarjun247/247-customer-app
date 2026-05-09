@@ -84,7 +84,7 @@ export const paymentRouter = router({
       const verification = await verifyGatewayPaymentSignature({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
       if (!verification.verified) {
         await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId, verificationStatus: verification.status } }, ctx);
-        const code = verification.status === "provider_unconfigured" ? "PRECONDITION_FAILED" : "BAD_REQUEST";
+        const code = verification.status === "not_configured" ? "PRECONDITION_FAILED" : "BAD_REQUEST";
         throw new TRPCError({ code, message: verification.message ?? "Payment signature verification failed" });
       }
 

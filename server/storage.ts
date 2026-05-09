@@ -2,7 +2,14 @@
 // Uploads via Forge Server presigned URL to S3 (PUT direct).
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
+import crypto from "crypto";
 import { ENV } from "./_core/env";
+import {
+  markProviderFailure,
+  markProviderNotConfigured,
+  markProviderSuccess,
+  recordProviderAttempt,
+} from "./services/providerRuntime";
 
 function getForgeConfig() {
   const forgeUrl = ENV.forgeApiUrl;
@@ -10,7 +17,7 @@ function getForgeConfig() {
 
   if (!forgeUrl || !forgeKey) {
     throw new Error(
-      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY",
+      "Storage provider not configured: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
     );
   }
 
@@ -31,9 +38,39 @@ function appendHashSuffix(relKey: string): string {
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
-  contentType = "application/octet-stream",
+  contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { forgeUrl, forgeKey } = getForgeConfig();
+  const idempotencyKey = `storage:upload:${crypto.createHash("sha256").update(`${relKey}:${contentType}`).digest("hex")}`;
+  await recordProviderAttempt({
+    providerType: "storage",
+    operationType: "upload",
+    entityType: "storage_key",
+    entityRef: normalizeKey(relKey),
+    idempotencyKey,
+    requestPayload: {
+      relKey: normalizeKey(relKey),
+      contentType,
+      byteLength: typeof data === "string" ? data.length : data.byteLength,
+    },
+  });
+  let forgeUrl: string;
+  let forgeKey: string;
+  try {
+    ({ forgeUrl, forgeKey } = getForgeConfig());
+  } catch (error) {
+    await markProviderNotConfigured({
+      providerType: "storage",
+      operationType: "upload",
+      entityType: "storage_key",
+      entityRef: normalizeKey(relKey),
+      idempotencyKey,
+      lastErrorMessage:
+        error instanceof Error
+          ? error.message
+          : "Storage provider not configured",
+    });
+    throw error;
+  }
   const key = appendHashSuffix(normalizeKey(relKey));
 
   // 1. Get presigned PUT URL from Forge
@@ -46,11 +83,31 @@ export async function storagePut(
 
   if (!presignResp.ok) {
     const msg = await presignResp.text().catch(() => presignResp.statusText);
+    await markProviderFailure({
+      providerType: "storage",
+      operationType: "upload",
+      entityType: "storage_key",
+      entityRef: normalizeKey(relKey),
+      idempotencyKey,
+      lastErrorCode: `http_${presignResp.status}`,
+      lastErrorMessage: `Storage presign failed (${presignResp.status}): ${msg}`,
+    });
     throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
   }
 
   const { url: s3Url } = (await presignResp.json()) as { url: string };
-  if (!s3Url) throw new Error("Forge returned empty presign URL");
+  if (!s3Url) {
+    await markProviderFailure({
+      providerType: "storage",
+      operationType: "upload",
+      entityType: "storage_key",
+      entityRef: normalizeKey(relKey),
+      idempotencyKey,
+      lastErrorCode: "empty_presign_url",
+      lastErrorMessage: "Forge returned empty presign URL",
+    });
+    throw new Error("Forge returned empty presign URL");
+  }
 
   // 2. PUT file directly to S3
   const blob =
@@ -65,13 +122,34 @@ export async function storagePut(
   });
 
   if (!uploadResp.ok) {
+    await markProviderFailure({
+      providerType: "storage",
+      operationType: "upload",
+      entityType: "storage_key",
+      entityRef: normalizeKey(relKey),
+      idempotencyKey,
+      lastErrorCode: `http_${uploadResp.status}`,
+      lastErrorMessage: `Storage upload to S3 failed (${uploadResp.status})`,
+    });
     throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
   }
 
+  await markProviderSuccess({
+    providerType: "storage",
+    operationType: "upload",
+    entityType: "storage_key",
+    entityRef: normalizeKey(relKey),
+    idempotencyKey,
+    status: "completed",
+    providerRef: key,
+    responsePayload: { key, url: `/manus-storage/${key}` },
+  });
   return { key, url: `/manus-storage/${key}` };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
+export async function storageGet(
+  relKey: string
+): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   return { key, url: `/manus-storage/${key}` };
 }

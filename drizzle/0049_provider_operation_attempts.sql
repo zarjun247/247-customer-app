@@ -1,0 +1,30 @@
+-- Durable provider operation attempt ledger.
+-- Every external provider action must resolve to an explicit truthful runtime state.
+CREATE TABLE IF NOT EXISTS `provider_operation_attempts` (
+  `id` bigint AUTO_INCREMENT PRIMARY KEY,
+  `providerType` enum('payment','whatsapp','sms','otp','email','push','ocr','printer','tally','storage','maps','other') NOT NULL,
+  `operationType` enum('send','verify','create_order','capture','refund','parse','print','upload','export','sync','webhook','healthcheck','other') NOT NULL,
+  `entityType` varchar(100) NOT NULL,
+  `entityRef` varchar(150) NOT NULL,
+  `storeId` int NULL,
+  `userId` int NULL,
+  `status` enum('pending','queued','completed','sent','synced','verified','printed','failed','retrying','dead_letter','disabled','not_configured','manual_required','cancelled') NOT NULL DEFAULT 'pending',
+  `providerRef` varchar(200) NULL,
+  `idempotencyKey` varchar(255) NULL,
+  `attemptCount` int NOT NULL DEFAULT 1,
+  `nextRetryAt` timestamp NULL,
+  `lastErrorCode` varchar(100) NULL,
+  `lastErrorMessage` varchar(500) NULL,
+  `requestHash` varchar(64) NULL,
+  `responseHash` varchar(64) NULL,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `completedAt` timestamp NULL,
+  `deadLetteredAt` timestamp NULL,
+  UNIQUE KEY `provider_operation_attempts_idempotency_uq` (`idempotencyKey`),
+  KEY `provider_operation_attempts_provider_status_idx` (`providerType`, `operationType`, `status`),
+  KEY `provider_operation_attempts_entity_idx` (`entityType`, `entityRef`),
+  KEY `provider_operation_attempts_retry_idx` (`nextRetryAt`, `status`),
+  KEY `provider_operation_attempts_store_created_idx` (`storeId`, `createdAt`),
+  KEY `provider_operation_attempts_provider_ref_idx` (`providerRef`)
+);

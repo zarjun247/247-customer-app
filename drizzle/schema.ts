@@ -828,6 +828,39 @@ export const providerWebhookEvents = mysqlTable("provider_webhook_events", {
 export type ProviderWebhookEvent = typeof providerWebhookEvents.$inferSelect;
 export type InsertProviderWebhookEvent = typeof providerWebhookEvents.$inferInsert;
 
+export const providerOperationAttempts = mysqlTable("provider_operation_attempts", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  providerType: mysqlEnum("providerType", ["payment", "whatsapp", "sms", "otp", "email", "push", "ocr", "printer", "tally", "storage", "maps", "other"]).notNull(),
+  operationType: mysqlEnum("operationType", ["send", "verify", "create_order", "capture", "refund", "parse", "print", "upload", "export", "sync", "webhook", "healthcheck", "other"]).notNull(),
+  entityType: varchar("entityType", { length: 100 }).notNull(),
+  entityRef: varchar("entityRef", { length: 150 }).notNull(),
+  storeId: int("storeId"),
+  userId: int("userId"),
+  status: mysqlEnum("status", ["pending", "queued", "completed", "sent", "synced", "verified", "printed", "failed", "retrying", "dead_letter", "disabled", "not_configured", "manual_required", "cancelled"]).default("pending").notNull(),
+  providerRef: varchar("providerRef", { length: 200 }),
+  idempotencyKey: varchar("idempotencyKey", { length: 255 }),
+  attemptCount: int("attemptCount").default(1).notNull(),
+  nextRetryAt: timestamp("nextRetryAt"),
+  lastErrorCode: varchar("lastErrorCode", { length: 100 }),
+  lastErrorMessage: varchar("lastErrorMessage", { length: 500 }),
+  requestHash: varchar("requestHash", { length: 64 }),
+  responseHash: varchar("responseHash", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  deadLetteredAt: timestamp("deadLetteredAt"),
+}, (t) => ({
+  uqProviderOperationAttemptsIdempotency: uniqueIndex("provider_operation_attempts_idempotency_uq").on(t.idempotencyKey),
+  idxProviderOperationAttemptsProviderStatus: index("provider_operation_attempts_provider_status_idx").on(t.providerType, t.operationType, t.status),
+  idxProviderOperationAttemptsEntity: index("provider_operation_attempts_entity_idx").on(t.entityType, t.entityRef),
+  idxProviderOperationAttemptsRetry: index("provider_operation_attempts_retry_idx").on(t.nextRetryAt, t.status),
+  idxProviderOperationAttemptsStoreCreated: index("provider_operation_attempts_store_created_idx").on(t.storeId, t.createdAt),
+  idxProviderOperationAttemptsProviderRef: index("provider_operation_attempts_provider_ref_idx").on(t.providerRef),
+}));
+
+export type ProviderOperationAttempt = typeof providerOperationAttempts.$inferSelect;
+export type NewProviderOperationAttempt = typeof providerOperationAttempts.$inferInsert;
+
 export const refunds = mysqlTable("refunds", {
   id: int("id").autoincrement().primaryKey(),
   paymentId: int("paymentId").notNull(),

@@ -42,7 +42,7 @@ describe("non-payment provider fail-closed behavior", () => {
     });
 
     expect(detailed).toMatchObject({
-      status: "provider_unconfigured",
+      status: "not_configured",
       ok: false,
     });
     await expect(
@@ -61,7 +61,7 @@ describe("non-payment provider fail-closed behavior", () => {
     });
 
     expect(detailed).toMatchObject({
-      status: "provider_unconfigured",
+      status: "not_configured",
       ok: false,
     });
     expect(detailed.reason).toContain("WHATSAPP_PHONE_NUMBER_ID");
@@ -87,7 +87,7 @@ describe("non-payment provider fail-closed behavior", () => {
     });
 
     expect(detailed).toMatchObject({
-      status: "provider_unconfigured",
+      status: "not_configured",
       ok: false,
     });
     expect(detailed.status).not.toBe("printed");
@@ -113,7 +113,7 @@ describe("non-payment provider fail-closed behavior", () => {
     });
 
     expect(result).toMatchObject({
-      status: "provider_unconfigured",
+      status: "not_configured",
       ok: false,
       erpRef: null,
     });
@@ -130,7 +130,11 @@ describe("non-payment provider fail-closed behavior", () => {
 
     await expect(
       smsConnector.sendSmsDetailed({ phone: "+919876543210", message: "Demo" })
-    ).resolves.toMatchObject({ status: "skipped_demo", ok: false, demo: true });
+    ).resolves.toMatchObject({
+      status: "manual_required",
+      ok: false,
+      demo: true,
+    });
     await expect(
       labelPrinterConnector.printDispatchLabelDetailed({
         orderId: 77,
@@ -139,7 +143,11 @@ describe("non-payment provider fail-closed behavior", () => {
         phone: "+919876543210",
         items: [{ name: "Demo Item", qty: 1 }],
       })
-    ).resolves.toMatchObject({ status: "skipped_demo", ok: false, demo: true });
+    ).resolves.toMatchObject({
+      status: "manual_required",
+      ok: false,
+      demo: true,
+    });
     await expect(
       erpConnector.pushGrn({
         ingestionId: 9,
@@ -155,14 +163,14 @@ describe("non-payment provider fail-closed behavior", () => {
         ],
       })
     ).resolves.toMatchObject({
-      status: "skipped_demo",
+      status: "manual_required",
       ok: false,
       demo: true,
       erpRef: null,
     });
 
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining("DEMO SKIPPED")
+      expect.stringContaining("MANUAL REQUIRED")
     );
   });
 });

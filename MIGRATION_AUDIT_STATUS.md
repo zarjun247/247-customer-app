@@ -113,3 +113,13 @@ Any open PR that adds a migration using stale numbers `0045`, `0046`, `0047`, or
 | P1 | Drizzle metadata journal stops at `0021` while SQL migrations continue through `0048`. | Dedicated metadata reconciliation decision: document manual SQL mode or regenerate metadata in a controlled PR. |
 | P1 | Historical sequence gaps `0030`, `0031`, and `0033` remain. | Maintain as documented historical skips unless maintainers provide evidence of missing migration files. |
 | P2 | Live open PR migration diffs were not verifiable from this unauthenticated/no-origin checkout. | Merge captain must inspect open PR changed files before allowing schema work to proceed. |
+
+## Provider runtime attempts 0049 update
+
+| Item | Value |
+| --- | --- |
+| Branch name | `feat/provider-runtime-attempts-0049` |
+| Latest main SHA inspected | `200fafc` local main-equivalent tip; authenticated GitHub `origin/main` fetch was unavailable in this container. |
+| Migration added | `drizzle/0049_provider_operation_attempts.sql` |
+| Reason 0049 was used | `0049` was the next reserved/free migration after `0048_rbac_staff_session_governance.sql`. |
+| Next reserved migration number after this PR | `0050` |

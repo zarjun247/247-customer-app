@@ -63,7 +63,7 @@ describe('payment gateway guards', () => {
     await expect(paymentConnector.verifyPayment({ gatewayOrderId: 'o_1', gatewayPaymentId: 'p_1', signature: 'sig' })).rejects.toThrow();
     await expect(verifyGatewayPaymentSignature({ gatewayOrderId: 'o_1', gatewayPaymentId: 'p_1', signature: 'sig' })).resolves.toMatchObject({
       verified: false,
-      status: 'provider_unconfigured',
+      status: 'not_configured',
     });
   });
 
@@ -73,7 +73,7 @@ describe('payment gateway guards', () => {
     process.env.NODE_ENV = 'test';
     await expect(verifyGatewayPaymentSignature({ gatewayOrderId: 'o_1', gatewayPaymentId: 'p_1', signature: 'sig' })).resolves.toMatchObject({
       verified: false,
-      status: 'demo_skipped',
+      status: 'manual_required',
     });
   });
 

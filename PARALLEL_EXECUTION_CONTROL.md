@@ -124,3 +124,8 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## Provider runtime migration allocation
+
+- `feat/provider-runtime-attempts-0049` uses migration `0049_provider_operation_attempts.sql`.
+- Parallel branches adding reservation lifecycle, stock, compliance, or payment schema must not reuse `0049`; use `0050` or the next free migration after rebasing on this branch/main.
