@@ -1,6 +1,11 @@
 # CURRENT_MAIN_TRUTH_V2
 
 
+## 2026-05-09 OCR fake-ingestion safety note
+
+- Branch `fix/p0-ocr-fake-ingestion-placeholder-storage` was cut from local main-equivalent SHA `200fafcc20451cc43e8d6272588ec7e26e12d9c8` after remote refresh attempts failed due unavailable GitHub HTTPS credentials.
+- The branch removes runtime OCR local parser fallback success, rejects fake evidence URLs, marks provider-unconfigured OCR as manual-required/non-success, and adds OCR production safety guards without migrations or schema changes.
+
 ## 2026-05-09 migration sequence collision surgery update
 
 - Branch `fix/migration-sequence-collision-surgery` repairs latest local main-equivalent migration prefix collisions discovered after PRs #85/#87/#97/#98/#99.

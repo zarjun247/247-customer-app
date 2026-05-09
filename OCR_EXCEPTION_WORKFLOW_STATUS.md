@@ -51,6 +51,14 @@ Low-confidence, ambiguous, supplier-SKU-unmapped, and required-field failures ar
 - `getExceptionReport` returns `rows`, `totals`, and `csvData`.
 - Totals include counts by `exceptionReason` and `approvalStatus`.
 
+## 2026-05-09 P0 OCR fake-success safety update
+
+- Runtime purchase OCR no longer falls back to local parser output when provider OCR is not configured or not requested. Those paths now return explicit non-success `not_configured`, `provider_disabled`, or `manual_required` states.
+- CSV input is now explicitly treated as `manual_import_under_review` with zero OCR confidence, not provider OCR success.
+- OCR evidence URL validation blocks placeholder-style schemes, example-domain evidence, empty file keys, and production localhost evidence before ingestion rows are created.
+- Legacy invoice ingestion stores the actual storage key returned by storage and moves provider/parse failures into manual review instead of creating empty successful parse output.
+- No migration or schema change was added in this safety update.
+
 ## Remaining risks
 - P0: None known in this change set; OCR stock mutation remains blocked before human approval and purchase commit.
 - P1: The router still relies on the existing purchase invoice commit mutation being called after OCR handoff; a future internal service wrapper for purchase commit could make this handoff more atomic without duplicating stock logic.

@@ -17,16 +17,22 @@ import {
 import { eq, and, desc } from "drizzle-orm";
 import { storagePut } from "../storage";
 import { runOcrPipeline } from "../ingestion";
+import { getOcrProviderReadiness } from "../services/ocrProductionSafety";
 
 // Roles allowed to use the ingestion system
-const INGESTION_ROLES = ["admin", "store_manager", "inventory_operator"] as const;
+const INGESTION_ROLES = [
+  "admin",
+  "store_manager",
+  "inventory_operator",
+] as const;
 type IngestionRole = (typeof INGESTION_ROLES)[number];
 
 function assertIngestionRole(role: string): asserts role is IngestionRole {
   if (!INGESTION_ROLES.includes(role as IngestionRole)) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "Only admin, store_manager, or inventory_operator can access the ingestion system",
+      message:
+        "Only admin, store_manager, or inventory_operator can access the ingestion system",
     });
   }
 }
@@ -40,7 +46,12 @@ export const ingestionRouter = router({
     .input(
       z.object({
         filename: z.string().min(1).max(255),
-        mimeType: z.enum(["application/pdf", "image/jpeg", "image/png", "image/webp"]),
+        mimeType: z.enum([
+          "application/pdf",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+        ]),
         base64Data: z.string().min(1), // base64-encoded file content
         storeId: z.number().int().positive(),
         notes: z.string().max(500).optional(),
@@ -50,18 +61,26 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       // Decode base64 and upload to storage
       const buffer = Buffer.from(input.base64Data, "base64");
       const fileKey = `ingestion/${ctx.user.id}/${Date.now()}-${input.filename}`;
-      const { url: fileUrl } = await storagePut(fileKey, buffer, input.mimeType);
+      const { key: storedFileKey, url: fileUrl } = await storagePut(
+        fileKey,
+        buffer,
+        input.mimeType
+      );
 
       // Create ingestion record
       const [ingestionResult] = await db.insert(invoiceIngestions).values({
         storeId: input.storeId,
         uploadedBy: ctx.user.id,
-        fileKey,
+        fileKey: storedFileKey,
         fileUrl,
         originalFilename: input.filename,
         mimeType: input.mimeType,
@@ -71,17 +90,36 @@ export const ingestionRouter = router({
 
       const ingestionId = (ingestionResult as any).insertId as number;
 
-      // Create OCR job
+      const readiness = getOcrProviderReadiness();
       await db.insert(ocrJobs).values({
         ingestionId,
-        status: "queued",
-        provider: "llm",
+        status: readiness.ok ? "queued" : "failed",
+        provider: readiness.ok ? "llm" : readiness.status,
         attempts: 0,
+        errorMessage: readiness.ok ? null : readiness.reason,
       });
 
-      // Run OCR pipeline immediately (in background, don't await)
-      runOcrPipeline(ingestionId).catch((err) =>
-        console.error(`[Ingestion] Background OCR failed for #${ingestionId}:`, err)
+      if (!readiness.ok) {
+        await db
+          .update(invoiceIngestions)
+          .set({
+            status: "under_review",
+            notes: `OCR ${readiness.status}: ${readiness.reason}. Manual review required.`,
+          })
+          .where(eq(invoiceIngestions.id, ingestionId));
+        return {
+          ingestionId,
+          status: readiness.status,
+          manualRequired: true,
+          reason: readiness.reason,
+        };
+      }
+
+      runOcrPipeline(ingestionId).catch(err =>
+        console.error(
+          `[Ingestion] Background OCR failed for #${ingestionId}:`,
+          err
+        )
       );
 
       return { ingestionId, status: "pending_ocr" };
@@ -103,12 +141,20 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const rows = await db
         .select()
         .from(invoiceIngestions)
-        .where(input.storeId ? eq(invoiceIngestions.storeId, input.storeId) : undefined)
+        .where(
+          input.storeId
+            ? eq(invoiceIngestions.storeId, input.storeId)
+            : undefined
+        )
         .orderBy(desc(invoiceIngestions.createdAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -125,7 +171,11 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const ingestionRows = await db
         .select()
@@ -134,7 +184,10 @@ export const ingestionRouter = router({
         .limit(1);
 
       if (ingestionRows.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Ingestion not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Ingestion not found",
+        });
       }
 
       const jobRows = await db
@@ -157,14 +210,20 @@ export const ingestionRouter = router({
     .input(
       z.object({
         ingestionId: z.number().int().positive(),
-        status: z.enum(["pending", "approved", "rejected", "merged"]).optional(),
+        status: z
+          .enum(["pending", "approved", "rejected", "merged"])
+          .optional(),
       })
     )
     .query(async ({ ctx, input }) => {
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const condition = input.status
         ? and(
@@ -199,7 +258,11 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       await db
         .update(humanReviewItems)
@@ -207,8 +270,12 @@ export const ingestionRouter = router({
           status: "approved",
           reviewedBy: ctx.user.id,
           reviewNote: input.reviewNote ?? null,
-          ...(input.matchedProductId && { matchedProductId: input.matchedProductId }),
-          ...(input.matchedVariantId && { matchedVariantId: input.matchedVariantId }),
+          ...(input.matchedProductId && {
+            matchedProductId: input.matchedProductId,
+          }),
+          ...(input.matchedVariantId && {
+            matchedVariantId: input.matchedVariantId,
+          }),
         })
         .where(eq(humanReviewItems.id, input.itemId));
 
@@ -227,8 +294,12 @@ export const ingestionRouter = router({
           .from(humanReviewItems)
           .where(eq(humanReviewItems.ingestionId, item[0].ingestionId));
 
-        const approvedCount = counts.filter((c) => c.approved === "approved").length;
-        const rejectedCount = counts.filter((c) => c.approved === "rejected").length;
+        const approvedCount = counts.filter(
+          c => c.approved === "approved"
+        ).length;
+        const rejectedCount = counts.filter(
+          c => c.approved === "rejected"
+        ).length;
 
         await db
           .update(invoiceIngestions)
@@ -253,7 +324,11 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       await db
         .update(humanReviewItems)
@@ -282,7 +357,11 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       await db
         .update(humanReviewItems)
@@ -311,7 +390,11 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       // Approve all pending items
       await db
@@ -333,8 +416,12 @@ export const ingestionRouter = router({
         .from(humanReviewItems)
         .where(eq(humanReviewItems.ingestionId, input.ingestionId));
 
-      const approvedCount = allItems.filter((i) => i.status === "approved").length;
-      const rejectedCount = allItems.filter((i) => i.status === "rejected").length;
+      const approvedCount = allItems.filter(
+        i => i.status === "approved"
+      ).length;
+      const rejectedCount = allItems.filter(
+        i => i.status === "rejected"
+      ).length;
 
       // Mark ingestion as approved
       await db
@@ -360,7 +447,11 @@ export const ingestionRouter = router({
       assertIngestionRole(ctx.user.role);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       // Reset OCR job to queued
       await db
@@ -375,8 +466,11 @@ export const ingestionRouter = router({
         .where(eq(invoiceIngestions.id, input.ingestionId));
 
       // Run pipeline in background
-      runOcrPipeline(input.ingestionId).catch((err) =>
-        console.error(`[Ingestion] Retry OCR failed for #${input.ingestionId}:`, err)
+      runOcrPipeline(input.ingestionId).catch(err =>
+        console.error(
+          `[Ingestion] Retry OCR failed for #${input.ingestionId}:`,
+          err
+        )
       );
 
       return { success: true };
