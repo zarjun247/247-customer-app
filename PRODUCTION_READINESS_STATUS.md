@@ -334,3 +334,22 @@ production chain operations require store-scoped staff/admin access.
 ### New score estimate
 - Overall production readiness: 8.2 / 10.
 - Safe-to-merge assessment: safe as a focused hardening PR after validation, but not sufficient alone for full production readiness claims.
+
+## 2026-05-09 latest-main validation doctrine update
+
+Production-ready means all of the following are proven, not merely asserted:
+
+- No runtime stubs are treated as production behavior.
+- No placeholders are treated as production behavior.
+- No fake provider/payment success is possible in production paths.
+- No duplicate migrations exist on authenticated latest `main`.
+- GitHub CI is green for the protected branch and release candidate.
+- Branch protection is enforced with required checks.
+- DB-backed concurrency proof is green against a production-like MySQL database.
+- Provider runtime proof is green for payment, webhook, notification, accounting/export, and other configured providers.
+- Healthcheck/observability is live and verified.
+- Backup/restore proof is complete in controlled infrastructure, not only dry-run documentation.
+- Salsette real-store reconciliation is complete.
+- Regulated/H1/Rx release is proven across all production channels.
+
+Current validation caveat: the 2026-05-09 latest-main validation pass did not run DB-backed race proof because `TEST_DATABASE_URL` was unavailable and no DB concurrency script is present in `package.json`. Production race-mode proof is therefore not claimed.

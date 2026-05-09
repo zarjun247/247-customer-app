@@ -37,8 +37,9 @@ const TEST_PATH_RE = /(^|\/)(__fixtures__|fixtures|test|tests|__tests__)\/|\.(gu
 const DOC_PATH_RE = /(^|\/)(docs\/.*|.*\.md)$/i;
 const EXAMPLE_PATH_RE = /(^|\/)(\.env\.example|.*\.example(\.|$)|config\/secrets\.json\.example$)/i;
 
-const STOCK_ALLOWED_RE = /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
+const STOCK_ALLOWED_RE = /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
 const RUNTIME_PATH_RE = /(^|\/)(client|server|shared|scripts)\//;
+const GOVERNANCE_RULE_PATH_RE = /^scripts\/(ci-governance-guards|check-runtime-placeholders)\.mjs$/;
 
 function normalizePath(filePath) {
   return filePath.split(path.sep).join("/");
@@ -78,7 +79,7 @@ export function scanText(filePath, text) {
   const normalized = normalizePath(filePath);
   const testPath = isTestPath(normalized);
   const docPath = isDocPath(normalized);
-  const scannerPath = normalized === "scripts/ci-governance-guards.mjs";
+  const governanceRulePath = GOVERNANCE_RULE_PATH_RE.test(normalized);
   const runtimePath = isRuntimePath(normalized);
 
   scanLines(normalized, text, (line, lineNumber, lines) => {
@@ -86,7 +87,7 @@ export function scanText(filePath, text) {
       addFinding(findings, "merge-corruption", normalized, lineNumber, "Unresolved merge conflict marker found.", line);
     }
 
-    if (!scannerPath && /\b(FIXME_PRODUCTION|TEMP_SKIP_SECURITY)\b/i.test(line)) {
+    if (!governanceRulePath && /\b(FIXME_PRODUCTION|TEMP_SKIP_SECURITY)\b/i.test(line)) {
       addFinding(findings, "merge-corruption", normalized, lineNumber, "Unresolved production/security TODO marker found.", line);
     }
 
@@ -94,7 +95,7 @@ export function scanText(filePath, text) {
       addFinding(findings, "merge-corruption", normalized, lineNumber, "Stale production-ready 10/10 claim requires proof and must not be committed as an unsupported assertion.", line);
     }
 
-    if (testPath || scannerPath) return;
+    if (testPath || governanceRulePath) return;
 
     const providerWindow = line;
     if (runtimePath && /\b(fake success|stub success|mock success in production)\b/i.test(line)) {
