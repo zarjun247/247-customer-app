@@ -1,0 +1,68 @@
+# Critical Pharmacy OS ownership gates.
+# Temporary repository owner: @zarjun247 (repo owner inferred from zarjun247/247-customer-app).
+# Branch protection must enable "Require review from Code Owners" for these rules to block merges.
+
+# CODEOWNERS/governance surface
+.github/CODEOWNERS @zarjun247
+.github/workflows/* @zarjun247
+scripts/* @zarjun247
+scripts/*governance* @zarjun247
+scripts/*migration* @zarjun247
+scripts/*verify* @zarjun247
+scripts/*release* @zarjun247
+
+# Migration/schema
+/drizzle/* @zarjun247
+/drizzle/schema.ts @zarjun247
+
+# Stock/reservation/inventory
+/server/services/stockInvariant* @zarjun247
+/server/services/stock* @zarjun247
+/server/services/reservation* @zarjun247
+/server/routers/inventory* @zarjun247
+/server/routers/purchase* @zarjun247
+/server/routers/sales* @zarjun247
+/server/routers/cart* @zarjun247
+
+# Payment/refund/webhook
+/server/services/payment* @zarjun247
+/server/services/refund* @zarjun247
+/server/services/creditNote* @zarjun247
+/server/routers/payment* @zarjun247
+/server/routers/refund* @zarjun247
+/server/routers/webhook* @zarjun247
+
+# Compliance/H1/Rx/legal
+/server/services/compliance* @zarjun247
+/server/services/prescription* @zarjun247
+/server/services/h1* @zarjun247
+/server/services/regulated* @zarjun247
+/server/routers/prescription* @zarjun247
+/server/routers/compliance* @zarjun247
+/server/pharmacy* @zarjun247
+/server/services/pharmacy* @zarjun247
+
+# Provider/storage/security/privacy/auth
+/server/services/provider* @zarjun247
+/server/services/storage* @zarjun247
+/server/services/privacy* @zarjun247
+/server/services/auth* @zarjun247
+/server/middleware/* @zarjun247
+/server/_core/* @zarjun247
+/server/routers/health* @zarjun247
+/server/services/abuse* @zarjun247
+/server/services/rateLimit* @zarjun247
+
+# Accounting/commercial/Tally
+/server/services/commercial* @zarjun247
+/server/services/accounting* @zarjun247
+/server/services/tally* @zarjun247
+/server/services/supplier* @zarjun247
+/server/routers/reports* @zarjun247
+/server/routers/accounting* @zarjun247
+
+# Frontend route/security
+/client/src/routes/* @zarjun247
+/client/src/App.tsx @zarjun247
+/client/src/pages/admin/* @zarjun247
+/client/src/pages/pharmacy* @zarjun247

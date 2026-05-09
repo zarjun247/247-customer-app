@@ -1,6 +1,67 @@
 # MERGE_GOVERNANCE_V2
 
 
+## 2026-05-09 critical-file ownership review gates
+
+This branch adds `.github/CODEOWNERS` for high-risk Pharmacy OS files using `@zarjun247` as the temporary owner inferred from the repository path. The policy is governance-only and does not change runtime code, schema, migrations, package manifests, or lockfiles. GitHub enforcement still requires maintainers to enable **Require review from Code Owners** for `main` and prove that the configured owner has repository write/admin access.
+
+PR #104 could not be inspected from this container because unauthenticated GitHub API/search access returned no public pull request data. Do not merge #104 blindly. Treat it as superseded by a latest-main rebuild unless authenticated review proves it is current, clean, docs/governance-only, conflict-free, and owner-valid.
+
+### Mandatory review evidence by critical domain
+
+Any PR touching migrations/schema must have:
+
+- migration audit green;
+- next reserved migration number from `MIGRATION_AUDIT_STATUS.md`;
+- fresh/existing DB proof if possible;
+- no duplicate migration prefix.
+
+Any PR touching stock/reservation must have:
+
+- stock invariant review;
+- race/concurrency proof when mutation logic changes;
+- no direct stock mutation outside the approved gateway.
+
+Any PR touching payment/refund/webhook must have:
+
+- fail-closed provider behavior;
+- replay/idempotency proof;
+- no fake success;
+- no unverified paid/refunded state.
+
+Any PR touching H1/Rx/compliance must have:
+
+- pharmacist/legal review;
+- no autonomous regulated release;
+- H1 references preserved;
+- doctor/pharmacist completeness preserved.
+
+Any PR touching provider/storage/security/privacy/auth must have:
+
+- no secret leaks;
+- no bearer-spoof access;
+- no unsafe storage access;
+- no PII/medical data logs;
+- no `provider_unconfigured` success state.
+
+Any PR touching admin/frontend routes must have:
+
+- no admin route bypass;
+- RBAC guard proof;
+- no direct rendering of restricted pages.
+
+### CODEOWNERS-covered critical domains
+
+- Migration/schema: `drizzle/*`, `drizzle/schema.ts`.
+- CI/governance/scripts: `.github/workflows/*`, `scripts/*`, governance/migration/verify/release script patterns.
+- Stock/reservation/inventory: stock invariant, stock, reservation, inventory, purchase, sales, and cart paths.
+- Payment/refund/webhook: payment, refund, credit note, and webhook paths.
+- Compliance/H1/Rx/legal: compliance, prescription, H1, regulated, and pharmacy paths.
+- Provider/storage/security/privacy/auth: provider, storage, privacy, auth, middleware, core, health, abuse, and rate-limit paths.
+- Accounting/commercial/Tally: commercial, accounting, tally, supplier, reports, and accounting router paths.
+- Frontend route/security: routes, `App.tsx`, admin pages, and pharmacy pages.
+
+
 ## 2026-05-09 migration sequence collision rule update
 
 - Latest migration collision surgery reserves `0049` as the next safe migration number after `0048_rbac_staff_session_governance.sql`.

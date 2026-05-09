@@ -1,5 +1,28 @@
 # BRANCH_PROTECTION_ENFORCEMENT_STATUS
 
+
+## 2026-05-09 CODEOWNERS review-gate update
+
+| Item | Status |
+| --- | --- |
+| Branch adding ownership gates | `chore/critical-file-ownership-codeowners-review-gates` |
+| Latest local main-equivalent SHA inspected | `f7d049825eb17922e9fa0c47326620e26a396186` |
+| CODEOWNERS file status | `.github/CODEOWNERS` is added by this branch for Pharmacy OS high-risk paths. |
+| Owner used | `@zarjun247` as temporary repository owner inferred from `zarjun247/247-customer-app`; maintainers must confirm this account has write/admin access before relying on enforcement. |
+| Code Owner review enforcement | **Pending manual proof.** This branch does not claim that GitHub branch protection or repository rulesets already require Code Owner review. |
+| Required manual UI setting | Settings → Branches → Branch protection rules → main → Require review from Code Owners |
+| PR #104 status | Not publicly inspectable from this container (`404` via unauthenticated API/search). Do not merge #104 blindly; rebuild/supersede it from latest main unless authenticated review proves it is current, clean, governance-only, and owner-valid. |
+
+Required branch-protection action after this PR lands:
+
+1. Open GitHub repository settings.
+2. Go to **Settings → Branches → Branch protection rules → main**.
+3. Enable **Require review from Code Owners**.
+4. Confirm required status checks still include the CI jobs documented below.
+5. Capture UI or API evidence before claiming enforcement is active.
+
+Until that proof exists, CODEOWNERS is a review-routing policy file, not a verified merge blocker.
+
 Status date: 2026-05-09
 
 This is a branch-protection enforcement proof pack for `main`. It documents the required GitHub settings, the currently visible CI/governance checks, migration-specific merge doctrine, and the manual evidence still required before maintainers may claim that branch protection is actually enabled.
@@ -8,18 +31,18 @@ This is a branch-protection enforcement proof pack for `main`. It documents the 
 
 | Item | Observed state |
 | --- | --- |
-| Branch used for this proof pack | `chore/github-branch-protection-proof-after-migration-surgery` |
-| Latest local main-equivalent SHA inspected | `aef2de345c06fce30a298e4a0e195a9ae4039462` |
-| Latest visible merge at inspected SHA | `Merge pull request #99 from zarjun247/codex/certify-stock-mutation-gateways-and-reporting` |
-| Recent merges visible in local history | PR #99 stock truth certification, PR #98 RBAC/staff session governance, PR #97 worker queue reliability, PR #93 current-main audit v2, PR #92 governance security scans, PR #87 commercial lifecycle ledger, PR #85 payment webhook lifecycle, PR #84 deployment/backup/restore proof scripts. |
-| Remote refresh / latest-main limitation | This checkout has no configured `origin` remote, so `git pull --rebase origin main` and authenticated open-PR comparison cannot be performed from this container. The local HEAD already contains the requested recent merge set through PR #99. |
+| Branch used for this proof pack | `chore/critical-file-ownership-codeowners-review-gates` |
+| Latest local main-equivalent SHA inspected | `f7d049825eb17922e9fa0c47326620e26a396186` |
+| Latest visible merge at inspected SHA | `Merge pull request #107 from zarjun247/codex/create-migration-surgery-control-room` |
+| Recent merges visible in local history | PR #107 migration surgery control room, PR #105 open PR rebuild backlog, PR #102 branch protection proof documentation, PR #100 migration sequence collision surgery, PR #99 stock truth certification, PR #98 RBAC/staff session governance, PR #97 worker queue reliability, PR #93 current-main audit v2, PR #92 governance security scans, PR #87 commercial lifecycle ledger, PR #85 payment webhook lifecycle, PR #84 deployment/backup/restore proof scripts. |
+| Remote refresh / latest-main limitation | This checkout initially had no configured remote. `origin` was configured as `https://github.com/zarjun247/247-customer-app.git`, but `git fetch origin main` could not authenticate in this container. The local HEAD already contains the requested recent merge set through PR #107. |
 | CI workflows inspected | `.github/workflows/ci.yml` |
 | CI job names inspected | `check`, `governance-security-scans`, `test`, `build`, `migration-smoke`, `security-env-guards`, `placeholder-guards`, `release-gate-advisory`, `mysql-db-lifecycle` |
 | Governance scripts inspected | `scripts/ci-governance-guards.mjs`, `scripts/verify-migrations.mjs`, `scripts/check-runtime-placeholders.mjs`, `scripts/release-gate.mjs` |
 | Package scripts inspected for CI/release gates | `check`, `test`, `build`, `migrations:verify`, `release:gate`, `test:db:bootstrap`, `test:db:smoke` |
-| Current local migration-prefix scan | Duplicate prefixes are present locally: `0045` (`0045_commercial_event_ledger.sql`, `0045_provider_webhook_events.sql`) and `0046` (`0046_rbac_staff_session_governance.sql`, `0046_worker_jobs.sql`). This proof PR does not repair migrations; it documents that branch protection must block this condition. |
-| CODEOWNERS status | `.github/CODEOWNERS` is not present in this checkout. Do not require Code Owner review until maintainers add a policy file. |
-| GitHub branch protection API/tooling status | `gh` is not installed. An unauthenticated GitHub API probe against `zarjun247/247-customer-app` could not read protection settings (`401 Unauthorized` for branch protection, `404 Not Found` for branch metadata/public visibility). |
+| Current local migration-prefix scan | Current local tail is `0045_provider_webhook_events.sql`, `0046_commercial_event_ledger.sql`, `0047_worker_jobs.sql`, `0048_rbac_staff_session_governance.sql`; next reserved migration is `0049`. This ownership PR does not modify migrations. |
+| CODEOWNERS status | `.github/CODEOWNERS` is added by `chore/critical-file-ownership-codeowners-review-gates` for high-risk Pharmacy OS paths. Code Owner review remains pending manual GitHub enforcement proof. |
+| GitHub branch protection API/tooling status | `gh` is not installed. Unauthenticated GitHub API/search checks could not read PR #104 or branch-protection settings. |
 | Enforcement conclusion | **Manual verification required.** This PR does not claim branch protection is enabled; it provides the exact settings and evidence checklist to prove or remediate enforcement. |
 
 ## B. Required protection rules for `main`
@@ -29,7 +52,7 @@ Configure GitHub branch protection or repository rulesets so `main` has all of t
 1. **Require a pull request before merging.** Direct commits to `main` must be blocked for non-break-glass users.
 2. **Require approvals before merging.** Minimum required approvals: `1` unless maintainers raise the threshold for regulated/high-risk domains.
 3. **Dismiss stale pull request approvals when new commits are pushed.** Any rebase, conflict fix, migration renumbering, or generated-file update must invalidate old approvals.
-4. **Require review from Code Owners if `.github/CODEOWNERS` is later added.** Because no CODEOWNERS file is present now, this remains a recommended future setting, not a currently enforceable requirement.
+4. **Require review from Code Owners.** `.github/CODEOWNERS` now defines high-risk Pharmacy OS owners, but this setting is not verified as enabled. Maintainers must enable and prove it through Settings → Branches → Branch protection rules → main → Require review from Code Owners before claiming enforcement.
 5. **Require status checks to pass before merging.** The required status checks must include the jobs listed in section C.
 6. **Require branches to be up to date before merging** if maintainers are using branch protection rather than a merge queue. If GitHub merge queue is adopted, configure equivalent freshness enforcement through the queue.
 7. **Block force pushes** to `main`.

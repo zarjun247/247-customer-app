@@ -1,6 +1,16 @@
 # PARALLEL_EXECUTION_CONTROL
 
 
+## 2026-05-09 CODEOWNERS/review-gate parallel-safety update
+
+- `chore/critical-file-ownership-codeowners-review-gates` is governance-only and parallel-safe because it adds ownership metadata and documentation without touching runtime code, client runtime files, package manifests, lockfiles, `drizzle/schema.ts`, or migration SQL.
+- CODEOWNERS/review-gate work does **not** unlock runtime/schema work.
+- Schema/runtime rebuilds remain locked until latest-main validation is green and the restricted-domain sequencing rules below are satisfied.
+- Future PRs must respect CODEOWNERS domains once branch protection enables owner review on `main`.
+- Code Owner review is not a substitute for domain proof: migration, stock, payment, H1/Rx/compliance, provider/security/privacy/auth, and admin/frontend route PRs still need the evidence required by `MERGE_GOVERNANCE_V2.md`.
+- PR #104 was not publicly inspectable from this container; do not merge it blindly in parallel with this branch. Rebuild/supersede it unless authenticated review proves it is current, clean, governance-only, and owner-valid.
+
+
 ## 2026-05-09 schema parallelism stop-rule update
 
 - Numbered Drizzle migrations are in restricted single-writer mode after the collision surgery on `fix/migration-sequence-collision-surgery`.
