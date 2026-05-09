@@ -124,3 +124,9 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## 2026-05-09 Open PR control-room pointers
+
+- Coordinate all parallel branches through `OPEN_PR_CONTROL_ROOM.md` before touching domains that overlap open PRs.
+- Follow `NEXT_REBUILD_QUEUE.md` for the current rebuild sequence, especially provider runtime before reservation lifecycle.
+- Use `OPEN_PR_CLOSURE_COMMENTS.md` when closing duplicate or superseded PRs.

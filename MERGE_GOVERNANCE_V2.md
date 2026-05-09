@@ -203,3 +203,9 @@ Do **not** run parallel branches in these areas without explicit sequencing:
 ## Schema migration audit rule
 
 Any PR touching `drizzle/schema.ts` or `drizzle/*.sql` must include migration audit proof and use the next reserved migration number from `MIGRATION_AUDIT_STATUS.md`.
+
+## 2026-05-09 Open PR control-room pointers
+
+- Use `OPEN_PR_CONTROL_ROOM.md` as the authoritative open-PR classification ledger before merging, closing, or rebuilding stale branches.
+- Use `NEXT_REBUILD_QUEUE.md` for the approved execution order; stale branches must be rebuilt from latest main instead of merged raw.
+- Use `OPEN_PR_CLOSURE_COMMENTS.md` for exact close/supersede/rebuild/migration-conflict comment templates.

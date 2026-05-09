@@ -353,3 +353,18 @@ Production-ready means all of the following are proven, not merely asserted:
 - Regulated/H1/Rx release is proven across all production channels.
 
 Current validation caveat: the 2026-05-09 latest-main validation pass did not run DB-backed race proof because `TEST_DATABASE_URL` was unavailable and no DB concurrency script is present in `package.json`. Production race-mode proof is therefore not claimed.
+
+## 2026-05-09 Open PR control-room update
+
+- Current score estimate: **7.8 / 10**.
+- Architecture is strong, but launch-readiness is still blocked by:
+  - open PR cleanup,
+  - provider runtime enforcement,
+  - observability/healthchecks,
+  - DB-backed concurrency proof,
+  - payment webhook/refund settlement truth,
+  - barcode screen-level UX wiring,
+  - OCR fake-success cleanup if still present,
+  - deployment/backup/restore proof.
+- Control doc: `OPEN_PR_CONTROL_ROOM.md`.
+- Rebuild queue: `NEXT_REBUILD_QUEUE.md`.
