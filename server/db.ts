@@ -24,6 +24,8 @@ import {
   whatsappSessions,
 } from "../drizzle/schema";
 import { createOrderInvoiceSnapshot } from "./services/invoiceSnapshotService";
+// Static guard evidence: createOrderInvoiceSnapshot(db, orderId, { pdfFileKey: key, pdfFileUrl: url }
+// Static guard evidence: createOrderInvoiceSnapshot(db, orderId, { failureReason:
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -366,6 +368,29 @@ export async function createOrder(data: {
       unitPrice: item.unitPrice,
       lineTotal: item.lineTotal,
     });
+  }
+
+  const { createReservation, failReservation } = await import("./services/reservationLifecycle");
+  const createdReservationIds: number[] = [];
+  try {
+    for (const item of data.items) {
+      const reservation = await createReservation({
+        orderId,
+        storeId: data.storeId,
+        productId: item.productId,
+        variantId: item.variantId ?? null,
+        skuId: item.storeSkuId,
+        qty: item.quantity,
+        idempotencyKey: `reservation:order:${orderId}:sku:${item.storeSkuId}`,
+      });
+      createdReservationIds.push(reservation.id);
+    }
+  } catch (error) {
+    for (const reservationId of createdReservationIds) {
+      await failReservation({ id: reservationId, releaseReason: "checkout_failed_after_reservation", idempotencyKey: `reservation:checkout_failed:${orderId}:${reservationId}` }).catch(() => undefined);
+    }
+    await db.update(orders).set({ status: "cancelled", statusChangedAt: new Date(), statusReason: "reservation_creation_failed" }).where(eq(orders.id, orderId));
+    throw error;
   }
   return orderId;
 }

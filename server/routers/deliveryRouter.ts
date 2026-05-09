@@ -49,6 +49,7 @@ import { resolveNode, recordOrderTimestamp } from "../routingEngine";
 import { TRPCError } from "@trpc/server";
 import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
 import { logAudit } from "../services/audit";
+import { consumeReservation } from "../services/reservationService";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 const DELIVERY_ROLES = ["delivery_operator", "store_manager", "admin"] as const;
@@ -463,6 +464,7 @@ const taskRouter = router({
         note: "OTP verified — delivered",
       });
 
+      await consumeReservation({ orderId: task.orderId, releaseReason: "delivery_delivered", idempotencyKey: `reservation:delivery_delivered:${task.orderId}:${input.taskId}` });
       await recordOrderTimestamp(task.orderId, "delivered", task.riderId, "rider");
       return { ok: true };
     }),
@@ -519,6 +521,7 @@ const taskRouter = router({
         note: "Photo POD",
       });
 
+      await consumeReservation({ orderId: task.orderId, releaseReason: "delivery_delivered", idempotencyKey: `reservation:delivery_delivered:${task.orderId}:${input.taskId}` });
       await recordOrderTimestamp(task.orderId, "delivered", task.riderId, "rider");
       return { ok: true };
     }),

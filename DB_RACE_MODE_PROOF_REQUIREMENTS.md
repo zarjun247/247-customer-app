@@ -64,3 +64,7 @@ Race-mode production must not be enabled or described as launch-ready until all 
 - Skipped DB tests are not green DB proof.
 - Unique constraint checks prove only their scoped gate, not full business lifecycle idempotency.
 - Production launch requires full service-path DB-backed proof, not only table-level predicate proof.
+
+## Reservation lifecycle DB proof requirement
+
+Reservation lifecycle state-machine tests are not a substitute for MySQL last-unit race proof. Run the DB smoke/concurrency scripts with `TEST_DATABASE_URL` before claiming atomic oversell safety.

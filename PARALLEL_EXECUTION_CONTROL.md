@@ -124,3 +124,7 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## Reservation lifecycle migration reservation
+
+Reservation lifecycle truth uses migration `0050_reservation_lifecycle_failed_status.sql`; the next migration after this branch is `0051`.

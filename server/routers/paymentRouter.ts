@@ -26,6 +26,7 @@ import {
 import { getOrderById } from "../db";
 import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
 import { initiateRefund, verifyRefundStatus } from "../services/refundService";
+import { releaseReservationOnPaymentFailure } from "../services/reservationService";
 
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
 
@@ -81,15 +82,17 @@ export const paymentRouter = router({
       const idemKey = buildIdempotencyKey(["payment","verify",input.gatewayOrderId,input.gatewayPaymentId]);
       return withIdempotency({ key: idemKey, scope: "payment.verify", operationType: "payment_verify", actorId: ctx.user.id, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint(input), ctx }, async () => {
       await logAudit({ action: "payment.verify_attempted", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
+      const paymentBeforeVerification = await getPaymentByGatewayOrder(input.gatewayOrderId);
       const verification = await verifyGatewayPaymentSignature({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
       if (!verification.verified) {
-        await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId, verificationStatus: verification.status } }, ctx);
+        if (paymentBeforeVerification?.orderId) await releaseReservationOnPaymentFailure({ orderId: paymentBeforeVerification.orderId, releaseReason: "payment_verification_failed", idempotencyKey: buildIdempotencyKey(["reservation", "payment_verify_failed", input.gatewayOrderId]) });
+        await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: paymentBeforeVerification?.id ?? null, afterJson: { gatewayOrderId: input.gatewayOrderId, verificationStatus: verification.status } }, ctx);
         const code = verification.status === "provider_unconfigured" ? "PRECONDITION_FAILED" : "BAD_REQUEST";
         throw new TRPCError({ code, message: verification.message ?? "Payment signature verification failed" });
       }
 
       // Get the payment record
-      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
+      const payment = paymentBeforeVerification ?? await getPaymentByGatewayOrder(input.gatewayOrderId);
       if (!payment) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
       }
@@ -113,7 +116,9 @@ export const paymentRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
       await markPaymentFailed({ gatewayOrderId: input.gatewayOrderId, reason: input.reason });
+      if (payment?.orderId) await releaseReservationOnPaymentFailure({ orderId: payment.orderId, releaseReason: input.reason ?? "payment_failed", idempotencyKey: buildIdempotencyKey(["reservation", "payment_failed", input.gatewayOrderId]) });
       return { success: true };
     }),
 

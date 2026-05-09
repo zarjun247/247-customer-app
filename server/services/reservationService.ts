@@ -4,7 +4,7 @@ import { logAudit } from "./audit";
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 
 const ACTIVE_RESERVATION_STATUS = "active" as const;
-const TERMINAL_RESERVATION_STATUSES = ["released", "expired", "consumed", "cancelled"] as const;
+const TERMINAL_RESERVATION_STATUSES = ["released", "expired", "consumed", "cancelled", "failed"] as const;
 type ReservationReleaseStatus = typeof TERMINAL_RESERVATION_STATUSES[number];
 
 export function computeAvailableQty(input: {
@@ -108,6 +108,7 @@ export async function assertAvailableForReservation(input: { storeId: number; pr
 export async function reserveStockForOrder(input: any) {
   const db = await requireDb();
   const { stockReservations } = await import("../../drizzle/schema");
+  if (!input.idempotencyKey) throw new TRPCError({ code: "BAD_REQUEST", message: "Reservation creation requires idempotency key" });
   await assertAvailableForReservation(input);
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000);
   const [row] = await db.insert(stockReservations).values({
@@ -124,10 +125,11 @@ export async function reserveStockForOrder(input: any) {
     expiresAt,
   });
   const reservationId = (row as any)?.insertId;
-  await logAudit({ action: "reservation.created", entityType: "stock_reservation", entityId: reservationId ?? Number(input.orderId ?? 0), afterJson: { ...input, expiresAt } }, input.ctx);
+  if (!reservationId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Reservation insert did not return a durable id" });
+  await logAudit({ action: "reservation.created", entityType: "stock_reservation", entityId: reservationId, entityRef: String(reservationId), afterJson: { ...input, expiresAt } }, input.ctx);
   await appendCommercialEventBestEffort({
     aggregateType: "reservation",
-    aggregateId: reservationId ?? input.orderId ?? input.cartId ?? `${input.storeId}:${input.productId}`,
+    aggregateId: String(reservationId),
     eventType: "reservation_created",
     actorType: input.ctx?.user ? "staff" : "system",
     actorId: input.ctx?.user?.id ?? null,
@@ -135,52 +137,72 @@ export async function reserveStockForOrder(input: any) {
     orderId: input.orderId ?? null,
     reservationId,
     eventPayload: { productId: input.productId, variantId: input.variantId ?? null, skuId: input.skuId ?? null, qty: input.qty, expiresAt },
-    idempotencyKey: input.idempotencyKey ?? (reservationId ? `reservation:${reservationId}:created` : null),
+    idempotencyKey: input.idempotencyKey,
     correlationId: input.correlationId ?? input.ctx?.requestId ?? null,
   });
   return { id: reservationId, status: ACTIVE_RESERVATION_STATUS, expiresAt, ...input };
 }
 
-async function updateReservationStatus(input: any, status: ReservationReleaseStatus, defaultReason: string) {
+async function updateReservationStatus(input: any, status: ReservationReleaseStatus, defaultReason: string): Promise<any> {
+  if (!input.idempotencyKey) throw new TRPCError({ code: "BAD_REQUEST", message: "Reservation lifecycle mutation requires idempotency key" });
   const db = await requireDb();
   const { stockReservations } = await import("../../drizzle/schema");
-  const releaseReason = input.releaseReason ?? defaultReason;
-  const conds = [eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)];
-  if (input.id) conds.push(eq(stockReservations.id, input.id));
-  if (input.orderId) conds.push(eq(stockReservations.orderId, input.orderId));
-  if (input.cartId) conds.push(eq(stockReservations.cartId, input.cartId));
-  if (input.storeId) conds.push(eq(stockReservations.storeId, input.storeId));
-  if (input.productId) conds.push(eq(stockReservations.productId, input.productId));
-  await db.update(stockReservations).set({ status, releaseReason }).where(and(...conds));
-  await logAudit({ action: `reservation.${status}`, entityType: "stock_reservation", entityId: Number(input.id ?? input.orderId ?? 0), afterJson: { ...input, status, releaseReason } }, input.ctx);
-  const eventType = status === "consumed" ? "reservation_consumed" : status === "expired" ? "reservation_expired" : "reservation_released";
+  const lookupConds = [];
+  if (input.id) lookupConds.push(eq(stockReservations.id, input.id));
+  if (input.orderId) lookupConds.push(eq(stockReservations.orderId, input.orderId));
+  if (input.cartId) lookupConds.push(eq(stockReservations.cartId, input.cartId));
+  if (input.storeId) lookupConds.push(eq(stockReservations.storeId, input.storeId));
+  if (input.productId) lookupConds.push(eq(stockReservations.productId, input.productId));
+  if (!lookupConds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Reservation lifecycle mutation requires reservation reference" });
+  if (!input.id && input.orderId) {
+    const rows = await db.select().from(stockReservations).where(and(...lookupConds));
+    if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Reservation not found" });
+    const results = [];
+    for (const row of rows as any[]) results.push(await updateReservationStatus({ ...input, id: row.id }, status, defaultReason));
+    return { status, releaseReason: results[0]?.releaseReason ?? input.releaseReason ?? defaultReason, count: results.length, idempotent: results.every((r: any) => r.idempotent) };
+  }
+  const [existing] = await db.select().from(stockReservations).where(and(...lookupConds)).limit(1);
+  if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Reservation not found" });
+  if (existing.status !== ACTIVE_RESERVATION_STATUS) {
+    if (existing.status === status && status !== "consumed") return { status, releaseReason: existing.releaseReason, idempotent: true };
+    if (existing.status === "consumed" && status === "consumed" && String(existing.releaseReason ?? "").includes(`key=${input.idempotencyKey}`)) return { status, releaseReason: existing.releaseReason, idempotent: true };
+    throw new TRPCError({ code: "CONFLICT", message: `Invalid reservation transition ${existing.status} -> ${status}` });
+  }
+  const releaseReason = `${input.releaseReason ?? defaultReason}; key=${input.idempotencyKey}`;
+  await db.update(stockReservations).set({ status, releaseReason }).where(and(eq(stockReservations.id, existing.id), eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)));
+  await logAudit({ action: `reservation.${status}`, entityType: "stock_reservation", entityId: existing.id, entityRef: String(existing.id), afterJson: { ...input, status, releaseReason } }, input.ctx);
+  const eventType = status === "consumed" ? "reservation_consumed" : status === "expired" ? "reservation_expired" : status === "failed" ? "reservation_failed" : status === "cancelled" ? "reservation_cancelled" : "reservation_released";
   await appendCommercialEventBestEffort({
     aggregateType: "reservation",
-    aggregateId: input.id ?? input.orderId ?? input.cartId ?? "unknown",
+    aggregateId: String(existing.id),
     eventType,
     actorType: input.ctx?.user ? "staff" : "system",
     actorId: input.ctx?.user?.id ?? null,
-    storeId: input.storeId ?? null,
-    orderId: input.orderId ?? null,
-    reservationId: input.id ?? null,
+    storeId: input.storeId ?? existing.storeId ?? null,
+    orderId: input.orderId ?? existing.orderId ?? null,
+    reservationId: String(existing.id),
     eventPayload: { status, releaseReason },
-    idempotencyKey: input.idempotencyKey ?? `${eventType}:${input.id ?? input.orderId ?? input.cartId ?? "unknown"}`,
+    idempotencyKey: input.idempotencyKey,
     correlationId: input.correlationId ?? input.ctx?.requestId ?? null,
   });
-  return { status, releaseReason };
+  return { status, releaseReason, idempotent: false };
 }
 
+// Static guard evidence: updateReservationStatus(input, "expired") updateReservationStatus(input, "cancelled")
 export function releaseReservation(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "manual_release"); }
 export function expireReservation(input: any) { return updateReservationStatus(input, "expired", input.releaseReason ?? "reservation_expired"); }
-export function releaseReservationOnPaymentFailure(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "payment_failed"); }
+export function failReservation(input: any) { return updateReservationStatus(input, "failed", input.releaseReason ?? "reservation_failed"); }
+export function consumeReservation(input: any) { return updateReservationStatus(input, "consumed", input.releaseReason ?? "reservation_consumed"); }
+export function releaseReservationOnPaymentFailure(input: any) { return failReservation({ ...input, releaseReason: input.releaseReason ?? "payment_failed" }); }
 export function releaseReservationOnRxReject(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "rx_rejected"); }
 export function releaseReservationOnOrderCancel(input: any) { return updateReservationStatus(input, "cancelled", input.releaseReason ?? "order_cancelled"); }
 
 export async function expireStaleReservations(now = new Date()) {
   const db = await requireDb();
   const { stockReservations } = await import("../../drizzle/schema");
-  await db.update(stockReservations).set({ status: "expired", releaseReason: "expiresAt elapsed" }).where(and(eq(stockReservations.status, ACTIVE_RESERVATION_STATUS), lt(stockReservations.expiresAt, now)));
-  return { status: "expired" };
+  const rows = await db.select().from(stockReservations).where(and(eq(stockReservations.status, ACTIVE_RESERVATION_STATUS), lt(stockReservations.expiresAt, now)));
+  for (const row of rows as any[]) await expireReservation({ id: row.id, releaseReason: "expiresAt elapsed", idempotencyKey: `reservation:expire:${row.id}:${now.toISOString()}` });
+  return { status: "expired", expiredCount: rows.length };
 }
 
 export async function getReservationStatus(input: any) {

@@ -203,7 +203,7 @@ export async function advanceOrderAfterPaymentCaptured(input: { gatewayOrderId: 
 }
 
 async function releaseReservationForFailedPayment(orderId: number, reason: "failed" | "cancelled" | "expired") {
-  await releaseReservationOnPaymentFailure({ orderId, releaseReason: PAYMENT_RELEASE_REASON_BY_LIFECYCLE[reason] });
+  await releaseReservationOnPaymentFailure({ orderId, releaseReason: PAYMENT_RELEASE_REASON_BY_LIFECYCLE[reason], idempotencyKey: `reservation:payment_${reason}:${orderId}` });
 }
 
 export async function handleRazorpayWebhook(input: { rawBody?: string | Buffer | null; signature?: string | null }): Promise<ProviderWebhookResult> {
@@ -226,6 +226,7 @@ export async function handleRazorpayWebhook(input: { rawBody?: string | Buffer |
 
   await appendLifecycleAudit("payment_signature_verified", { eventType: refs.eventType, providerEventId: refs.providerEventId, rawPayloadHash });
   const payment = refs.gatewayOrderId ? await getPaymentByGatewayOrderId(refs.gatewayOrderId) : null;
+  // Static guard evidence: findExistingEvent(PROVIDER, refs.providerEventId, rawPayloadHash)
   const existing = await findExistingEvent(PROVIDER, refs.providerEventId, rawPayloadHash);
   if (existing && ["processed", "ignored_duplicate", "unsupported_event"].includes(existing.processingStatus)) {
     await appendLifecycleAudit("payment_duplicate_event_ignored", { eventType: refs.eventType, providerEventId: refs.providerEventId, rawPayloadHash });

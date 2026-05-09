@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { assertSensitiveActionAllowed, requirePermission } from "../services/rbacPolicy";
 import { canUsePrescriptionOnFile, isPrescriptionExpired, logPrescriptionVaultAccess } from "../services/prescriptionVault";
+import { releaseReservationOnRxReject } from "../services/reservationService";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 
 async function getDbSafe() {
@@ -358,6 +359,11 @@ export const prescriptionGovRouter = router({
           eq(prescriptionLines.prescriptionId, input.id),
           eq(prescriptionLines.status, "pending"),
         ));
+      }
+
+      if (input.decision === "rejected" && (input.linkedOrderId ?? rx.linkedOrderId)) {
+        const orderId = input.linkedOrderId ?? rx.linkedOrderId;
+        await releaseReservationOnRxReject({ orderId, releaseReason: "rx_rejected", idempotencyKey: `reservation:rx_rejected:${orderId}:${input.id}` });
       }
 
       await logAudit({ actorId: ctx.user.id as number, action: `prescription.rx_${input.decision}`, entityType: "prescription", entityId: input.id, beforeJson: rx, afterJson: { status: input.decision, note: input.pharmacistNote }, source: "admin" });

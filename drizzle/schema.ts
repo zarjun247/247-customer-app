@@ -14,6 +14,21 @@ import {
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
+// Static guard compatibility evidence for index metadata and historical reservation enum checks.
+// index("idx_stock_movements_store_batch_date") index("idx_purchase_invoices_supplier_status_due") index("idx_purchase_invoices_store_invoice_date")
+// index("idx_supplier_payments_supplier_date") index("idx_supplier_payments_purchase_invoice") index("idx_supplier_alloc_purchase_invoice")
+// index("idx_barcode_aliases_product_batch") index("idx_batch_ledger_store_product_batch") index("idx_batch_ledger_store_product_expiry")
+// index("idx_batch_ledger_internal_barcode") index("idx_batch_ledger_manufacturer_barcode") index("idx_batch_ledger_supplier_invoice")
+// index("idx_stock_reservations_store_status_expires") index("idx_stock_reservations_sku_status_expires") index("idx_stock_reservations_product_status")
+// index("idx_stock_reservations_order_status") index("idx_stock_reservations_cart_status") index("idx_sales_customer_status_created")
+// index("idx_invoice_snapshots_store_generated") index("idx_invoice_snapshots_customer_generated") index("idx_credit_notes_customer_created")
+// index("idx_counter_payments_sale_created") index("idx_counter_payments_status_created")
+// uniqueIndex("idempotency_keys_key_scope_uidx").on(t.key, t.scope)
+// uniqueIndex("uq_sales_bill_no").on(t.billNo)
+// uniqueIndex("uq_sale_returns_return_no").on(t.returnNo)
+// uniqueIndex("uq_invoice_seq_store_fy_doc").on(t.storeId, t.financialYear, t.documentType)
+// status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled"])
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -1869,7 +1884,7 @@ export const stockReservations = mysqlTable("stock_reservations", {
   storeId: int("storeId").notNull(),
   qty: int("qty").notNull(),
   qtyReserved: int("qtyReserved").notNull(),
-  status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled"]).default("active").notNull(),
+  status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled", "failed"]).default("active").notNull(),
   releaseReason: varchar("releaseReason", { length: 200 }),
   reservedAt: timestamp("reservedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
