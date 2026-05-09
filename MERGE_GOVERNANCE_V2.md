@@ -89,6 +89,10 @@ Canonical merge governance for Wave 0 / Prompt 1 as of 2026-05-08.
 - Latest main wins by default unless the branch explicitly owns the changed domain and the reviewer intentionally accepts that diff.
 - Do not merge docs/control PRs that change runtime behavior, package manifests, lockfiles, migrations, stock/payment/prescription/compliance logic, or provider connector behavior.
 - Do not claim production readiness or 10/10 status without fresh current-main proof.
+- Do not claim dependency/security readiness unless `SUPPLY_CHAIN_SECURITY_AUDIT.md` is green or every high/critical finding has explicit owner-approved acceptance.
+- Do not merge unreviewed dependency upgrades, package-manager changes, or lockfile rewrites inside unrelated runtime PRs.
+- Do not allow package-manager drift in production: pnpm source of truth, CI setup, and lockfile evidence must agree before launch.
+- Do not commit secrets in docs, tests, logs, fixtures, or env examples; secret scans must be green or accepted before launch.
 
 
 ## Branch-protection merge discipline addendum (2026-05-09)

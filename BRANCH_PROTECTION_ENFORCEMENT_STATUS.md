@@ -153,3 +153,11 @@ Because `.github/CODEOWNERS` is not present in this checkout, this PR does not a
 - `.github/workflows/*`
 - `scripts/*governance*`
 - Security/provider/storage files, including provider connectors, storage access controls, auth/session/security procedures, and release-gate scripts.
+
+## Supply-chain and secret hygiene launch gates (2026-05-09)
+
+- Branch protection should eventually require a dependency/security audit job that fails or blocks review on unresolved high/critical supply-chain findings.
+- Branch protection should eventually require a secret scan job with redacted output and no committed secret values in docs, tests, logs, fixtures, or env examples.
+- Package-manager drift must be treated as a production-readiness blocker until `packageManager`, CI pnpm setup, and lockfile policy are aligned or explicitly accepted.
+- Dependency upgrades, pnpm changes, and lockfile rewrites must be reviewed in dedicated PRs or clearly declared in the PR body; no hidden package movement may merge through unrelated work.
+- Current audit references: `SUPPLY_CHAIN_SECURITY_AUDIT.md`, `SECRET_HYGIENE_AUDIT.md`, and `PRODUCTION_DEPENDENCY_POLICY.md`.

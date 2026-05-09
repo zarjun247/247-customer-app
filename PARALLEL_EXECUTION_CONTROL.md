@@ -50,7 +50,7 @@ These domains may run in parallel when each branch stays inside its boundaries, 
 | --- | --- | --- |
 | Docs/control | Status docs, governance docs, runbooks, audit summaries. | No runtime behavior, package, lockfile, migration, or schema changes. |
 | Observability | Healthcheck proof, metrics docs, logging dashboards, alert runbooks, static observability tests. | Coordinate before touching auth/session middleware, provider calls, payment flows, or stock mutations. |
-| Governance scans | Static guards, dependency/license/security scans, placeholder scans, CI proof docs. | No app behavior changes unless separately approved. |
+| Governance scans | Static guards, dependency/license/security scans, placeholder scans, CI proof docs, and supply-chain/secret-hygiene audit docs. | No app behavior changes unless separately approved; no unreviewed dependency upgrades, package-manager changes, lockfile rewrites, or fake-green security claims. |
 | DB test lifecycle | Test DB bootstrap proof, isolated MySQL smoke tests, CI service proof. | Do not change migrations/schema without migration owner coordination. |
 | Reservation lifecycle | Read-only audits, tests, lifecycle documentation. | Reservation mutation and `stockInvariant` changes are restricted. |
 | Commercial lifecycle | Read-only audits, tests, proof around invoices/refunds/credit notes/journals. | Sale confirmation, payment lifecycle, and purchase commit are restricted. |
@@ -117,3 +117,10 @@ Before starting restricted work:
 - Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
 - Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
 - Open PRs with stale migration numbers must be rebuilt, not merged.
+
+## Supply-chain parallel execution rule (2026-05-09)
+
+- Dependency/security audit work may run in parallel only when it stays docs/report focused or uses a dedicated dependency-fix branch.
+- High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
+- Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
+- Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
