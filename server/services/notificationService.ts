@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { notificationEvents, notificationPreferences } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { recordProviderEvent } from "./providerEventsService";
 
 export type NotificationChannel = "in_app" | "push" | "email" | "whatsapp" | "sms";
 export type NotificationSendStatus =
@@ -87,6 +88,12 @@ export async function sendNotification(id: number, providerResult: boolean | { o
   if (!db) throw new Error("DB unavailable");
 
   const normalized = normalizeProviderResult(providerResult);
+  // If provider is unavailable, record event for ops/audit
+  const row = await db.select().from(notificationEvents).where(eq(notificationEvents.id, id)).limit(1);
+  const providerName = row[0]?.provider ?? 'unknown';
+  if (normalized.status === 'provider_unconfigured') {
+    await recordProviderEvent({ provider: providerName, operation: 'send_notification_provider_unavailable', status: 'provider_unconfigured', payload: { notificationId: id } });
+  }
   const update: Record<string, unknown> = { status: normalized.status };
   if (normalized.status === "sent") update.sentAt = new Date();
   if (normalized.providerMessageId) update.providerMessageId = normalized.providerMessageId;
@@ -99,8 +106,7 @@ export async function sendNotification(id: number, providerResult: boolean | { o
 export function normalizeProviderResult(providerResult: boolean | { ok?: boolean; status?: NotificationSendStatus; providerMessageId?: string; error?: string } | null | undefined) {
   if (providerResult === true) return { status: "sent" as const };
   if (providerResult === false) return { status: "failed" as const, error: "provider_returned_false" };
-  if (!providerResult) return { status: "provider_unconfigured" as const, error: "provider_unavailable" };
-  if (providerResult.status) {
+  if (!providerResult) return { status: "provider_unconfigured" as const, error: "provider_unavailable" };  if (providerResult.status) {
     return {
       status: providerResult.status,
       providerMessageId: providerResult.providerMessageId,

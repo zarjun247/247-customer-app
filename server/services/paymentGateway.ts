@@ -5,6 +5,7 @@ import { getOrderById } from "../db";
 import { createPaymentRecord, getPaymentByGatewayOrderId, getPaymentByOrderId, confirmPaymentRecord, failPaymentRecord } from "../payment";
 import { isProviderEnabled } from "../_core/env";
 import { redactObject } from "../_core/redact";
+import { recordProviderEvent } from "./providerEventsService";
 
 export type PaymentVerificationStatus = "verified" | "failed" | "provider_unconfigured" | "demo_skipped";
 export type PaymentLifecycleStatus = "persisted" | "demo_skipped" | "not_implemented";
@@ -57,6 +58,8 @@ export async function verifyGatewayPaymentSignature(input: { gatewayOrderId: str
     if (isExplicitPaymentDemoMode() && !runtimeIsProduction()) {
       return { verified: false, status: "demo_skipped", message: "Razorpay payment verification skipped in explicit demo/test mode" };
     }
+    // Record provider-unconfigured event for ops/audit
+    await recordProviderEvent({ provider: "razorpay", operation: "verify_payment_missing_secret", status: "provider_unconfigured", errorMessage: "Razorpay key secret missing" });
     return { verified: false, status: "provider_unconfigured", message: "Razorpay key secret missing" };
   }
 
