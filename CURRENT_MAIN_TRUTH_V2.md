@@ -158,3 +158,9 @@ Conservative scores for the inspected main-equivalent SHA:
 3. **DB lifecycle proof prompt:** run `pnpm run test:db:bootstrap` and `pnpm run test:db:smoke` against a clean MySQL 8.4 instance.
 4. **Deployment proof prompt:** capture production build, healthcheck, environment, backup/restore, and smoke-test evidence without feature changes.
 5. **Runtime hardening prompts:** proceed only in safe parallel domains defined in `PARALLEL_EXECUTION_CONTROL.md`.
+
+## Migration surgery control pointer
+
+- `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
+- Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
+- Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.

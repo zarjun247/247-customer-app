@@ -100,3 +100,10 @@ Before starting restricted work:
 1. Assign parallel wave prompts only after each prompt declares its domain and restricted-file status.
 2. Run a GitHub-side active PR overlap scan before any restricted-domain PR is reviewed.
 3. Run a final merge-captain audit after all parallel waves complete.
+
+## Schema PR Freeze
+
+- No schema PR may merge until migration surgery and latest-main validation are complete.
+- Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
+- Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
+- Open PRs with stale migration numbers must be rebuilt, not merged.
