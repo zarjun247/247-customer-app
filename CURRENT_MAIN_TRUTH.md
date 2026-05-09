@@ -4,6 +4,8 @@ Canonical production-readiness and merge-control entry as of 2026-05-08.
 
 > **Canonical warning:** older status documents in this repository may contain stale scores, stale branch assumptions, or pre-merge blocker lists. Until the final merge-captain pass completes, this file is the canonical audit entry for current-main readiness and launch gating.
 
+> **2026-05-09 supersession note:** latest-main validation is now recorded in `LATEST_MAIN_VALIDATION_STATUS.md` at SHA `f7d049825eb17922e9fa0c47326620e26a396186`, with latest visible merge PR #107 and no duplicate migration prefixes detected. Treat older SHA/PR values below as historical context unless refreshed.
+
 ## 1. Current main baseline
 
 | Item | Current value |

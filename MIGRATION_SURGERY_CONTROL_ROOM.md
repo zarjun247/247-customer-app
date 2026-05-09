@@ -81,3 +81,14 @@ Until the migration-surgery branch merges and latest-main validation is recorded
 2. PRs with stale migration numbers must be rebuilt from latest main after surgery, not merged as-is.
 3. Runtime-only PRs may proceed only after explicit review confirms they do not touch `drizzle/schema.ts`, `drizzle/*.sql`, Drizzle metadata, or migration-number governance.
 4. Docs/governance-only PRs may continue if they do not claim migration repair or production readiness.
+
+## 2026-05-09 latest-main supersession note
+
+This document was originally a pre-surgery control-room snapshot. Later inspected local history includes PR #100 and PR #107. On latest inspected SHA `f7d049825eb17922e9fa0c47326620e26a396186`, `node scripts/verify-migrations.mjs` reports 49 SQL files, 46 numbered migrations, latest `0048`, and 0 blocking issues / 0 warnings. The current expected migration tail is:
+
+- `0045_provider_webhook_events.sql`
+- `0046_commercial_event_ledger.sql`
+- `0047_worker_jobs.sql`
+- `0048_rbac_staff_session_governance.sql`
+
+The next reserved migration number is `0049`. Any stale PR or document still claiming duplicate `0045`/`0046` migrations must be refreshed against latest main before it is used for merge decisions.
