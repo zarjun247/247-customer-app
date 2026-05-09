@@ -84,7 +84,7 @@ describe("runtime RBAC and staff session governance", () => {
   });
 
   it("does not introduce unsafe uuid casts or zero entity identifiers", () => {
-    const files = ["server/services/rbacPolicy.ts", "server/services/staffSessionSecurity.ts", "server/routers/prescriptionGovRouter.ts", "server/rbac-session-governance.test.ts", "drizzle/schema.ts", "drizzle/0046_rbac_staff_session_governance.sql"];
+    const files = ["server/services/rbacPolicy.ts", "server/services/staffSessionSecurity.ts", "server/routers/prescriptionGovRouter.ts", "server/rbac-session-governance.test.ts", "drizzle/schema.ts", "drizzle/0048_rbac_staff_session_governance.sql"];
     const offenders = files.flatMap((file) => {
       const text = readFileSync(file, "utf8");
       const unsafeUuidCast = new RegExp("Number" + "\\(" + "\\s*uuid");

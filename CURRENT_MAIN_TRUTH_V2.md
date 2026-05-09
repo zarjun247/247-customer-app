@@ -1,5 +1,13 @@
 # CURRENT_MAIN_TRUTH_V2
 
+
+## 2026-05-09 migration sequence collision surgery update
+
+- Branch `fix/migration-sequence-collision-surgery` repairs latest local main-equivalent migration prefix collisions discovered after PRs #85/#87/#97/#98/#99.
+- Corrected numbered migration tail is now `0045_provider_webhook_events.sql`, `0046_commercial_event_ledger.sql`, `0047_worker_jobs.sql`, and `0048_rbac_staff_session_governance.sql`; next reserved migration number is `0049`.
+- No parallel schema PR may merge without reading `MIGRATION_AUDIT_STATUS.md` first. Open PRs adding stale duplicate migration numbers must be rebuilt from latest main-equivalent history. PRs #94/#95/#96 style migrations must use `0049` or later; duplicated stale PRs must not merge raw.
+- Fresh/existing DB migration proof is not claimed here because no `TEST_DATABASE_URL` or existing database URL is configured in this container.
+
 Canonical current-main audit for Wave 0 / Prompt 1 as of 2026-05-08.
 
 > This is a docs/control and static-inspection pass only. It does not implement runtime feature changes and does not certify production readiness.

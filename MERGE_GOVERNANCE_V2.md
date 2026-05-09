@@ -1,5 +1,13 @@
 # MERGE_GOVERNANCE_V2
 
+
+## 2026-05-09 migration sequence collision rule update
+
+- Latest migration collision surgery reserves `0049` as the next safe migration number after `0048_rbac_staff_session_governance.sql`.
+- No parallel schema PR may merge without reading the latest `MIGRATION_AUDIT_STATUS.md` and re-running migration verification from current main.
+- Open PRs adding old duplicate migration numbers (`0045`, `0046`, `0047`, or `0048`) must be rebuilt from latest main-equivalent history before review.
+- PRs #94/#95/#96 style migrations must use the next available migration number after this fix (`0049` or later). Duplicated stale PRs must not merge raw.
+
 Canonical merge governance for Wave 0 / Prompt 1 as of 2026-05-08.
 
 ## Audit metadata
@@ -52,7 +60,7 @@ Every PR must include:
 - Migration files must match the final `drizzle/schema.ts` state by static and DB lifecycle inspection.
 - Destructive migrations require explicit backup/restore evidence, rollback/forward-fix instructions, and maintainer approval.
 - Documentation/control branches must add no migrations.
-- Open stale PRs touching migrations are high risk because current main already has migrations through `0044_index_performance_audit.sql` while metadata journal entries stop at `0021_oval_ultimatum`.
+- Open stale PRs touching migrations are high risk because current main-equivalent history now has migrations through `0048_rbac_staff_session_governance.sql` while metadata journal entries stop at `0021_oval_ultimatum`.
 
 ## Safe parallel domains
 
