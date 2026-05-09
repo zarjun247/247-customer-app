@@ -164,3 +164,8 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Open PR battlefield pointer (2026-05-09)
+
+- Open PR close/rebase state lives in `OPEN_PR_REBASE_AND_CLOSE_STATUS.md`.
+- Stale PRs are unsafe to merge raw because they may revert stock, payment, compliance, migration, security, provider, reservation, observability, or governance hardening that already exists on current main.

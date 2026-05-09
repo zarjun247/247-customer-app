@@ -124,3 +124,10 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## Stale PR control lane (2026-05-09)
+
+- Stale PR control is parallel-safe only when it changes documentation/GitHub metadata and does not modify runtime code, client runtime files, server services/routers, `drizzle/schema.ts`, `drizzle/*.sql`, migrations, package manifests, or lockfiles.
+- Schema/runtime rebuilds must start from latest authenticated `main`; old branches may be used only as reference material.
+- PR #114 (provider runtime) and PR #115 (reservation lifecycle) cannot both use the same migration number. If both require migrations, one must land first and the other must reserve the next free number after rebasing.
+- Provider runtime and reservation lifecycle rebuilds must be sequential when both require migrations; do not parallel-merge migration-bearing versions of those domains.
