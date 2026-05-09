@@ -11,6 +11,23 @@ Canonical merge governance for Wave 0 / Prompt 1 as of 2026-05-08.
 | Validation results | `pnpm install` passed with warnings; `pnpm run check` passed; `pnpm test -- --runInBand` passed with MySQL integration skipped; `pnpm run build` passed with Vite warnings; `git diff --check` passed. |
 | Governance scope | Control documentation only; no runtime, dependency, schema, or migration changes. |
 
+
+## Post-migration-surgery stale PR controls (2026-05-09)
+
+- No open PR with a stale base SHA may merge without rebasing from latest protected `main` and rerunning required validation.
+- No PR with a duplicate migration prefix may merge. Current local migration surgery risk includes duplicate `0045` and `0046` prefixes.
+- No PR may merge if it reintroduces any of these previously hardened failure patterns:
+  - fake provider success;
+  - direct stock mutation outside the stock invariant;
+  - H1 `Number(uuid)` / `entityId: 0` patterns;
+  - unguarded admin routes;
+  - broad global body parser behavior;
+  - stale payment verification;
+  - stale product-master gates.
+- Latest main wins unless the PR owns the exact current domain under review and reviewers intentionally accept that domain diff.
+- One active PR per domain: duplicates must be closed, labeled `do-not-merge`, or rebuilt into a single latest-main branch before review.
+- Active migration-changing PRs are blocked behind the migration surgery branch until duplicate numbering is clean.
+
 ## Non-negotiable merge rules
 
 - Start all feature/hardening branches from latest protected `main`.

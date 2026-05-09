@@ -11,6 +11,16 @@ Parallel execution control contract for Wave 0 / Prompt 1 as of 2026-05-08.
 | Validation results | `pnpm install` passed with warnings; `pnpm run check` passed; `pnpm test -- --runInBand` passed with MySQL integration skipped; `pnpm run build` passed with Vite warnings; `git diff --check` passed. |
 | Purpose | Prevent parallel Codex branches from colliding in schema, inventory, payment, prescription, compliance, provider, and auth/session domains. |
 
+
+## Current execution rules after open PR triage (2026-05-09)
+
+- Migration surgery is the current **P0**.
+- Schema-changing PRs must pause until migration surgery merges.
+- PRs `#94`, `#95`, `#96`, or any branch using old duplicate `0045` / `0046` migration prefixes must be rebuilt from latest main after migration surgery.
+- Concurrency/reservation branches must not merge until migration numbering is clean.
+- Docs-only governance PRs may run in parallel if they do not modify runtime code, package manifests, lockfiles, schema, or migration SQL.
+- Observability/concurrency/reservation work must declare one domain owner and avoid duplicate active PRs.
+
 ## Safe parallel domains
 
 These domains may run in parallel when each branch stays inside its boundaries, cites changed files, and runs required validation.

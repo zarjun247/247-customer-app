@@ -1,5 +1,6 @@
 # CURRENT_MAIN_TRUTH_V2
 
+> **Open PR triage note (2026-05-09):** open PR triage has been performed for merge control. Active/stale PR classification lives in `OPEN_PR_TRIAGE_STATUS.md`. Migration surgery is the current P0, and latest-main validation must be re-run after migration surgery before any production or release claim.
 Canonical current-main audit for Wave 0 / Prompt 1 as of 2026-05-08.
 
 > This is a docs/control and static-inspection pass only. It does not implement runtime feature changes and does not certify production readiness.
