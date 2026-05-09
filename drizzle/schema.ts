@@ -1965,6 +1965,209 @@ export const expiryActions = mysqlTable("expiry_actions", {
   note: text("note"),
 });
 
+
+// ─── Pharmacy Legal Operations ───────────────────────────────────────────────
+export const pharmacyStoreLicenses = mysqlTable("pharmacy_store_licenses", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  licenseNumber: varchar("license_number", { length: 120 }).notNull(),
+  licenseType: varchar("license_type", { length: 80 }).notNull(),
+  issuingAuthority: varchar("issuing_authority", { length: 200 }).notNull(),
+  validFrom: date("valid_from").notNull(),
+  validUntil: date("valid_until").notNull(),
+  status: mysqlEnum("status", ["active", "expired", "suspended", "pending", "unknown"]).default("unknown").notNull(),
+  documentStorageKey: varchar("document_storage_key", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxPharmacyStoreLicensesStoreStatus: index("idx_pharmacy_store_licenses_store_status").on(t.storeId, t.status),
+  idxPharmacyStoreLicensesValidUntil: index("idx_pharmacy_store_licenses_valid_until").on(t.validUntil),
+}));
+
+export const pharmacistRegistrations = mysqlTable("pharmacist_registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  pharmacistName: varchar("pharmacist_name", { length: 200 }).notNull(),
+  registrationNumber: varchar("registration_number", { length: 120 }).notNull(),
+  councilName: varchar("council_name", { length: 200 }).notNull(),
+  validUntil: date("valid_until"),
+  status: mysqlEnum("status", ["active", "expired", "suspended", "pending", "unknown"]).default("unknown").notNull(),
+  documentStorageKey: varchar("document_storage_key", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqPharmacistRegistrationsUserRegistration: uniqueIndex("uq_pharmacist_registrations_user_registration").on(t.userId, t.registrationNumber),
+  idxPharmacistRegistrationsUserStatus: index("idx_pharmacist_registrations_user_status").on(t.userId, t.status),
+  idxPharmacistRegistrationsValidUntil: index("idx_pharmacist_registrations_valid_until").on(t.validUntil),
+}));
+
+export const pharmacistDutySessions = mysqlTable("pharmacist_duty_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  pharmacistUserId: int("pharmacist_user_id").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+  status: mysqlEnum("status", ["active", "closed", "interrupted"]).default("active").notNull(),
+  openedBy: int("opened_by").notNull(),
+  closedBy: int("closed_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxPharmacistDutySessionsStoreStatus: index("idx_pharmacist_duty_sessions_store_status").on(t.storeId, t.status),
+  idxPharmacistDutySessionsPharmacistStarted: index("idx_pharmacist_duty_sessions_pharmacist_started").on(t.pharmacistUserId, t.startedAt),
+}));
+
+export const regulatedReleaseEvidence = mysqlTable("regulated_release_evidence", {
+  id: int("id").autoincrement().primaryKey(),
+  saleId: varchar("sale_id", { length: 36 }),
+  orderId: int("order_id"),
+  saleLineId: varchar("sale_line_id", { length: 36 }),
+  orderItemId: int("order_item_id"),
+  prescriptionId: int("prescription_id"),
+  storeId: int("store_id").notNull(),
+  pharmacistUserId: int("pharmacist_user_id").notNull(),
+  pharmacistDutySessionId: int("pharmacist_duty_session_id"),
+  patientRef: varchar("patient_ref", { length: 200 }),
+  doctorRef: varchar("doctor_ref", { length: 200 }),
+  doctorName: varchar("doctor_name", { length: 200 }),
+  scheduleCategory: varchar("schedule_category", { length: 20 }),
+  drugName: varchar("drug_name", { length: 300 }).notNull(),
+  batchRef: varchar("batch_ref", { length: 120 }),
+  quantity: int("quantity").notNull(),
+  releaseStatus: mysqlEnum("release_status", ["blocked", "pending_review", "approved", "rejected", "released"]).default("pending_review").notNull(),
+  releaseReason: text("release_reason"),
+  approvedAt: timestamp("approved_at"),
+  releasedAt: timestamp("released_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxRegulatedReleaseEvidenceSale: index("idx_regulated_release_evidence_sale").on(t.saleId, t.saleLineId),
+  idxRegulatedReleaseEvidenceOrder: index("idx_regulated_release_evidence_order").on(t.orderId, t.orderItemId),
+  idxRegulatedReleaseEvidencePrescription: index("idx_regulated_release_evidence_prescription").on(t.prescriptionId),
+  idxRegulatedReleaseEvidenceStatusCreated: index("idx_regulated_release_evidence_status_created").on(t.releaseStatus, t.createdAt),
+}));
+
+export const pharmacySopAcknowledgements = mysqlTable("pharmacy_sop_acknowledgements", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  sopCode: varchar("sop_code", { length: 80 }).notNull(),
+  sopVersion: varchar("sop_version", { length: 40 }).notNull(),
+  acknowledgedAt: timestamp("acknowledged_at").defaultNow().notNull(),
+  ipHash: varchar("ip_hash", { length: 128 }),
+  deviceRef: varchar("device_ref", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  uqPharmacySopAcknowledgementsUserSopVersion: uniqueIndex("uq_pharmacy_sop_ack_user_sop_version").on(t.userId, t.sopCode, t.sopVersion),
+  idxPharmacySopAcknowledgementsSopVersion: index("idx_pharmacy_sop_ack_sop_version").on(t.sopCode, t.sopVersion),
+}));
+
+export const pharmacyInspectionExports = mysqlTable("pharmacy_inspection_exports", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  exportType: varchar("export_type", { length: 80 }).notNull(),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  status: mysqlEnum("status", ["generated", "failed", "manual_required"]).default("manual_required").notNull(),
+  storageKey: varchar("storage_key", { length: 500 }),
+  generatedBy: int("generated_by").notNull(),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxPharmacyInspectionExportsTypeStoreGenerated: index("idx_pharmacy_inspection_exports_type_store_generated").on(t.exportType, t.storeId, t.generatedAt),
+}));
+
+export const pharmacyTemperatureLogs = mysqlTable("pharmacy_temperature_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  batchId: int("batch_id"),
+  productId: int("product_id"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  temperatureCelsius: decimal("temperature_celsius", { precision: 5, scale: 2 }).notNull(),
+  source: mysqlEnum("source", ["manual", "iot"]).default("manual").notNull(),
+  deviceRef: varchar("device_ref", { length: 200 }),
+  recordedBy: int("recorded_by").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxPharmacyTemperatureLogsStoreRecorded: index("idx_pharmacy_temperature_logs_store_recorded").on(t.storeId, t.recordedAt),
+  idxPharmacyTemperatureLogsBatch: index("idx_pharmacy_temperature_logs_batch").on(t.batchId),
+}));
+
+export const coldChainBreaches = mysqlTable("cold_chain_breaches", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  batchId: int("batch_id"),
+  productId: int("product_id"),
+  detectedAt: timestamp("detected_at").defaultNow().notNull(),
+  severity: mysqlEnum("severity", ["watch", "minor", "major", "critical"]).default("major").notNull(),
+  status: mysqlEnum("status", ["open", "quarantined", "resolved", "rejected"]).default("open").notNull(),
+  temperatureLogId: int("temperature_log_id"),
+  description: text("description"),
+  resolvedBy: int("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxColdChainBreachesBatchStatus: index("idx_cold_chain_breaches_batch_status").on(t.batchId, t.status),
+  idxColdChainBreachesStoreStatus: index("idx_cold_chain_breaches_store_status").on(t.storeId, t.status),
+}));
+
+export const batchRecalls = mysqlTable("batch_recalls", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  batchRef: varchar("batch_ref", { length: 120 }).notNull(),
+  productId: int("product_id"),
+  reason: text("reason").notNull(),
+  status: mysqlEnum("status", ["open", "quarantined", "notifications_pending", "closed"]).default("open").notNull(),
+  initiatedBy: int("initiated_by").notNull(),
+  approvedBy: int("approved_by"),
+  openedAt: timestamp("opened_at").defaultNow().notNull(),
+  closedAt: timestamp("closed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxBatchRecallsStoreStatus: index("idx_batch_recalls_store_status").on(t.storeId, t.status),
+  idxBatchRecallsBatchRef: index("idx_batch_recalls_batch_ref").on(t.batchRef),
+}));
+
+export const batchRecallCustomerImpacts = mysqlTable("batch_recall_customer_impacts", {
+  id: int("id").autoincrement().primaryKey(),
+  recallId: int("recall_id").notNull(),
+  saleId: varchar("sale_id", { length: 36 }),
+  saleLineId: varchar("sale_line_id", { length: 36 }),
+  customerRef: varchar("customer_ref", { length: 200 }),
+  notificationStatus: mysqlEnum("notification_status", ["pending", "queued", "sent", "failed", "not_required"]).default("pending").notNull(),
+  providerMessageId: varchar("provider_message_id", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxBatchRecallCustomerImpactsRecall: index("idx_batch_recall_customer_impacts_recall").on(t.recallId),
+  idxBatchRecallCustomerImpactsSale: index("idx_batch_recall_customer_impacts_sale").on(t.saleId, t.saleLineId),
+}));
+
+export const expiredMedicineDisposals = mysqlTable("expired_medicine_disposals", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("store_id").notNull(),
+  batchId: int("batch_id"),
+  batchRef: varchar("batch_ref", { length: 120 }).notNull(),
+  productId: int("product_id"),
+  quantity: int("quantity").notNull(),
+  reason: text("reason").notNull(),
+  status: mysqlEnum("status", ["draft", "pending_approval", "approved", "disposed", "rejected"]).default("pending_approval").notNull(),
+  stockMovementId: int("stock_movement_id"),
+  createdBy: int("created_by").notNull(),
+  approvedBy: int("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  disposedAt: timestamp("disposed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxExpiredMedicineDisposalsStoreStatus: index("idx_expired_medicine_disposals_store_status").on(t.storeId, t.status),
+  idxExpiredMedicineDisposalsBatch: index("idx_expired_medicine_disposals_batch").on(t.batchId),
+}));
+
 // ─── Type exports (PART 4) ────────────────────────────────────────────────────
 export type BatchLedger = typeof batchLedger.$inferSelect;
 export type StockMovement = typeof stockMovements.$inferSelect;

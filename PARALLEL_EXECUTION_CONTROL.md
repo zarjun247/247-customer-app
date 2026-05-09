@@ -124,3 +124,8 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## Pharmacy legal ops migration reservation
+
+- Branch `feat/pharmacy-legal-ops-0051` uses migration `0049_pharmacy_legal_ops.sql` in this checkout because latest local numbered migration is `0048`.
+- If provider/reservation migrations land first as `0049`/`0050`, this branch must be rebased and renumbered before merge.

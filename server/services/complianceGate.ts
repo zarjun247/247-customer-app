@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
 import { logAudit } from "./audit";
+import { assertRegulatedEvidencePackForSale } from "./pharmacyLegalOps";
 
 export type ProductScheduleFlags = { schedule: string; requiresPrescription: boolean; h1RegisterRequired: boolean; regulated: boolean };
 
@@ -99,7 +100,8 @@ export async function assertCanConfirmSale(saleId: string, ctx?: any) {
   const result = await validateSaleCompliance(saleId);
   await logAudit({ action: "regulated.release_checked", entityType: "sale", entityId: undefined, afterJson: { saleId, ...result } }, ctx);
   if (!result.ok) { await logAudit({ action: "regulated.release_blocked", entityType: "sale", entityId: undefined, reason: "regulated_without_clearance", afterJson: { saleId, ...result } }, ctx); throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Regulated items require valid prescription and pharmacist approval" }); }
-  await logAudit({ action: "regulated.release_approved", entityType: "sale", entityId: undefined, afterJson: { saleId } }, ctx);
+  await assertRegulatedEvidencePackForSale(saleId, ctx);
+  await logAudit({ action: "regulated.release_approved", entityType: "sale", entityId: undefined, afterJson: { saleId, evidencePack: "checked" } }, ctx);
 }
 export async function assertCanPickPackDeliver(saleId: string, _nextStatus: string, ctx?: any) { await assertCanConfirmSale(saleId, ctx); }
 export function assertNoAutonomousRegulatedRelease() { return true; }

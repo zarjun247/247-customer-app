@@ -113,3 +113,11 @@ Any open PR that adds a migration using stale numbers `0045`, `0046`, `0047`, or
 | P1 | Drizzle metadata journal stops at `0021` while SQL migrations continue through `0048`. | Dedicated metadata reconciliation decision: document manual SQL mode or regenerate metadata in a controlled PR. |
 | P1 | Historical sequence gaps `0030`, `0031`, and `0033` remain. | Maintain as documented historical skips unless maintainers provide evidence of missing migration files. |
 | P2 | Live open PR migration diffs were not verifiable from this unauthenticated/no-origin checkout. | Merge captain must inspect open PR changed files before allowing schema work to proceed. |
+
+## Pharmacy legal ops branch update
+
+| Prefix | File | Purpose | Status |
+| --- | --- | --- | --- |
+| `0049` | `0049_pharmacy_legal_ops.sql` | Pharmacy legal operations foundation: licenses, pharmacist registrations/duty, regulated release evidence, SOP acknowledgements, inspection exports, cold-chain, recalls, and expiry disposal | Added on branch `feat/pharmacy-legal-ops-0051`; used `0049` because this checkout's latest numbered migration was `0048` |
+
+Next migration number after this branch is `0050` unless another migration lands first.

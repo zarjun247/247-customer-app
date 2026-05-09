@@ -164,3 +164,9 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Pharmacy legal ops branch note (feat/pharmacy-legal-ops-0051)
+
+- Local main-equivalent SHA inspected: `200fafcc20451cc43e8d6272588ec7e26e12d9c8`.
+- Added pharmacy legal operations foundation with migration `0049` because the local migration tail ended at `0048`.
+- Regulated release now requires legal evidence pack checks in addition to existing Rx/H1 gates; this does not claim regulator acceptance.
