@@ -140,3 +140,11 @@ This repository is **not** supply-chain green on 2026-05-09. `pnpm audit` failed
 | `node scripts/verify-migrations.mjs` | Passed | 49 migration files scanned; 46 numbered; latest `0048`; 0 blocking issues and 0 warnings. |
 | `git diff --check` | Passed | No whitespace errors after cleanup. |
 | `pnpm audit` | Failed | 73 vulnerabilities: 4 low, 42 moderate, 26 high, 1 critical. This is intentionally not hidden. |
+
+## Dependency security patch follow-up — 2026-05-09
+
+A targeted patch branch, `fix/dependency-supply-chain-security-patch`, was prepared from checked-out SHA `200fafcc20451cc43e8d6272588ec7e26e12d9c8`. A remote `origin/main` refresh could not be verified in this container because GitHub credentials were unavailable.
+
+The patch reduced `pnpm audit` from 73 advisories (1 critical, 26 high, 42 moderate, 4 low) to 5 advisories (0 critical, 2 high, 3 moderate, 0 low). The remaining high findings are `lodash` under `recharts` and `lodash-es` under `streamdown`/Mermaid; audit requires `>=4.18.0`, while the current published 4.x ceiling validated here is `4.17.23`, so the remaining fix requires a separate chart/rendering-stack upgrade decision rather than a blind dependency patch.
+
+Package-manager drift was reduced by removing `pnpm` from `devDependencies`, setting `packageManager` to `pnpm@10.33.4`, and pinning CI pnpm setup to `10.33.4`. See `DEPENDENCY_SECURITY_PATCH_STATUS.md` for the full action table, validation results, and remaining-risk classification.

@@ -84,3 +84,11 @@ A PR must not claim supply-chain, dependency, or secret hygiene is green if any 
 - false positive with proof,
 - dev-only with rationale,
 - runtime/transitive and still open.
+
+## 2026-05-09 dependency security patch policy update
+
+- `packageManager` is the authoritative pnpm source and is pinned to `pnpm@10.33.4`; do not re-add `pnpm` as a project `devDependency` unless an explicit tool import proves it is required.
+- CI should use the exact pnpm version from the dependency policy/package manager pin, not a broad major selector.
+- `pnpm audit` remains a required truth source. The repository must not claim security green while the remaining `lodash`, `lodash-es`, or Vitest-transitive Vite advisories are present.
+- Transitive overrides added for security must remain narrow, documented, and validated by install, audit, typecheck, tests, build, migration verification, governance guards, and diff checks.
+- Follow-up major upgrades for Recharts, streamdown/Mermaid, or Vitest must be isolated from this patch branch and include UI/test regression evidence.
