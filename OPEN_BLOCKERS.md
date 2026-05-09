@@ -37,6 +37,14 @@ P1
   Mitigation path: Instrument key paths, add dashboards and alerts
   State: Unresolved
 
+- Runtime provider placeholders (provider_unconfigured / fake success markers)
+  Impact: Runtime code or configuration may contain placeholder provider markers that can be misinterpreted as successful provider responses
+  Affected systems: paymentGateway, notificationService, jobQueue, tallyExport, workerRuntime, payment Router
+  Production risk: Medium-High (false positive success claims, hidden failures)
+  Mitigation path: Replace provider_unconfigured markers with explicit feature flags; ensure provider contract proofs and fail-closed behavior; add CI checks to block placeholder strings in runtime files
+  Owner status: Engineering - address per sprint/accounting
+  State: Unresolved
+
 P2
 ---
 - Accounting completion gaps
