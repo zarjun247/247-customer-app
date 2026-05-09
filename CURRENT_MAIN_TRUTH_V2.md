@@ -164,3 +164,9 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Observability / healthcheck rebuild pointer
+
+- Production-safe observability and healthchecks were rebuilt in branch `feat/production-observability-healthchecks` from local baseline `f7d049825eb17922e9fa0c47326620e26a396186`.
+- This observability PR is read-only infrastructure: no migrations, no schema edits, and no stock/reservation/payment/compliance mutation behavior changes.
+- Production alerting/telemetry wiring remains a separate follow-up and is not claimed as complete.

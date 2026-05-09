@@ -107,3 +107,9 @@ Before starting restricted work:
 - Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
 - Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
 - Open PRs with stale migration numbers must be rebuilt, not merged.
+
+## Observability / healthcheck execution note
+
+- Branch `feat/production-observability-healthchecks` adds read-only health endpoints, readiness checks, request logging, and redaction helpers.
+- Do not overlap this work with migrations, stock mutation logic, reservation mutation logic, payment lifecycle behavior, or compliance/Rx release behavior.
+- Alerting rules and telemetry backends are still separate execution items.
