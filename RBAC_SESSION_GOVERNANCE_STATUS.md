@@ -46,7 +46,7 @@ Static tests document the high-risk scanner shape, but not every legacy router i
 
 ## Migration Status
 
-One additive migration was added: `drizzle/0046_rbac_staff_session_governance.sql`. It adds nullable/backward-compatible privileged session governance fields and a staff/session/status lookup index. Existing migrations were not edited.
+One additive migration was added: `drizzle/0048_rbac_staff_session_governance.sql`. It adds nullable/backward-compatible privileged session governance fields and a staff/session/status lookup index. Existing migrations were not edited.
 
 ## Frontend and Server Guard Notes
 

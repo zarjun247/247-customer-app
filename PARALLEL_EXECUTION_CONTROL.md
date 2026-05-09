@@ -1,5 +1,13 @@
 # PARALLEL_EXECUTION_CONTROL
 
+
+## 2026-05-09 schema parallelism stop-rule update
+
+- Numbered Drizzle migrations are in restricted single-writer mode after the collision surgery on `fix/migration-sequence-collision-surgery`.
+- Every schema/migration PR must read `MIGRATION_AUDIT_STATUS.md`, rebuild from latest main-equivalent history, and reserve `0049` or later before merge.
+- Open PRs using stale duplicate migration numbers must be rebuilt; PRs #94/#95/#96 style migrations must not merge if they still contain old `0045`/`0046`-era filenames.
+- Duplicated stale schema PRs must not merge raw, even if their runtime code appears conflict-free.
+
 Parallel execution control contract for Wave 0 / Prompt 1 as of 2026-05-08.
 
 ## Audit metadata
