@@ -107,3 +107,10 @@ Before starting restricted work:
 - Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
 - Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
 - Open PRs with stale migration numbers must be rebuilt, not merged.
+
+## Stale PR closure lane
+
+- Stale PR closure/control may run in parallel with docs-only governance work because it does not modify runtime code, schema, or migrations.
+- Schema/runtime rebuilds remain locked until latest-main validation is green and the current migration audit confirms the next reserved migration number.
+- #88/#94/#95/#96 style domain PRs must rebuild from latest main before merge; they must not reuse stale migration numbers or stale runtime assumptions.
+- #89/#90 must consolidate into one DB concurrency harness. Do not merge both harness branches, and do not let either branch introduce schema changes unless a latest-main race proof demonstrates the need.

@@ -138,3 +138,11 @@ Do **not** run parallel branches in these areas without explicit sequencing:
 ## Schema migration audit rule
 
 Any PR touching `drizzle/schema.ts` or `drizzle/*.sql` must include migration audit proof and use the next reserved migration number from `MIGRATION_AUDIT_STATUS.md`.
+
+## Stale PR closure and raw-merge lock
+
+- No stale PR may merge raw. Any PR opened before the latest migration-surgery and governance state must be either closed, labelled `do-not-merge`, or rebuilt from latest `main` before review.
+- Stale validation PRs cannot override the latest migration audit. `MIGRATION_AUDIT_STATUS.md` is the source of truth for corrected migration numbering and next reserved migration number.
+- Schema PRs must use the next reserved migration number from `MIGRATION_AUDIT_STATUS.md`; after the inspected migration surgery, rebuilds that need migrations must use `0049` or later.
+- Keep one active PR per domain. Duplicate concurrency, payment, barcode, accounting, observability, or compliance branches must be closed or labelled `do-not-merge` / `active-reference` before any merge path is approved.
+- Duplicate concurrency/payment/barcode/accounting branches must not be merged directly from stale heads because they may revert stock, compliance, payment, security, or migration hardening already present on latest main.
