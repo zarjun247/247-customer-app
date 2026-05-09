@@ -1,6 +1,12 @@
 # MERGE_GOVERNANCE_V2
 
 
+## Branch protection verification requirement (2026-05-09)
+
+- `main` cannot be considered production-protected unless GitHub branch protection or repository ruleset settings are verified through authenticated GitHub API, GitHub CLI, or UI evidence.
+- A `.github/CODEOWNERS` file alone is not an enforcement mechanism; the `main` branch rule must explicitly require Code Owners review before merge.
+- No schema, migration, stock, payment, compliance, security, provider, or other high-risk Pharmacy OS PR may merge without human review and the applicable Code Owner review gate.
+- If branch protection cannot be verified, mark the repository governance status yellow/red for merge discipline and follow `BRANCH_PROTECTION_ENFORCEMENT_PROOF.md` before claiming production readiness.
 ## 2026-05-09 critical-file ownership review gates
 
 This branch adds `.github/CODEOWNERS` for high-risk Pharmacy OS files using `@zarjun247` as the temporary owner inferred from the repository path. The policy is governance-only and does not change runtime code, schema, migrations, package manifests, or lockfiles. GitHub enforcement still requires maintainers to enable **Require review from Code Owners** for `main` and prove that the configured owner has repository write/admin access.

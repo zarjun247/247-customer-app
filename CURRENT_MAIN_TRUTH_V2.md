@@ -1,6 +1,9 @@
 # CURRENT_MAIN_TRUTH_V2
 
 
+## Branch protection proof pointer (2026-05-09)
+
+Branch protection evidence now lives in `BRANCH_PROTECTION_ENFORCEMENT_PROOF.md`. If authenticated GitHub API/CLI/UI evidence cannot prove that `main` requires pull requests, Code Owner review, stale-approval dismissal, required checks, branch freshness, and force-push/delete protection, then `main` remains governance-yellow and must not be described as production-protected.
 ## 2026-05-09 migration sequence collision surgery update
 
 - Branch `fix/migration-sequence-collision-surgery` repairs latest local main-equivalent migration prefix collisions discovered after PRs #85/#87/#97/#98/#99.
