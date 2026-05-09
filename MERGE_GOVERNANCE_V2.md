@@ -52,7 +52,8 @@ Every PR must include:
 - Migration files must match the final `drizzle/schema.ts` state by static and DB lifecycle inspection.
 - Destructive migrations require explicit backup/restore evidence, rollback/forward-fix instructions, and maintainer approval.
 - Documentation/control branches must add no migrations.
-- Open stale PRs touching migrations are high risk because current main already has migrations through `0044_index_performance_audit.sql` while metadata journal entries stop at `0021_oval_ultimatum`.
+- Open stale PRs touching migrations are high risk because current main already has migration prefix collisions and metadata journal entries stop at `0021_oval_ultimatum`.
+- Any PR touching `drizzle/schema.ts` or `drizzle/*.sql` must include migration audit proof and use the next reserved migration number from `MIGRATION_AUDIT_STATUS.md`.
 
 ## Safe parallel domains
 

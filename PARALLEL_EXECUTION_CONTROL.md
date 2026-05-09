@@ -43,6 +43,13 @@ Only one active branch should own each domain at a time. A maintainer must seque
 - Provider connectors
 - Auth/session middleware
 
+## Schema PR Freeze
+
+- No schema PR may merge until migration surgery plus latest-main validation are complete.
+- Docs/governance-only prompts may continue if they do not touch runtime code, package files, schema, or migrations.
+- Runtime-only PRs that do not touch schema may proceed only after explicit changed-files review.
+- Open PRs with stale migration numbers must be rebuilt, not merged.
+
 ## Coordination checklist for restricted work
 
 Before starting restricted work:

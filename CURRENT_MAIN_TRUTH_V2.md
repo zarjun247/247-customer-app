@@ -4,6 +4,12 @@ Canonical current-main audit for Wave 0 / Prompt 1 as of 2026-05-08.
 
 > This is a docs/control and static-inspection pass only. It does not implement runtime feature changes and does not certify production readiness.
 
+## Migration surgery control pointer
+
+- `MIGRATION_SURGERY_CONTROL_ROOM.md` now records the active migration-surgery blocker and schema PR freeze.
+- Schema PR freeze remains active until migration audit is green on latest main.
+- No PR touching `drizzle/schema.ts` or `drizzle/*.sql` should merge until migration surgery and latest-main validation pass.
+
 ## Audit metadata
 
 | Item | Value |
