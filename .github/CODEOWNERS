@@ -1,0 +1,57 @@
+# Critical-file ownership and review gates for pharmacy OS safety domains.
+# Owner: @zarjun247 is inferred from the repository's visible merge history.
+# If this handle is not the active GitHub maintainer/team, replace it before
+# enabling "Require review from Code Owners" on the protected main branch.
+
+# Critical migration/schema truth
+/drizzle/* @zarjun247
+/drizzle/schema.ts @zarjun247
+
+# CI/governance controls
+/.github/workflows/* @zarjun247
+/scripts/* @zarjun247
+/scripts/*governance* @zarjun247
+/scripts/*migration* @zarjun247
+/scripts/*verify* @zarjun247
+
+# Stock/inventory truth
+/server/services/stockInvariant* @zarjun247
+/server/services/reservation* @zarjun247
+/server/routers/inventoryRouter* @zarjun247
+/server/routers/purchaseRouter* @zarjun247
+/server/routers/salesRouter* @zarjun247
+
+# Payment/refund/webhook lifecycle
+/server/services/payment* @zarjun247
+/server/routers/payment* @zarjun247
+/server/services/refund* @zarjun247
+/server/services/creditNote* @zarjun247
+
+# Compliance/H1/Rx/legal safety
+/server/services/compliance* @zarjun247
+/server/services/prescription* @zarjun247
+/server/services/h1* @zarjun247
+/server/services/regulated* @zarjun247
+/server/routers/prescription* @zarjun247
+/server/pharmacy* @zarjun247
+
+# Security/auth/privacy/provider/storage
+/server/services/provider* @zarjun247
+/server/services/privacy* @zarjun247
+/server/services/auth* @zarjun247
+/server/middleware/* @zarjun247
+/server/_core/* @zarjun247
+/server/services/storage* @zarjun247
+/server/routers/healthRouter* @zarjun247
+
+# Accounting/Tally/commercial lifecycle
+/server/services/accounting* @zarjun247
+/server/services/tally* @zarjun247
+/server/services/commercial* @zarjun247
+/server/routers/reportsRouter* @zarjun247
+
+# Frontend route/security boundaries
+/client/src/routes/* @zarjun247
+/client/src/App.tsx @zarjun247
+/client/src/pages/admin/* @zarjun247
+/client/src/pages/pharmacy* @zarjun247

@@ -2,6 +2,19 @@
 
 Status date: 2026-05-08
 
+
+## CODEOWNERS review requirement status
+
+This branch adds `.github/CODEOWNERS` with `@zarjun247` as the inferred owner for critical migration/schema, CI/governance, stock, payment, compliance, provider, security, accounting, and frontend route-security files. The owner is inferred from visible repository history; replace it before enforcement if it is not the correct GitHub user/team.
+
+Branch protection enforcement is still not proven from this container. Repository administrators must explicitly enable **Require review from Code Owners** in the `main` branch protection rule or ruleset before CODEOWNERS becomes a hard merge gate. Until that GitHub setting is enabled and verified, CODEOWNERS may request review but must not be described as blocking unsafe merges.
+
+Required manual GitHub step:
+
+```text
+main branch protection/ruleset -> Require pull request reviews -> Require review from Code Owners
+```
+
 ## Required branch protection settings for `main`
 
 Enable GitHub branch protection or rulesets for `main` with these controls:

@@ -38,6 +38,21 @@ Every PR must include:
 6. Stale PR / migration collision assessment if applicable.
 7. Remaining risks and safe-to-merge assessment.
 
+
+## Critical-file review gates
+
+CODEOWNERS is the first review gate for high-risk pharmacy OS files, but it is not a substitute for domain proof. Any PR touching a protected critical-file pattern must name the domain reviewer and include the evidence below before merge:
+
+- Migrations or `drizzle/schema.ts`: migration audit green, schema/migration consistency proof, migration numbering collision check, and rollback/forward-fix notes for destructive or risky changes.
+- Stock, inventory, purchase, sale, or reservation files: stock invariant review plus DB proof that quantities, reservations, idempotency, and audit trails remain correct.
+- Payment, refund, credit note, or webhook files: provider fail-closed review plus replay, idempotency, duplicate-webhook, and reconciliation evidence.
+- Compliance, H1, prescription, regulated, or pharmacy/legal files: pharmacist/legal safety review, statutory-record evidence, and no bypass of prescription, consent, or regulated dispensing gates.
+- Provider, storage, security, auth, privacy, middleware, or core server files: preserve fail-closed behavior, no-secret logging, no fake-success paths, explicit redaction, and least-privilege access.
+- Admin routes, RBAC, or frontend route-security files: prove there is no route bypass, role downgrade, hidden admin exposure, or client-only authorization assumption.
+- Workflows or scripts: governance/security scans must pass, and any CI change must not weaken required checks, placeholders, migration verification, or environment validation.
+
+Do not claim code-owner enforcement is active unless GitHub branch protection or ruleset settings prove **Require review from Code Owners** is enabled for `main`.
+
 ## Stale PR merge policy
 
 - #66 is treated as already merged by superseding PR #75 in local history; close original if still open.

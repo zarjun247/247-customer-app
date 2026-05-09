@@ -11,6 +11,15 @@ Parallel execution control contract for Wave 0 / Prompt 1 as of 2026-05-08.
 | Validation results | `pnpm install` passed with warnings; `pnpm run check` passed; `pnpm test -- --runInBand` passed with MySQL integration skipped; `pnpm run build` passed with Vite warnings; `git diff --check` passed. |
 | Purpose | Prevent parallel Codex branches from colliding in schema, inventory, payment, prescription, compliance, provider, and auth/session domains. |
 
+
+## CODEOWNERS/review-gate parallel status
+
+A CODEOWNERS/review-gate branch is governance-only when it is limited to `.github/CODEOWNERS` and control documentation. It may run in parallel with runtime work because it does not change schema, migrations, services, routers, client runtime behavior, package manifests, or lockfiles.
+
+This review-gate policy does **not** unblock schema PRs, migration PRs, or stale runtime branches. Migration surgery remains P0 and must continue to follow single-owner sequencing, migration audit proof, and latest-main rebase discipline.
+
+Future schema/runtime PRs must respect critical-file ownership: if they touch a CODEOWNERS-protected critical path, they must include the appropriate domain review evidence and cannot rely on this governance PR as proof that the runtime change itself is safe.
+
 ## Safe parallel domains
 
 These domains may run in parallel when each branch stays inside its boundaries, cites changed files, and runs required validation.
