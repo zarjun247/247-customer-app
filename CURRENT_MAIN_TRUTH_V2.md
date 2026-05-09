@@ -164,3 +164,7 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## 2026-05-09 real DB proof execution attempt
+
+A docs-only validation pass on branch `test/real-mysql-db-proof-execution` inspected local SHA `200fafcc20451cc43e8d6272588ec7e26e12d9c8`. GitHub `origin/main` refresh could not be completed from this container because authenticated fetch was unavailable. `TEST_DATABASE_URL` was not present, so fresh DB bootstrap, smoke, and concurrency proof remain unclaimed. See `REAL_DB_PROOF_EXECUTION_STATUS.md` and `DB_CONCURRENCY_CASE_MATRIX.md` for the exact skipped/blocked proof matrix.

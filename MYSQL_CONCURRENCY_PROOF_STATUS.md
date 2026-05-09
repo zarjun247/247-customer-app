@@ -90,3 +90,9 @@ Expected skip behavior:
 - `pnpm run test:db:smoke`: skipped because `TEST_DATABASE_URL` is not set.
 - `pnpm run test:db:concurrency`: skipped because `TEST_DATABASE_URL` is not set; DB-backed race proof is not claimed.
 - `node scripts/ci-governance-guards.mjs all`: failed with 4 findings unrelated to this test harness: one provider-risk match in `scripts/check-runtime-placeholders.mjs` and three stock-mutation-risk matches in `server/services/stockTruthCertification.ts`.
+
+## 2026-05-09 real DB proof execution attempt
+
+Branch `test/real-mysql-db-proof-execution` attempted to execute the configured MySQL proof path from local SHA `200fafcc20451cc43e8d6272588ec7e26e12d9c8`. `TEST_DATABASE_URL` was not present, so the safe bootstrap command refused to run and both DB Vitest suites skipped by design. Three `pnpm run test:db:concurrency` invocations were made, but all were skipped; repetition count for real DB execution is `0`.
+
+Current conclusion remains: DB race-mode production proof is **not claimed** until `pnpm run test:db:bootstrap`, `pnpm run test:db:smoke`, and three real `pnpm run test:db:concurrency` runs pass against a disposable safe database.

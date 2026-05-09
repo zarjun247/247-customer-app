@@ -64,3 +64,7 @@ Race-mode production must not be enabled or described as launch-ready until all 
 - Skipped DB tests are not green DB proof.
 - Unique constraint checks prove only their scoped gate, not full business lifecycle idempotency.
 - Production launch requires full service-path DB-backed proof, not only table-level predicate proof.
+
+## 2026-05-09 execution status
+
+The `test/real-mysql-db-proof-execution` branch did not satisfy these requirements in this container because `TEST_DATABASE_URL` was missing. `pnpm run test:db:bootstrap` failed safely before mutation, `pnpm run test:db:smoke` skipped, and three `pnpm run test:db:concurrency` invocations skipped. Skipped DB tests are proof gaps and are not green race-mode evidence.
