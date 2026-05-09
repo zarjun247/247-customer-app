@@ -24,7 +24,7 @@ describe("mega stock reservation truth hardening", () => {
   });
 
   it("durable reservations persist explicit rows and statuses", () => {
-    expect(schema).toContain('status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled"])');
+    expect(schema).toContain('status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled", "failed"])');
     for (const field of ["cartId", "variantId", "skuId", "qty", "releaseReason", "createdAt", "updatedAt"]) {
       expect(schema).toContain(field);
     }

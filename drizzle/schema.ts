@@ -1869,7 +1869,7 @@ export const stockReservations = mysqlTable("stock_reservations", {
   storeId: int("storeId").notNull(),
   qty: int("qty").notNull(),
   qtyReserved: int("qtyReserved").notNull(),
-  status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled"]).default("active").notNull(),
+  status: mysqlEnum("status", ["active", "released", "expired", "consumed", "cancelled", "failed"]).default("active").notNull(),
   releaseReason: varchar("releaseReason", { length: 200 }),
   reservedAt: timestamp("reservedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

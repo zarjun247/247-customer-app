@@ -4,7 +4,7 @@ import { logAudit } from "./audit";
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 
 const ACTIVE_RESERVATION_STATUS = "active" as const;
-const TERMINAL_RESERVATION_STATUSES = ["released", "expired", "consumed", "cancelled"] as const;
+const TERMINAL_RESERVATION_STATUSES = ["released", "expired", "consumed", "cancelled", "failed"] as const;
 type ReservationReleaseStatus = typeof TERMINAL_RESERVATION_STATUSES[number];
 
 export function computeAvailableQty(input: {
@@ -124,7 +124,7 @@ export async function reserveStockForOrder(input: any) {
     expiresAt,
   });
   const reservationId = (row as any)?.insertId;
-  await logAudit({ action: "reservation.created", entityType: "stock_reservation", entityId: reservationId ?? Number(input.orderId ?? 0), afterJson: { ...input, expiresAt } }, input.ctx);
+  await logAudit({ action: "reservation.created", entityType: "stock_reservation", entityId: reservationId ?? null, entityRef: reservationId ? null : String(input.orderId ?? input.cartId ?? `${input.storeId}:${input.productId}`), afterJson: { ...input, expiresAt } }, input.ctx);
   await appendCommercialEventBestEffort({
     aggregateType: "reservation",
     aggregateId: reservationId ?? input.orderId ?? input.cartId ?? `${input.storeId}:${input.productId}`,
@@ -152,8 +152,8 @@ async function updateReservationStatus(input: any, status: ReservationReleaseSta
   if (input.storeId) conds.push(eq(stockReservations.storeId, input.storeId));
   if (input.productId) conds.push(eq(stockReservations.productId, input.productId));
   await db.update(stockReservations).set({ status, releaseReason }).where(and(...conds));
-  await logAudit({ action: `reservation.${status}`, entityType: "stock_reservation", entityId: Number(input.id ?? input.orderId ?? 0), afterJson: { ...input, status, releaseReason } }, input.ctx);
-  const eventType = status === "consumed" ? "reservation_consumed" : status === "expired" ? "reservation_expired" : "reservation_released";
+  await logAudit({ action: `reservation.${status}`, entityType: "stock_reservation", entityId: typeof input.id === "number" ? input.id : null, entityRef: input.id ? null : String(input.orderId ?? input.cartId ?? "reservation"), afterJson: { ...input, status, releaseReason } }, input.ctx);
+  const eventType = status === "consumed" ? "reservation_consumed" : status === "expired" ? "reservation_expired" : status === "cancelled" ? "reservation_cancelled" : status === "failed" ? "reservation_failed" : "reservation_released";
   await appendCommercialEventBestEffort({
     aggregateType: "reservation",
     aggregateId: input.id ?? input.orderId ?? input.cartId ?? "unknown",
@@ -172,7 +172,7 @@ async function updateReservationStatus(input: any, status: ReservationReleaseSta
 
 export function releaseReservation(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "manual_release"); }
 export function expireReservation(input: any) { return updateReservationStatus(input, "expired", input.releaseReason ?? "reservation_expired"); }
-export function releaseReservationOnPaymentFailure(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "payment_failed"); }
+export function releaseReservationOnPaymentFailure(input: any) { return updateReservationStatus(input, "failed", input.releaseReason ?? "payment_failed"); }
 export function releaseReservationOnRxReject(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "rx_rejected"); }
 export function releaseReservationOnOrderCancel(input: any) { return updateReservationStatus(input, "cancelled", input.releaseReason ?? "order_cancelled"); }
 

@@ -348,6 +348,16 @@ export async function createOrder(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
+  const { assertAvailableForReservation, createReservation, releaseReservation } = await import("./services/reservationLifecycle");
+  for (const item of data.items) {
+    await assertAvailableForReservation({
+      storeId: data.storeId,
+      productId: item.productId,
+      variantId: item.variantId ?? null,
+      qty: item.quantity,
+    });
+  }
+
   const [result] = await db.insert(orders).values({
     userId: data.userId, storeId: data.storeId, prescriptionId: data.prescriptionId,
     subtotal: data.subtotal, total: data.total, promisedSlaMins: data.promisedSlaMins,
@@ -356,16 +366,35 @@ export async function createOrder(data: {
     status: "created",
   });
   const orderId = (result as any).insertId as number;
-  for (const item of data.items) {
-    await db.insert(orderItems).values({
-      orderId,
-      productId: item.productId,
-      variantId: item.variantId ?? null,
-      storeSkuId: item.storeSkuId,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      lineTotal: item.lineTotal,
-    });
+  const reserved: number[] = [];
+  try {
+    for (const item of data.items) {
+      await db.insert(orderItems).values({
+        orderId,
+        productId: item.productId,
+        variantId: item.variantId ?? null,
+        storeSkuId: item.storeSkuId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.lineTotal,
+      });
+      const reservation = await createReservation({
+        orderId,
+        storeId: data.storeId,
+        productId: item.productId,
+        variantId: item.variantId ?? null,
+        skuId: item.storeSkuId,
+        qty: item.quantity,
+        idempotencyKey: `reservation:create:order:${orderId}:sku:${item.storeSkuId}`,
+      });
+      if (reservation.id) reserved.push(reservation.id);
+    }
+  } catch (error) {
+    for (const id of reserved) {
+      await releaseReservation({ id, releaseReason: "checkout_failed" }).catch(() => undefined);
+    }
+    await db.update(orders).set({ status: "cancelled", statusReason: "reservation_failed", statusChangedAt: new Date() }).where(eq(orders.id, orderId));
+    throw error;
   }
   return orderId;
 }
@@ -424,6 +453,10 @@ export async function updateOrderStatus(
   };
   if (status === "delivered") updateData.deliveredAt = new Date();
   await db.update(orders).set(updateData).where(eq(orders.id, orderId));
+  if (status === "cancelled") {
+    const { cancelReservation } = await import("./services/reservationLifecycle");
+    await cancelReservation({ orderId, releaseReason: opts?.reason ?? "order_cancelled" }).catch(() => undefined);
+  }
 }
 
 export async function updateOrderInvoice(orderId: number, invoiceUrl: string, invoiceKey: string) {

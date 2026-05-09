@@ -164,3 +164,10 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Reservation lifecycle rebuild pointer
+
+- Reservation lifecycle truth was rebuilt on branch `feat/rebuild-reservation-lifecycle-truth` with central service `server/services/reservationLifecycle.ts`.
+- State machine: `active -> consumed|released|expired|cancelled|failed`; repeated same-terminal calls are idempotent; terminal drift fails.
+- Migration `0049_reservation_lifecycle_failed_status.sql` adds the explicit `failed` terminal state.
+- DB-backed atomic last-unit race proof is not claimed unless `TEST_DATABASE_URL` concurrency tests pass. Next prompt if incomplete: `feat/atomic-reservation-locking-db-proof`.

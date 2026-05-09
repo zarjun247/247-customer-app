@@ -6,7 +6,7 @@ const patterns = [
   ["TODO production", /TODO\s+production/i],
   ["placeholder provider success", /placeholder\s+provider\s+success/i],
   ["demo success", /demo\s+success/i],
-  ["mock/stub success", /(?:mock|stub)\s+success/i],
+  ["mock-or-stub-success", /(?:mock|stub)\s+success/i],
   ["hardcoded demo data", /hardcoded\s+demo\s+data/i],
   ["analytics placeholder", /analytics.*(?:todo|placeholder|demo)/i],
 ];

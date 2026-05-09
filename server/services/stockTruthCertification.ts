@@ -13,7 +13,7 @@ export const APPROVED_STOCK_MUTATION_GATEWAYS = [
   "release quarantine -> releaseQuarantine",
   "opening stock/batch create -> createBatchWithOpeningStock",
   "stock audit correction movement -> applyStockAuditCorrection",
-  "reservation create/release/consume -> reservationService durable reservation gateway",
+  "reservation create/release/consume/fail -> reservationLifecycle durable reservation gateway",
 ] as const;
 
 export const STOCK_MUTATION_SCANNER_PATTERNS = [
@@ -37,6 +37,7 @@ export const STOCK_MUTATION_SCANNER_PATTERNS = [
 const DEFAULT_ALLOWED_PATHS = [
   "server/services/stockInvariant.ts",
   "server/services/reservationService.ts",
+  "server/services/reservationLifecycle.ts",
   "server/services/stockTruthCertification.ts",
   "server/testUtils/",
   "server/stock-truth-certification.guard.test.ts",

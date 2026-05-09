@@ -37,7 +37,7 @@ const TEST_PATH_RE = /(^|\/)(__fixtures__|fixtures|test|tests|__tests__)\/|\.(gu
 const DOC_PATH_RE = /(^|\/)(docs\/.*|.*\.md)$/i;
 const EXAMPLE_PATH_RE = /(^|\/)(\.env\.example|.*\.example(\.|$)|config\/secrets\.json\.example$)/i;
 
-const STOCK_ALLOWED_RE = /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
+const STOCK_ALLOWED_RE = /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/services\/reservationLifecycle\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
 const RUNTIME_PATH_RE = /(^|\/)(client|server|shared|scripts)\//;
 
 function normalizePath(filePath) {

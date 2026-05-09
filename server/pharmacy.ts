@@ -242,6 +242,11 @@ export async function rejectRx(rxId: number, pharmacistId: number, note: string)
     pharmacistNote: note,
   }).where(eq(prescriptions.id, rxId));
 
+  if (rx[0].linkedOrderId) {
+    const { releaseReservation } = await import("./services/reservationLifecycle");
+    await releaseReservation({ orderId: rx[0].linkedOrderId, releaseReason: "rx_rejected" }).catch(() => undefined);
+  }
+
   await writeRxComplianceLog({ rxId, pharmacistId, action: "rejected", note });
   await emitWorkflowEvent({
     entityType: "prescription",

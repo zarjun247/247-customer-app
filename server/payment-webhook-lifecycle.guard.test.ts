@@ -70,12 +70,12 @@ describe("payment webhook lifecycle safety", () => {
   });
 
   it("releases only active reservations on failed/cancelled/expired payments through reservation service", () => {
-    const reservation = fs.readFileSync("server/services/reservationService.ts", "utf8");
-    expect(service).toContain("releaseReservationOnPaymentFailure");
+    const reservation = fs.readFileSync("server/services/reservationLifecycle.ts", "utf8");
+    expect(service).toContain("failReservation");
     expect(service).toContain('payment_failed');
     expect(service).toContain('payment_cancelled');
     expect(service).toContain('payment_expired');
-    expect(reservation).toContain('eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)');
+    expect(reservation).toContain('eq(stockReservations.status, "active" as const)');
     expect(reservation).toContain('"consumed"');
   });
 
@@ -138,6 +138,6 @@ describe("payment webhook lifecycle safety", () => {
     expect(service).not.toMatch(/\.update\((storeSkus|batches|batchLedger|stockReservations)\)/);
     expect(service).not.toContain("qtyOnHand");
     expect(service).not.toContain("stockQty");
-    expect(service).toContain("reservationService");
+    expect(service).toContain("reservationLifecycle");
   });
 });

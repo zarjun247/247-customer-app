@@ -107,3 +107,10 @@ Before starting restricted work:
 - Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
 - Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
 - Open PRs with stale migration numbers must be rebuilt, not merged.
+
+## Reservation lifecycle rebuild pointer
+
+- Reservation lifecycle truth was rebuilt on branch `feat/rebuild-reservation-lifecycle-truth` with central service `server/services/reservationLifecycle.ts`.
+- State machine: `active -> consumed|released|expired|cancelled|failed`; repeated same-terminal calls are idempotent; terminal drift fails.
+- Migration `0049_reservation_lifecycle_failed_status.sql` adds the explicit `failed` terminal state.
+- DB-backed atomic last-unit race proof is not claimed unless `TEST_DATABASE_URL` concurrency tests pass. Next prompt if incomplete: `feat/atomic-reservation-locking-db-proof`.

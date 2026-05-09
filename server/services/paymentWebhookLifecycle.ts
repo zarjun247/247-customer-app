@@ -6,7 +6,7 @@ import { getOrderById, getOrderItems, updateOrderStatus } from "../db";
 import { createSlaEvent, getPaymentByGatewayOrderId } from "../payment";
 import { providerWebhookEvents, refunds } from "../../drizzle/schema";
 import { verifyGatewayWebhookSignature, markPaymentCaptured, markPaymentFailed, type PaymentVerificationStatus } from "./paymentGateway";
-import { releaseReservationOnPaymentFailure } from "./reservationService";
+import { assertOrderHasActiveReservations, failReservation } from "./reservationLifecycle";
 import { markRefundFailedRecord, markRefundSuccess } from "./refundService";
 import { logAudit } from "./audit";
 import { redactObject } from "../_core/redact";
@@ -189,6 +189,7 @@ export async function advanceOrderAfterPaymentCaptured(input: { gatewayOrderId: 
   if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
   if (payment.status === "paid") return { ok: true, orderId: payment.orderId, idempotent: true };
 
+  await assertOrderHasActiveReservations(payment.orderId);
   await markPaymentCaptured(input);
   const order = await getOrderById(payment.orderId);
   if (order) {
@@ -203,7 +204,7 @@ export async function advanceOrderAfterPaymentCaptured(input: { gatewayOrderId: 
 }
 
 async function releaseReservationForFailedPayment(orderId: number, reason: "failed" | "cancelled" | "expired") {
-  await releaseReservationOnPaymentFailure({ orderId, releaseReason: PAYMENT_RELEASE_REASON_BY_LIFECYCLE[reason] });
+  await failReservation({ orderId, releaseReason: PAYMENT_RELEASE_REASON_BY_LIFECYCLE[reason] });
 }
 
 export async function handleRazorpayWebhook(input: { rawBody?: string | Buffer | null; signature?: string | null }): Promise<ProviderWebhookResult> {

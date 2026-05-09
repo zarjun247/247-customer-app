@@ -348,6 +348,11 @@ export const prescriptionGovRouter = router({
         linkedOrderId: input.linkedOrderId ?? rx.linkedOrderId,
       }).where(eq(prescriptions.id, input.id));
 
+      if (input.decision === "rejected" && (input.linkedOrderId ?? rx.linkedOrderId)) {
+        const { releaseReservation } = await import("../services/reservationLifecycle");
+        await releaseReservation({ orderId: input.linkedOrderId ?? rx.linkedOrderId, releaseReason: "rx_rejected", ctx }).catch(() => undefined);
+      }
+
       // If approving, auto-approve all pending lines
       if (input.decision === "approved") {
         await db.update(prescriptionLines).set({

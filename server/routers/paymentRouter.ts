@@ -26,6 +26,7 @@ import {
 import { getOrderById } from "../db";
 import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
 import { initiateRefund, verifyRefundStatus } from "../services/refundService";
+import { failReservation } from "../services/reservationLifecycle";
 
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
 
@@ -113,7 +114,11 @@ export const paymentRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
       await markPaymentFailed({ gatewayOrderId: input.gatewayOrderId, reason: input.reason });
+      if (payment?.orderId) {
+        await failReservation({ orderId: payment.orderId, releaseReason: input.reason ?? "payment_failed", ctx });
+      }
       return { success: true };
     }),
 
