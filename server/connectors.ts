@@ -16,6 +16,34 @@
 import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
+import { markProviderFailure, markProviderNotConfigured, markProviderSuccess, type ProviderType } from "./services/providerRuntime";
+
+
+function redactProviderLog(value: string) {
+  return value.replace(/\b\d{6}\b/g, "[REDACTED]").replace(/prescription[^,|]*/gi, "prescription:[REDACTED]");
+}
+
+async function auditProviderResult(input: {
+  providerType: ProviderType;
+  operationType: "send" | "print" | "sync" | "create_order" | "verify" | "refund";
+  entityType: string;
+  entityRef: string | number;
+  status: string;
+  providerRef?: string | null;
+  requestPayload?: unknown;
+  responsePayload?: unknown;
+  error?: unknown;
+}) {
+  if (input.status === "sent" || input.status === "printed" || input.status === "synced" || input.status === "verified" || input.status === "completed") {
+    await markProviderSuccess({ ...input, status: input.status as any, idempotencyKey: `${input.providerType}:${input.operationType}:${input.entityType}:${input.entityRef}` });
+    return;
+  }
+  if (input.status === "provider_unconfigured" || input.status === "skipped_demo") {
+    await markProviderNotConfigured({ ...input, status: "not_configured", idempotencyKey: `${input.providerType}:${input.operationType}:${input.entityType}:${input.entityRef}` });
+    return;
+  }
+  await markProviderFailure({ ...input, status: "failed", idempotencyKey: `${input.providerType}:${input.operationType}:${input.entityType}:${input.entityRef}` });
+}
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
@@ -137,9 +165,10 @@ export const smsConnector: SmsConnector = {
       >("SMS", ["SMS_PROVIDER_API_KEY"]);
 
       if (result.status === "skipped_demo") {
-        console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${message}`);
+        console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${redactProviderLog(message)}`);
       }
 
+      await auditProviderResult({ providerType: "sms", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, requestPayload: { phone } });
       return result;
     }
 
@@ -169,22 +198,20 @@ export const smsConnector: SmsConnector = {
         const text = await res.text();
         console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
 
-        return {
-          status: "failed",
-          ok: false,
-          reason: `MSG91 error: ${res.status}`,
-        };
+        const result = { status: "failed" as const, ok: false, reason: `MSG91 error: ${res.status}` };
+        await auditProviderResult({ providerType: "sms", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, error: result.reason, responsePayload: { httpStatus: res.status } });
+        return result;
       }
 
-      return { status: "sent", ok: true };
+      const result = { status: "sent" as const, ok: true };
+      await auditProviderResult({ providerType: "sms", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, responsePayload: { httpStatus: res.status } });
+      return result;
     } catch (err) {
       console.error("[SMS] Failed to send via MSG91:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "MSG91 request failed",
-      };
+      const result = { status: "failed" as const, ok: false, reason: "MSG91 request failed" };
+      await auditProviderResult({ providerType: "sms", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, error: err });
+      return result;
     }
   },
 
@@ -209,10 +236,11 @@ export const smsConnector: SmsConnector = {
 
       if (result.status === "skipped_demo") {
         console.log(
-          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`,
+          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.map(redactProviderLog).join(", ")}`,
         );
       }
 
+      await auditProviderResult({ providerType: "whatsapp", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, requestPayload: { templateName } });
       return result;
     }
 
@@ -260,22 +288,20 @@ export const smsConnector: SmsConnector = {
         const text = await res.text();
         console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
 
-        return {
-          status: "failed",
-          ok: false,
-          reason: `WhatsApp Cloud API error: ${res.status}`,
-        };
+        const result = { status: "failed" as const, ok: false, reason: `WhatsApp Cloud API error: ${res.status}` };
+        await auditProviderResult({ providerType: "whatsapp", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, error: result.reason, responsePayload: { httpStatus: res.status } });
+        return result;
       }
 
-      return { status: "sent", ok: true };
+      const result = { status: "sent" as const, ok: true };
+      await auditProviderResult({ providerType: "whatsapp", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, responsePayload: { httpStatus: res.status } });
+      return result;
     } catch (err) {
       console.error("[WhatsApp] Failed to send:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "WhatsApp Cloud API request failed",
-      };
+      const result = { status: "failed" as const, ok: false, reason: "WhatsApp Cloud API request failed" };
+      await auditProviderResult({ providerType: "whatsapp", operationType: "send", entityType: "phone", entityRef: phone, status: result.status, error: err });
+      return result;
     }
   },
 };
@@ -555,10 +581,11 @@ export const labelPrinterConnector: LabelPrinterConnector = {
 
       if (result.status === "skipped_demo") {
         console.log(
-          `[Printer DEMO SKIPPED] Dispatch label for order #${params.orderId}:\n${zpl}`,
+          `[Printer DEMO SKIPPED] Dispatch label for order #${params.orderId}: [ZPL_REDACTED]`,
         );
       }
 
+      await auditProviderResult({ providerType: "printer", operationType: "print", entityType: "order", entityRef: params.orderId, status: result.status, requestPayload: { orderId: params.orderId } });
       return { ...result, zpl };
     }
 
@@ -580,16 +607,15 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         });
       });
 
-      return { status: "printed", ok: true, zpl };
+      const result = { status: "printed" as const, ok: true, zpl };
+      await auditProviderResult({ providerType: "printer", operationType: "print", entityType: "order", entityRef: params.orderId, status: result.status, responsePayload: { printerHostConfigured: true } });
+      return result;
     } catch (err) {
       console.error("[Printer] Failed to send dispatch label:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "Printer delivery failed",
-        zpl,
-      };
+      const result = { status: "failed" as const, ok: false, reason: "Printer delivery failed", zpl };
+      await auditProviderResult({ providerType: "printer", operationType: "print", entityType: "order", entityRef: params.orderId, status: result.status, error: err });
+      return result;
     }
   },
 
@@ -610,10 +636,11 @@ export const labelPrinterConnector: LabelPrinterConnector = {
 
       if (result.status === "skipped_demo") {
         console.log(
-          `[Printer DEMO SKIPPED] Batch label for ${params.productName}:\n${zpl}`,
+          `[Printer DEMO SKIPPED] Batch label for ${params.productName}: [ZPL_REDACTED]`,
         );
       }
 
+      await auditProviderResult({ providerType: "printer", operationType: "print", entityType: "batch", entityRef: params.batchNumber, status: result.status, requestPayload: { batchNumber: params.batchNumber } });
       return { ...result, zpl };
     }
 
@@ -635,16 +662,15 @@ export const labelPrinterConnector: LabelPrinterConnector = {
         });
       });
 
-      return { status: "printed", ok: true, zpl };
+      const result = { status: "printed" as const, ok: true, zpl };
+      await auditProviderResult({ providerType: "printer", operationType: "print", entityType: "batch", entityRef: params.batchNumber, status: result.status, responsePayload: { printerHostConfigured: true } });
+      return result;
     } catch (err) {
       console.error("[Printer] Failed to send batch label:", err);
 
-      return {
-        status: "failed",
-        ok: false,
-        reason: "Printer delivery failed",
-        zpl,
-      };
+      const result = { status: "failed" as const, ok: false, reason: "Printer delivery failed", zpl };
+      await auditProviderResult({ providerType: "printer", operationType: "print", entityType: "batch", entityRef: params.batchNumber, status: result.status, error: err });
+      return result;
     }
   },
 };
@@ -707,6 +733,7 @@ export const erpConnector: ErpSyncConnector = {
         );
       }
 
+      await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "grn", entityRef: ingestionId, status: result.status, requestPayload: { ingestionId, storeId } });
       return { ...result, erpRef: null };
     }
 
@@ -725,31 +752,22 @@ export const erpConnector: ErpSyncConnector = {
         const text = await res.text();
         console.error(`[ERP] pushGrn error: ${res.status} ${text}`);
 
-        return {
-          erpRef: null,
-          status: "failed",
-          ok: false,
-          reason: `ERP GRN sync failed: ${res.status}`,
-        };
+        const result = { erpRef: null, status: "failed" as const, ok: false, reason: `ERP GRN sync failed: ${res.status}` };
+        await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "grn", entityRef: ingestionId, status: result.status, error: result.reason, responsePayload: { httpStatus: res.status } });
+        return result;
       }
 
       const data = (await res.json()) as { ref?: string; status?: string };
 
-      return {
-        erpRef: data.ref ?? `GRN-${ingestionId}`,
-        status: "synced",
-        ok: true,
-        reason: data.status,
-      };
+      const result = { erpRef: data.ref ?? `GRN-${ingestionId}`, status: "synced" as const, ok: true, reason: data.status };
+      await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "grn", entityRef: ingestionId, status: result.status, providerRef: result.erpRef, responsePayload: { ref: result.erpRef } });
+      return result;
     } catch (err) {
       console.error("[ERP] pushGrn failed:", err);
 
-      return {
-        erpRef: null,
-        status: "failed",
-        ok: false,
-        reason: "ERP GRN sync failed",
-      };
+      const result = { erpRef: null, status: "failed" as const, ok: false, reason: "ERP GRN sync failed" };
+      await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "grn", entityRef: ingestionId, status: result.status, error: err });
+      return result;
     }
   },
 
@@ -774,6 +792,7 @@ export const erpConnector: ErpSyncConnector = {
         );
       }
 
+      await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "sales_order", entityRef: orderId, status: result.status, requestPayload: { orderId, storeId } });
       return { ...result, erpRef: null };
     }
 
@@ -792,31 +811,22 @@ export const erpConnector: ErpSyncConnector = {
         const text = await res.text();
         console.error(`[ERP] pushSalesOrder error: ${res.status} ${text}`);
 
-        return {
-          erpRef: null,
-          status: "failed",
-          ok: false,
-          reason: `ERP sales order sync failed: ${res.status}`,
-        };
+        const result = { erpRef: null, status: "failed" as const, ok: false, reason: `ERP sales order sync failed: ${res.status}` };
+        await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "sales_order", entityRef: orderId, status: result.status, error: result.reason, responsePayload: { httpStatus: res.status } });
+        return result;
       }
 
       const data = (await res.json()) as { ref?: string; status?: string };
 
-      return {
-        erpRef: data.ref ?? `SO-${orderId}`,
-        status: "synced",
-        ok: true,
-        reason: data.status,
-      };
+      const result = { erpRef: data.ref ?? `SO-${orderId}`, status: "synced" as const, ok: true, reason: data.status };
+      await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "sales_order", entityRef: orderId, status: result.status, providerRef: result.erpRef, responsePayload: { ref: result.erpRef } });
+      return result;
     } catch (err) {
       console.error("[ERP] pushSalesOrder failed:", err);
 
-      return {
-        erpRef: null,
-        status: "failed",
-        ok: false,
-        reason: "ERP sales order sync failed",
-      };
+      const result = { erpRef: null, status: "failed" as const, ok: false, reason: "ERP sales order sync failed" };
+      await auditProviderResult({ providerType: "tally", operationType: "sync", entityType: "sales_order", entityRef: orderId, status: result.status, error: err });
+      return result;
     }
   },
 };

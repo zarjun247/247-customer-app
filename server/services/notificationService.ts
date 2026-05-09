@@ -8,6 +8,8 @@ export type NotificationSendStatus =
   | "sent"
   | "failed"
   | "provider_unconfigured"
+  | "not_configured"
+  | "disabled"
   | "retry_scheduled"
   | "dead_letter"
   | "skipped_demo";
@@ -97,7 +99,10 @@ export async function sendNotification(id: number, providerResult: boolean | { o
 }
 
 export function normalizeProviderResult(providerResult: boolean | { ok?: boolean; status?: NotificationSendStatus; providerMessageId?: string; error?: string } | null | undefined) {
-  if (providerResult === true) return { status: "sent" as const };
+  if (providerResult === true) {
+    if (process.env.NODE_ENV === "production") return { status: "failed" as const, error: "boolean_success_rejected_in_production" };
+    return { status: "sent" as const, providerMessageId: "dev-test-local-notification" };
+  }
   if (providerResult === false) return { status: "failed" as const, error: "provider_returned_false" };
   if (!providerResult) return { status: "provider_unconfigured" as const, error: "provider_unavailable" };
   if (providerResult.status) {
@@ -107,7 +112,10 @@ export function normalizeProviderResult(providerResult: boolean | { ok?: boolean
       error: providerResult.error,
     };
   }
-  if (providerResult.ok === true) return { status: "sent" as const, providerMessageId: providerResult.providerMessageId };
+  if (providerResult.ok === true) {
+    if (process.env.NODE_ENV === "production" && !providerResult.providerMessageId) return { status: "failed" as const, error: "provider_success_missing_confirmation" };
+    return { status: "sent" as const, providerMessageId: providerResult.providerMessageId };
+  }
   return { status: "failed" as const, error: providerResult.error ?? "provider_failed" };
 }
 

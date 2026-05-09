@@ -799,6 +799,39 @@ export const paymentRecords = mysqlTable("payment_records", {
 });
 
 
+
+export const providerOperationAttempts = mysqlTable("provider_operation_attempts", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  providerType: mysqlEnum("providerType", ["payment", "whatsapp", "sms", "otp", "email", "push", "ocr", "printer", "tally", "storage", "maps", "other"]).notNull(),
+  operationType: mysqlEnum("operationType", ["send", "verify", "create_order", "capture", "refund", "parse", "print", "upload", "export", "sync", "webhook"]).notNull(),
+  entityType: varchar("entityType", { length: 100 }).notNull(),
+  entityRef: varchar("entityRef", { length: 150 }).notNull(),
+  storeId: int("storeId"),
+  userId: int("userId"),
+  status: mysqlEnum("status", ["pending", "queued", "sent", "synced", "verified", "printed", "completed", "failed", "retrying", "dead_letter", "disabled", "not_configured", "manual_required", "cancelled"]).default("pending").notNull(),
+  providerRef: varchar("providerRef", { length: 200 }),
+  idempotencyKey: varchar("idempotencyKey", { length: 255 }),
+  attemptCount: int("attemptCount").default(1).notNull(),
+  nextRetryAt: timestamp("nextRetryAt"),
+  lastErrorCode: varchar("lastErrorCode", { length: 100 }),
+  lastErrorMessage: text("lastErrorMessage"),
+  requestHash: varchar("requestHash", { length: 64 }),
+  responseHash: varchar("responseHash", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  deadLetteredAt: timestamp("deadLetteredAt"),
+}, (t) => ({
+  idxProviderOperationTypeStatus: index("idx_provider_operation_attempts_type_status").on(t.providerType, t.operationType, t.status),
+  idxProviderOperationEntity: index("idx_provider_operation_attempts_entity").on(t.entityType, t.entityRef),
+  uqProviderOperationIdempotency: uniqueIndex("provider_operation_attempts_idempotency_key_uq").on(t.idempotencyKey),
+  idxProviderOperationRetry: index("idx_provider_operation_attempts_retry").on(t.nextRetryAt, t.status),
+  idxProviderOperationStoreCreated: index("idx_provider_operation_attempts_store_created").on(t.storeId, t.createdAt),
+}));
+
+export type ProviderOperationAttempt = typeof providerOperationAttempts.$inferSelect;
+export type InsertProviderOperationAttempt = typeof providerOperationAttempts.$inferInsert;
+
 export const providerWebhookEvents = mysqlTable("provider_webhook_events", {
   id: int("id").autoincrement().primaryKey(),
   provider: varchar("provider", { length: 50 }).notNull(),
@@ -2723,7 +2756,7 @@ export const notificationEvents = mysqlTable("notification_events", {
   title: varchar("title", { length: 200 }).notNull(),
   body: text("body").notNull(),
   safePayloadJson: text("safePayloadJson"),
-  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "provider_unconfigured", "retry_scheduled", "dead_letter", "skipped_demo"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "read", "provider_unconfigured", "not_configured", "disabled", "retry_scheduled", "dead_letter", "skipped_demo"]).default("pending").notNull(),
   provider: varchar("provider", { length: 80 }),
   providerMessageId: varchar("providerMessageId", { length: 150 }),
   scheduledFor: timestamp("scheduledFor"),

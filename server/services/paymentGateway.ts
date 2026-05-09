@@ -5,6 +5,7 @@ import { getOrderById } from "../db";
 import { createPaymentRecord, getPaymentByGatewayOrderId, getPaymentByOrderId, confirmPaymentRecord, failPaymentRecord } from "../payment";
 import { isProviderEnabled } from "../_core/env";
 import { redactObject } from "../_core/redact";
+import { markProviderFailure, markProviderNotConfigured, markProviderSuccess } from "./providerRuntime";
 
 export type PaymentVerificationStatus = "verified" | "failed" | "provider_unconfigured" | "demo_skipped";
 export type PaymentLifecycleStatus = "persisted" | "demo_skipped" | "not_implemented";
@@ -55,15 +56,20 @@ export async function verifyGatewayPaymentSignature(input: { gatewayOrderId: str
   const secret = process.env.RAZORPAY_KEY_SECRET;
   if (!secret) {
     if (isExplicitPaymentDemoMode() && !runtimeIsProduction()) {
+      await markProviderNotConfigured({ providerType: "payment", operationType: "verify", entityType: "razorpay_payment", entityRef: input.gatewayPaymentId, idempotencyKey: `payment:verify:${input.gatewayOrderId}:${input.gatewayPaymentId}`, error: "demo_skipped" });
       return { verified: false, status: "demo_skipped", message: "Razorpay payment verification skipped in explicit demo/test mode" };
     }
+    await markProviderNotConfigured({ providerType: "payment", operationType: "verify", entityType: "razorpay_payment", entityRef: input.gatewayPaymentId, idempotencyKey: `payment:verify:${input.gatewayOrderId}:${input.gatewayPaymentId}`, error: "Razorpay key secret missing" });
     return { verified: false, status: "provider_unconfigured", message: "Razorpay key secret missing" };
   }
 
   const verified = await paymentConnector.verifyPayment(input);
-  return verified
-    ? { verified: true, status: "verified" }
-    : { verified: false, status: "failed", message: "Payment signature mismatch" };
+  if (verified) {
+    await markProviderSuccess({ providerType: "payment", operationType: "verify", entityType: "razorpay_payment", entityRef: input.gatewayPaymentId, idempotencyKey: `payment:verify:${input.gatewayOrderId}:${input.gatewayPaymentId}`, status: "verified", providerRef: input.gatewayPaymentId, responsePayload: { signatureVerified: true } });
+    return { verified: true, status: "verified" };
+  }
+  await markProviderFailure({ providerType: "payment", operationType: "verify", entityType: "razorpay_payment", entityRef: input.gatewayPaymentId, idempotencyKey: `payment:verify:${input.gatewayOrderId}:${input.gatewayPaymentId}`, error: "Payment signature mismatch" });
+  return { verified: false, status: "failed", message: "Payment signature mismatch" };
 }
 
 export function verifyGatewayWebhookSignature(rawBody: string, signature?: string | null) {

@@ -107,3 +107,8 @@ Before starting restricted work:
 - Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
 - Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
 - Open PRs with stale migration numbers must be rebuilt, not merged.
+
+## Provider runtime enforcement branch allocation
+
+- `feat/rebuild-provider-runtime-enforcement` uses migration `0049_provider_operation_attempts.sql`.
+- Next branch that needs a migration must reserve `0050` or later after rebasing on this branch/main.

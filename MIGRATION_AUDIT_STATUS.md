@@ -12,8 +12,8 @@ Migration sequence collision surgery status for `fix/migration-sequence-collisio
 | Latest main SHA inspected | `aef2de3` (`Merge pull request #99 from zarjun247/codex/certify-stock-mutation-gateways-and-reporting`) |
 | Remote refresh status | Attempted `git fetch origin main`, `git checkout main`, and `git pull --rebase origin main`; unavailable because this checkout has no configured `origin` remote and no local `main` branch. Work proceeded from the local main-equivalent `work` branch tip `aef2de3`. |
 | Migration files changed by this PR | Renames only; no new SQL migration bodies were added and no SQL body semantics were changed. |
-| Corrected latest numbered migration | `0048_rbac_staff_session_governance.sql` |
-| Next reserved migration number | `0049` |
+| Corrected latest numbered migration | `0049_provider_operation_attempts.sql` |
+| Next reserved migration number | `0050` |
 
 ## Static migration inventory after surgery
 
@@ -65,6 +65,7 @@ Migration sequence collision surgery status for `fix/migration-sequence-collisio
 | `0046` | `0046_commercial_event_ledger.sql` | Commercial lifecycle event ledger | Present; unique prefix after surgery |
 | `0047` | `0047_worker_jobs.sql` | Worker job queue durability | Present; unique prefix after surgery |
 | `0048` | `0048_rbac_staff_session_governance.sql` | Runtime RBAC and privileged staff session governance | Present; unique prefix after surgery |
+| `0049` | `0049_provider_operation_attempts.sql` | Provider operation attempt ledger and notification status expansion | Present; unique prefix after provider runtime rebuild |
 
 Non-numbered SQL files remain present and intentionally outside the numbered Drizzle sequence: `part10_whatsapp.sql`, `part11_routing_rider.sql`, and `part12_system_events.sql`.
 
