@@ -1,0 +1,1 @@
+Governance notes: scripts/repo-governance-audit.mjs introduced to detect stale branches, migration conflicts, placeholders. Integrate in CI as a required check.
