@@ -138,3 +138,12 @@ Do **not** run parallel branches in these areas without explicit sequencing:
 ## Schema migration audit rule
 
 Any PR touching `drizzle/schema.ts` or `drizzle/*.sql` must include migration audit proof and use the next reserved migration number from `MIGRATION_AUDIT_STATUS.md`.
+
+## Runtime no-stubs/no-fake-success addendum (2026-05-09)
+
+- No PR may introduce production runtime stubs, placeholders, mock/demo data paths, or silent no-op mutations.
+- No PR may mark a provider operation successful without real provider proof or an explicit queued/pending/manual state that cannot be confused with success.
+- No PR may hide TODOs in safety-critical code paths such as payment, refunds, stock/reservation, prescription/Rx/H1 release, privacy/consent, storage access, delivery release, or worker completion.
+- No PR may use fake data in production dashboards, placeholder metrics, or green status cards without live backing endpoints.
+- No docs/status PR may claim production-ready, launched, complete, green, or 10/10 unless current validation evidence is linked.
+- Runtime-stub findings and cleanup ownership are tracked in `RUNTIME_STUB_PLACEHOLDER_AUDIT.md`, `FAKE_SUCCESS_CLEANUP_MAP.md`, and `NO_STUBS_NO_PLACEHOLDERS_PRODUCTION_DOCTRINE.md`.

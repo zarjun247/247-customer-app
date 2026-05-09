@@ -164,3 +164,10 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Runtime stubs / placeholders / fake-success audit pointer (2026-05-09)
+
+- Current runtime stub, placeholder, demo-path, TODO, and fake-success findings are tracked in `RUNTIME_STUB_PLACEHOLDER_AUDIT.md`.
+- Provider/payment/operational fake-success cleanup ownership is mapped in `FAKE_SUCCESS_CLEANUP_MAP.md`.
+- Launch doctrine for no production stubs/placeholders/fake success is codified in `NO_STUBS_NO_PLACEHOLDERS_PRODUCTION_DOCTRINE.md`.
+- This pointer does not claim production readiness; P0/P1 findings in the audit remain launch blockers until fixed and validated on latest main.

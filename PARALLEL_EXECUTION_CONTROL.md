@@ -107,3 +107,10 @@ Before starting restricted work:
 - Docs/governance-only prompts may continue if they do not claim migration repair or production readiness.
 - Runtime-only PRs that do not touch schema may proceed only after explicit review confirms no `drizzle/schema.ts` or `drizzle/*.sql` changes.
 - Open PRs with stale migration numbers must be rebuilt, not merged.
+
+## Runtime-stub audit parallel-safety note (2026-05-09)
+
+- The `chore/runtime-stub-placeholder-fake-success-audit` branch is parallel-safe because it is docs/audit only.
+- Fixes from `RUNTIME_STUB_PLACEHOLDER_AUDIT.md` and `FAKE_SUCCESS_CLEANUP_MAP.md` must be separate targeted PRs with domain owners and focused validation.
+- Do not mix this audit with runtime fixes, schema changes, migrations, dependency changes, or scanner weakening.
+- Any future scanner false-positive improvements must be narrow, path-aware, and must prove real runtime fake-success/stub findings are still caught.
