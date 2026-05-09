@@ -23,6 +23,10 @@ import {
   productVariants,
 } from "../drizzle/schema";
 import { eq, like, and } from "drizzle-orm";
+import {
+  assertOcrProviderReady,
+  assertRealOcrEvidence,
+} from "./services/ocrProductionSafety";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +57,7 @@ export async function extractInvoiceItems(
   fileUrl: string,
   mimeType: string
 ): Promise<ExtractedLineItem[]> {
+  assertOcrProviderReady();
   const isPdf = mimeType === "application/pdf";
 
   const contentPart = isPdf
@@ -130,13 +135,21 @@ export async function extractInvoiceItems(
   });
 
   const raw = response.choices?.[0]?.message?.content;
-  if (!raw) return [];
+  if (!raw)
+    throw new Error("manual_required: OCR provider returned no parse payload");
 
   try {
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return (parsed.items ?? []) as ExtractedLineItem[];
-  } catch {
-    return [];
+    const items = (parsed.items ?? []) as ExtractedLineItem[];
+    if (!items.length)
+      throw new Error(
+        "manual_required: OCR provider returned no invoice line items"
+      );
+    return items;
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("manual_required:"))
+      throw err;
+    throw new Error("manual_required: OCR provider parse failed");
   }
 }
 
@@ -178,7 +191,7 @@ export async function matchProduct(
   }
 
   // Partial match by first significant word
-  const words = name.split(/\s+/).filter((w) => w.length > 3);
+  const words = name.split(/\s+/).filter(w => w.length > 3);
   if (words.length === 0) return null;
 
   const partialMatches = await db
@@ -195,8 +208,8 @@ export async function matchProduct(
   for (const match of partialMatches) {
     const matchName = match.name.toLowerCase();
     const matchWords = matchName.split(/\s+/);
-    const overlap = words.filter((w) =>
-      matchWords.some((mw) => mw.includes(w) || w.includes(mw))
+    const overlap = words.filter(w =>
+      matchWords.some(mw => mw.includes(w) || w.includes(mw))
     ).length;
     const score = Math.round(
       (overlap / Math.max(words.length, matchWords.length)) * 90
@@ -282,16 +295,17 @@ export async function runOcrPipeline(ingestionId: number): Promise<void> {
   if (ingestionRows.length === 0)
     throw new Error(`Ingestion ${ingestionId} not found`);
   const ingestion = ingestionRows[0];
+  assertRealOcrEvidence({
+    fileUrl: ingestion.fileUrl,
+    fileKey: ingestion.fileKey,
+  });
 
   // Find the queued OCR job
   const jobRows = await db
     .select()
     .from(ocrJobs)
     .where(
-      and(
-        eq(ocrJobs.ingestionId, ingestionId),
-        eq(ocrJobs.status, "queued")
-      )
+      and(eq(ocrJobs.ingestionId, ingestionId), eq(ocrJobs.status, "queued"))
     )
     .limit(1);
 
@@ -311,7 +325,10 @@ export async function runOcrPipeline(ingestionId: number): Promise<void> {
 
   try {
     // Extract items via LLM
-    const items = await extractInvoiceItems(ingestion.fileUrl, ingestion.mimeType);
+    const items = await extractInvoiceItems(
+      ingestion.fileUrl,
+      ingestion.mimeType
+    );
 
     // Save raw response to OCR job
     await db
@@ -378,7 +395,7 @@ export async function runOcrPipeline(ingestionId: number): Promise<void> {
     await db
       .update(invoiceIngestions)
       .set({
-        ocrRawText: items.map((i) => i.rawLine).join("\n"),
+        ocrRawText: items.map(i => i.rawLine).join("\n"),
         itemCount: reviewRows.length,
         status: "under_review",
       })
@@ -397,10 +414,12 @@ export async function runOcrPipeline(ingestionId: number): Promise<void> {
       .set({ status: "failed", errorMessage })
       .where(eq(ocrJobs.id, job.id));
 
-    // Reset ingestion so worker can retry
     await db
       .update(invoiceIngestions)
-      .set({ status: "pending_ocr" })
+      .set({
+        status: "under_review",
+        notes: `OCR failed: ${errorMessage}. Manual review required.`,
+      })
       .where(eq(invoiceIngestions.id, ingestionId));
 
     throw err;
