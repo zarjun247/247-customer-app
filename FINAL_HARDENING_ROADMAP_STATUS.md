@@ -6,6 +6,7 @@ Canonical roadmap status for the next hardening waves as of 2026-05-08.
 
 - Current main truth: create and maintain `CURRENT_MAIN_TRUTH.md` as the canonical readiness source until final merge-captain audit.
 - Stale PR control: maintain `STALE_PR_STATUS.md` and close/rebase stale duplicate PRs only after GitHub-side confirmation.
+- Branch protection dependency: complete and manually verify `BRANCH_PROTECTION_ENFORCEMENT_STATUS.md` before any schema/migration branch, race-mode hardening branch, multi-store beta claim, or production merge train is treated as safe.
 - Resolve product-master runtime gates: keep PR `#66` active if still open; rebase and resolve conflicts separately rather than closing it as stale.
 
 ## Wave A — Proof layer hardening

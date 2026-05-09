@@ -74,6 +74,16 @@ From `package.json`:
 | `test:db:bootstrap` | `tsx scripts/bootstrap-test-db.ts` |
 | `test:db:smoke` | `vitest run server/mysql-db-lifecycle.integration.test.ts` |
 
+
+## Branch protection status (2026-05-09)
+
+- Branch protection enforcement requirements are now implemented in repository documentation at `BRANCH_PROTECTION_ENFORCEMENT_STATUS.md`.
+- GitHub-side branch protection remains **pending manual settings proof** from repository administrators because this environment has no `origin` remote, no `gh` CLI, and no authenticated GitHub branch-protection API access.
+- The branch-protection proof pack is required before race-mode, multi-store beta, or unsupervised production claims because stale PRs and duplicate migration-prefix PRs must be blocked at the merge gate.
+- Current doctrine: docs-only governance PRs may run in parallel, but schema/migration PRs must pause until migration-number surgery is complete and branch protection requires the migration uniqueness checks.
+
+- Local validation on this proof branch currently exposes the migration-collision P0: duplicate `0045` and `0046` migration prefixes are present in the checkout, causing migration uniqueness guards to fail. This docs-only PR intentionally does not edit migration SQL; migration surgery remains a separate required fix.
+
 ## Current CI workflow files
 
 | Workflow file | Jobs inspected |

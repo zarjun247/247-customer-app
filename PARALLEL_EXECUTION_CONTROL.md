@@ -11,6 +11,19 @@ Parallel execution control contract for Wave 0 / Prompt 1 as of 2026-05-08.
 | Validation results | `pnpm install` passed with warnings; `pnpm run check` passed; `pnpm test -- --runInBand` passed with MySQL integration skipped; `pnpm run build` passed with Vite warnings; `git diff --check` passed. |
 | Purpose | Prevent parallel Codex branches from colliding in schema, inventory, payment, prescription, compliance, provider, and auth/session domains. |
 
+
+## Current P0 sequencing rules after migration-collision discovery (2026-05-09)
+
+- Migration-number collision surgery is P0 and must merge before any schema or migration PR.
+- Branch protection proof must be completed and manually verified before multi-store/race-mode production claims or production rollout.
+- Docs-only PRs may run in parallel only when they do not modify runtime files, package manifests, lockfiles, schema, or migration SQL.
+- Schema PRs must pause until migration numbering is clean and the next migration number is reserved from `MIGRATION_AUDIT_STATUS.md`.
+- Runtime PRs touching the same domain must not run in parallel; one owner must sequence stock, payment, purchase, sales, prescription, compliance, auth/session, provider, and worker domains.
+- Current open PRs #94/#95/#96 likely require rebuild after migration surgery if they use stale migration prefixes such as old duplicate `0045`/`0046`.
+- Current open PRs #88/#89/#90/#91 require explicit rebase/salvage decisions before merge because stale branches must not land by accepting old branch state wholesale.
+- Old PRs #2–#11/#19/#44/#46/#47/#62/#66/#68/#76/#80/#86 should not merge directly. If any contain unique value, rebuild only the needed diff from latest protected `main`.
+- A PR that touches `drizzle/schema.ts`, `drizzle/*.sql`, Drizzle metadata, stock invariant gateways, payment lifecycle, prescription/privacy controls, admin/RBAC routes, provider connectors, or CI/governance scans must declare its restricted domain and wait for explicit sequencing.
+
 ## Safe parallel domains
 
 These domains may run in parallel when each branch stays inside its boundaries, cites changed files, and runs required validation.
