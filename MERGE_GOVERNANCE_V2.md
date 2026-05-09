@@ -104,3 +104,7 @@ Do **not** run parallel branches in these areas without explicit sequencing:
 1. GitHub branch-protection and stale-PR governance pass with authenticated tooling.
 2. Migration metadata/journal reconciliation review.
 3. Parallel wave kickoff using `PARALLEL_EXECUTION_CONTROL.md` as the domain ownership contract.
+
+## Schema migration audit rule
+
+Any PR touching `drizzle/schema.ts` or `drizzle/*.sql` must include migration audit proof and use the next reserved migration number from `MIGRATION_AUDIT_STATUS.md`.
