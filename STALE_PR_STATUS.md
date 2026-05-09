@@ -66,3 +66,8 @@ Because this environment does not provide a remote or authenticated GitHub tooli
 - Never merge stale duplicate branches.
 - Recreate useful work from latest main instead of merging stale branch histories.
 - Latest main wins unless the active branch owns the exact domain and its changes are deliberately being accepted.
+## 2026-05-09 Open PR control-room pointers
+
+- Canonical open PR classification: `OPEN_PR_CONTROL_ROOM.md`.
+- Exact next rebuild sequence: `NEXT_REBUILD_QUEUE.md`.
+- Approved stale/duplicate/rebuild comment templates: `OPEN_PR_CLOSURE_COMMENTS.md`.

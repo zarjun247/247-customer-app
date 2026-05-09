@@ -1,5 +1,20 @@
 # PRODUCTION_READINESS_STATUS
 
+## 2026-05-09 Open PR control-room update
+- Current score estimate: 7.8 / 10.
+- Architecture is strong pre-production architecture, not 10/10 launch-ready.
+- Launch-readiness remains blocked by:
+  - open PR cleanup
+  - provider runtime enforcement
+  - observability/healthchecks
+  - DB-backed concurrency proof
+  - payment webhook/refund settlement truth
+  - barcode screen-level UX wiring
+  - OCR fake-success cleanup if still present
+  - deployment/backup/restore proof
+- Next control doc: `OPEN_PR_CONTROL_ROOM.md`.
+- Next execution doc: `NEXT_REBUILD_QUEUE.md`.
+
 ## 1. Current score
 - Overall: 7.4 / 10
 - Last updated by: feat/mega-02-stock-reservation-truth
