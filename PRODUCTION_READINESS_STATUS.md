@@ -1,5 +1,9 @@
 # PRODUCTION_READINESS_STATUS
 
+## Top status note — 2026-05-09 latest-main validation
+
+Latest local main-equivalent validation at `aef2de345c06fce30a298e4a0e195a9ae4039462` is **blocked**, not production-ready. TypeScript and build passed, but the full test suite failed on duplicate migration-prefix guards, `node scripts/verify-migrations.mjs` failed on duplicate `0045` / `0046` Drizzle migrations, `node scripts/ci-governance-guards.mjs all` failed, and DB-backed tests were skipped because `TEST_DATABASE_URL` is not configured. Current readiness should be treated as conditional investor-demo only; controlled pilot, multi-store beta, and race-mode production remain blocked until migration surgery and DB proof are green. See `LATEST_MAIN_VALIDATION_STATUS.md`.
+
 ## 1. Current score
 - Overall: 7.4 / 10
 - Last updated by: feat/mega-02-stock-reservation-truth

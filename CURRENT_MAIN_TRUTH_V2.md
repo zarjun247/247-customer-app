@@ -4,6 +4,20 @@ Canonical current-main audit for Wave 0 / Prompt 1 as of 2026-05-08.
 
 > This is a docs/control and static-inspection pass only. It does not implement runtime feature changes and does not certify production readiness.
 
+## Latest validation result — 2026-05-09
+
+| Item | Value |
+| --- | --- |
+| Validation status doc | `LATEST_MAIN_VALIDATION_STATUS.md` |
+| Latest local main-equivalent SHA validated | `aef2de345c06fce30a298e4a0e195a9ae4039462` |
+| Latest visible merged PR | `#99` — `Merge pull request #99 from zarjun247/codex/certify-stock-mutation-gateways-and-reporting` |
+| Latest main green or blocked | **Blocked** |
+| Blocking classification | P0 migration, P0 tests, P0 governance; P1 DB proof skipped |
+| Current readiness score after validation | **5.0 / 10 overall proof maturity**; investor-demo only is conditional/yellow, controlled pilot / multi-store beta / race-mode production are blocked. |
+| Remote-main caveat | Pull/rebase from remote main could not be performed because no `origin` remote is configured in this container. This validates the checked-out local main-equivalent only. |
+
+Summary: latest validation found that duplicate Drizzle migration prefixes `0045` and `0046` still exist on the validated HEAD, causing the full test suite, migration verification, and governance scan to fail. See `LATEST_MAIN_VALIDATION_STATUS.md` for exact command output and follow-up branch recommendations.
+
 ## Audit metadata
 
 | Item | Value |

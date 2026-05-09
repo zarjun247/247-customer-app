@@ -72,3 +72,15 @@ Static inspection caveats:
 1. Dedicated migration metadata reconciliation prompt: decide whether to regenerate metadata, document manual SQL history, or create a controlled forward-only repair.
 2. Clean MySQL migration replay prompt using `pnpm run test:db:bootstrap` and `pnpm run test:db:smoke`.
 3. Pre-merge migration collision prompt for any active PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Validation append — 2026-05-09 latest-main proof
+
+| Item | Result |
+| --- | --- |
+| Validated local main-equivalent SHA | `aef2de345c06fce30a298e4a0e195a9ae4039462` |
+| Migration verifier command | `node scripts/verify-migrations.mjs` |
+| Migration verifier result | **Failed** with 2 blocking duplicate-prefix issues. |
+| Duplicate prefixes present | `0045` and `0046` |
+| Duplicate files | `0045_commercial_event_ledger.sql`, `0045_provider_webhook_events.sql`, `0046_rbac_staff_session_governance.sql`, `0046_worker_jobs.sql` |
+| Surgery status | **Not complete/effective on validated HEAD.** This branch did not rename migrations or add migrations. |
+| Follow-up | `fix/complete-migration-surgery-0045-0046-on-main` should complete the controlled migration collision repair, then rerun full validation. |

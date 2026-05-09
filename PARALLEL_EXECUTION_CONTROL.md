@@ -2,6 +2,35 @@
 
 Parallel execution control contract for Wave 0 / Prompt 1 as of 2026-05-08.
 
+## Latest validation gate — 2026-05-09
+
+| Item | Status |
+| --- | --- |
+| Validated local main-equivalent SHA | `aef2de345c06fce30a298e4a0e195a9ae4039462` |
+| Migration surgery | **Not complete on validated HEAD**; duplicate `0045` / `0046` prefixes remain. |
+| Validation outcome | **Failed / blocked**: tests, migration verifier, and governance scan are red. |
+| New feature prompts | **Frozen** until migration collision surgery is completed and validation reruns green. |
+| Schema PR rebuild/salvage | **Blocked** until the post-surgery main has a green migration proof. Rebuild-only after that using the next reserved migration number. |
+| Failure classification | P0 migration, P0 tests, P0 governance; P1 DB proof skipped; P2 build/install warnings. |
+
+### Required blocker branches before Wave R1 can resume
+
+1. `fix/complete-migration-surgery-0045-0046-on-main` — remove duplicate migration prefixes by the agreed migration-surgery approach, then rerun `node scripts/verify-migrations.mjs`, `pnpm test -- --runInBand`, and `node scripts/ci-governance-guards.mjs all`.
+2. `chore/triage-governance-guard-findings-after-migration-fix` — after migration findings are gone, triage remaining governance findings without broad runtime changes.
+3. `test/add-one-mysql-concurrency-harness` — establish one DB race/concurrency harness once `TEST_DATABASE_URL` is available.
+4. `chore/live-pr-triage-after-migration-proof` — authenticated GitHub-side stale/conflicted PR triage.
+
+### Wave R1 status
+
+The following Wave R1 tasks remain **queued but not released** until the blocker branches above complete:
+
+- observability salvage
+- one MySQL concurrency harness
+- reservation lifecycle rebuild
+- provider runtime rebuild
+- pharmacy legal ops rebuild
+- offline degradation rebuild
+
 ## Audit metadata
 
 | Item | Value |
