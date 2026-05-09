@@ -42,7 +42,7 @@ const STOCK_ALLOWED_RE =
   /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
 const RUNTIME_PATH_RE = /(^|\/)(client|server|shared|scripts)\//;
 const GOVERNANCE_RULE_PATH_RE =
-  /^scripts\/(ci-governance-guards|check-runtime-placeholders)\.mjs$/;
+  /^scripts\/(ci-governance-guards|check-runtime-placeholders|repo-governance-audit)\.mjs$/;
 
 function normalizePath(filePath) {
   return filePath.split(path.sep).join("/");

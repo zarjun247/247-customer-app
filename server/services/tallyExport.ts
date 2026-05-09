@@ -199,7 +199,7 @@ export async function generateTallyCsvExport(db: any, input: { exportType: strin
       fileKey: null,
       fileUrl: null,
     });
-    return { status: "generated" as const, checksum, runId: run.id, rows: tallyRows, csv, providerState: "provider_unconfigured_export_generated", imported: false, synced: false };
+    return { status: "generated" as const, checksum, runId: run.id, rows: tallyRows, csv, providerState: "export_generated_not_synced", imported: false, synced: false };
   } catch (error: any) {
     const failureReason = error?.message ?? "Tally export generation failed";
     const checksum = deterministicSha256({ exportType: input.exportType, periodStart, periodEnd, storeId: input.storeId ?? null, rows: input.rows, failureReason });

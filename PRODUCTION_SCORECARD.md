@@ -2,22 +2,23 @@ PRODUCTION SCORECARD
 
 Category | Current | Target | Blockers | Maturity
 ---|---:|---:|---|---
-architecture | 8 | 9 | migration conflicts, stale branches | Solid modular services; enforced invariants
-stock truth | 8 | 10 | DB concurrency proof, legacy direct mutations | Canonical stockInvariant exists; guards in place
+architecture | 7 | 9 | migration conflicts, stale branches | Modular services present; deployment/migrations need hardening
+stock truth | 7 | 10 | DB concurrency proof, legacy direct mutations | Canonical stockInvariant present; DB-backed proof required
 accounting | 5 | 9 | missing ledgers, GST exports | Scaffolds present; completion planned
-OCR safety | 8 | 10 | provider proofing for edge cases | Draft/exception flows enforced
-compliance | 7 | 10 | exports, formal audits | Secrets/placeholder scanning in place
-observability | 5 | 9 | dashboards, alerts | Basic logs; needs SLI/alerting
-deployment | 7 | 9 | infra validation, rollback docs | Build pipeline ok; deployment infra TBD
-AI governance | 9 | 10 | medivision bridge clarity | AGENTS.md enforced
-testing | 8 | 10 | DB-backed tests | Unit/integration green; DB harness pending
-runtime resilience | 8 | 9 | large bundle; performance testing | Orchestrations in place
-scalability | 7 | 9 | load testing required | Horizontal scale possible
-auditability | 9 | 10 | audit unify edge uses | Central audit and guards
-security | 8 | 10 | secrets scanning, access controls | many protections present
-delivery ops | 8 | 10 | release gating maturity | release-gate script present
-customer app | 7 | 9 | bundle size | UX stable
-command center | 8 | 9 | reporting gaps | Functional
-Medivision migration readiness | 6 | 9 | data mapping and exports | Ingest scripts present
+OCR safety | 7 | 10 | provider proofing for edge cases | Hand-off gates present; edge-case proofs pending
+compliance | 6 | 10 | exports, formal audits | Scanning present; reporting incomplete
+observability | 4 | 9 | dashboards, alerts | Limited dashboards and SLIs
+deployment | 6 | 9 | infra validation, rollback docs | Build ok; deployment playbooks missing
+AI governance | 7 | 10 | Medivision bridge clarity | AI boundary doctrine defined; operational proofs pending
+testing | 6 | 10 | DB-backed tests, concurrency harness | Unit tests pass; DB harness not executed here
+runtime resilience | 5 | 9 | provider placeholders, fail-closed behavior | Some runtime placeholders require removal
+scalability | 5 | 9 | load testing required | No verified concurrency proofs
+auditability | 7 | 10 | audit trail completions | Central audit scaffolds; edge uses remain
+security | 7 | 10 | secrets scanning, env validation | Many controls; CI env validation pending
+delivery ops | 7 | 10 | release gating maturity | Release gating exists but needs stronger enforcement
+customer app | 7 | 9 | bundle size | UX stable; bundle warnings noted
+command center | 7 | 9 | reporting gaps | Functional; reporting improvements required
+Medivision migration readiness | 5 | 9 | data mapping and exports | Migration scripts present; readiness incomplete
 
+Notes: Scores are conservative and reflect current validated state from local environment. Targets reflect production expectations.
 Notes: Scores are pragmatic, based on current tests and scans. Target scores reflect production expectations.

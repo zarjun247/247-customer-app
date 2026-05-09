@@ -3,7 +3,7 @@ ACTIVE PR MATRIX (local view)
 NOTE: This matrix is derived from local git branches and commit messages. For authoritative GitHub PR status, query the GitHub API.
 
 Merged:
-- (recent merge commits visible in git history)
+- Merge PR #123 (6686a6fadac240508d6cdbfd654d237ac999e580) — latest visible local merge
 
 Active:
 - sprint/production-readiness-integration (current) — purpose: governance & cross-platform hardening

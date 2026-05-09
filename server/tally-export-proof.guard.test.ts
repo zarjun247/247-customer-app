@@ -36,7 +36,7 @@ describe("tally export proof", () => {
     expect(result.status).toBe("generated");
     expect(result.imported).toBe(false);
     expect(result.synced).toBe(false);
-    expect(result.providerState).toBe("provider_unconfigured_export_generated");
+    expect(result.providerState).toBe("export_generated_not_synced");
     expect(db.runs).toHaveLength(1);
     expect(db.runs[0]).toMatchObject({ status: "generated", storeId: 7, exportType: "journal_csv", generatedBy: 9, exportedAt: null, failureReason: null });
   });

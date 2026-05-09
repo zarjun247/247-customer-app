@@ -61,7 +61,7 @@
 
 ## Import/sync limitations
 - This change does not call any ERP/Tally connector.
-- Generated exports return `provider_unconfigured_export_generated` and explicitly set `imported: false` and `synced: false`.
+- Generated exports return `export_generated_not_synced` and explicitly set `imported: false` and `synced: false`.
 - Duplicate exports return `export_generated_duplicate_not_synced` and explicitly set `imported: false` and `synced: false`.
 - Failed exports return `export_generation_failed_not_synced` and explicitly set `imported: false` and `synced: false`.
 - No code claims Tally import success without an external confirmation path.
