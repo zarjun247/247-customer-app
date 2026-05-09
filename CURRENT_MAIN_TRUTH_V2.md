@@ -164,3 +164,9 @@ Conservative scores for the inspected main-equivalent SHA:
 - `MIGRATION_SURGERY_CONTROL_ROOM.md` is the active control room for the duplicate-prefix migration blocker.
 - Schema PR freeze is active until migration surgery lands and the migration audit is green on latest main.
 - Use the control room before reviewing any PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+## Dependency security patch truth — 2026-05-09
+
+Branch `fix/dependency-supply-chain-security-patch` starts from checked-out SHA `200fafcc20451cc43e8d6272588ec7e26e12d9c8`; remote GitHub main freshness could not be verified because credentials were unavailable in the container. The branch changes dependency manifests, lockfile, CI pnpm version pinning, and dependency-security documentation only. It does not change runtime business logic, server routers/services, Drizzle schema, SQL migrations, or migration files.
+
+After the patch, `pnpm audit` still fails truthfully with 0 critical, 2 high, and 3 moderate advisories. The remaining high advisories are lodash-family transitive findings that require a separate Recharts/streamdown-Mermaid upgrade decision or upstream package releases; this branch must not be represented as security green.

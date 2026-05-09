@@ -124,3 +124,9 @@ Before starting restricted work:
 - High/critical dependency findings must be green or explicitly accepted before launch; CI should eventually block unresolved high/critical supply-chain findings.
 - Package-manager drift is a restricted production-readiness issue: do not change pnpm, Node, package manifests, or lockfiles from unrelated runtime branches.
 - Secret hygiene applies to every branch: do not add real secrets to docs, logs, tests, fixtures, screenshots, or env examples.
+
+## Dependency security patch branch lock — 2026-05-09
+
+`fix/dependency-supply-chain-security-patch` owns package-manager/dependency-security changes for this wave: `package.json`, `pnpm-lock.yaml`, CI pnpm setup, and dependency security status docs. Other branches should avoid concurrent package/lockfile/pnpm edits until this branch is reviewed or explicitly superseded.
+
+The branch intentionally leaves remaining high lodash/lodash-es audit findings documented instead of forcing major chart/rendering-stack upgrades. Any follow-up that touches Recharts, streamdown/Mermaid, or Vitest major versions should be sequenced as a separate dependency-risk branch with UI and test regression proof.
