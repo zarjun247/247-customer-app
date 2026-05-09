@@ -92,7 +92,7 @@ No migration was deleted. No separate migrations were combined.
 | Proof item | Status |
 | --- | --- |
 | Static duplicate prefix check | Passed: `node scripts/verify-migrations.mjs` reports 49 SQL files, 46 numbered migrations, latest `0048`, and 0 blocking issues. |
-| Governance duplicate migration scan | Migration duplicate check is clean, but full `node scripts/ci-governance-guards.mjs all` currently fails on pre-existing provider/stock findings outside this migration-only scope. |
+| Governance duplicate migration scan | Migration duplicate check is clean, and refreshed full `node scripts/ci-governance-guards.mjs all` is clean on the inspected workspace SHA. |
 | Fresh DB migration proof | Not proven in this container. No `TEST_DATABASE_URL` is configured, so DB-backed lifecycle smoke is skipped by the test suite. |
 | Existing DB upgrade proof | Not proven in this container. No existing database URL was supplied for an applied-state upgrade replay. |
 | Drizzle metadata journal | `drizzle/meta/_journal.json` and snapshots still stop at `0021`; this PR did not update metadata because the repository already uses hand-written SQL history after `0021`. |

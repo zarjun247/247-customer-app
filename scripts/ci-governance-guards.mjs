@@ -33,13 +33,17 @@ const SKIP_DIRS = new Set([
   "node_modules",
 ]);
 
-const TEST_PATH_RE = /(^|\/)(__fixtures__|fixtures|test|tests|__tests__)\/|\.(guard\.)?test\.[cm]?[jt]sx?$/i;
+const TEST_PATH_RE =
+  /(^|\/)(__fixtures__|fixtures|test|tests|__tests__)\/|\.(guard\.)?test\.[cm]?[jt]sx?$/i;
 const DOC_PATH_RE = /(^|\/)(docs\/.*|.*\.md)$/i;
-const EXAMPLE_PATH_RE = /(^|\/)(\.env\.example|.*\.example(\.|$)|config\/secrets\.json\.example$)/i;
+const EXAMPLE_PATH_RE =
+  /(^|\/)(\.env\.example|.*\.example(\.|$)|config\/secrets\.json\.example$)/i;
 
-const STOCK_ALLOWED_RE = /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
+const STOCK_ALLOWED_RE =
+  /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
 const RUNTIME_PATH_RE = /(^|\/)(client|server|shared|scripts)\//;
-const GOVERNANCE_RULE_PATH_RE = /^scripts\/(ci-governance-guards|check-runtime-placeholders)\.mjs$/;
+const GOVERNANCE_RULE_PATH_RE =
+  /^scripts\/(ci-governance-guards|check-runtime-placeholders)\.mjs$/;
 
 function normalizePath(filePath) {
   return filePath.split(path.sep).join("/");
@@ -66,7 +70,48 @@ function isStockAllowedPath(filePath) {
 }
 
 function addFinding(findings, category, filePath, line, message, evidence) {
-  findings.push({ category, filePath: normalizePath(filePath), line, message, evidence: evidence?.trim() ?? "" });
+  findings.push({
+    category,
+    filePath: normalizePath(filePath),
+    line,
+    message,
+    evidence: evidence?.trim() ?? "",
+  });
+}
+
+function compactWindow(lines, lineNumber, before = 2, after = 4) {
+  return lines
+    .slice(
+      Math.max(0, lineNumber - before - 1),
+      Math.min(lines.length, lineNumber + after)
+    )
+    .join(" ");
+}
+
+function hasProviderSuccessMarker(text) {
+  return /(status\s*[:=]\s*["'`](sent|synced|verified|imported|complete|completed|printed|parsed|paid|refunded)["'`]|\b(sent|synced|verified|imported|complete|completed|printed|parsed|paid|refunded|success)\s*[:=]\s*true\b)/i.test(
+    text
+  );
+}
+
+function hasProviderProofMarker(text) {
+  return /\b(provider|gateway|erp|tally|response|proof|confirmed|verified|webhook|transaction|receipt|external|remote)\b/i.test(
+    text
+  );
+}
+
+function sameReturnWindow(lines, lineNumber) {
+  const current = lines[lineNumber - 1] ?? "";
+  const window = [current];
+  for (
+    let index = lineNumber;
+    index < Math.min(lines.length, lineNumber + 5);
+    index += 1
+  ) {
+    window.push(lines[index]);
+    if (/};?\s*$/.test(lines[index]) || /\);?\s*$/.test(lines[index])) break;
+  }
+  return window.join(" ");
 }
 
 function scanLines(filePath, text, visitor) {
@@ -84,84 +129,344 @@ export function scanText(filePath, text) {
 
   scanLines(normalized, text, (line, lineNumber, lines) => {
     if (/^(<<<<<<<|=======|>>>>>>>)($|\s)/.test(line)) {
-      addFinding(findings, "merge-corruption", normalized, lineNumber, "Unresolved merge conflict marker found.", line);
+      addFinding(
+        findings,
+        "merge-corruption",
+        normalized,
+        lineNumber,
+        "Unresolved merge conflict marker found.",
+        line
+      );
     }
 
-    if (!governanceRulePath && /\b(FIXME_PRODUCTION|TEMP_SKIP_SECURITY)\b/i.test(line)) {
-      addFinding(findings, "merge-corruption", normalized, lineNumber, "Unresolved production/security TODO marker found.", line);
+    if (
+      !governanceRulePath &&
+      /\b(FIXME_PRODUCTION|TEMP_SKIP_SECURITY)\b/i.test(line)
+    ) {
+      addFinding(
+        findings,
+        "merge-corruption",
+        normalized,
+        lineNumber,
+        "Unresolved production/security TODO marker found.",
+        line
+      );
     }
 
-    if (/production\s+(ready|readiness)\s*(is|:)?\s*10\s*\/\s*10/i.test(line) && !/without|never|do not|must not/i.test(line)) {
-      addFinding(findings, "merge-corruption", normalized, lineNumber, "Stale production-ready 10/10 claim requires proof and must not be committed as an unsupported assertion.", line);
+    if (
+      /production\s+(ready|readiness)\s*(is|:)?\s*10\s*\/\s*10/i.test(line) &&
+      !/without|never|do not|must not/i.test(line)
+    ) {
+      addFinding(
+        findings,
+        "merge-corruption",
+        normalized,
+        lineNumber,
+        "Stale production-ready 10/10 claim requires proof and must not be committed as an unsupported assertion.",
+        line
+      );
     }
 
     if (testPath || governanceRulePath) return;
 
-    const providerWindow = line;
-    if (runtimePath && /\b(fake success|stub success|mock success in production)\b/i.test(line)) {
-      addFinding(findings, "provider-risk", normalized, lineNumber, "Fake/stub/mock production success language found.", line);
+    const providerWindow = compactWindow(lines, lineNumber);
+    const returnWindow = sameReturnWindow(lines, lineNumber);
+    if (
+      runtimePath &&
+      /\b(fake success|stub success|mock success in production)\b/i.test(line)
+    ) {
+      addFinding(
+        findings,
+        "provider-risk",
+        normalized,
+        lineNumber,
+        "Fake/stub/mock production success language found.",
+        line
+      );
     }
-    if (runtimePath && /provider_unconfigured/i.test(providerWindow) && /(status\s*[:=]\s*["'`](sent|synced|verified|complete|completed)["'`]|\b(sent|synced|verified|imported|complete|completed)\s*[:=]\s*true\b)/i.test(providerWindow) && !/type\s+\w+\s*=/.test(providerWindow)) {
-      addFinding(findings, "provider-risk", normalized, lineNumber, "provider_unconfigured appears to be treated as sent/synced/verified/imported/complete.", line);
+    if (
+      runtimePath &&
+      /provider_unconfigured/i.test(line) &&
+      hasProviderSuccessMarker(returnWindow) &&
+      !/type\s+\w+\s*=/.test(returnWindow)
+    ) {
+      addFinding(
+        findings,
+        "provider-risk",
+        normalized,
+        lineNumber,
+        "provider_unconfigured appears to be treated as sent/synced/verified/imported/complete/printed/parsed/paid/refunded success.",
+        line
+      );
     }
-    if (runtimePath && /demo_skipped/i.test(providerWindow) && /(status\s*[:=]\s*["'`](sent|synced|verified|complete|completed)["'`]|\b(sent|synced|verified|imported|complete|completed)\s*[:=]\s*true\b)/i.test(providerWindow) && !/type\s+\w+\s*=/.test(providerWindow)) {
-      addFinding(findings, "provider-risk", normalized, lineNumber, "demo_skipped appears to be treated as real success.", line);
+    if (
+      runtimePath &&
+      /\b(not_configured|disabled|manual_required|queued|pending|failed|dead_letter|not_implemented)\b/i.test(
+        line
+      ) &&
+      !/Promise\s*</i.test(line) &&
+      hasProviderSuccessMarker(line) &&
+      !/type\s+\w+\s*=/.test(line)
+    ) {
+      addFinding(
+        findings,
+        "provider-risk",
+        normalized,
+        lineNumber,
+        "Explicit fail-closed provider state appears to be paired with a success marker.",
+        line
+      );
     }
-    if (runtimePath && /(provider|gateway|erp|tally|export|import)/i.test(normalized + " " + providerWindow) && /\b(imported|synced)\s*[:=]\s*true\b/i.test(line) && !/(provider|gateway|erp|tally|response|proof|confirmed|verified)/i.test(providerWindow)) {
-      addFinding(findings, "provider-risk", normalized, lineNumber, "Imported/synced true appears without nearby provider proof.", line);
+    if (
+      runtimePath &&
+      /demo_skipped/i.test(line) &&
+      hasProviderSuccessMarker(returnWindow) &&
+      !/type\s+\w+\s*=/.test(returnWindow)
+    ) {
+      addFinding(
+        findings,
+        "provider-risk",
+        normalized,
+        lineNumber,
+        "demo_skipped appears to be treated as real success.",
+        line
+      );
+    }
+    if (
+      runtimePath &&
+      (/\b(provider|gateway|erp|tally|payment|refund)\b/i.test(
+        normalized + " " + providerWindow
+      ) ||
+        /(^|\/)(export|import)[^/]*\.[cm]?[jt]sx?$/i.test(normalized)) &&
+      /\b(imported|synced|paid|refunded)\s*[:=]\s*true\b/i.test(line) &&
+      !hasProviderProofMarker(providerWindow)
+    ) {
+      addFinding(
+        findings,
+        "provider-risk",
+        normalized,
+        lineNumber,
+        "Imported/synced/paid/refunded true appears without nearby provider proof.",
+        line
+      );
     }
 
     if (runtimePath && !isStockAllowedPath(normalized)) {
-      if (/\b(update|insert|delete|set)\b.*(\bbatches\.qtyOnHand\b|\bstoreSkus\.availableQty\b)|\binsert\s*\(\s*(stockMovements|stock_movements|batchLedger|batch_ledger)\s*\)|\b(stock_reservations|stockReservations)\b.*\b(update|insert|delete|set)\b|\b(update|insert|delete)\b.*\b(stock_reservations|stockReservations)\b/i.test(line)) {
-        addFinding(findings, "stock-mutation-risk", normalized, lineNumber, "Direct stock mutation outside an allowed stock/reservation service.", line);
+      if (
+        /\b(update|insert|delete|set)\b.*(\bbatches\.qtyOnHand\b|\bstoreSkus\.availableQty\b)|\b(update|insert|delete)\b.*\b(batches|storeSkus)\b.*\b(qtyOnHand|availableQty|stockQty)\b|\binsert\s*\(\s*(stockMovements|stock_movements|batchLedger|batch_ledger)\s*\)|\b(stock_reservations|stockReservations)\b.*\b(update|insert|delete|set)\b|\b(update|insert|delete)\b.*\b(stock_reservations|stockReservations)\b/i.test(
+          line
+        )
+      ) {
+        addFinding(
+          findings,
+          "stock-mutation-risk",
+          normalized,
+          lineNumber,
+          "Direct stock mutation outside an allowed stock/reservation service.",
+          line
+        );
       }
     }
 
-    if (runtimePath && /\b(entityId\s*:\s*0|Number\s*\(\s*(line\.id|saleId|orderId|uuid)\s*\)|parseInt\s*\(\s*uuid\s*\))/i.test(line)) {
-      addFinding(findings, "audit-reference-risk", normalized, lineNumber, "Unsafe numeric coercion or sentinel entity ID in an audit-sensitive runtime path.", line);
+    if (
+      runtimePath &&
+      /\b(entityId\s*:\s*0|Number\s*\(\s*(line\.id|saleId|orderId|uuid)\s*\)|parseInt\s*\(\s*uuid\s*\))/i.test(
+        line
+      )
+    ) {
+      addFinding(
+        findings,
+        "audit-reference-risk",
+        normalized,
+        lineNumber,
+        "Unsafe numeric coercion or sentinel entity ID in an audit-sensitive runtime path.",
+        line
+      );
     }
 
-    if (runtimePath && /<Route\b[^>]*path\s*=\s*["'`][^"'`]*(admin|pharmacy)[^"'`]*["'`]/i.test(line)) {
-      const routeBlock = lines.slice(lineNumber - 1, Math.min(lines.length, lineNumber + 4)).join(" ");
-      if (!/\b(AdminRoute|StaffRoute|RestrictedRoute|requireAdmin|requireStaff|RBAC|roleGuard|allow=)/i.test(routeBlock)) {
-        addFinding(findings, "admin-auth-bypass-risk", normalized, lineNumber, "Admin/pharmacy route lacks a visible route-level admin/staff/RBAC guard.", line);
+    if (
+      runtimePath &&
+      /<Route\b[^>]*path\s*=\s*["'`][^"'`]*(admin|pharmacy)[^"'`]*["'`]/i.test(
+        line
+      )
+    ) {
+      const routeBlock = lines
+        .slice(lineNumber - 1, Math.min(lines.length, lineNumber + 4))
+        .join(" ");
+      if (
+        !/\b(AdminRoute|StaffRoute|RestrictedRoute|requireAdmin|requireStaff|RBAC|roleGuard|allow=)/i.test(
+          routeBlock
+        )
+      ) {
+        addFinding(
+          findings,
+          "admin-auth-bypass-risk",
+          normalized,
+          lineNumber,
+          "Admin/pharmacy route lacks a visible route-level admin/staff/RBAC guard.",
+          line
+        );
       }
     }
-    if (runtimePath && /\b(app|router)\s*\.\s*(get|post|put|patch|delete)\s*\(\s*["'`]\/[^"'`]*(admin|pharmacy)[^"'`]*["'`]/i.test(line)) {
-      const routeBlock = lines.slice(lineNumber - 1, Math.min(lines.length, lineNumber + 5)).join(" ");
-      if (!/\b(requireAdmin|requireStaff|AdminRoute|StaffRoute|RestrictedRoute|RBAC|withRole|adminProcedure|staffProcedure|protectedProcedure)\b/i.test(routeBlock)) {
-        addFinding(findings, "admin-auth-bypass-risk", normalized, lineNumber, "Admin/pharmacy API route lacks a visible admin/staff/RBAC guard.", line);
+    if (
+      runtimePath &&
+      /\b(app|router)\s*\.\s*(get|post|put|patch|delete)\s*\(\s*["'`]\/[^"'`]*(admin|pharmacy)[^"'`]*["'`]/i.test(
+        line
+      )
+    ) {
+      const routeBlock = lines
+        .slice(lineNumber - 1, Math.min(lines.length, lineNumber + 5))
+        .join(" ");
+      if (
+        !/\b(requireAdmin|requireStaff|AdminRoute|StaffRoute|RestrictedRoute|RBAC|withRole|adminProcedure|staffProcedure|protectedProcedure)\b/i.test(
+          routeBlock
+        )
+      ) {
+        addFinding(
+          findings,
+          "admin-auth-bypass-risk",
+          normalized,
+          lineNumber,
+          "Admin/pharmacy API route lacks a visible admin/staff/RBAC guard.",
+          line
+        );
       }
     }
 
     if (!docPath && !isExamplePath(normalized)) {
       if (/-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/i.test(line)) {
-        addFinding(findings, "secret-leakage", normalized, lineNumber, "Private key material found.", line);
+        addFinding(
+          findings,
+          "secret-leakage",
+          normalized,
+          lineNumber,
+          "Private key material found.",
+          line
+        );
       }
-      if (/\b(?:RAZORPAY_(?:KEY_SECRET|WEBHOOK_SECRET)|WHATSAPP_(?:API_TOKEN|ACCESS_TOKEN|WEBHOOK_SECRET)|JWT_SECRET|DATABASE_URL|AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)|S3_(?:ACCESS_KEY|SECRET_KEY))\b\s*[:=]\s*["'`][^"'`\s]{8,}["'`]/i.test(line)) {
-        addFinding(findings, "secret-leakage", normalized, lineNumber, "Likely committed secret assignment found.", line);
+      if (
+        /\b(?:RAZORPAY_(?:KEY_SECRET|WEBHOOK_SECRET)|WHATSAPP_(?:API_TOKEN|ACCESS_TOKEN|WEBHOOK_SECRET)|JWT_SECRET|DATABASE_URL|AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)|S3_(?:ACCESS_KEY|SECRET_KEY))\b\s*[:=]\s*["'`][^"'`\s]{8,}["'`]/i.test(
+          line
+        )
+      ) {
+        addFinding(
+          findings,
+          "secret-leakage",
+          normalized,
+          lineNumber,
+          "Likely committed secret assignment found.",
+          line
+        );
       }
-      if (/\b(?:api[_-]?key|secret[_-]?key|access[_-]?token)\b\s*[:=]\s*["'`](?!process\.env|<|your_|REPLACE|example|test_|demo_|dummy)[A-Za-z0-9_./+=:-]{20,}["'`]/i.test(line)) {
-        addFinding(findings, "secret-leakage", normalized, lineNumber, "Likely hard-coded API key/token/secret found.", line);
+      if (
+        /\b(?:api[_-]?key|secret[_-]?key|access[_-]?token)\b\s*[:=]\s*["'`](?!process\.env|<|your_|REPLACE|example|test_|demo_|dummy)[A-Za-z0-9_./+=:-]{20,}["'`]/i.test(
+          line
+        )
+      ) {
+        addFinding(
+          findings,
+          "secret-leakage",
+          normalized,
+          lineNumber,
+          "Likely hard-coded API key/token/secret found.",
+          line
+        );
       }
     }
 
     if (runtimePath) {
-      const placeholderWindow = lines.slice(lineNumber - 1, Math.min(lines.length, lineNumber + 3)).join(" ");
+      const placeholderWindow = lines
+        .slice(lineNumber - 1, Math.min(lines.length, lineNumber + 3))
+        .join(" ");
       if (/TODO:\s*implement later/i.test(line)) {
-        addFinding(findings, "placeholder-production-risk", normalized, lineNumber, "Runtime placeholder TODO remains.", line);
+        addFinding(
+          findings,
+          "placeholder-production-risk",
+          normalized,
+          lineNumber,
+          "Runtime placeholder TODO remains.",
+          line
+        );
       }
-      if (/not implemented/i.test(placeholderWindow) && /(return\s+true\b|return\s*\{\s*success\s*:\s*true\s*\})/i.test(placeholderWindow)) {
-        addFinding(findings, "placeholder-production-risk", normalized, lineNumber, "Not-implemented path appears to return success.", line);
+      if (
+        /not implemented/i.test(placeholderWindow) &&
+        /(return\s+true\b|return\s*\{\s*success\s*:\s*true\s*\})/i.test(
+          placeholderWindow
+        )
+      ) {
+        addFinding(
+          findings,
+          "placeholder-production-risk",
+          normalized,
+          lineNumber,
+          "Not-implemented path appears to return success.",
+          line
+        );
       }
-      if (/return\s*\{\s*success\s*:\s*true\s*\}/i.test(line) && /(placeholder|stub|mock|TODO|implement later|not implemented)/i.test(placeholderWindow)) {
-        addFinding(findings, "placeholder-production-risk", normalized, lineNumber, "Placeholder/stub path returns success true.", line);
+      if (
+        /return\s*\{\s*success\s*:\s*true\s*\}/i.test(line) &&
+        /(placeholder|stub|mock|TODO|implement later|not implemented)/i.test(
+          placeholderWindow
+        )
+      ) {
+        addFinding(
+          findings,
+          "placeholder-production-risk",
+          normalized,
+          lineNumber,
+          "Placeholder/stub path returns success true.",
+          line
+        );
       }
-      if (/preview_only/i.test(placeholderWindow) && /(printed\s*[:=]\s*true|status\s*[:=]\s*["'`]printed["'`])/i.test(placeholderWindow)) {
-        addFinding(findings, "placeholder-production-risk", normalized, lineNumber, "preview_only appears to be marked printed.", line);
+      if (
+        /(ocr|storage|upload|fileUrl|storageUrl)/i.test(
+          normalized + " " + placeholderWindow
+        ) &&
+        /(placeholder|stub|mock|demo|example\.com|localhost\/placeholder)/i.test(
+          placeholderWindow
+        ) &&
+        /(success\s*[:=]\s*true|parsed\s*[:=]\s*true|status\s*[:=]\s*["'`](parsed|uploaded|stored|success)["'`]|https?:\/\/(example\.com|localhost)\/)/i.test(
+          placeholderWindow
+        )
+      ) {
+        addFinding(
+          findings,
+          "placeholder-production-risk",
+          normalized,
+          lineNumber,
+          "OCR/storage placeholder appears to return production success or URL.",
+          line
+        );
       }
-      if (/provider_unconfigured/i.test(placeholderWindow) && /(complete\s*[:=]\s*true|completed\s*[:=]\s*true|status\s*[:=]\s*["'`](complete|completed)["'`])/i.test(placeholderWindow)) {
-        addFinding(findings, "placeholder-production-risk", normalized, lineNumber, "provider_unconfigured appears to be marked complete.", line);
+      if (
+        /preview_only/i.test(placeholderWindow) &&
+        /(printed\s*[:=]\s*true|status\s*[:=]\s*["'`]printed["'`])/i.test(
+          placeholderWindow
+        )
+      ) {
+        addFinding(
+          findings,
+          "placeholder-production-risk",
+          normalized,
+          lineNumber,
+          "preview_only appears to be marked printed.",
+          line
+        );
+      }
+      if (
+        /provider_unconfigured/i.test(placeholderWindow) &&
+        /(complete\s*[:=]\s*true|completed\s*[:=]\s*true|status\s*[:=]\s*["'`](complete|completed)["'`])/i.test(
+          placeholderWindow
+        )
+      ) {
+        addFinding(
+          findings,
+          "placeholder-production-risk",
+          normalized,
+          lineNumber,
+          "provider_unconfigured appears to be marked complete.",
+          line
+        );
       }
     }
   });
@@ -183,7 +488,11 @@ function walkFiles(rootDir) {
         continue;
       }
       if (!entry.isFile()) continue;
-      if (SCANNED_EXTENSIONS.has(path.extname(entry.name)) || entry.name.startsWith(".env")) files.push(rel);
+      if (
+        SCANNED_EXTENSIONS.has(path.extname(entry.name)) ||
+        entry.name.startsWith(".env")
+      )
+        files.push(rel);
     }
   }
   return files.sort();
@@ -193,7 +502,7 @@ export function scanMigrationNames(filePaths) {
   const findings = [];
   const migrationFiles = filePaths
     .map(normalizePath)
-    .filter((filePath) => /^drizzle\/\d{4}_.+\.sql$/i.test(filePath))
+    .filter(filePath => /^drizzle\/\d{4}_.+\.sql$/i.test(filePath))
     .sort();
   const byNumber = new Map();
   for (const filePath of migrationFiles) {
@@ -206,14 +515,30 @@ export function scanMigrationNames(filePaths) {
   for (const [number, files] of byNumber.entries()) {
     if (files.length > 1) {
       for (const filePath of files) {
-        addFinding(findings, "migration-risk", filePath, 1, `Duplicate Drizzle migration number ${number}.`, files.join(", "));
+        addFinding(
+          findings,
+          "migration-risk",
+          filePath,
+          1,
+          `Duplicate Drizzle migration number ${number}.`,
+          files.join(", ")
+        );
       }
     }
   }
-  const numbers = migrationFiles.map((filePath) => Number(filePath.match(/^drizzle\/(\d{4})_/i)?.[1]));
+  const numbers = migrationFiles.map(filePath =>
+    Number(filePath.match(/^drizzle\/(\d{4})_/i)?.[1])
+  );
   for (let index = 1; index < numbers.length; index += 1) {
     if (numbers[index] < numbers[index - 1]) {
-      addFinding(findings, "migration-risk", migrationFiles[index], 1, "Non-monotonic Drizzle migration ordering detected.", migrationFiles[index]);
+      addFinding(
+        findings,
+        "migration-risk",
+        migrationFiles[index],
+        1,
+        "Non-monotonic Drizzle migration ordering detected.",
+        migrationFiles[index]
+      );
     }
   }
   return findings;
@@ -223,11 +548,34 @@ export function scanMigrationText(filePath, text) {
   const findings = [];
   if (!/^drizzle\/.*\.sql$/i.test(normalizePath(filePath))) return findings;
   scanLines(filePath, text, (line, lineNumber) => {
-    if (/\b(drop\s+table|drop\s+column|truncate\s+table|delete\s+from)\b/i.test(line) && !/governance-approved|documented destructive migration|backfill/i.test(line)) {
-      addFinding(findings, "migration-risk", filePath, lineNumber, "Potential destructive migration statement lacks explicit documentation marker.", line);
+    if (
+      /\b(drop\s+table|drop\s+column|truncate\s+table|delete\s+from)\b/i.test(
+        line
+      ) &&
+      !/governance-approved|documented destructive migration|backfill/i.test(
+        line
+      )
+    ) {
+      addFinding(
+        findings,
+        "migration-risk",
+        filePath,
+        lineNumber,
+        "Potential destructive migration statement lacks explicit documentation marker.",
+        line
+      );
     }
-    if (/schema\/migration mismatch|drizzle mismatch|FIXME_MIGRATION/i.test(line)) {
-      addFinding(findings, "migration-risk", filePath, lineNumber, "Schema/migration mismatch marker found.", line);
+    if (
+      /schema\/migration mismatch|drizzle mismatch|FIXME_MIGRATION/i.test(line)
+    ) {
+      addFinding(
+        findings,
+        "migration-risk",
+        filePath,
+        lineNumber,
+        "Schema/migration mismatch marker found.",
+        line
+      );
     }
   });
   return findings;
@@ -236,8 +584,10 @@ export function scanMigrationText(filePath, text) {
 export function scanVirtualFiles(files) {
   const filePaths = Object.keys(files).map(normalizePath);
   return [
-    ...filePaths.flatMap((filePath) => scanText(filePath, files[filePath])),
-    ...filePaths.flatMap((filePath) => scanMigrationText(filePath, files[filePath])),
+    ...filePaths.flatMap(filePath => scanText(filePath, files[filePath])),
+    ...filePaths.flatMap(filePath =>
+      scanMigrationText(filePath, files[filePath])
+    ),
     ...scanMigrationNames(filePaths),
   ];
 }
@@ -261,9 +611,13 @@ function printFindings(findings) {
     console.log("Governance/security scan passed: no blocked patterns found.");
     return;
   }
-  console.error(`Governance/security scan failed with ${findings.length} finding(s):`);
+  console.error(
+    `Governance/security scan failed with ${findings.length} finding(s):`
+  );
   for (const finding of findings) {
-    console.error(`- [${finding.category}] ${finding.filePath}:${finding.line} ${finding.message}`);
+    console.error(
+      `- [${finding.category}] ${finding.filePath}:${finding.line} ${finding.message}`
+    );
     if (finding.evidence) console.error(`  ${finding.evidence}`);
   }
 }
