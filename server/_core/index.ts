@@ -14,7 +14,7 @@ import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
 import { registerPaymentWebhookRoutes } from "../paymentWebhookRoutes";
-import { getQueueStats } from "../services/jobQueue";
+import { registerHealthRoutes } from "../routers/healthRouter";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,35 +43,7 @@ async function startServer() {
   registerOAuthRoutes(app);
   registerPaymentWebhookRoutes(app);
 
-  // ─── Health Check ──────────────────────────────────────────────────────────
-  // GET /api/health — returns service status for load balancers and monitoring
-  // TODO: Add Sentry/PagerDuty alert if dbConnected is false for >2 minutes
-  app.get("/api/health", async (_req, res) => {
-    let dbConnected = false;
-    try {
-      const db = await getDb();
-      dbConnected = db !== null;
-    } catch {
-      dbConnected = false;
-    }
-    const queue = await getQueueStats();
-    res.json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      dbConnected,
-      version: "1.0.0",
-      queue: {
-        queuedCount: queue.queuedCount,
-        runningCount: queue.runningCount,
-        retryCount: queue.retryCount,
-        deadLetterCount: queue.deadLetterCount,
-        staleRunningCount: queue.staleRunningCount,
-        oldestQueuedAgeMs: queue.oldestQueuedAgeMs,
-        oldestRetryAgeMs: queue.oldestRetryAgeMs,
-      },
-      // TODO: Add Sentry DSN check, Redis ping, storage ping
-    });
-  });
+  registerHealthRoutes(app);
 
   // ─── Worker Trigger (scheduled task endpoint) ──────────────────────────────
   // POST /api/worker/run — trigger OCR queue processing
