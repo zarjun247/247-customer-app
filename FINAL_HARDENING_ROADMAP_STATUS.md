@@ -2,6 +2,13 @@
 
 Canonical roadmap status for the next hardening waves as of 2026-05-08.
 
+
+## Current P0/P1/P2 after stale PR triage (2026-05-09)
+
+- **P0:** Migration surgery. Clean duplicate `0045` / `0046` migration prefixes before any schema-changing or migration-carrying PR merges.
+- **P1:** Stale PR closure / do-not-merge labeling for superseded PRs `#2`-`#11`, `#19`, `#44`, `#46`, `#47`, `#62`, `#66`, `#68`, `#76`, `#80`, and `#86`.
+- **P2:** Rebuild valuable active concepts from latest main after migration surgery: `#88`, one of `#89` / `#90`, `#91`, `#94`, `#95`, and `#96`.
+
 ## Wave 0 — Current-main control and active gate cleanup
 
 - Current main truth: create and maintain `CURRENT_MAIN_TRUTH.md` as the canonical readiness source until final merge-captain audit.
