@@ -55,7 +55,25 @@ describe("mega stock reservation truth hardening", () => {
   });
 
   it("production reservation path has no deferred stock-truth stub", () => {
-    const out = execSync("rg -n 'Deferred to stock-truth hardening' server --glob '!**/*.test.ts' || true", { encoding: "utf8" }).trim();
-    expect(out).toBe("");
+    // Scan server files for the deferred stock-truth placeholder marker
+    const fs = require('fs');
+    const path = require('path');
+    function walk(dir) {
+      const files = [];
+      for (const name of fs.readdirSync(dir)) {
+        const full = path.join(dir, name);
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) files.push(...walk(full));
+        else if (stat.isFile() && !full.endsWith('.test.ts')) files.push(full);
+      }
+      return files;
+    }
+    const files = walk('server');
+    const matches = [];
+    for (const f of files) {
+      const txt = fs.readFileSync(f, 'utf8');
+      if (/Deferred to stock-truth hardening/.test(txt)) matches.push(f);
+    }
+    expect(matches.length).toBe(0);
   });
 });

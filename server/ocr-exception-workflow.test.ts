@@ -70,8 +70,17 @@ describe("OCR invoice exception workflow", () => {
   });
 
   it("OCR flow does not directly call stock mutation/invariant except through approved purchase handoff", () => {
-    const out = execSync("rg -n \"increaseStockForPurchaseCommit|applyStockMovement|insert\\(stockMovements\\)|update\\(batchLedger\\)|syncStoreSkuAggregate\" server/routers/ocrIngestionRouter.ts server/services/ocrPurchaseInwarding.ts || true", { encoding: "utf8" }).trim();
-    expect(out).toBe("");
+    const fs = require('fs');
+    const path = require('path');
+    const targets = ['server/routers/ocrIngestionRouter.ts', 'server/services/ocrPurchaseInwarding.ts'];
+    const pattern = /increaseStockForPurchaseCommit|applyStockMovement|insert\(stockMovements\)|update\(batchLedger\)|syncStoreSkuAggregate/;
+    const matches = [];
+    for (const t of targets) {
+      if (!fs.existsSync(t)) continue;
+      const txt = fs.readFileSync(t, 'utf8');
+      if (pattern.test(txt)) matches.push(t);
+    }
+    expect(matches.length).toBe(0);
   });
 
   it("exception report totals are correct", () => {

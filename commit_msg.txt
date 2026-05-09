@@ -1,0 +1,9 @@
+Fix: cross-platform governance & stock/OCR hardening
+
+- Replaced ripgrep/shell usage in governance guard tests and scripts with cross-platform Node fs/path scanning helpers (Windows compatible)
+- Removed shebang causing invalid token parse in ci-governance-guards.mjs
+- Hardened stock invariant and OCR/reservation guards to forbid direct stock mutations and placeholders
+- Removed deferred 'Deferred to stock-truth hardening' placeholders from reservation flow tests
+- Preserved guard assertions; no tests disabled/weakened
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

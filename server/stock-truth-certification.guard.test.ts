@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -33,8 +32,31 @@ describe("stock truth final audit certification", () => {
 
   it("barcode scan remains lookup-only", () => {
     expect(barcodeService).toContain("getCanonicalAvailability");
-    const out = execSync("rg -n \"(scanBarcodeForSale|scanBarcodeForReturn|resolveBarcodeForStockAudit)[\\s\\S]{0,1200}(insert\\(stockMovements\\)|update\\(batchLedger\\)|update\\(storeSkus\\)|qtyOnHand\\s*:)\" server/services/barcodeService.ts server/routers || true", { encoding: "utf8" }).trim();
-    expect(out).toBe("");
+    const fs = require('fs');
+    const path = require('path');
+    const files = ['server/services/barcodeService.ts', 'server/routers'];
+    const pattern = /(scanBarcodeForSale|scanBarcodeForReturn|resolveBarcodeForStockAudit)[\s\S]{0,1200}(insert\(stockMovements\)|update\(batchLedger\)|update\(storeSkus\)|qtyOnHand\s*:)/;
+    const matches = [];
+    function walk(dir) {
+      const out = [];
+      if (!fs.existsSync(dir)) return out;
+      for (const name of fs.readdirSync(dir)) {
+        const full = path.join(dir, name);
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) out.push(...walk(full));
+        else out.push(full);
+      }
+      return out;
+    }
+    for (const f of files) {
+      if (!fs.existsSync(f)) continue;
+      const list = fs.statSync(f).isDirectory() ? walk(f) : [f];
+      for (const file of list) {
+        const txt = fs.readFileSync(file, 'utf8');
+        if (pattern.test(txt)) matches.push(file);
+      }
+    }
+    expect(matches.length).toBe(0);
   });
 
   it("OCR draft commit does not directly mutate stock", () => {
@@ -100,7 +122,8 @@ describe("stock truth final audit certification", () => {
   });
 
   it("no Number(uuid) / entityId:0 introduced in stock audit refs", () => {
-    const out = execSync("rg -n \"Number\\([^)]*uuid|entityId:\\s*0\" server/services/stockTruthCertification.ts || true", { encoding: "utf8" }).trim();
-    expect(out).toBe("");
+    const fs = require('fs');
+    const txt = fs.readFileSync('server/services/stockTruthCertification.ts', 'utf8');
+    expect(/Number\([^)]*uuid|entityId:\s*0/.test(txt)).toBe(false);
   });
 });
