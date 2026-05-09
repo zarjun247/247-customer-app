@@ -32,6 +32,10 @@ export function getTestDatabaseUrl(): string | undefined {
 }
 
 export function requireSafeTestDatabaseUrl(rawUrl = getTestDatabaseUrl()): string {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(`${TEST_DB_ENV_VAR} DB-backed tests refuse to run when NODE_ENV=production.`);
+  }
+
   if (!rawUrl) {
     throw new Error(`${TEST_DB_ENV_VAR} is required for DB-backed tests. Use docker-compose.test.yml or the CI MySQL service.`);
   }

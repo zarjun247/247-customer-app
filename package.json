@@ -17,7 +17,9 @@
     "migrations:verify": "node scripts/verify-migrations.mjs",
     "release:gate": "node scripts/release-gate.mjs",
     "backup:db:dry-run": "node scripts/backup-db.mjs --dry-run",
-    "restore:db:dry-run": "node scripts/restore-db-drill.mjs --dry-run"
+    "restore:db:dry-run": "node scripts/restore-db-drill.mjs --dry-run",
+    "test:db:concurrency": "vitest run server/mysql-concurrency.integration.test.ts",
+    "test:mysql:concurrency": "pnpm run test:db:concurrency"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
