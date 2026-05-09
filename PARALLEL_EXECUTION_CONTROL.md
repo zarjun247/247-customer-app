@@ -1,5 +1,44 @@
 # PARALLEL_EXECUTION_CONTROL
 
+## Latest validation lock state — 2026-05-09
+
+Latest validation branch: `chore/post-migration-latest-main-validation-proof` at local main-equivalent SHA `aef2de345c06fce30a298e4a0e195a9ae4039462`.
+
+**State: locked for schema/runtime rebuilds; docs-only work remains allowed.**
+
+Validation did **not** pass:
+
+- **P0 migration:** duplicate Drizzle migration prefixes `0045` and `0046` remain.
+- **P0 test:** `pnpm test -- --runInBand` fails because migration guard tests detect duplicate prefixes.
+- **P1 DB proof skipped:** `TEST_DATABASE_URL` is missing and no DB concurrency script is present.
+- **P1 governance warning/failure:** `node scripts/ci-governance-guards.mjs all` reports migration-risk findings plus stock/provider scanner findings.
+- **P2 build warnings:** `pnpm run build` passes with Vite analytics placeholder and bundle-size warnings.
+
+### Blocker branches required before unlock
+
+| Blocker class | Required branch | Purpose |
+| --- | --- | --- |
+| P0 migration | `fix/p0-migration-prefix-collision-latest-main` | Resolve duplicate `0045`/`0046` migration prefixes without adding unrelated product work; update migration audit with a safe next reserved number. |
+| P0 validation | `chore/post-migration-latest-main-validation-rerun` | Rerun the exact latest-main validation sequence after the migration collision repair merges. |
+| P1 DB proof | `test/consolidated-mysql-concurrency-proof` | Add or consolidate DB concurrency proof only after migration and core validation are green and `TEST_DATABASE_URL` is available. |
+| P1 governance review | `chore/governance-scan-followup` | Review non-migration governance findings without broad runtime/business-logic changes. |
+
+### Rebuild sequencing after the P0 repair is green
+
+The following rebuild order is **not unlocked yet**. It becomes allowed only after migration verification, typecheck, full tests, build, governance scan, and diff sanity are green on latest main:
+
+1. observability/healthchecks rebuild
+2. consolidated MySQL concurrency harness
+3. reservation lifecycle truth rebuild
+4. provider runtime enforcement rebuild
+5. pharmacy legal ops rebuild
+6. offline/degraded recovery rebuild
+
+Schema PRs remain frozen/rebuild-only until the migration collision is fixed and `MIGRATION_AUDIT_STATUS.md` records the next safe reserved migration number. Runtime reservation/payment/provider/legal/offline PRs remain locked while the full test suite is red.
+
+---
+
+
 Parallel execution control contract for Wave 0 / Prompt 1 as of 2026-05-08.
 
 ## Audit metadata

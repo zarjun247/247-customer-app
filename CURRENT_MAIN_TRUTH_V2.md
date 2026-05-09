@@ -1,5 +1,44 @@
 # CURRENT_MAIN_TRUTH_V2
 
+## Latest validation result — 2026-05-09
+
+| Item | Value |
+| --- | --- |
+| Validation branch | `chore/post-migration-latest-main-validation-proof` |
+| Latest main SHA validated | `aef2de345c06fce30a298e4a0e195a9ae4039462` |
+| Latest merged PR visible locally | `#99` — `Merge pull request #99 from zarjun247/codex/certify-stock-mutation-gateways-and-reporting` |
+| Validation status | **Blocked / red** |
+| Detailed proof document | `LATEST_MAIN_VALIDATION_STATUS.md` |
+| Main green or blocked | **Blocked**: TypeScript and build pass, but full tests, migration verification, and governance scan fail. |
+| Migration hygiene status | **P0 blocked**: duplicate migration prefixes remain for `0045` and `0046`. |
+| Next reserved migration number | **Blocked / not safely reservable** until duplicate `0045`/`0046` prefixes are repaired; tentative next visible prefix would be `0047` only after repair. |
+| DB-backed proof | **P1 proof gap**: `TEST_DATABASE_URL` is not set; DB smoke skipped and no DB concurrency script is present in `package.json`. |
+
+### Current readiness score
+
+| Category | Score |
+| --- | --- |
+| Code maturity | 7.0 / 10 |
+| Migration hygiene | 2.0 / 10 |
+| CI/governance hygiene | 5.0 / 10 |
+| Proof maturity | 4.0 / 10 |
+| Investor demo readiness | 6.0 / 10 with explicit blocker disclosure only |
+| Controlled pilot readiness | 3.0 / 10 — blocked |
+| Multi-store beta readiness | 2.0 / 10 — blocked |
+| Race-mode production readiness | 0.0 / 10 — not claimed |
+
+### Current launch mode
+
+| Launch mode | Status |
+| --- | --- |
+| Investor demo | Conditional only with explicit disclosure that latest-main validation is red. |
+| Controlled pilot | Blocked until P0 migration/test/governance failures are resolved and DB proof is available. |
+| Multi-store beta | Blocked. |
+| Race-mode production | Blocked / not claimed. |
+
+---
+
+
 Canonical current-main audit for Wave 0 / Prompt 1 as of 2026-05-08.
 
 > This is a docs/control and static-inspection pass only. It does not implement runtime feature changes and does not certify production readiness.

@@ -1,5 +1,12 @@
 # PRODUCTION_READINESS_STATUS
 
+## Top status note — 2026-05-09 latest-main validation
+
+Latest validation on branch `chore/post-migration-latest-main-validation-proof` at local main-equivalent SHA `aef2de345c06fce30a298e4a0e195a9ae4039462` is **blocked / red**. TypeScript and build pass, but the full test suite, migration verification, and governance scan fail because duplicate Drizzle migration prefixes `0045` and `0046` remain. DB-backed smoke/concurrency proof is **not claimed** because `TEST_DATABASE_URL` is missing and no DB concurrency script is present. Race-mode production readiness is **0.0 / 10 and not claimed**. See `LATEST_MAIN_VALIDATION_STATUS.md` for the command table and exact failure logs.
+
+---
+
+
 ## 1. Current score
 - Overall: 7.4 / 10
 - Last updated by: feat/mega-02-stock-reservation-truth

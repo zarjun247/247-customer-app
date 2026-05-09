@@ -72,3 +72,21 @@ Static inspection caveats:
 1. Dedicated migration metadata reconciliation prompt: decide whether to regenerate metadata, document manual SQL history, or create a controlled forward-only repair.
 2. Clean MySQL migration replay prompt using `pnpm run test:db:bootstrap` and `pnpm run test:db:smoke`.
 3. Pre-merge migration collision prompt for any active PR that touches `drizzle/schema.ts` or `drizzle/*.sql`.
+
+---
+
+## Latest validation append — 2026-05-09
+
+Latest validation branch `chore/post-migration-latest-main-validation-proof` inspected local main-equivalent SHA `aef2de345c06fce30a298e4a0e195a9ae4039462`. The validation found that migration collision surgery is **not proven complete** in this checkout.
+
+| Item | Result |
+| --- | --- |
+| Drizzle SQL files inspected | 49 SQL files total; 46 numbered files. |
+| Duplicate prefixes | **P0 blocker:** `0045` and `0046` are duplicated. |
+| Duplicate `0045` files | `0045_commercial_event_ledger.sql`, `0045_provider_webhook_events.sql` |
+| Duplicate `0046` files | `0046_rbac_staff_session_governance.sql`, `0046_worker_jobs.sql` |
+| `node scripts/verify-migrations.mjs` | Failed with 2 blocking duplicate-prefix issues. |
+| Full test suite | Failed in duplicate migration-prefix guards. |
+| Next reserved migration number | **Blocked / not safely assignable** until duplicate `0045`/`0046` prefixes are repaired. Tentative next visible prefix would be `0047` only after repair and audit update. |
+
+No migrations were added, removed, renamed, or edited by this validation/status PR. A dedicated P0 migration repair branch is required before schema PRs can reserve or use any new migration number.
