@@ -18,10 +18,16 @@ export async function recordProviderEvent(args: {
   try { return (res as any)[0].insertId as number; } catch { return null; }
 }
 
+import { recordMetric, recordEvent } from "./telemetry";
+
 export async function markEventRetryScheduled(eventId: number, attemptCount: number, errorMessage?: string) {
   const db = await getDb();
   if (!db) return;
   await db.execute(sql`UPDATE provider_events SET attemptCount = ${attemptCount}, status = 'retry_scheduled', errorMessage = ${errorMessage ?? null}, updatedAt = NOW() WHERE id = ${eventId}`);
+  try {
+    recordMetric('provider.retry_attempt', 1, { providerEventId: eventId, attemptCount });
+    recordEvent('provider.retry_scheduled', { providerEventId: eventId, attemptCount, errorMessage }, 'warning');
+  } catch (err) { /* best-effort */ }
 }
 
 export async function moveToDeadLetter(eventId: number, reason?: string, lastError?: string, attemptCount = 0) {
@@ -36,6 +42,10 @@ export async function moveToDeadLetter(eventId: number, reason?: string, lastErr
     await db.execute(insertSql);
     // Mark the provider event as dead_letter (idempotent update)
     await db.execute(sql`UPDATE provider_events SET status = 'dead_letter', updatedAt = NOW() WHERE id = ${eventId}`);
+    try {
+      recordEvent('provider.dead_letter', { providerEventId: eventId, reason, lastError, attemptCount }, 'warning');
+      recordMetric('provider.dead_letter.count', 1, { providerEventId: eventId });
+    } catch (err) { /* best-effort */ }
   } catch (error: any) {
     console.error('[providerEventsService] moveToDeadLetter error:', error?.message ?? error);
     throw error;

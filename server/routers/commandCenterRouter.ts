@@ -13,7 +13,9 @@ import {
   refillPlans, refillEvents, auditLogs, routingDecisions,
   buildings, stores, systemEvents, medivisionSyncLog,
   sales, whatsappMessages, staffHandoffs, users,
+  providerWebhookEvents,
 } from "../../drizzle/schema";
+import { providerEvents, providerDeadLetters } from "../../drizzle/provider_events";
 import { eq, and, lte, gte, sql, desc, asc, inArray, ne, isNull, isNotNull, between, lt, gt, or } from "drizzle-orm";
 
 const ADMIN_ROLES = ["admin", "super_admin", "ops_admin", "store_manager"] as const;
@@ -878,6 +880,92 @@ const recentEvents = protectedProcedure
       .orderBy(desc(systemEvents.occurredAt))
       .limit(input.limit);
     return { events };
+  });
+
+// ─── Operational: Provider Health Board ───────────────────────────────────────
+const providerHealthBoard = protectedProcedure.query(async ({ ctx }) => {
+  assertAdmin(ctx.user.role);
+  const db = await getDb();
+  if (!db) return { statusCounts: [], deadLetters: 0, recentDeadLetters: [] };
+  const statusCounts = await db.select({ status: providerEvents.status, count: sql<number>`COUNT(*)` })
+    .from(providerEvents)
+    .groupBy(providerEvents.status);
+  const deadLetters = await db.select({ count: sql<number>`COUNT(*)` }).from(providerDeadLetters);
+  const recentDeadLetters = await db.select({ id: providerDeadLetters.id, providerEventId: providerDeadLetters.providerEventId, reason: providerDeadLetters.reason, attemptCount: providerDeadLetters.attemptCount, operatorReviewed: providerDeadLetters.operatorReviewed, createdAt: providerDeadLetters.createdAt })
+    .from(providerDeadLetters)
+    .orderBy(desc(providerDeadLetters.createdAt))
+    .limit(50);
+  return { statusCounts, deadLetters: Number(deadLetters[0]?.count ?? 0), recentDeadLetters };
+});
+
+// ─── Operational: Dead Letter Board ──────────────────────────────────────────
+const deadLetterBoard = protectedProcedure.query(async ({ ctx }) => {
+  assertAdmin(ctx.user.role);
+  const db = await getDb();
+  if (!db) return { deadLetters: [] };
+  const deadLetters = await db.select({ id: providerDeadLetters.id, providerEventId: providerDeadLetters.providerEventId, reason: providerDeadLetters.reason, attemptCount: providerDeadLetters.attemptCount, lastError: providerDeadLetters.lastError, operatorReviewed: providerDeadLetters.operatorReviewed, createdAt: providerDeadLetters.createdAt })
+    .from(providerDeadLetters)
+    .orderBy(desc(providerDeadLetters.createdAt))
+    .limit(200);
+  return { deadLetters };
+});
+
+// ─── Operational: Retry Queue Board ──────────────────────────────────────────
+const retryQueueBoard = protectedProcedure.query(async ({ ctx }) => {
+  assertAdmin(ctx.user.role);
+  const db = await getDb();
+  if (!db) return { retries: [] };
+  const retries = await db.select({ id: providerEvents.id, provider: providerEvents.provider, operation: providerEvents.operation, status: providerEvents.status, attemptCount: providerEvents.attemptCount, errorMessage: providerEvents.errorMessage, updatedAt: providerEvents.updatedAt })
+    .from(providerEvents)
+    .where(eq(providerEvents.status, 'retry_scheduled'))
+    .orderBy(desc(providerEvents.updatedAt))
+    .limit(200);
+  return { retries };
+});
+
+// ─── Operational: Incident Timeline & CRUD ───────────────────────────────────
+const incidentTimelineBoard = protectedProcedure.query(async ({ ctx }) => {
+  assertAdmin(ctx.user.role);
+  const db = await getDb();
+  if (!db) return { incidents: [] };
+  const incidents = await db.select({ id: auditLogs.id, action: auditLogs.action, entityType: auditLogs.entityType, entityId: auditLogs.entityId, actorId: auditLogs.actorId, reason: auditLogs.reason, beforeJson: auditLogs.beforeJson, afterJson: auditLogs.afterJson, createdAt: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(sql`action LIKE 'incident.%'`)
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(200);
+  return { incidents };
+});
+
+const createIncident = protectedProcedure
+  .input(z.object({ title: z.string().min(3), description: z.string().optional(), severity: z.enum(['info','warning','critical']).default('warning'), relatedEntityType: z.string().optional(), relatedEntityId: z.number().int().optional(), storeId: z.number().int().optional() }))
+  .mutation(async ({ ctx, input }) => {
+    assertAdmin(ctx.user.role);
+    const { createIncident } = await import('../services/incidentService');
+    const incident = await createIncident({ title: input.title, description: input.description, severity: input.severity as any, relatedEntityType: input.relatedEntityType ?? null, relatedEntityId: input.relatedEntityId ?? null, storeId: input.storeId ?? null }, ctx);
+    return { incident };
+  });
+
+const transitionIncident = protectedProcedure
+  .input(z.object({ incidentAuditId: z.number().int(), newStatus: z.enum(['detected','acknowledged','investigating','mitigated','resolved']), note: z.string().optional() }))
+  .mutation(async ({ ctx, input }) => {
+    assertAdmin(ctx.user.role);
+    const { transitionIncident } = await import('../services/incidentService');
+    await transitionIncident(input.incidentAuditId, input.newStatus as any, input.note ?? undefined, ctx);
+    return { ok: true };
+  });
+
+const listIncidents = protectedProcedure
+  .input(z.object({ limit: z.number().int().default(200) }))
+  .query(async ({ ctx, input }) => {
+    assertAdmin(ctx.user.role);
+    const db = await getDb();
+    if (!db) return { incidents: [] };
+    const incidents = await db.select({ id: auditLogs.id, action: auditLogs.action, entityType: auditLogs.entityType, entityId: auditLogs.entityId, actorId: auditLogs.actorId, reason: auditLogs.reason, afterJson: auditLogs.afterJson, createdAt: auditLogs.createdAt })
+      .from(auditLogs)
+      .where(sql`action LIKE 'incident.%'`)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(input.limit);
+    return { incidents };
   });
 
 // ─── Full snapshot (all 21 cards in one call) ─────────────────────────────────

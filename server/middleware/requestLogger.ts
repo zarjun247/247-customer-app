@@ -45,15 +45,31 @@ export function buildRequestLogEntry(req: RequestWithContext, res: Response, sta
   };
 }
 
+import { recordMetric, recordEvent } from "../services/telemetry";
+
 export function requestLoggerMiddleware(logger: Logger = console): RequestHandler {
   return (req: RequestWithContext, res, next) => {
     const startedAt = process.hrtime.bigint();
     res.on("finish", () => {
       const entry = buildRequestLogEntry(req, res, startedAt);
       const serialized = serializeSafeLog(entry);
+      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      // Emit structured log
       if (res.statusCode >= 500) logger.error(serialized);
       else if (res.statusCode >= 400) logger.warn(serialized);
       else logger.info(serialized);
+      // Emit metrics (best-effort)
+      try {
+        recordMetric('http.request.duration_ms', Math.round(durationMs), { method: req.method, path: req.path, status: res.statusCode });
+      } catch (err) {
+        // ignore
+      }
+      // Emit events for server errors
+      if (res.statusCode >= 500) {
+        try {
+          recordEvent('http.request.error', { requestId: req.requestId ?? res.locals.requestId, method: req.method, path: req.path, status: res.statusCode }, 'critical');
+        } catch (err) {}
+      }
     });
     next();
   };
