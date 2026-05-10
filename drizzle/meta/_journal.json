@@ -323,6 +323,13 @@
       "when": 1777633799370,
       "tag": "0048_rbac_staff_session_governance",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1777633800370,
+      "tag": "0049_provider_retry_dead_letters",
+      "breakpoints": true
     }
   ]
 }

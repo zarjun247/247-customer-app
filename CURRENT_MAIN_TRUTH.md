@@ -9,6 +9,9 @@ Canonical production-readiness and merge-control entry as of 2026-05-10.
 - `pnpm run test:db:concurrency` executed `server/mysql-concurrency.integration.test.ts` and passed all 11 MySQL-backed race/replay cases.
 - Migration metadata and statement splitting were fixed so the DB proof path can actually bootstrap through the post-`0021` migrations.
 - Invoice collision handling, provider webhook replay idempotency, deterministic fixture isolation, and reservation terminal proof setup were fixed based on real MySQL failures.
+- Provider retry/dead-letter proof now covers retry scheduling, attempt counts, exact-once dead-letter insertion, preserved review fields, and no fake success state.
+- Successful provider refund settlement now posts a balanced refund accounting reversal through existing journal batches exactly once; failed refund webhooks do not post reversal entries.
+- Supplier invoice duplicate enforcement is a non-destructive guard plus business-review backfill plan for supplier + store + invoice number before hard DB uniqueness.
 
 ## Launch mode decision
 
@@ -23,12 +26,12 @@ Canonical production-readiness and merge-control entry as of 2026-05-10.
 
 | Area | Estimated score | Meaning |
 | --- | ---: | --- |
-| Code maturity | 7.7 / 10 | Router parity, reservation accounting, invoice collision handling, and webhook replay idempotency are materially improved. |
-| Proof maturity | 7.2 / 10 | Real local MySQL proof is green; hosted MySQL 8.4 workflow observation remains a P1 parity item. |
-| Investor-demo readiness | 8.4 / 10 | Suitable for supervised demos with fewer DB-proof caveats. |
-| Controlled-pilot readiness | 7.3 / 10 | Closer to pilot readiness, pending hosted CI proof and operational fallback drills. |
-| Multi-store beta readiness | 5.8 / 10 | Still blocked by provider retry/dead-letter, accounting reversal, and operational hardening. |
-| Race-mode readiness | 5.7 / 10 | Improved after green local MySQL proof, but not production-ready without CI parity and remaining hardening. |
+| Code maturity | 8.0 / 10 | Router parity, reservation accounting, provider dead-letter, refund reversal, invoice collision handling, and webhook replay idempotency are materially improved. |
+| Proof maturity | 7.6 / 10 | Real local MySQL proof is green and P1 guard tests were added; hosted MySQL 8.4 workflow observation remains a P1 parity item. |
+| Investor-demo readiness | 8.5 / 10 | Suitable for supervised demos with fewer DB-proof and provider-retry caveats. |
+| Controlled-pilot readiness | 7.6 / 10 | Closer to pilot readiness, pending hosted CI proof and operational fallback drills. |
+| Multi-store beta readiness | 6.3 / 10 | Still blocked by CI parity, hard supplier uniqueness backfill/constraint, and operational hardening. |
+| Race-mode readiness | 6.1 / 10 | Improved after green local MySQL proof and retry/reversal hardening, but not production-ready without CI parity and remaining controls. |
 
 ## Remaining blockers
 

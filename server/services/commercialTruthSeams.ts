@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { batchLedger, counterPayments, paymentRecords, purchaseInvoices, purchaseLines, refunds, saleLines, sales } from "../../drizzle/schema";
 import { getDb } from "../db";
@@ -9,6 +9,7 @@ import { createBatchWithOpeningStock, decreaseStockForSaleConfirmation, increase
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 import { syncStoreSkuAggregate } from "./reservationService";
 import { recordSupplierPayable } from "./supplierLedger";
+import { createRefundJournalBatch, postBalancedJournalBatch } from "./accountingLedger";
 
 function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
@@ -28,6 +29,23 @@ function duplicateResult<T extends Record<string, unknown>>(result: T): T & { id
   return { ...result, idempotent: true, duplicate: true, status: "already_processed" };
 }
 
+async function assertNoCommittedSupplierInvoiceDuplicate(db: any, invoice: { id: number; supplierId: number; storeId: number; invoiceNo: string }) {
+  const normalizedInvoiceNo = invoice.invoiceNo.trim();
+  const [duplicate] = await db.select({ id: purchaseInvoices.id })
+    .from(purchaseInvoices)
+    .where(and(
+      eq(purchaseInvoices.supplierId, invoice.supplierId),
+      eq(purchaseInvoices.storeId, invoice.storeId),
+      eq(purchaseInvoices.invoiceNo, normalizedInvoiceNo),
+      inArray(purchaseInvoices.status, ["committed", "partially_returned", "returned"]),
+      ne(purchaseInvoices.id, invoice.id),
+    ))
+    .limit(1);
+  if (duplicate) {
+    throw new TRPCError({ code: "CONFLICT", message: "Duplicate supplier invoice number for this supplier and store requires review before commit" });
+  }
+}
+
 export async function commitPurchaseInvoiceExactlyOnce(input: { invoiceId: number; idempotencyKey: string; actorId: number; actorRole?: string | null }) {
   const db = requireDb(await getDb());
   return withIdempotency({
@@ -43,6 +61,7 @@ export async function commitPurchaseInvoiceExactlyOnce(input: { invoiceId: numbe
     if (!invoice) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
     if (invoice.status === "committed") return duplicateResult({ success: true, invoiceId: input.invoiceId, committed: false });
     if (invoice.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
+    await assertNoCommittedSupplierInvoiceDuplicate(db, invoice);
 
     const [claim] = await db.update(purchaseInvoices).set({ status: "committed", committedAt: new Date(), approvedBy: input.actorId, approvedAt: new Date() }).where(and(eq(purchaseInvoices.id, input.invoiceId), eq(purchaseInvoices.status, "draft")));
     if (Number((claim as { affectedRows?: number }).affectedRows ?? 0) !== 1) return duplicateResult({ success: true, invoiceId: input.invoiceId, committed: false });
@@ -129,7 +148,19 @@ export async function settleProviderRefundExactlyOnce(input: { gatewayOrderId: s
     const refundId = Number((result as { insertId?: number }).insertId);
     const newTotal = Number(totals?.total ?? 0) + input.amountPaise;
     await tx.update(paymentRecords).set({ status: newTotal >= Number(payment.amount ?? 0) ? "refunded" : payment.status, refundId: input.providerRefundId, refundedAt: newTotal >= Number(payment.amount ?? 0) ? new Date() : payment.refundedAt }).where(eq(paymentRecords.id, payment.id));
-    await appendCommercialEventBestEffort({ aggregateType: "refund", aggregateId: refundId, eventType: "refund_completed", actorType: "provider", orderId: payment.orderId, paymentId: payment.id, refundId, eventPayload: { amountPaise: input.amountPaise, providerRefundId: input.providerRefundId }, idempotencyKey: input.idempotencyKey, correlationId: input.gatewayOrderId });
-    return { success: true, refundId, refunded: true, status: "processed" as const };
+    const journal = await postBalancedJournalBatch(tx, {
+      ...createRefundJournalBatch({ refundId, amount: input.amountPaise / 100, postedBy: input.actorId ?? null }),
+      metadataJson: {
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        saleId: null,
+        refundId,
+        providerRefundId: input.providerRefundId,
+        amountPaise: input.amountPaise,
+      },
+      narration: `Provider refund reversal ${input.providerRefundId}`,
+    });
+    await appendCommercialEventBestEffort({ aggregateType: "refund", aggregateId: refundId, eventType: "refund_completed", actorType: "provider", orderId: payment.orderId, paymentId: payment.id, refundId, eventPayload: { amountPaise: input.amountPaise, providerRefundId: input.providerRefundId, accountingJournalBatchId: journal.id }, idempotencyKey: input.idempotencyKey, correlationId: input.gatewayOrderId });
+    return { success: true, refundId, refunded: true, accountingJournalBatchId: journal.id, status: "processed" as const };
   }));
 }
