@@ -4,6 +4,7 @@ import { logAudit } from "./audit";
 import { recordSupplierPayable } from "./supplierLedger";
 import { normalizeProductName } from "./productNormalization";
 import { getOcrProviderReadiness } from "./ocrProductionSafety";
+import { recordProviderEvent } from "./providerEventsService";
 
 export const OCR_CONFIDENCE_REVIEW_THRESHOLD = 70;
 export const SUPPLIER_SKU_CONFIDENCE_THRESHOLD = 95;
@@ -231,6 +232,8 @@ export async function createOcrJob(
 export async function parseSupplierBill(rawText?: string) {
   const readiness = getOcrProviderReadiness();
   if (!readiness.ok) {
+    // durable record for operator triage when OCR provider is not ready/configured
+    void recordProviderEvent({ provider: "ocr", operation: "parse_supplier_bill_unavailable", status: readiness.status ?? "provider_unconfigured", errorMessage: String(readiness.reason ?? "") }).catch(() => {});
     return {
       provider: process.env.OCR_PROVIDER ?? readiness.status,
       status: readiness.status,
@@ -240,6 +243,8 @@ export async function parseSupplierBill(rawText?: string) {
       reason: readiness.reason,
     };
   }
+  // No certified adapter wired here; record as provider_unconfigured for ops visibility
+  void recordProviderEvent({ provider: "ocr", operation: "parse_supplier_bill_no_adapter", status: "provider_unconfigured", errorMessage: "No certified supplier-bill OCR adapter wired" }).catch(() => {});
   return {
     provider: process.env.OCR_PROVIDER ?? "llm",
     status: "manual_required",
