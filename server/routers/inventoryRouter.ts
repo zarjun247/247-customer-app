@@ -20,6 +20,7 @@ import { requireStoreAccess } from "../_core/rbac";
 import { logAudit } from "../services/audit";
 import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection } from "../services/stockInvariant";
 import { resolveBarcodeForStockAudit } from "../services/barcodeService";
+import { reserveBatchAtomic, releaseReservationAtomic } from "../services/reservationService";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -577,8 +578,7 @@ const transferRouter = router({
       const { batchLedger, stockTransfers } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND" });
-      if (batch.qtyOnHand < input.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Only ${batch.qtyOnHand} units available` });
-      await db.update(batchLedger).set({ qtyReserved: batch.qtyReserved + input.qty }).where(eq(batchLedger.id, input.batchId));
+      await reserveBatchAtomic({ batchId: input.batchId, productId: input.productId, storeId: input.fromStoreId, qty: input.qty, releaseReason: "transfer_initiated", ctx });
       const [result] = await db.insert(stockTransfers).values({
         fromStoreId: input.fromStoreId, toStoreId: input.toStoreId, batchId: input.batchId,
         productId: input.productId, qtyTransferred: input.qty, status: "in_transit",
@@ -604,7 +604,7 @@ const transferRouter = router({
       if (!src) throw new TRPCError({ code: "NOT_FOUND", message: "Source batch not found" });
 
       if ((src.qtyOnHand ?? 0) < transfer.qtyTransferred) throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient source stock for transfer receive" });
-      await db.update(batchLedger).set({ qtyReserved: src.qtyReserved - transfer.qtyTransferred }).where(eq(batchLedger.id, transfer.batchId));
+      await releaseReservationAtomic({ batchId: transfer.batchId, storeId: transfer.fromStoreId, productId: transfer.productId, releaseReason: `transfer_receive_${input.transferId}`, ctx });
       const bucket = computeExpiryBucket(src.expiryDate);
       const [destResult] = await db.insert(batchLedger).values({
         productId: src.productId, variantId: src.variantId, storeId: transfer.toStoreId,

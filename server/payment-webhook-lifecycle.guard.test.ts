@@ -77,6 +77,8 @@ describe("payment webhook lifecycle safety", () => {
     expect(service).toContain('payment_expired');
     expect(reservation).toContain('eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)');
     expect(reservation).toContain('"consumed"');
+    expect(reservation).toContain("releaseReservationAtomic");
+    expect(reservation).toContain("consumeReservationAtomic");
   });
 
   it("reconciles refund success/failure webhooks through the refund ledger exactly once", () => {
@@ -84,6 +86,7 @@ describe("payment webhook lifecycle safety", () => {
     expect(service).toContain("REFUND_FAILED_EVENTS");
     expect(service).toContain("from(refunds)");
     expect(service).toContain('refund.status === "success" || refund.status === "failed"');
+    expect(service).toContain("settleProviderRefundExactlyOnce");
     expect(service).toContain("markRefundSuccess");
     expect(service).toContain("markRefundFailedRecord");
     expect(service).toContain("refund_completed");

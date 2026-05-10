@@ -7,10 +7,21 @@ import { reserveInvoiceNumber } from "./invoiceNumbering";
 import { createMutationFingerprint, withIdempotency } from "./idempotencyService";
 import { createBatchWithOpeningStock, decreaseStockForSaleConfirmation, increaseStockForPurchaseCommit } from "./stockInvariant";
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
+import { syncStoreSkuAggregate } from "./reservationService";
+import { recordSupplierPayable } from "./supplierLedger";
 
 function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
   return db;
+}
+
+function calcPurchaseGst(purchaseRate: number, gstRate: number, qty: number, schemeDiscount: number, cashDiscount: number) {
+  const baseAmount = purchaseRate * qty;
+  const schemeDis = baseAmount * (schemeDiscount / 100);
+  const cashDis = (baseAmount - schemeDis) * (cashDiscount / 100);
+  const taxableAmount = baseAmount - schemeDis - cashDis;
+  const gstAmount = taxableAmount * (gstRate / 100);
+  return { taxableAmount, gstAmount };
 }
 
 function duplicateResult<T extends Record<string, unknown>>(result: T): T & { idempotent: true; duplicate: true; status: "already_processed" } {
@@ -38,8 +49,19 @@ export async function commitPurchaseInvoiceExactlyOnce(input: { invoiceId: numbe
 
     const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseInvoiceId, input.invoiceId));
     if (!lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines to commit" });
+    const gstSummary: Record<string, { taxable: number; gst: number; total: number }> = {};
     for (const line of lines) {
       const qty = Number(line.qty ?? 0) + Number(line.freeQty ?? 0);
+      const pr = Number(line.purchaseRate ?? 0);
+      const gr = Number(line.gstRate ?? 12);
+      const sd = Number(line.schemeDiscount ?? 0);
+      const cd = Number(line.cashDiscount ?? 0);
+      const { taxableAmount, gstAmount } = calcPurchaseGst(pr, gr, Number(line.qty ?? 0), sd, cd);
+      const rateKey = `${gr}%`;
+      if (!gstSummary[rateKey]) gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
+      gstSummary[rateKey].taxable += taxableAmount;
+      gstSummary[rateKey].gst += gstAmount;
+      gstSummary[rateKey].total += taxableAmount + gstAmount;
       const [existing] = await db.select().from(batchLedger).where(and(eq(batchLedger.storeId, invoice.storeId), eq(batchLedger.productId, line.productId), eq(batchLedger.batchNo, line.batchNo))).limit(1);
       const ledgerId = existing?.id ?? (await createBatchWithOpeningStock({
         batch: {
@@ -62,9 +84,12 @@ export async function commitPurchaseInvoiceExactlyOnce(input: { invoiceId: numbe
         actor: { actorId: input.actorId, actorRole: input.actorRole, source: "service" },
       })).batchId;
       await increaseStockForPurchaseCommit({ batchId: ledgerId, storeId: invoice.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: invoice.id, reason: `Purchase commit ${invoice.invoiceNo}`, actor: { actorId: input.actorId, actorRole: input.actorRole, source: "service" }, productId: line.productId });
+      await syncStoreSkuAggregate({ storeId: invoice.storeId, productId: line.productId, variantId: null });
     }
+    await db.update(purchaseInvoices).set({ gstSummary: JSON.stringify(gstSummary) }).where(eq(purchaseInvoices.id, input.invoiceId));
+    await recordSupplierPayable(db, { supplierId: invoice.supplierId, purchaseInvoiceId: invoice.id, storeId: invoice.storeId, amount: Number(invoice.netAmount ?? 0), actorId: input.actorId, actorRole: input.actorRole ?? "system", source: "service" }, undefined);
     await appendCommercialEventBestEffort({ aggregateType: "purchase_invoice", aggregateId: input.invoiceId, eventType: "purchase_committed", actorType: "staff", actorId: input.actorId, storeId: invoice.storeId, eventPayload: { invoiceNo: invoice.invoiceNo }, idempotencyKey: input.idempotencyKey });
-    return { success: true, invoiceId: input.invoiceId, committed: true, status: "processed" as const };
+    return { success: true, invoiceId: input.invoiceId, committed: true, gstSummary, status: "processed" as const };
   });
 }
 

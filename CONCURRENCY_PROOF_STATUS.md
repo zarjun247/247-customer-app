@@ -1,47 +1,32 @@
 # CONCURRENCY_PROOF_STATUS
 
-Updated: 2026-05-10 on branch `codex/stock-reservation-concurrency-proof`.
+Updated: 2026-05-10.
 
-## Baseline map before edits
+## Current status
 
-- Existing durable idempotency lived in `idempotency_keys` with `key + scope` uniqueness, request hashes, stored result JSON, `started/completed/failed` states, and replay via `withIdempotency`.
-- Existing duplicate-prevention constraints already covered provider webhook `provider + providerEventId`, provider webhook `provider + idempotencyKey`, refund `provider + providerRefundId`, sales bill number, invoice sequence, and H1 sale-line uniqueness.
-- Purchase commit and sale confirmation were router/session-coupled. They used idempotency but had no small exported service seam for DB-backed tests.
-- Provider webhook processing had an exported raw-body seam, but duplicate insert races could surface as duplicate-key errors instead of deterministic reuse.
-- Refund amount protection existed in `refundService`, but aggregate over-refund proof needed a transaction/row-lock seam.
-- Reservation terminal transitions updated only `active` rows, but callers could not inspect the deterministic winner.
+- `pnpm run test:db:concurrency` was run in this checkout on 2026-05-10.
+- `TEST_DATABASE_URL` is not set, so `server/mysql-concurrency.integration.test.ts` skipped all 11 MySQL-backed tests.
+- Therefore DB-backed concurrency proof is **not claimed** by this pass.
 
-## Service seams added or normalized
+## How to obtain real proof
 
-- `commitPurchaseInvoiceExactlyOnce` commits one purchase invoice through the canonical idempotency table and routes stock increase through `stockInvariant`.
-- `confirmSaleExactlyOnce` confirms one sale through the canonical idempotency table, allocates invoice numbers, routes stock decrement through `stockInvariant`, and writes one counter payment.
-- `handleRazorpayWebhook` now catches provider-event duplicate-key races and reloads the existing event row for deterministic replay handling.
-- `settleProviderRefundExactlyOnce` locks the payment row, checks aggregate refundable amount, enforces provider refund uniqueness, and writes exactly one successful refund ledger row.
-- `claimReservationTerminalState` exposes the active-reservation terminal transition and returns whether the caller won the race.
+Run against a real MySQL-compatible test database with the full schema migrated:
 
-## DB-backed tests now present
+```bash
+export TEST_DATABASE_URL='mysql://USER:PASSWORD@HOST:PORT/DB_NAME'
+pnpm run test:db:concurrency
+```
 
-These tests are in `server/mysql-concurrency.integration.test.ts` and run only when `TEST_DATABASE_URL` is set:
+The proof can only be marked green when the command above runs the MySQL integration tests instead of skipping them and exits successfully.
 
-1. Last-unit reservation race.
-2. POS sale vs app reservation last-unit race.
-3. Concurrent invoice number reservations.
-4. Provider webhook uniqueness constraint.
-5. Refund provider-id uniqueness constraint.
-6. H1 sale-line uniqueness constraint.
-7. Purchase commit double-submit through service seam.
-8. Sale confirmation double-submit through service seam.
-9. Full payment captured webhook replay through raw-body webhook seam.
-10. Concurrent over-refund prevention through row-locked refund settlement seam.
-11. Reservation payment-vs-expiry terminal transition race.
+## Runtime parity status
+
+- Purchase commit router delegates to `commitPurchaseInvoiceExactlyOnce`.
+- Sale confirmation router delegates to `confirmSaleExactlyOnce`.
+- Refund success webhook settlement delegates to `settleProviderRefundExactlyOnce`.
+- Payment capture webhooks continue to enter through `handleRazorpayWebhook`, the canonical raw provider webhook seam.
 
 ## Remaining unproven guarantees
 
-- The new purchase and sale service seams prove exported DB-backed paths, but the original routers are not fully refactored to call those seams yet. Router parity should be the next hardening sprint before broad production claims.
-- Purchase invoice supplier uniqueness is still not enforced by a destructive or backfilled schema constraint; this sprint avoided migration risk.
-- DB proof must not be claimed in environments where `TEST_DATABASE_URL` is absent.
-
-## Current production-readiness score
-
-- Commercial-truth proof maturity: **5.8 / 10** when the DB-backed harness passes against MySQL.
-- Race-mode production readiness: **4.0 / 10** until router parity, complete reservation quantity release/consume accounting, and CI DB proof are all green.
+- Real DB race proof for last-unit reservation, sale-vs-reservation, invoice number races, webhook replay, refund replay/over-refund, and reservation terminal races remains pending until `TEST_DATABASE_URL` is available.
+- Supplier invoice duplicate uniqueness/backfill remains a P1 production-hardening item.

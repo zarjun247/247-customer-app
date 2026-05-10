@@ -202,6 +202,19 @@ export function scanText(filePath, text) {
       );
     }
 
+    if (runtimePath && !/^server\/services\/(stockInvariant|reservationService)\.[jt]s$/i.test(normalized)) {
+      if (/\b(?:db|tx)\.update\(batchLedger\)\.set\(\{[^}]*\bqtyReserved\s*:/i.test(line)) {
+        addFinding(
+          findings,
+          "stock-mutation-risk",
+          normalized,
+          lineNumber,
+          "Direct qtyReserved batch ledger mutation outside stockInvariant/reservationService.",
+          line
+        );
+      }
+    }
+
     if (runtimePath && !isStockAllowedPath(normalized)) {
       if (
         /\b(update|insert|delete|set)\b.*(\bbatches\.qtyOnHand\b|\bstoreSkus\.availableQty\b)|\binsert\s*\(\s*(stockMovements|stock_movements|batchLedger|batch_ledger)\s*\)|\b(stock_reservations|stockReservations)\b.*\b(update|insert|delete|set)\b|\b(update|insert|delete)\b.*\b(stock_reservations|stockReservations)\b/i.test(

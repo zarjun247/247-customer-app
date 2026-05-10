@@ -2,20 +2,24 @@
 
 Updated: 2026-05-10.
 
-## Audit command
+## Current result
 
-`rg -n "db\.update\(batchLedger\)|tx\.update\(batchLedger\)|db\.update\(batches\)|qtyOnHand|qtyReserved|insert\(stockMovements\)" server drizzle --glob '*.ts' --glob '!server/mysql-concurrency.integration.test.ts'`
+- Commercial purchase and sale stock changes route through the canonical commercial seams and `stockInvariant` stock movement helpers.
+- Physical reservation accounting is now centralized in `reservationService`:
+  - `reserveBatchAtomic` increments `batch_ledger.qtyReserved` only when `qtyOnHand - qtyReserved - qtyQuarantined - qtyExpired >= qty`.
+  - `releaseReservationAtomic` terminally releases active reservation rows and decrements `qtyReserved` without allowing negative reserved stock.
+  - `consumeReservationAtomic` terminally consumes active reservation rows and decrements both `qtyReserved` and `qtyOnHand` without allowing negative quantities.
+- Reservation terminal changes are transactional and audited with stock movement rows plus reservation lifecycle events.
+- Direct `qtyReserved` writes outside `stockInvariant`/`reservationService` are guarded by `scripts/ci-governance-guards.mjs` and static tests.
 
-## Result
+## Known exceptions
 
-- Purchase and sale service seams route commercial stock increases/decreases through `stockInvariant`.
-- `stockInvariant.ts` remains the approved writer for `batch_ledger.qtyOnHand` and `stock_movements` commercial movement rows.
-- `commercialTruthSeams.ts` inserts a new `batch_ledger` row with zero quantities before calling `increaseStockForPurchaseCommit`; this is an allowed batch-initialization exception, not a stock movement.
-- Existing `purchaseRouter.ts` legacy `batches.quantity` mirror writes remain documented exceptions for backward compatibility with legacy batch display. They mirror `stockInvariant` movement results and should be removed after all readers use `batch_ledger`.
-- Existing `reservationService.ts` writes `stock_reservations.status/releaseReason` only; it does not yet decrement `batch_ledger.qtyReserved` on terminal transition. This is a P1 reservation truth blocker.
+- Legacy `batches` mirror writes remain for compatibility and should be removed after all readers use `batch_ledger`.
+- Test fixtures and in-memory commercial harnesses can mutate fixture objects; they are not runtime stock truth.
 
-## Remaining bypasses / exceptions
+## Audit commands
 
-- Legacy `batches` writes in purchase commit/return are compatibility mirrors.
-- Test fixtures and in-memory commercial harnesses mutate fixture objects only and are not runtime stock truth.
-- Reservation `qtyReserved` accounting still requires a follow-up sprint to reconcile durable reservation rows to `batch_ledger.qtyReserved` without double release.
+```bash
+rg -n "(?:db|tx)\.update\(batchLedger\)\.set\(\{[^}]*qtyReserved" server scripts -g '!server/services/reservationService.ts' -g '!server/services/stockInvariant.ts'
+node scripts/ci-governance-guards.mjs all
+```

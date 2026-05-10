@@ -17,6 +17,7 @@ git diff --check
 DB-backed proof command, only when `TEST_DATABASE_URL` is set:
 
 ```bash
+export TEST_DATABASE_URL='mysql://USER:PASSWORD@HOST:PORT/DB_NAME'
 pnpm run test:db:concurrency
 ```
 
