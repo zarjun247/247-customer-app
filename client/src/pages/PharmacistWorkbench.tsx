@@ -213,23 +213,23 @@ export default function PharmacistWorkbench() {
                 <Separator className="opacity-30" />
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                    onClick={() => openAction(rx, "quickVerify")}>
+                    onClick={() => openAction(rx, "quickVerify")} title={`Quick Verify Rx #${rx.id}`} aria-label={`Quick Verify Rx ${rx.id}`}>
                     <Zap className="h-3.5 w-3.5" /> Quick Verify
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
-                    onClick={() => openAction(rx, "approve")}>
+                    onClick={() => openAction(rx, "approve")} title={`Approve Rx #${rx.id}`} aria-label={`Approve Rx ${rx.id}`}>
                     <CheckCircle2 className="h-3.5 w-3.5" /> Approve
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                    onClick={() => openAction(rx, "manualReview")}>
+                    onClick={() => openAction(rx, "manualReview")} title={`Manual Review Rx #${rx.id}`} aria-label={`Manual Review Rx ${rx.id}`}>
                     <Eye className="h-3.5 w-3.5" /> Manual Review
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                    onClick={() => openAction(rx, "reject")}>
+                    onClick={() => openAction(rx, "reject")} title={`Reject Rx #${rx.id}`} aria-label={`Reject Rx ${rx.id}`}>
                     <XCircle className="h-3.5 w-3.5" /> Reject
                   </Button>
                   <Button size="sm" variant="ghost" className="h-8 text-xs gap-1.5 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                    onClick={() => openAction(rx, "clearGate")}>
+                    onClick={() => openAction(rx, "clearGate")} title={`Clear Gate for Rx #${rx.id}`} aria-label={`Clear Gate ${rx.id}`}>
                     <AlertTriangle className="h-3.5 w-3.5" /> Clear Gate
                   </Button>
                 </div>

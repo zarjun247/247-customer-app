@@ -3,6 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Minus, Plus, Trash2, Clock, ShieldCheck, Shield, ArrowLeft, Lock, ClipboardList, Search, FileText, CreditCard, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -232,24 +234,21 @@ export default function Cart() {
                   ))}
                 </div>
                 {/* Rx notice */}
-                <div className="rounded-xl p-4 flex items-start gap-3"
+                <div className="rounded-xl p-4 flex items-start gap-3" role="note" aria-live="polite"
                   style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)" }}>
                   <ClipboardList size={14} strokeWidth={1.75} className="flex-shrink-0 mt-0.5"
                     style={{ color: "#F59E0B" }} />
                   <div>
-                    <p className="text-sm font-semibold mb-0.5" style={{ color: "#92400E" }}>
-                      Prescription required
-                    </p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold" style={{ color: "#92400E" }}>Prescription required</span>
+                      <Badge variant="rx" className="text-xs">Rx</Badge>
+                    </div>
                     <p className="text-xs leading-relaxed" style={{ color: "#B45309" }}>
                       These medicines will be prepared after a licensed pharmacist reviews your prescription.
                     </p>
-                    <button
-                      onClick={() => navigate("/rx-upload")}
-                      className="mt-2 text-xs font-semibold transition-opacity hover:opacity-70"
-                      style={{ color: "#2B7FFF" }}
-                    >
+                    <Button onClick={() => navigate("/rx-upload")} size="sm" variant="link" className="mt-2">
                       Upload prescription →
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -308,11 +307,12 @@ export default function Cart() {
             </div>
 
             {/* ── Confirm order ────────────────────────────────────────── */}
-            <button
+            <Button
               onClick={handleConfirm}
               disabled={confirming || checkout.isPending || isPaymentLoading}
-              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50 mb-6"
-              style={{ background: "#2B7FFF", color: "white" }}
+              size="lg"
+              touch
+              className="w-full mb-6 flex items-center justify-center gap-2.5 font-semibold text-sm"
             >
               {paymentStep === "creating" ? (
                 <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Setting up payment…</>
@@ -323,7 +323,7 @@ export default function Cart() {
               ) : (
                 <><CreditCard size={16} />{`Pay ₹${subtotal.toFixed(2)}`}</>
               )}
-            </button>
+            </Button>
           </>
         )}
       </div>
