@@ -1,0 +1,9 @@
+{
+  "id": "dead-letter-board",
+  "title": "Dead Letter Board",
+  "metrics": [
+    { "name": "dead_letter_total", "query": "dead_letter_total" },
+    { "name": "retry_count", "query": "retry_total" }
+  ],
+  "note": "Shows items in dead-letter stores and retry trends."
+}

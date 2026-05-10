@@ -1,0 +1,10 @@
+{
+  "id": "sla-breach-board",
+  "title": "SLA Breach Board",
+  "metrics": [
+    { "name": "api_latency_seconds", "query": "api_latency_seconds" },
+    { "name": "provider_latency_seconds", "query": "provider_latency_seconds" },
+    { "name": "sla_breach_count", "query": "sla_breach_total" }
+  ],
+  "note": "Shows API and provider latency with SLA breach counters."
+}

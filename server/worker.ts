@@ -28,6 +28,7 @@ import { getDb } from "./db";
 import { ocrJobs, invoiceIngestions } from "../drizzle/schema";
 import { eq, and, lte } from "drizzle-orm";
 import { runOcrPipeline } from "./ingestion";
+import { metrics } from "./_core/observability";
 
 const MAX_ATTEMPTS = 3;
 
@@ -61,7 +62,10 @@ export async function processQueue(): Promise<number> {
     )
     .limit(10); // process up to 10 jobs per pass
 
-  if (pendingJobs.length === 0) return 0;
+  if (pendingJobs.length === 0) {
+    metrics.setQueueBacklog(0);
+    return 0;
+  }
 
   console.log(`[Worker] Processing ${pendingJobs.length} OCR job(s)`);
 
@@ -70,6 +74,7 @@ export async function processQueue(): Promise<number> {
     try {
       await runOcrPipeline(job.ingestionId);
       processed++;
+      metrics.incrementWorkerProcessed();
       console.log(
         `[Worker] OCR job #${job.id} (ingestion #${job.ingestionId}) completed`
       );

@@ -1,0 +1,9 @@
+{
+  "id": "stock-anomaly-board",
+  "title": "Stock Anomaly Board",
+  "metrics": [
+    { "name": "stock_mismatch_count", "query": "stock_mismatch_total" },
+    { "name": "stock_delta_gauge", "query": "stock_delta" }
+  ],
+  "note": "Detects stock mismatches and anomalies from reconciliation flows."
+}

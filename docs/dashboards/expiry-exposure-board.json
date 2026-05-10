@@ -1,0 +1,8 @@
+{
+  "id": "expiry-exposure-board",
+  "title": "Expiry Exposure Board",
+  "metrics": [
+    { "name": "expiry_exposure_count", "query": "expiry_exposure_total" }
+  ],
+  "note": "Alerts for batches approaching expiry that impact FEFO."
+}

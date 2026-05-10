@@ -1,0 +1,9 @@
+{
+  "id": "provider-health-board",
+  "title": "Provider Health Board",
+  "metrics": [
+    { "name": "provider_up", "query": "provider_up" },
+    { "name": "provider_latency_seconds", "query": "provider_latency_seconds" }
+  ],
+  "note": "Shows health of external providers (WhatsApp, payment, OCR, Medivision)."
+}
