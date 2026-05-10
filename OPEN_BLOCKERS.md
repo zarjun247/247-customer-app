@@ -18,9 +18,9 @@ Updated: 2026-05-10.
 | Legal/compliance review missing | P0 launch blocker | Technical controls do not equal jurisdictional legal compliance. | Written legal/compliance approval or accountable written launch exception. |
 | Live monitoring ownership missing | P0 launch blocker | Provider failures, dead letters, refunds, stock exceptions, security events, and incidents may go unowned. | Primary/secondary rota, escalation thresholds, daily review schedule, and incident commander assignment. |
 | Emergency stop and rollback rehearsal missing | P0 launch blocker | Launch team has not proven it can safely stop, roll back, and reconcile. | Rehearsal notes with timeline, owner, commands/procedures, and signoff. |
-| Hosted CI observation still required | P1 controlled rollout blocker | Local proof is meaningful but hosted target-branch parity has not been archived. | Hosted workflow links/log IDs for target branch, including DB concurrency workflow where available. |
+| Hosted CI DB observation missing | P1 controlled rollout blocker | The workflow is wired and evidence-producing, but release branch parity is not archived until a green GitHub Actions run and artifact are attached. | Hosted `DB Concurrency Proof` run URL, run ID, branch, commit SHA, full logs, and `db-concurrency-proof-*` artifact per `HOSTED_CI_DB_PROOF_STATUS.md`. |
 | Multi-store runtime data proof missing | P1 controlled rollout blocker before second store | Store isolation checks need production-like counts before expansion. | Report for missing assigned stores, missing order store IDs, negative stock rows, and cross-store anomalies. |
-| Supplier invoice duplicate backfill/migration approval | P1 if live purchasing is enabled; P2 scale blocker otherwise | Hard uniqueness cannot be added safely until supplier + store + invoice number duplicates are reviewed. | Business-reviewed duplicate report, remediation plan, and approved non-destructive constraint migration. |
+| Supplier invoice duplicate backfill/migration approval | P1 if live purchasing is enabled; P2 scale blocker otherwise | The commit seam blocks future committed duplicates non-destructively, but hard uniqueness cannot be added safely until supplier + store + invoice number duplicates are reviewed. | Business-reviewed duplicate report, remediation plan, and approved non-destructive constraint migration. |
 | Accounting/compliance SOP evidence incomplete | P1 controlled rollout blocker | Daily reconciliation, statutory export, refund reversal review, and H1 record ownership need assigned operators. | Named owners and signed daily/monthly accounting/compliance checklist. |
 | Incident command center incomplete | P2 scale blocker | Current observability is a foundation, not a complete command center. | Persisted incident records, backed SLA/provider heartbeat/anomaly metrics, and deployment scrape/access policy. |
 | Provider heartbeat and SLA rollups absent | P2 scale blocker | Scaling without provider performance trends increases outage risk. | Durable latency/availability counters and alert thresholds. |
@@ -28,9 +28,9 @@ Updated: 2026-05-10.
 
 ## Current readiness score
 
-**Overall controlled-production readiness: 8.4 / 10 today.**
+**Overall controlled-production readiness: 8.7 / 10 today.**
 
-A 9.5/10 controlled-production rating requires all P0 blockers closed with evidence while validation remains green. No production proof, provider proof, restore proof, or legal compliance is claimed until the relevant evidence is attached.
+A 9.5/10 controlled-production rating requires all P0 blockers closed with evidence while validation remains green; hosted DB proof is not closed by skipped local tests or workflow wiring alone. No production proof, provider proof, restore proof, or legal compliance is claimed until the relevant evidence is attached.
 
 ## Data backfill blocker preserved from main truth
 
