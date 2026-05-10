@@ -26,3 +26,13 @@ Updated: 2026-05-10.
 ## Data backfill blockers preserved from main truth
 
 - Supplier invoice hard uniqueness still needs a business-review backfill before adding a destructive-risk unique constraint. The target key is supplier + store + invoice number.
+
+---
+
+## 2026-05-10 Healthcare governance seal additions
+
+- AI governance boundary is explicit and tested.
+- PHI/PII/secret redaction is strengthened across logs, audit, errors, and worker/provider payloads.
+- Observability and detailed health remain staff/admin gated.
+- Remaining regulated deployment blockers: real provider credentials, backup/restore drills, pharmacist SOP sign-off, named staff access, legal/compliance review, and launch incident monitoring.
+- Supplier invoice hard uniqueness remains blocked until **supplier + store + invoice number** duplicates complete **business-review backfill** and approval for a non-destructive constraint migration.
