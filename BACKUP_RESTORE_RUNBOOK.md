@@ -110,3 +110,22 @@ After a restore, verify at least the following categories:
 - [ ] Restore performed using rehearsed procedure only.
 - [ ] Providers reconciled before reopening payment/notification flows.
 - [ ] Store operators briefed on manual fallback and reconciliation steps.
+
+## Dry-run scripts added for this sprint
+
+The repository includes dry-run-only operational helpers:
+
+```bash
+node scripts/backup-db.mjs --dry-run --metadata
+node scripts/restore-db-drill.mjs --dry-run --backup-file <non-production-backup.sql>
+```
+
+`restore-db-drill.mjs` is intentionally documentation/drill planning only. It refuses `--execute` and does not implement destructive restore execution. Any real restore must be run from the approved database provider tooling or an explicitly reviewed incident runbook against a named non-production/staging target first.
+
+## Safety requirements
+
+- Never run restore drills against production or production-looking database URLs.
+- Never print database passwords, provider secrets, API tokens, PHI, or PII in drill logs.
+- Disable staging workers/webhooks before a restore drill.
+- Replace production provider credentials with staging/sandbox credentials after restore.
+- Record backup ID, restore point, start/end time, verification commands, and owner sign-off.
