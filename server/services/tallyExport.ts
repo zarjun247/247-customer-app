@@ -167,6 +167,8 @@ async function insertRun(db: any, values: any) {
   return { id: (res as any)?.insertId ?? (res as any)?.id, ...values };
 }
 
+import { recordProviderEvent } from "./providerEventsService";
+
 export async function generateTallyCsvExport(db: any, input: { exportType: string; rows: TallyLedgerSourceRow[]; storeId?: number | null; periodStart?: Date | null; periodEnd?: Date | null; dateFrom?: Date | null; dateTo?: Date | null; filters?: Record<string, any>; generatedBy?: number | null; companyIdentifier?: string | null }) {
   const periodStart = input.periodStart ?? input.dateFrom ?? null;
   const periodEnd = input.periodEnd ?? input.dateTo ?? null;
@@ -222,6 +224,8 @@ export async function generateTallyCsvExport(db: any, input: { exportType: strin
       fileKey: null,
       fileUrl: null,
     });
+    // Record a provider event for ops/audit when tally export generation fails
+    void recordProviderEvent({ provider: "tally", operation: "export_generation_failed", status: "failed", errorMessage: failureReason, payload: { runId: run.id, exportType: input.exportType, storeId: input.storeId ?? null } }).catch(() => {});
     return { status: "failed" as const, checksum, runId: run.id, failureReason, providerState: "export_generation_failed_not_synced", imported: false, synced: false };
   }
 }
