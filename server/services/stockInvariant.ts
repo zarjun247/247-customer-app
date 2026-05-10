@@ -32,16 +32,45 @@ export async function applyStockMovement(input: {
     const [batch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, input.batchId)).limit(1);
     if (!batch) throw new TRPCError({ code: "NOT_FOUND", message: "Batch not found" });
     const qtyBefore = batch.qtyOnHand ?? 0;
+    const qtyQuarantinedBefore = batch.qtyQuarantined ?? 0;
+    const qtyExpiredBefore = batch.qtyExpired ?? 0;
+
+    // Compute canonical qtyAfter for on-hand
     const qtyAfter = qtyBefore + input.qtyDelta;
+    // Compute derived columns depending on movement type
+    let qtyQuarantinedAfter = qtyQuarantinedBefore;
+    let qtyExpiredAfter = qtyExpiredBefore;
+
+    if (input.movementType === "quarantine") {
+      // quarantine: move from on-hand into quarantined bucket
+      const delta = Math.abs(input.qtyDelta);
+      qtyQuarantinedAfter = qtyQuarantinedBefore + delta;
+    }
+    if (input.movementType === "disposal") {
+      // disposal: increment expired/removed tally
+      const delta = Math.abs(input.qtyDelta);
+      qtyExpiredAfter = qtyExpiredBefore + delta;
+    }
+
     await assertNoNegativeStock(qtyAfter);
-    await tx.update(batchLedger).set({ qtyOnHand: qtyAfter }).where(eq(batchLedger.id, input.batchId));
+
+    // Build update payload for batchLedger
+    const updatePayload: any = { qtyOnHand: qtyAfter };
+    // Only set derived counters when they changed to avoid unintended overwrites
+    if (qtyQuarantinedAfter !== qtyQuarantinedBefore) updatePayload.qtyQuarantined = qtyQuarantinedAfter;
+    if (qtyExpiredAfter !== qtyExpiredBefore) updatePayload.qtyExpired = qtyExpiredAfter;
+
+    await tx.update(batchLedger).set(updatePayload).where(eq(batchLedger.id, input.batchId));
+
     await tx.insert(stockMovements).values({
       batchId: input.batchId, storeId: input.storeId, movementType: input.movementType, qty: input.qtyDelta,
       qtyBefore, qtyAfter, referenceType: input.referenceType, referenceId: input.referenceId, reason: input.reason,
       performedBy: input.actor.actorId ?? 0,
     });
-    await logAudit({ action: `stock.${input.movementType}`, entityType: "batch_ledger", entityId: input.batchId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", beforeJson: { qtyOnHand: qtyBefore }, afterJson: { qtyOnHand: qtyAfter }, reason: input.reason, metadata: { storeId: input.storeId, qtyDelta: input.qtyDelta, referenceType: input.referenceType, referenceId: input.referenceId, productId: input.productId } });
-    return { qtyBefore, qtyAfter };
+
+    await logAudit({ action: `stock.${input.movementType}`, entityType: "batch_ledger", entityId: input.batchId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", beforeJson: { qtyOnHand: qtyBefore, qtyQuarantined: qtyQuarantinedBefore, qtyExpired: qtyExpiredBefore }, afterJson: { qtyOnHand: qtyAfter, qtyQuarantined: qtyQuarantinedAfter, qtyExpired: qtyExpiredAfter }, reason: input.reason, metadata: { storeId: input.storeId, qtyDelta: input.qtyDelta, referenceType: input.referenceType, referenceId: input.referenceId, productId: input.productId } });
+
+    return { qtyBefore, qtyAfter, qtyQuarantinedAfter, qtyExpiredAfter };
   });
 }
 
@@ -112,6 +141,60 @@ export async function applyStockAuditCorrection(input: {
   await db.update(stockAuditLines).set({ status: "adjusted" }).where(eq(stockAuditLines.id, input.lineId));
   await logAudit({ action: "inventory.stock_audit_corrected", entityType: "stock_audit", entityId: input.auditId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", beforeJson: { qtyOnHand: movement.qtyBefore }, afterJson: { qtyOnHand: movement.qtyAfter }, metadata: { lineId: input.lineId, batchId: input.batchId, qtyDelta } });
   return movement;
+}
+
+export async function syncLegacyBatchQuantity(db: Awaited<ReturnType<typeof getDb>> | null, batchLegacyId: number, qtyAfter: number, actor?: StockActor) {
+  const _db = db ?? await getDb();
+  const { batches } = await import("../../drizzle/schema");
+  await _db.update(batches).set({ quantity: qtyAfter }).where(eq(batches.id, batchLegacyId));
+  await logAudit({ action: "inventory.legacy_batch_sync", entityType: "batches", entityId: batchLegacyId, source: actor?.source ?? "system", beforeJson: {}, afterJson: { quantity: qtyAfter }, reason: "Sync legacy batch quantity from canonical stockInvariant", metadata: { qtyAfter } });
+}
+
+export async function reserveBatchAtomic(batchId: number, storeId: number, qty: number, actor?: StockActor) {
+  const db = await getDb();
+  const { batchLedger, stockMovements } = await import("../../drizzle/schema");
+  return db.transaction(async (tx) => {
+    // Conditional update to avoid race: only succeed if available >= qty
+    const sql = "UPDATE batch_ledger SET qtyReserved = COALESCE(qtyReserved, 0) + ? WHERE id = ? AND COALESCE(qtyOnHand, 0) - COALESCE(qtyReserved, 0) - COALESCE(qtyQuarantined, 0) - COALESCE(qtyExpired, 0) >= ?";
+    const [res]: any = await (tx as any).execute(sql, [qty, batchId, qty]);
+    if (!res || res.affectedRows === 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Insufficient available stock to reserve" });
+    const [batch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, batchId)).limit(1);
+    const qtyReservedAfter = batch.qtyReserved ?? 0;
+    await tx.insert(stockMovements).values({ batchId, storeId, movementType: "sale_reserve", qty, qtyBefore: batch.qtyOnHand ?? 0, qtyAfter: batch.qtyOnHand ?? 0, referenceType: "reservation", referenceId: null, reason: "reservation", performedBy: actor?.actorId ?? 0 });
+    await logAudit({ action: "inventory.reserve", entityType: "batch_ledger", entityId: batchId, actorId: actor?.actorId ?? undefined, actorRole: actor?.actorRole ?? undefined, source: actor?.source ?? "system", beforeJson: { qtyReserved: (batch.qtyReserved ?? 0) - qty }, afterJson: { qtyReserved: qtyReservedAfter }, reason: "atomic reservation", metadata: { qty } });
+    return { batchId, qtyReservedAfter };
+  });
+}
+
+export async function releaseReservedAtomic(batchId: number, storeId: number, qty: number, actor?: StockActor) {
+  const db = await getDb();
+  const { batchLedger, stockMovements } = await import("../../drizzle/schema");
+  return db.transaction(async (tx) => {
+    const sql = "UPDATE batch_ledger SET qtyReserved = GREATEST(COALESCE(qtyReserved,0) - ?, 0) WHERE id = ? AND COALESCE(qtyReserved,0) >= ?";
+    const [res]: any = await (tx as any).execute(sql, [qty, batchId, qty]);
+    if (!res || res.affectedRows === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No reserved quantity available to release" });
+    const [batch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, batchId)).limit(1);
+    await tx.insert(stockMovements).values({ batchId, storeId, movementType: "cancellation_release", qty: -qty, qtyBefore: batch.qtyOnHand ?? 0, qtyAfter: batch.qtyOnHand ?? 0, referenceType: "reservation_release", referenceId: null, reason: "reservation_release", performedBy: actor?.actorId ?? 0 });
+    await logAudit({ action: "inventory.release_reservation", entityType: "batch_ledger", entityId: batchId, actorId: actor?.actorId ?? undefined, actorRole: actor?.actorRole ?? undefined, source: actor?.source ?? "system", beforeJson: {}, afterJson: {}, reason: "release reserved", metadata: { qty } });
+    return { batchId };
+  });
+}
+
+export async function consumeReservedBatchAtomic(batchId: number, storeId: number, qty: number, actor?: StockActor, opts?: { referenceType?: string; referenceId?: number; reason?: string }) {
+  const db = await getDb();
+  const { batchLedger, stockMovements } = await import("../../drizzle/schema");
+  return db.transaction(async (tx) => {
+    // Ensure qtyReserved >= qty before consuming
+    const sql = "UPDATE batch_ledger SET qtyOnHand = COALESCE(qtyOnHand,0) - ?, qtyReserved = COALESCE(qtyReserved,0) - ? WHERE id = ? AND COALESCE(qtyReserved,0) >= ? AND COALESCE(qtyOnHand,0) - COALESCE(qtyReserved,0) >= 0";
+    const [res]: any = await (tx as any).execute(sql, [qty, qty, batchId, qty]);
+    if (!res || res.affectedRows === 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Unable to consume reserved quantity (insufficient reserved or on-hand)" });
+    const [batch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, batchId)).limit(1);
+    const qtyBefore = (batch.qtyOnHand ?? 0) + qty; // since we subtracted
+    const qtyAfter = batch.qtyOnHand ?? 0;
+    await tx.insert(stockMovements).values({ batchId, storeId, movementType: "sale_fulfil", qty: -qty, qtyBefore, qtyAfter, referenceType: opts?.referenceType ?? "sale", referenceId: opts?.referenceId ?? null, reason: opts?.reason ?? "consume reserved", performedBy: actor?.actorId ?? 0 });
+    await logAudit({ action: "inventory.consume_reserved", entityType: "batch_ledger", entityId: batchId, actorId: actor?.actorId ?? undefined, actorRole: actor?.actorRole ?? undefined, source: actor?.source ?? "system", beforeJson: { qtyBefore }, afterJson: { qtyAfter }, reason: opts?.reason ?? "consume_reserved", metadata: { qty } });
+    return { batchId, qtyAfter };
+  });
 }
 
 export async function transferStock(input: {

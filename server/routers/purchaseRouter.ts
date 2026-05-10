@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
-import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
+import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn, syncLegacyBatchQuantity } from "../services/stockInvariant";
 import { syncStoreSkuAggregate } from "../services/reservationService";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding, allocatePaymentToInvoice, allocateSupplierPayment, applyPurchaseReturnCredit, getSupplierAgeing, getSupplierReconciliationReport } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
@@ -307,7 +307,7 @@ export const purchaseRouter = router({
         }
         await db.update(purchaseLines).set({ batchId }).where(eq(purchaseLines.id, line.id));
         const movement = await increaseStockForPurchaseCommit({ batchId: ledgerId, storeId: inv.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: inv.id, reason: `Purchase commit ${inv.invoiceNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: line.productId });
-        await db.update(batches).set({ quantity: movement.qtyAfter }).where(eq(batches.id, batchId));
+        await syncLegacyBatchQuantity(db, batchId, movement.qtyAfter, { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" });
         await syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null });
         const rateKey = `${gr}%`;
         if (!gstSummary[rateKey]) gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
@@ -385,7 +385,7 @@ export const purchaseRouter = router({
           const canonicalBatchAvailable = (ledger.qtyOnHand ?? 0) - (ledger.qtyReserved ?? 0) - (ledger.qtyQuarantined ?? 0) - (ledger.qtyExpired ?? 0);
           if (canonicalBatchAvailable < line.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient canonical stock in batch ${b.batchNumber}` });
           const movement = await decreaseStockForPurchaseReturn({ batchId: ledger.id, storeId: ret.storeId, qtyDelta: line.qty, referenceType: "purchase_return", referenceId: ret.id, reason: line.reason ?? `Purchase return ${ret.id}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: b.productId });
-          await db.update(batches).set({ quantity: movement.qtyAfter }).where(eq(batches.id, b.id));
+          await syncLegacyBatchQuantity(db, b.id, movement.qtyAfter, { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" });
           await syncStoreSkuAggregate({ storeId: ret.storeId, productId: b.productId, variantId: b.variantId ?? null });
         }
       }

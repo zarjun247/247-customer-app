@@ -18,7 +18,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { requireStoreAccess } from "../_core/rbac";
 import { logAudit } from "../services/audit";
-import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection } from "../services/stockInvariant";
+import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection, reserveBatchAtomic, releaseReservedAtomic } from "../services/stockInvariant";
 import { resolveBarcodeForStockAudit } from "../services/barcodeService";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
@@ -201,12 +201,11 @@ const batchRouter = router({
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND" });
       const movement = await quarantineBatch({ batchId: input.batchId, storeId: batch.storeId, qtyDelta: input.qty, referenceType: "batch_quarantine", referenceId: input.batchId, reason: `Quarantine: ${input.reason}. ${input.note ?? ""}`.trim(), actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" }, productId: batch.productId });
-      const newOnHand = movement.qtyAfter;
-      const newQuarantined = batch.qtyQuarantined + input.qty;
-      await db.update(batchLedger).set({ qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, status: newOnHand === 0 ? "quarantined" : batch.status }).where(eq(batchLedger.id, input.batchId));
+      // stockInvariant has already updated the canonical batch_ledger (qtyOnHand, qtyQuarantined, status) and inserted a stock movement.
+      // Insert quarantine log for operator history. Avoid direct writes to batch_ledger here to prevent competing mutation paths.
       await db.insert(batchQuarantineLogs).values({ batchId: input.batchId, productId: batch.productId, storeId: batch.storeId, reason: input.reason, qtyQuarantined: input.qty, initiatedBy: ctx.user.id, note: input.note });
       try {
-        await logAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "inventory.quarantine", beforeJson: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, afterJson: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined }, reason: `Reason: ${input.reason}`, source: "admin" });
+        await logAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "inventory.quarantine", beforeJson: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, afterJson: { qtyOnHand: movement.qtyAfter, qtyQuarantined: movement.qtyQuarantinedAfter ?? (batch.qtyQuarantined + input.qty) }, reason: `Reason: ${input.reason}`, source: "admin" });
       } catch { /* non-critical */ }
       return { ok: true };
     }),
@@ -240,13 +239,14 @@ const batchRouter = router({
       if (available < input.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Only ${available} units available` });
       const fromQuarantine = Math.min(batch.qtyQuarantined, input.qty);
       const fromOnHand = input.qty - fromQuarantine;
+      let disposeMovement: any = null;
       if (fromOnHand > 0) {
-        await disposeBatch({ batchId: input.batchId, storeId: batch.storeId, qtyDelta: fromOnHand, referenceType: "batch_disposal", referenceId: input.batchId, reason: input.note, actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" }, productId: batch.productId });
+        disposeMovement = await disposeBatch({ batchId: input.batchId, storeId: batch.storeId, qtyDelta: fromOnHand, referenceType: "batch_disposal", referenceId: input.batchId, reason: input.note, actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" }, productId: batch.productId });
       }
-      const newOnHand = batch.qtyOnHand - fromOnHand;
+      const newOnHand = disposeMovement ? disposeMovement.qtyAfter : (batch.qtyOnHand - fromOnHand);
       const newQuarantined = batch.qtyQuarantined - fromQuarantine;
-      const newExpired = batch.qtyExpired + input.qty;
-      await db.update(batchLedger).set({ qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, qtyExpired: newExpired, status: newOnHand === 0 && newQuarantined === 0 ? "depleted" : batch.status }).where(eq(batchLedger.id, input.batchId));
+      const newExpired = disposeMovement ? disposeMovement.qtyExpiredAfter ?? (batch.qtyExpired + input.qty) : (batch.qtyExpired + input.qty);
+      // stockInvariant.disposeBatch already applied canonical mutation and recorded a stock movement and audit. Avoid updating batch_ledger directly here to prevent competing mutation paths.
       try {
         await logAudit({ actorId: ctx.user.id, entityType: "batch_ledger", entityId: input.batchId, action: "inventory.dispose", beforeJson: { qtyOnHand: batch.qtyOnHand, qtyQuarantined: batch.qtyQuarantined }, afterJson: { qtyOnHand: newOnHand, qtyQuarantined: newQuarantined, qtyExpired: newExpired }, reason: input.note, source: "admin" });
       } catch { /* non-critical */ }
@@ -578,7 +578,7 @@ const transferRouter = router({
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND" });
       if (batch.qtyOnHand < input.qty) throw new TRPCError({ code: "BAD_REQUEST", message: `Only ${batch.qtyOnHand} units available` });
-      await db.update(batchLedger).set({ qtyReserved: batch.qtyReserved + input.qty }).where(eq(batchLedger.id, input.batchId));
+      await reserveBatchAtomic(input.batchId, input.fromStoreId, input.qty, { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" });
       const [result] = await db.insert(stockTransfers).values({
         fromStoreId: input.fromStoreId, toStoreId: input.toStoreId, batchId: input.batchId,
         productId: input.productId, qtyTransferred: input.qty, status: "in_transit",
@@ -604,7 +604,7 @@ const transferRouter = router({
       if (!src) throw new TRPCError({ code: "NOT_FOUND", message: "Source batch not found" });
 
       if ((src.qtyOnHand ?? 0) < transfer.qtyTransferred) throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient source stock for transfer receive" });
-      await db.update(batchLedger).set({ qtyReserved: src.qtyReserved - transfer.qtyTransferred }).where(eq(batchLedger.id, transfer.batchId));
+      await releaseReservedAtomic(transfer.batchId, transfer.fromStoreId, transfer.qtyTransferred, { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" });
       const bucket = computeExpiryBucket(src.expiryDate);
       const [destResult] = await db.insert(batchLedger).values({
         productId: src.productId, variantId: src.variantId, storeId: transfer.toStoreId,
