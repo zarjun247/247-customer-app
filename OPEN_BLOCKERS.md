@@ -63,3 +63,17 @@ Supplier invoice hard uniqueness still needs a business-review backfill before a
 | First-class worker queue store scope | P1 before second-store rollout | Open | Add/store-resolve `storeId` on worker jobs or prove queue naming/payload correlation with operator visibility and replay restrictions. |
 | Transfer receive hosted/staging contention proof | P1 before second-store rollout | Open | Run a two-store transfer contention test against staging/hosted DB and archive evidence showing no negative source stock or phantom destination stock. |
 | Access roster and break-glass review | P0 for live launch, P1 for multi-store beta | Open | Named staff/admin roster with role, store assignment, pharmacist privileges, session/device policy, and break-glass owner signoff. |
+
+## 2026-05-10 operationalization blocker update
+
+The operationalization sprint reduces documentation/doctrine gaps but does not close evidence blockers. The following blockers are now narrowed from “missing doctrine” to “missing observed/signoff evidence”:
+
+| Blocker | Updated state | Still required for closure |
+| --- | --- | --- |
+| Staff access assignment missing | Store opening/closing and ownership doctrine now define named-user, role, store-scope, and no-shared-admin expectations. | Actual roster with named users, roles, store scopes, removal path, and launch owner approval. |
+| Pharmacist SOP signoff missing | Pharmacist SOP and training packet now exist. | Pharmacist-in-charge signed SOP, acknowledgement records, observed regulated-flow drills. |
+| Live monitoring ownership missing | Incident/escalation and ownership matrices now define incident commander, provider owner, platform owner, and cadence. | Actual rota with primary/secondary contacts, alert thresholds, and launch-period coverage. |
+| Emergency stop and rollback rehearsal missing | Stop-the-line, emergency freeze, rollback awareness, and incident commander runbook now exist. | Observed rehearsal notes with artifact/rollback target, timeline, owners, verification output, and signoff. |
+| Accounting/compliance SOP evidence incomplete | Reconciliation/override governance now defines daily review, supplier dispute, dead-letter, refund, and rollback review cadence. | Named reconciliation/accounting owners and signed daily/monthly checklist evidence. |
+
+Current score update: **8.9 / 10 controlled-production readiness** for launch preparation. This score reflects improved human-governance doctrine only; it is not legal approval, provider verification, production deployment proof, or pharmacist signoff.

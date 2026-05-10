@@ -133,3 +133,24 @@ Targeted guard added:
 ```bash
 pnpm exec vitest run server/multi-store-runtime-isolation.guard.test.ts
 ```
+
+## 2026-05-10 operational governance validation
+
+The operationalization sprint adds a documentation guard that is included in the normal test suite and can also be run directly:
+
+```bash
+pnpm exec vitest run server/operational-governance.guard.test.ts
+```
+
+This guard checks that pharmacist SOPs, shift/store SOPs, escalation matrices, reconciliation/override governance, readiness classification, and training/runbook packets remain present; that AI remains assistive-only; that pharmacist/H/H1 boundaries are preserved; that escalation metadata is required; and that the docs do not convert doctrine into unsupported legal/provider/production signoff claims.
+
+The final required validation set remains:
+
+```bash
+pnpm run check
+pnpm test
+pnpm run build
+node scripts/verify-migrations.mjs
+node scripts/ci-governance-guards.mjs all
+git diff --check
+```
