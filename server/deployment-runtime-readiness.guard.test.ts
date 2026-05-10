@@ -30,6 +30,16 @@ describe("deployment runtime readiness routers", () => {
     const staffCaller = appRouter.createCaller(baseCtx("admin") as any);
     await expect(staffCaller.multiStoreRuntime.overview()).resolves.toMatchObject({ status: "unknown" });
     await expect(staffCaller.deploymentReadiness.backupRestoreDrill()).resolves.toMatchObject({ destructiveRestoreScriptAvailable: false });
+    await expect(staffCaller.deploymentReadiness.failureExercises()).resolves.toMatchObject({ status: "manual_required", proofClaim: "exercise_plan_only" });
+  });
+
+  it("exposes a safe degraded-mode exercise shape without success claims", async () => {
+    const caller = appRouter.createCaller(baseCtx("ops_admin") as any);
+    const matrix = await caller.deploymentReadiness.failureExercises();
+    expect(matrix.exercises).toHaveLength(8);
+    expect(matrix.exercises.every((exercise) => typeof exercise.degradedSignal === "string" && typeof exercise.manualFallback === "string")).toBe(true);
+    expect(matrix.exercises.find((exercise) => exercise.name === "db_connection_degradation")).toMatchObject({ failClosed: true });
+    expect(JSON.stringify(matrix).toLowerCase()).not.toContain("outage proven");
   });
 
   it("health/readiness outputs are safe and do not leak secrets", async () => {

@@ -73,3 +73,16 @@ This gate reviewed the current readiness and governance corpus, including main t
 ## Controlled-production readiness target
 
 The repository can be upgraded to **9.5 / 10 controlled-production readiness** only after all P0 evidence is attached, hosted DB proof is observed rather than merely wired, and the release commit remains green under the validation suite. No new product features are needed for that promotion; it is an evidence and operations closure exercise.
+
+## 2026-05-10 survivability readiness update
+
+Survivability evidence infrastructure improved, but the controlled-production score remains below 9.5 because the required operational proof is still pending.
+
+| Area | Prior posture | Updated posture | Evidence boundary |
+| --- | --- | --- | --- |
+| Deployment survivability | Safe readiness surfaces only. | Staging topology, env validation, rollback checklist, and evidence register added. | No real staging deployment/rollback proof yet. |
+| Backup/restore | Dry-run doctrine. | Restore verification checksum/read-only query plan added. | No measured restore success yet. |
+| Degraded mode | Runtime readiness signals. | Failure exercise matrix and staging drill checklist added. | No provider outage simulation proof yet. |
+| Operational cadence | SOP fragments. | Daily runtime review checklist added. | No named rota/signoff yet. |
+
+**Updated readiness score: 8.8 / 10.** This sprint raises evidence-system maturity, not production proof. A 9.5/10 rating still requires hosted CI proof, staging deploy/rollback evidence, measured restore, provider outage drills, monitoring ownership, pharmacist SOP signoff, and legal/compliance signoff.

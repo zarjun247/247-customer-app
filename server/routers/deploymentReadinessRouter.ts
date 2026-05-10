@@ -3,6 +3,7 @@ import {
   getBackupRestoreDrillReadiness,
   getDeploymentReadinessSummary,
   getDegradedModeStatus,
+  getOperationalFailureExerciseMatrix,
   getProviderReadiness,
   getWorkerQueueReadiness,
 } from "../services/deploymentRuntimeReadiness";
@@ -17,4 +18,5 @@ export const deploymentReadinessRouter = router({
   providers: staffProcedure.query(() => getProviderReadiness()),
   workerQueue: staffProcedure.query(() => getWorkerQueueReadiness()),
   backupRestoreDrill: staffProcedure.query(() => getBackupRestoreDrillReadiness()),
+  failureExercises: staffProcedure.query(() => getOperationalFailureExerciseMatrix()),
 });

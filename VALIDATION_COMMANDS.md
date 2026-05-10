@@ -101,3 +101,16 @@ Local commands are necessary but insufficient for go-live. Before controlled pro
 - Provider sandbox/staging verification evidence.
 - Staging backup/restore drill report.
 - Staff access, pharmacist SOP, legal/compliance, monitoring rota, and incident commander signoffs.
+
+## Survivability validation commands added 2026-05-10
+
+Run these in addition to the existing release validation set:
+
+```bash
+node scripts/validate-deployment-env.mjs --env staging
+node scripts/backup-db.mjs --dry-run --metadata
+node scripts/restore-db-drill.mjs --dry-run --backup-file <non-production-backup.sql>
+node scripts/restore-verify.mjs --backup-file <non-production-backup.sql> --checksum-file <optional.sha256>
+```
+
+The restore commands are safe planning/verification steps only. They must not be treated as measured restore success unless an isolated non-production restore has actually been executed and verified.
