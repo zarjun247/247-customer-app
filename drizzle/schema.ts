@@ -810,7 +810,11 @@ export const providerWebhookEvents = mysqlTable("provider_webhook_events", {
   rawPayloadHash: varchar("rawPayloadHash", { length: 64 }).notNull(),
   payloadJson: json("payloadJson"),
   signatureVerified: boolean("signatureVerified").default(false).notNull(),
-  processingStatus: mysqlEnum("processingStatus", ["received", "verified", "ignored_duplicate", "processed", "failed", "rejected_signature", "unsupported_event"]).default("received").notNull(),
+  processingStatus: mysqlEnum("processingStatus", ["received", "verified", "ignored_duplicate", "processed", "failed", "retry_scheduled", "dead_letter", "rejected_signature", "unsupported_event"]).default("received").notNull(),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  maxAttempts: int("maxAttempts").default(3).notNull(),
+  nextRetryAt: timestamp("nextRetryAt"),
+  lastAttemptAt: timestamp("lastAttemptAt"),
   processedAt: timestamp("processedAt"),
   failureReason: text("failureReason"),
   idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull(),
@@ -827,6 +831,33 @@ export const providerWebhookEvents = mysqlTable("provider_webhook_events", {
 
 export type ProviderWebhookEvent = typeof providerWebhookEvents.$inferSelect;
 export type InsertProviderWebhookEvent = typeof providerWebhookEvents.$inferInsert;
+
+export const providerDeadLetters = mysqlTable("provider_dead_letters", {
+  id: int("id").autoincrement().primaryKey(),
+  providerEventId: int("providerEventId").notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  eventType: varchar("eventType", { length: 100 }).notNull(),
+  paymentId: int("paymentId"),
+  orderId: int("orderId"),
+  refundId: varchar("refundId", { length: 150 }),
+  rawPayloadHash: varchar("rawPayloadHash", { length: 64 }).notNull(),
+  failureReason: text("failureReason"),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  deadLetterClass: varchar("deadLetterClass", { length: 80 }).notNull(),
+  reviewStatus: mysqlEnum("reviewStatus", ["pending_review", "resolved", "replayed"]).default("pending_review").notNull(),
+  reviewedBy: varchar("reviewedBy", { length: 100 }),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewNote: text("reviewNote"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqProviderDeadLettersEvent: uniqueIndex("uq_provider_dead_letters_event").on(t.providerEventId),
+  idxProviderDeadLettersStatus: index("idx_provider_dead_letters_status").on(t.reviewStatus),
+  idxProviderDeadLettersProviderCreated: index("idx_provider_dead_letters_provider_created").on(t.provider, t.createdAt),
+}));
+
+export type ProviderDeadLetter = typeof providerDeadLetters.$inferSelect;
+export type InsertProviderDeadLetter = typeof providerDeadLetters.$inferInsert;
 
 export const refunds = mysqlTable("refunds", {
   id: int("id").autoincrement().primaryKey(),

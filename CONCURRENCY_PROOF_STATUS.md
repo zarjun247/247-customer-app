@@ -99,6 +99,7 @@ Manual `workflow_dispatch` steps:
 
 ## Remaining unproven guarantees
 
-- CI MySQL 8.4 proof should still be observed green via `.github/workflows/concurrency-proof.yml` for hosted-runner parity with the checked-in workflow.
-- Supplier invoice duplicate uniqueness/backfill remains a P1 production-hardening item outside this proof sprint.
-- Provider dead-letter retry and accounting journal reversal proof remain P1 follow-up areas.
+- CI MySQL 8.4 proof should still be observed green via `.github/workflows/concurrency-proof.yml` for hosted-runner parity with the checked-in workflow. CI MySQL 8.4 parity run still needs observation.
+- Supplier invoice duplicate hard uniqueness/backfill remains a P1 production-hardening item: the purchase commit seam now blocks future committed duplicates for supplier + store + invoice number, but existing dirty data still needs business-review backfill before a hard unique constraint.
+- Provider dead-letter retry proof is now covered by guard tests and a non-destructive `provider_dead_letters` exact-once table/constraint.
+- Refund accounting reversal proof is now covered by guard tests and settlement wiring to balanced journal batches.

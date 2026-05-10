@@ -9,6 +9,7 @@ import { verifyGatewayWebhookSignature, markPaymentCaptured, markPaymentFailed, 
 import { releaseReservationOnPaymentFailure } from "./reservationService";
 import { markRefundFailedRecord, markRefundSuccess } from "./refundService";
 import { settleProviderRefundExactlyOnce } from "./commercialTruthSeams";
+import { scheduleProviderEventRetry } from "./providerEventsService";
 import { logAudit } from "./audit";
 import { redactObject } from "../_core/redact";
 
@@ -18,6 +19,8 @@ export type ProviderWebhookProcessingStatus =
   | "ignored_duplicate"
   | "processed"
   | "failed"
+  | "retry_scheduled"
+  | "dead_letter"
   | "rejected_signature"
   | "unsupported_event";
 
@@ -294,7 +297,11 @@ export async function handleRazorpayWebhook(input: { rawBody?: string | Buffer |
     return { ok: true, status: "unsupported_event", eventType: refs.eventType, providerEventId: refs.providerEventId };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Webhook processing failed";
-    await updateWebhookEventStatus(eventRowId, "failed", message);
+    if (eventRowId) {
+      await scheduleProviderEventRetry(await getDb(), { providerEventRowId: eventRowId, reason: message });
+    } else {
+      await updateWebhookEventStatus(eventRowId, "failed", message);
+    }
     throw error;
   }
 }

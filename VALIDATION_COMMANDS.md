@@ -14,6 +14,9 @@ node scripts/verify-migrations.mjs
 node scripts/ci-governance-guards.mjs all
 node scripts/repo-governance-audit.mjs
 git diff --check
+
+# Optional when TEST_DATABASE_URL is available
+pnpm run test:db:concurrency
 ```
 
 ## DB-backed concurrency proof
@@ -63,4 +66,4 @@ This workflow is the exact CI MySQL 8.4 parity proof path. To run it manually, o
 
 ## Proof claim rule
 
-If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully.
+If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully. CI MySQL 8.4 parity run still needs observation until the hosted `DB Concurrency Proof` workflow is confirmed green.
