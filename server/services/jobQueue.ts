@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { recordProviderEvent } from "./providerEventsService";
 
 export type WorkerJobStatus =
   | "queued"
@@ -289,6 +290,19 @@ export async function deadLetterJob(jobId: number, input: { reason: string; dead
   job.nextRetryAt = null;
   job.auditTrail.push(audit("dead_letter", from, "dead_letter", input.reason, input.actor ?? "worker", { deadLetterClass: job.deadLetterClass }));
   touch(job);
+
+  // If this dead-letter is provider-related, record a durable provider event for ops review.
+  if (job.deadLetterClass === "provider_unavailable") {
+    const provider = (job.payloadJson && (job.payloadJson as any).provider) ?? job.relatedEntityType ?? "unknown";
+    void recordProviderEvent({
+      provider: String(provider ?? "unknown"),
+      operation: "job_dead_letter",
+      status: "dead_letter",
+      errorMessage: input.reason,
+      payload: { jobId: job.id, jobType: job.jobType, relatedEntityType: job.relatedEntityType, relatedEntityId: job.relatedEntityId },
+    }).catch(() => {});
+  }
+
   return cloneJob(job);
 }
 

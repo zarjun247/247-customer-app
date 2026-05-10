@@ -16,6 +16,7 @@
 import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
+import { recordProviderEvent } from "./services/providerEventsService";
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
@@ -77,6 +78,8 @@ export function providerUnavailableResult<
   TStatus extends "provider_unconfigured" | "skipped_demo",
 >(provider: string, missing: string[]): ProviderResult<TStatus> {
   if (isProductionMode() && !isExplicitDemoMode()) {
+    // record provider-unconfigured event for ops/audit asynchronously
+    void recordProviderEvent({ provider, operation: "provider_unconfigured", status: "provider_unconfigured", errorMessage: `${provider} provider unconfigured: missing ${missing.join(", ")}` }).catch(() => {});
     return {
       status: "provider_unconfigured" as TStatus,
       ok: false,
