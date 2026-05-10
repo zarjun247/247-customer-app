@@ -45,6 +45,17 @@ Expected success criteria:
 Known temporary skips:
 - DB-backed concurrency tests skipped when TEST_DATABASE_URL missing — state: "DB-backed concurrency proof still not claimed." (explicit)
 
+Dead-letter processing / operator review:
+- node scripts/process-dead-letters.mjs   # requires DATABASE_URL; inserts provider_events with status=dead_letter into provider_dead_letters for operator review
+
+Local DB setup (optional for concurrency proof):
+- Use Docker Compose (example):
+  - docker run --name 247-test-mysql -e MYSQL_ROOT_PASSWORD=pass -e MYSQL_DATABASE=247_test -p 3306:3306 -d mysql:8
+  - export TEST_DATABASE_URL=mysql://root:pass@127.0.0.1:3306/247_test
+  - pnpm run test:db:concurrency
+- Alternatively, use provided pnpm scripts when available (see package.json)
+
+
 Exact pass/fail meaning:
 - PASS: command exit code 0 and scanner/test assertions satisfied
 - FAIL: non-zero exit code or governance findings > 0
