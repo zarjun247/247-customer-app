@@ -60,11 +60,11 @@ pnpm run test:db:bootstrap
 pnpm run test:db:concurrency
 ```
 
-This workflow is the exact CI MySQL 8.4 parity proof path. To run it manually, open GitHub Actions, select **DB Concurrency Proof**, choose **Run workflow**, and confirm the `mysql-concurrency-proof` job passes both DB bootstrap and concurrency proof steps.
+This workflow is the exact CI MySQL 8.4 parity proof path. It now uploads `test-db-bootstrap.log`, `mysql-concurrency-proof.log`, and `evidence-manifest.md` as a `db-concurrency-proof-<run-id>-<attempt>` artifact. To run it manually, use the `gh` commands in `HOSTED_CI_DB_PROOF_STATUS.md` or open GitHub Actions, select **DB Concurrency Proof**, choose **Run workflow**, and confirm the `mysql-concurrency-proof` job passes both DB bootstrap and concurrency proof steps.
 
 ## Proof claim rule
 
-If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully. CI MySQL 8.4 parity run still needs observation until the hosted `DB Concurrency Proof` workflow is confirmed green.
+If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully. CI MySQL 8.4 parity run still needs observation until the hosted `DB Concurrency Proof` workflow is confirmed green and the run URL, commit SHA, logs, and artifact are archived.
 
 ## Backup/restore validation
 
@@ -94,7 +94,7 @@ Expected proof points:
 
 Local commands are necessary but insufficient for go-live. Before controlled production, archive:
 
-- Hosted target-branch CI status, including DB concurrency workflow where available.
+- Hosted target-branch CI status, including DB concurrency workflow run ID, commit SHA, logs, and artifact.
 - Release artifact ID and commit SHA.
 - Runtime URL health/readiness proof.
 - Rollback proof or rehearsal notes.

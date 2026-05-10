@@ -22,17 +22,17 @@ The software foundation is strong enough to proceed to a tightly controlled depl
 
 ## Final readiness score
 
-**Overall controlled-production readiness: 8.4 / 10 today.**
+**Overall controlled-production readiness: 8.7 / 10 today; evidence-system readiness is approximately 9.1 / 10.**
 
-This score is deliberately lower than the 9.5 target because a 9.5/10 controlled-production gate cannot be awarded without real provider verification, measured staging backup/restore evidence, named operational owners, pharmacist/legal signoff, and deployment proof. The codebase can support a 9.5 gate after those P0 items are evidenced without adding product features.
+This score is deliberately lower than the 9.5 target because a 9.5/10 controlled-production gate cannot be awarded without hosted DB proof observation, real provider verification, measured staging backup/restore evidence, named operational owners, pharmacist/legal signoff, and deployment proof. The codebase can support a 9.5 gate after those P0 items are evidenced without adding product features.
 
 ## Domain scoring
 
 | Domain | Score | Evidence basis | Remaining gap |
 | --- | ---: | --- | --- |
-| Architecture | 8.8 / 10 | MySQL-backed runtime, router separation, guarded deployment/observability surfaces, worker/provider foundations, and governance scripts. | Hosted CI parity and deployment artifact evidence still need observation. |
-| Stock truth | 8.9 / 10 | `stockInvariant` foundations, reservation accounting, batch/ledger concepts, FEFO discipline, and DB concurrency proof claims are preserved. | Daily stock exception operating process and staging data checks must be evidenced. |
-| Commercial truth | 8.7 / 10 | Idempotency, provider webhook replay handling, refund accounting reversal safeguards, and commercial lifecycle seams are documented. | Provider sandbox verification and daily reconciliation ownership remain required. |
+| Architecture | 8.9 / 10 | MySQL-backed runtime, router separation, guarded deployment/observability surfaces, hosted DB evidence artifact wiring, worker/provider foundations, and governance scripts. | Hosted CI proof still needs an observed green run; deployment artifact evidence still needs observation. |
+| Stock truth | 9.0 / 10 | `stockInvariant` foundations, reservation accounting, batch/ledger concepts, FEFO discipline, and DB concurrency harness coverage are preserved. | Hosted DB observation, daily stock exception operating process, and staging data checks must be evidenced. |
+| Commercial truth | 8.8 / 10 | Idempotency, provider webhook replay handling, refund accounting reversal safeguards, duplicate supplier invoice guard, and commercial lifecycle seams are documented. | Hosted DB observation, provider sandbox verification, and daily reconciliation ownership remain required. |
 | Accounting/compliance ops | 8.1 / 10 | Accounting/statutory surfaces, journal batches, refund reversals, H/H1/H1 register concepts, and audit trails exist. | Legal/compliance review, pharmacist SOP signoff, supplier invoice duplicate backfill approval, and statutory operating ownership remain open. |
 | Observability | 7.8 / 10 | Staff/admin-gated metrics, dashboards, provider/dead-letter/worker counts, and safe logging are documented. | Incident entities, SLA counters, provider heartbeat rollups, anomaly rules, and monitoring owner rota are not complete. |
 | Deployment runtime | 7.4 / 10 | Liveness/readiness/health/provider/worker/backup-drill surfaces exist with safe proof boundaries. | No production deployment proof, rollback evidence, or hosted runtime proof is claimed. |
@@ -41,7 +41,7 @@ This score is deliberately lower than the 9.5 target because a 9.5/10 controlled
 | PHI/PII/security | 8.8 / 10 | Redaction across logs/audits/worker/provider payloads and staff-gated sensitive endpoints are documented. | Encryption-at-rest, access reviews, retention policy, breach response, and provider security proof need external/deployment evidence. |
 | Backup/restore readiness | 6.5 / 10 | Dry-run doctrine and commands exist; destructive restore automation is intentionally absent. | A measured staging restore drill with backup IDs, timings, data verification, and owner signoff is mandatory. |
 | UX/operator readiness | 7.0 / 10 | Core operator workflows and SOP expectations are represented across docs. | Role-specific training, launch-day scripts, manual fallback, pharmacist signoff, and UX polish remain open. |
-| Investor diligence readiness | 8.6 / 10 | Investor diligence pack honestly separates proof, claims, and blockers. | Must attach external evidence for CI, deployment, restore, providers, legal, and operations before claiming controlled production readiness. |
+| Investor diligence readiness | 8.8 / 10 | Investor diligence pack, hosted CI proof status, and production evidence register honestly separate proof, claims, and blockers. | Must attach external evidence for CI, deployment, restore, providers, legal, and operations before claiming controlled production readiness. |
 
 ## Evidence audited
 
@@ -50,7 +50,7 @@ This gate reviewed the current readiness and governance corpus, including main t
 ## Hard non-claims
 
 - No production deployment proof is claimed.
-- No hosted CI proof is newly claimed unless an archived workflow run is attached outside this repository.
+- No hosted CI proof is newly claimed unless an archived workflow run, run ID, logs, and evidence artifact are attached outside this repository.
 - No provider success is claimed for unconfigured, mocked, demo, skipped, or dry-run integrations.
 - No measured backup/restore success is claimed without a completed staging drill.
 - No legal compliance certification is claimed by repository docs alone.
@@ -60,7 +60,7 @@ This gate reviewed the current readiness and governance corpus, including main t
 ## P0 evidence required before first live store
 
 1. Archived full validation run for the release commit.
-2. Hosted CI observation for the target branch, including DB concurrency workflow if available.
+2. Hosted CI observation for the target branch, including the DB concurrency workflow run ID, commit SHA, logs, and uploaded evidence artifact.
 3. Staging deployment evidence: artifact ID, environment URL, health/readiness output, rollback command/proof, and release owner.
 4. Provider verification matrix with sandbox/staging results for payment, WhatsApp/SMS, maps, OCR, printer, storage, and Tally/accounting export.
 5. Measured staging backup/restore drill report with backup ID, restore target, start/end time, verification commands, data checks, and owner signoff.
@@ -72,4 +72,4 @@ This gate reviewed the current readiness and governance corpus, including main t
 
 ## Controlled-production readiness target
 
-The repository can be upgraded to **9.5 / 10 controlled-production readiness** only after all P0 evidence is attached and the release commit remains green under the validation suite. No new product features are needed for that promotion; it is an evidence and operations closure exercise.
+The repository can be upgraded to **9.5 / 10 controlled-production readiness** only after all P0 evidence is attached, hosted DB proof is observed rather than merely wired, and the release commit remains green under the validation suite. No new product features are needed for that promotion; it is an evidence and operations closure exercise.

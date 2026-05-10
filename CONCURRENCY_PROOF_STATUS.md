@@ -4,9 +4,9 @@ Updated: 2026-05-10.
 
 ## Current status
 
-- DB proof status: **CLAIMED for local DB-backed MySQL execution**.
+- DB proof status: **CLAIMED for the prior local DB-backed MySQL execution documented below; HOSTED CI proof remains pending until a green GitHub Actions run/artifact is attached.**
 - `pnpm run test:db:bootstrap` executed successfully against a real local MySQL server using `TEST_DATABASE_URL=mysql://247_test_user:247_test_password@127.0.0.1:3307/247_customer_app_test`.
-- `pnpm run test:db:concurrency` executed the MySQL-backed harness and passed: **1 test file, 11 tests passed**.
+- `pnpm run test:db:concurrency` executed the MySQL-backed harness and passed: **1 test file, 11 tests passed**. The checked-in harness now contains 12 DB-backed cases, including a non-destructive duplicate supplier invoice commit guard, and requires a fresh local or hosted run to claim the expanded count.
 - Docker is not installed in this environment, so the local proof used an installed MySQL server (`mysqld 8.0.45-0ubuntu0.24.04.1`) instead of the Docker Compose MySQL 8.4 service. The GitHub Actions proof path still uses MySQL 8.4.
 - The harness remains intentionally skip-gated when `TEST_DATABASE_URL` is absent; skipped DB tests are warnings, not proof.
 
@@ -28,7 +28,7 @@ pnpm run test:db:concurrency
 Observed output summary:
 
 - `pnpm run test:db:bootstrap`: Drizzle migrations applied successfully; test MySQL database reachable.
-- `pnpm run test:db:concurrency`: `server/mysql-concurrency.integration.test.ts` passed with `11 passed (11)`.
+- `pnpm run test:db:concurrency`: `server/mysql-concurrency.integration.test.ts` passed with `11 passed (11) for the prior local run; the current harness expects 12 cases after this sprint`.
 
 ## Failures found and fixed in this proof sprint
 
@@ -40,9 +40,9 @@ Observed output summary:
 - Provider payment webhook replay could reject the duplicate insert through Drizzle-wrapped duplicate-key errors; fixed duplicate-key detection to inspect nested MySQL causes and return an idempotent duplicate result.
 - Reservation payment-vs-expiry proof used an app `batches` row where the terminal service expects `batch_ledger`; changed the proof fixture to use `batch_ledger` so it exercises the production terminal seam.
 
-## DB tests that passed
+## DB-backed cases covered by the harness
 
-`server/mysql-concurrency.integration.test.ts` executed MySQL-backed integration cases for:
+`server/mysql-concurrency.integration.test.ts` covers these integration cases when `TEST_DATABASE_URL` is set. The prior local proof passed the first 11; the 12-case expanded harness still requires fresh local or hosted observation:
 
 1. Last-unit reservation atomic predicate.
 2. POS sale vs app reservation last-unit race.
@@ -55,6 +55,7 @@ Observed output summary:
 9. Payment webhook replay through `handleRazorpayWebhook`.
 10. Refund replay / over-refund through `settleProviderRefundExactlyOnce`.
 11. Reservation payment-vs-expiry terminal race through `claimReservationTerminalState`.
+12. Duplicate supplier invoice commit blocked non-destructively before any hard uniqueness migration.
 
 ## Exact DB proof command
 
@@ -82,6 +83,9 @@ docker compose -f docker-compose.test.yml down -v
 2. Exports `TEST_DATABASE_URL=mysql://247_test_user:247_test_password@127.0.0.1:3306/247_customer_app_test`.
 3. Runs `pnpm run test:db:bootstrap`.
 4. Runs `pnpm run test:db:concurrency`.
+5. Captures `test-db-bootstrap.log`, `mysql-concurrency-proof.log`, `evidence-manifest.md`, and an uploaded `db-concurrency-proof-<run-id>-<attempt>` artifact.
+
+Manual `workflow_dispatch` steps and auditable capture commands are fully specified in `HOSTED_CI_DB_PROOF_STATUS.md`.
 
 Manual `workflow_dispatch` steps:
 
@@ -89,6 +93,7 @@ Manual `workflow_dispatch` steps:
 2. Select **DB Concurrency Proof**.
 3. Click **Run workflow** on the target branch.
 4. Confirm that the `mysql-concurrency-proof` job passes both migration bootstrap and MySQL concurrency proof steps.
+5. Archive the run URL, run ID, commit SHA, full logs, and uploaded evidence artifact before changing hosted status from pending to observed.
 
 ## Runtime parity status
 
@@ -99,7 +104,7 @@ Manual `workflow_dispatch` steps:
 
 ## Remaining unproven guarantees
 
-- CI MySQL 8.4 proof should still be observed green via `.github/workflows/concurrency-proof.yml` for hosted-runner parity with the checked-in workflow. CI MySQL 8.4 parity run still needs observation.
+- CI MySQL 8.4 proof should still be observed green via `.github/workflows/concurrency-proof.yml` for hosted-runner parity with the checked-in workflow. CI MySQL 8.4 parity run still needs observation and the evidence artifact described in `HOSTED_CI_DB_PROOF_STATUS.md`.
 - Supplier invoice duplicate hard uniqueness/backfill remains a P1 production-hardening item: the purchase commit seam now blocks future committed duplicates for supplier + store + invoice number, but existing dirty data still needs business-review backfill before a hard unique constraint.
 - Provider dead-letter retry proof is now covered by guard tests and a non-destructive `provider_dead_letters` exact-once table/constraint.
 - Refund accounting reversal proof is now covered by guard tests and settlement wiring to balanced journal batches.
