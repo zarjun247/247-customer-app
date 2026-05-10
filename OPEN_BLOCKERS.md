@@ -8,7 +8,7 @@ P0
   Impact: Potential lost reservations / invoice collisions in high concurrency
   Affected systems: reservationService, purchase/sale commit flows
   Production risk: High (data-loss / double-reservation)
-  Mitigation path: Enable TEST_DATABASE_URL for CI, run mysql concurrency harness, implement transactional proofs
+  Mitigation path: Enabled CI workflow for MySQL concurrency proof (.github/workflows/concurrency-proof.yml). Run the workflow to claim DB-backed concurrency proof; implement transactional fixes discovered by the harness.
   Owner status: Assigned - sprint/production-readiness-integration
   State: Unresolved
 
