@@ -41,9 +41,9 @@ P1
   Impact: Runtime code or configuration may contain placeholder provider markers that can be misinterpreted as successful provider responses
   Affected systems: paymentGateway, notificationService, jobQueue, tallyExport, workerRuntime, payment Router
   Production risk: Medium-High (false positive success claims, hidden failures)
-  Mitigation path: Replace provider_unconfigured markers with explicit feature flags; ensure provider contract proofs and fail-closed behavior; add CI checks to block placeholder strings in runtime files
+  Mitigation path: Most runtime paths now record durable provider events (provider_events). CI governance scanners flag remaining occurrences. Continue to replace any remaining unsafe success-like handling and remove demo fallbacks from production runtime. Add blocking CI check to prevent unsafe success claims before merge.
   Owner status: Engineering - address per sprint/accounting
-  State: Unresolved
+  State: Partially mitigated (durable event capture added); Unresolved for final removal of placeholders
 
 P2
 ---

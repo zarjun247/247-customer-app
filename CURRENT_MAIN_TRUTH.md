@@ -17,7 +17,7 @@ Canonical production-readiness and merge-control entry as of 2026-05-08.
 - Latest migration number: 0049
 - Latest validation timestamp: 2026-05-10T07:12:40.864+05:30
 - Latest validation status: PARTIAL PASS — typecheck, unit tests, build, and migration verification passed; repo governance scan completed with WARNINGS (provider placeholders). Dead-letter processing not run locally due to DATABASE_URL missing. CI workflow added to run DB-backed concurrency proof; proof unclaimed until workflow run.
-- Current repo score (conservative): 6.8 / 10
+- Current repo score (conservative): 6.9 / 10
 - Current launch posture: controlled pilot
 
 ## 2. CURRENT REALISTIC SCORES (conservative / honest)
