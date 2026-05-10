@@ -96,8 +96,11 @@ export type QueueStats = {
 
 export type StaleJob = WorkerJob & { staleForMs: number };
 
-const SECRET_KEY_PATTERN = /(secret|token|password|authorization|api[_-]?key|cookie|session|credential|private[_-]?key)/i;
-const BLOB_KEY_PATTERN = /(raw.*prescription|prescription.*blob|blob|base64|imageData|fileData|documentData|ocrRawText)/i;
+const SECRET_KEY_PATTERN = /(secret|token|password|authorization|api[_-]?key|cookie|session|credential|private[_-]?key|signature|webhook)/i;
+const BLOB_KEY_PATTERN = /(raw.*prescription|prescription.*blob|blob|base64|imageData|fileData|documentData|ocrRawText|rawPayload|rawBody)/i;
+const PHI_KEY_PATTERN = /(patient|customerName|name|phone|mobile|email|address|flat|doctor|prescription|rx|diagnosis|symptom|medical|notes?)/i;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const PHONE_PATTERN = /\b(?:\+?\d[\s-]?){10,14}\b/g;
 const MAX_STRING_LENGTH = 1_000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_QUEUE = "default";
@@ -110,7 +113,7 @@ function now() {
 }
 
 function audit(action: string, fromStatus: WorkerJobStatus | undefined, toStatus: WorkerJobStatus | undefined, reason?: string, actor?: string, details?: Record<string, unknown>): WorkerJobAuditEntry {
-  return { at: now().toISOString(), action, actor, reason, fromStatus, toStatus, details };
+  return { at: now().toISOString(), action, actor, reason: typeof reason === "string" ? sanitizeJobPayload(reason) as string : reason, fromStatus, toStatus, details: sanitizeJobPayload(details) as Record<string, unknown> | undefined };
 }
 
 function touch(job: WorkerJob) {
@@ -127,6 +130,8 @@ export function sanitizeJobPayload(value: unknown, depth = 0): unknown {
     for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
       if (SECRET_KEY_PATTERN.test(key) || BLOB_KEY_PATTERN.test(key)) {
         result[key] = "[REDACTED]";
+      } else if (PHI_KEY_PATTERN.test(key)) {
+        result[key] = "[REDACTED:phi]";
       } else {
         result[key] = sanitizeJobPayload(nested, depth + 1);
       }
@@ -136,6 +141,7 @@ export function sanitizeJobPayload(value: unknown, depth = 0): unknown {
   if (typeof value === "string") {
     if (value.length > MAX_STRING_LENGTH) return `[REDACTED:length:${value.length}]`;
     if (/^Bearer\s+/i.test(value)) return "[REDACTED]";
+    return value.replace(EMAIL_PATTERN, "[EMAIL]").replace(PHONE_PATTERN, "[PHONE]");
   }
   return value;
 }

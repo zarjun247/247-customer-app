@@ -87,3 +87,18 @@ node scripts/restore-db-drill.mjs --dry-run --backup-file <non-production-backup
 ```
 
 Do not claim production deployment proof from local commands alone. Deployment proof requires real CI/CD and runtime evidence.
+
+---
+
+## 2026-05-10 governance/security targeted checks
+
+```bash
+pnpm test -- server/ai-governance-seal.guard.test.ts server/phi-pii-redaction-seal.guard.test.ts
+```
+
+Expected proof points:
+
+- AI cannot approve prescriptions, provide dosage/treatment logic, substitute, or release regulated fulfillment.
+- AI/OCR worker jobs are assistive-only, non-mutating, and audited.
+- PHI/PII/secrets are redacted from structured logs, audit payloads, worker/provider payloads, and safe error serialization.
+- Public health/readiness endpoints remain minimal and secret-free.

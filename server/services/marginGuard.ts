@@ -56,7 +56,7 @@ export async function assertDiscountWithinCaps(discountAmount: number, subtotal:
 }
 export function requiresMarginOverrideApproval(marginPct: number, minMarginPct = 8) { return marginPct < minMarginPct; }
 export async function recordMarginOverrideRequest(saleId: string, reason: string, ctx?: any) { await logAudit({ action: "margin.override_requested", entityType: "sale", entityId: null, entityRef: saleId, reason }, ctx); return { saleId, status: "requested" as const }; }
-export async function approveMarginOverride(saleId: string, approvedBy: number, ctx?: any) { await logAudit({ action: "margin.override_approved", entityType: "sale", entityId: null, entityRef: saleId, actorId: approvedBy }, ctx); return { saleId, approved: true }; }
+export async function approveMarginOverride(saleId: string, approvedBy: number, reason: string, ctx?: any) { await logAudit({ action: "margin.override_approved", entityType: "sale", entityId: null, entityRef: saleId, actorId: approvedBy, reason }, ctx); return { saleId, approved: true }; }
 export async function assertNoLossWithoutApproval(saleId: string, role?: string | null, ctx?: any) {
   const db = await getDb(); const { saleLines } = await import("../../drizzle/schema");
   const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, saleId));

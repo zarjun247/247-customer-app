@@ -49,3 +49,15 @@ See `OPEN_BLOCKERS.md` and `CONCURRENCY_PROOF_STATUS.md` for the canonical remai
 - No production deployment proof is claimed by this update.
 
 Current production readiness score: **72/100**. Remaining blockers are deployment evidence, hosted CI observation, staging backup/restore drill evidence, provider verification, and operational owner sign-off.
+
+---
+
+## 2026-05-10 Governance seal update
+
+- AI remains assistive only and cannot diagnose, prescribe, substitute, approve prescriptions, or release regulated medicines.
+- AI/OCR worker jobs have explicit governance boundaries and are dead-lettered on regulated mutation attempts.
+- Audit events preserve actor attribution and are sanitized for PHI/PII/secrets.
+- Worker/provider persisted payloads are sanitized before storage.
+- Public runtime endpoints are minimal; detailed health/observability remains staff/admin gated.
+- Existing stockInvariant, reconciliation truth, H/H1/X, pharmacist gates, and commercial lifecycle protections are not weakened.
+- Controlled deployment readiness estimate: approximately **9.5/10**, with no fake production, encryption, or tamper-proof claims.
