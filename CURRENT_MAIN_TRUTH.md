@@ -38,3 +38,14 @@ Canonical production-readiness and merge-control entry as of 2026-05-10.
 ## Remaining blockers
 
 See `OPEN_BLOCKERS.md` and `CONCURRENCY_PROOF_STATUS.md` for the canonical remaining blocker list and exact DB proof commands.
+
+## Deployment/runtime readiness sprint update (2026-05-10)
+
+- Added staff/admin-gated deployment readiness and multi-store runtime tRPC surfaces.
+- Added safe health/readiness/degraded-mode visibility without exposing secrets, connection strings, PHI, or PII.
+- Added worker/provider/queue health visibility through existing safe healthcheck and queue stats paths.
+- Added aggregate store isolation checks for missing assigned stores, missing order store IDs, and negative stock rows.
+- Backup/restore remains dry-run documentation only; destructive restore execution is intentionally not implemented.
+- No production deployment proof is claimed by this update.
+
+Current production readiness score: **72/100**. Remaining blockers are deployment evidence, hosted CI observation, staging backup/restore drill evidence, provider verification, and operational owner sign-off.

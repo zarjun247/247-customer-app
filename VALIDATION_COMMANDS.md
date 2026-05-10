@@ -67,3 +67,23 @@ This workflow is the exact CI MySQL 8.4 parity proof path. To run it manually, o
 ## Proof claim rule
 
 If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully. CI MySQL 8.4 parity run still needs observation until the hosted `DB Concurrency Proof` workflow is confirmed green.
+
+## Deployment/runtime readiness sprint commands
+
+```bash
+pnpm run check
+pnpm test
+pnpm run build
+node scripts/verify-migrations.mjs
+node scripts/ci-governance-guards.mjs all
+git diff --check
+```
+
+Dry-run backup/restore checks:
+
+```bash
+node scripts/backup-db.mjs --dry-run --metadata
+node scripts/restore-db-drill.mjs --dry-run --backup-file <non-production-backup.sql>
+```
+
+Do not claim production deployment proof from local commands alone. Deployment proof requires real CI/CD and runtime evidence.

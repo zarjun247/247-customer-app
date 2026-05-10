@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import { spawnSync } from "node:child_process";
 const args = process.argv.slice(2);
 const hasArg = (name) => args.includes(`--${name}`);
 const value = (name, fallback) => {
@@ -9,10 +8,12 @@ const value = (name, fallback) => {
   const hit = args[idx];
   return hit.includes("=") ? hit.split("=").slice(1).join("=") : (args[idx + 1] || fallback);
 };
-const dryRun = hasArg("dry-run") || !hasArg("execute");
+const executeRequested = hasArg("execute");
+const dryRun = true;
 const backupFile = value("backup-file", process.env.RESTORE_BACKUP_FILE || "");
 const urlText = process.env.RESTORE_DATABASE_URL || process.env.TEST_DATABASE_URL || "";
 const failures = [];
+if (executeRequested) failures.push("Destructive restore execution is not implemented; this script is dry-run documentation only.");
 if (!urlText) failures.push("RESTORE_DATABASE_URL or TEST_DATABASE_URL is required.");
 if (!backupFile) failures.push("--backup-file or RESTORE_BACKUP_FILE is required.");
 else if (!fs.existsSync(backupFile)) failures.push(`Backup file does not exist: ${backupFile}`);
@@ -35,8 +36,4 @@ console.log(`Target database: ${dbName}`);
 console.log(`Backup file: ${backupFile}`);
 console.log(`Command: ${command}`);
 console.log("Safety: production-looking targets are refused unless an explicit non-production override is supplied.");
-if (dryRun) process.exit(0);
-const input = fs.openSync(backupFile, "r");
-const result = spawnSync("mysql", [`--host=${parsed.hostname}`, `--port=${parsed.port || 3306}`, `--user=${decodeURIComponent(parsed.username)}`, dbName], { env: { ...process.env, MYSQL_PWD: decodeURIComponent(parsed.password || "") }, stdio: [input, "inherit", "inherit"] });
-fs.closeSync(input);
-process.exitCode = result.status ?? 1;
+process.exit(0);
