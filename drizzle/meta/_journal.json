@@ -155,6 +155,174 @@
       "when": 1777633775370,
       "tag": "0021_oval_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1777633776370,
+      "tag": "0022_store_capabilities_gstin",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1777633777370,
+      "tag": "0023_discount_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1777633778370,
+      "tag": "0024_customer_mobile_persistence",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1777633779370,
+      "tag": "0025_barcode_scan_truth",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1777633780370,
+      "tag": "0026_idempotency_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1777633781370,
+      "tag": "0027_invoice_sequences",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1777633782370,
+      "tag": "0028_accounting_allocation_journal_tally",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1777633783370,
+      "tag": "0029_stock_reservation_truth",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1777633784370,
+      "tag": "0032_h1_statutory_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1777633785370,
+      "tag": "0034_prescription_vault_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1777633786370,
+      "tag": "0035_refund_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1777633787370,
+      "tag": "0036_credit_note_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1777633788370,
+      "tag": "0037_invoice_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1777633789370,
+      "tag": "0038_accounting_journal_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1777633790370,
+      "tag": "0039_supplier_ageing_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1777633791370,
+      "tag": "0040_tally_export_proof",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1777633792370,
+      "tag": "0041_ocr_invoice_exceptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1777633793370,
+      "tag": "0042_whatsapp_notification_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1777633794370,
+      "tag": "0043_privacy_staff_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1777633795370,
+      "tag": "0044_index_performance_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1777633796370,
+      "tag": "0045_provider_webhook_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1777633797370,
+      "tag": "0046_commercial_event_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1777633798370,
+      "tag": "0047_worker_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1777633799370,
+      "tag": "0048_rbac_staff_session_governance",
+      "breakpoints": true
     }
   ]
 }

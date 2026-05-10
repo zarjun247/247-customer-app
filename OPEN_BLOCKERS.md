@@ -4,10 +4,11 @@ Updated: 2026-05-10.
 
 ## P0
 
-- DB-backed concurrency proof is **not claimed locally** in this checkout because `TEST_DATABASE_URL` is not configured and Docker is unavailable. The exact proof path now exists in CI via `.github/workflows/concurrency-proof.yml`, but a green workflow run is still required before marking the DB race-proof gap closed.
+- None currently open for DB-backed concurrency proof. Local real MySQL execution passed `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` with 11/11 MySQL harness cases green.
 
 ## P1
 
+- Observe the GitHub Actions MySQL 8.4 `DB Concurrency Proof` workflow green for hosted-runner parity.
 - Add safe non-destructive supplier invoice duplicate enforcement/backfill plan before relying on supplier invoice uniqueness in production.
 - Extend webhook/refund tests to cover real provider dead-letter retry paths.
 - Add accounting journal reversal proof for refunds once journal batches are wired to refund settlement.
@@ -15,9 +16,10 @@ Updated: 2026-05-10.
 
 ## Completed in this pass
 
-- Restored `scripts/repo-governance-audit.mjs` and wired it into validation documentation.
-- Restored CI DB concurrency evidence path in `.github/workflows/concurrency-proof.yml` with MySQL 8.4, migration bootstrap, and `pnpm run test:db:concurrency`.
-- Documented `TEST_DATABASE_URL`, the local Docker MySQL path, CI proof path, and no-proof-when-skipped rule.
+- Executed real DB-backed concurrency proof against local MySQL with `TEST_DATABASE_URL` set.
+- Fixed Drizzle migration journal and SQL statement-breakpoint issues so `pnpm run test:db:bootstrap` applies migrations through `0048`.
+- Fixed DB harness safety setup, unique fixture seeding, invoice collision handling, webhook replay idempotency, and the reservation terminal race fixture.
+- Verified `server/mysql-concurrency.integration.test.ts` passes all 11 MySQL-backed proof cases.
 
 ## Previously completed and still relevant
 

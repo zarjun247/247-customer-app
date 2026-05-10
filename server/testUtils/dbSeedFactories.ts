@@ -11,8 +11,7 @@ function insertedId(result: unknown): number {
   return id;
 }
 
-export async function createDeterministicTestStore(ctx: DbTestContext) {
-  const suffix = ctx.runId;
+export async function createDeterministicTestStore(ctx: DbTestContext, suffix = ctx.runId) {
   const result = await ctx.db.insert(stores).values({
     name: `Test Store ${suffix}`,
     type: "in_building",
@@ -30,27 +29,27 @@ export async function createDeterministicTestStore(ctx: DbTestContext) {
   return (await ctx.db.select().from(stores).where(eq(stores.id, id)).limit(1))[0];
 }
 
-export async function createDeterministicTestCustomer(ctx: DbTestContext) {
+export async function createDeterministicTestCustomer(ctx: DbTestContext, suffix = ctx.runId) {
   const result = await ctx.db.insert(users).values({
-    openId: `test-customer-${ctx.runId}`,
+    openId: `test-customer-${suffix}`,
     name: "Test Customer",
-    email: `customer-${ctx.runId}@example.test`,
+    email: `customer-${suffix}@example.test`,
     phone: "+910000000001",
     loginMethod: "test",
     role: "customer",
     onboardingComplete: true,
-    userAddress: `Test-only customer address ${ctx.runId}`,
+    userAddress: `Test-only customer address ${suffix}`,
   });
   const id = insertedId(result);
   ctx.created.userIds.push(id);
   return (await ctx.db.select().from(users).where(eq(users.id, id)).limit(1))[0];
 }
 
-export async function createDeterministicTestStaff(ctx: DbTestContext, storeId: number) {
+export async function createDeterministicTestStaff(ctx: DbTestContext, storeId: number, suffix = ctx.runId) {
   const result = await ctx.db.insert(users).values({
-    openId: `test-staff-${ctx.runId}`,
+    openId: `test-staff-${suffix}`,
     name: "Test Pharmacist",
-    email: `pharmacist-${ctx.runId}@example.test`,
+    email: `pharmacist-${suffix}@example.test`,
     phone: "+910000000002",
     loginMethod: "test",
     role: "pharmacist",
@@ -62,9 +61,9 @@ export async function createDeterministicTestStaff(ctx: DbTestContext, storeId: 
   return (await ctx.db.select().from(users).where(eq(users.id, id)).limit(1))[0];
 }
 
-export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext, storeId: number) {
+export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext, storeId: number, suffix = ctx.runId) {
   const productResult = await ctx.db.insert(products).values({
-    name: `Test Product ${ctx.runId}`,
+    name: `Test Product ${suffix}`,
     brand: "Test Brand",
     genericName: "test-only generic",
     form: "tablet",
@@ -76,10 +75,10 @@ export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext,
     category: "medicine",
     companyName: "Test Manufacturer",
     hsnCode: "300490",
-    barcode: `TEST-BARCODE-${ctx.runId}`,
+    barcode: `TEST-BARCODE-${suffix}`,
     gstRate: "12.00",
-    searchableTokens: `test product ${ctx.runId}`,
-    canonicalName: `test product ${ctx.runId}`,
+    searchableTokens: `test product ${suffix}`,
+    canonicalName: `test product ${suffix}`,
   });
   const productId = insertedId(productResult);
   ctx.created.productIds.push(productId);
@@ -113,7 +112,7 @@ export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext,
     storeId,
     productId,
     variantId,
-    batchNumber: `TEST-BATCH-${ctx.runId}`,
+    batchNumber: `TEST-BATCH-${suffix}`,
     expiryDate: new Date("2035-12-31T00:00:00.000Z"),
     mrp: "100.00",
     purchaseRate: "70.00",
@@ -125,7 +124,7 @@ export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext,
     qtyReserved: 0,
     qtyQuarantined: 0,
     qtyExpired: 0,
-    internalBarcode: `TEST-INTERNAL-${ctx.runId}`,
+    internalBarcode: `TEST-INTERNAL-${suffix}`,
     status: "active",
     unitCost: "70.00",
   });

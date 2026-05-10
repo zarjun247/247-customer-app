@@ -29,8 +29,7 @@ CREATE TABLE IF NOT EXISTS `privacy_consents` (
   INDEX `privacy_consents_customer_type_idx` (`customerId`, `consentType`, `updatedAt`),
   INDEX `privacy_consents_phone_type_idx` (`phone`, `consentType`, `updatedAt`),
   INDEX `privacy_consents_email_type_idx` (`email`, `consentType`, `updatedAt`)
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `staff_acknowledgements` (
   `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `staffId` INT NOT NULL,
@@ -47,8 +46,7 @@ CREATE TABLE IF NOT EXISTS `staff_acknowledgements` (
   `userAgent` VARCHAR(500) NULL,
   `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `staff_acknowledgements_staff_type_idx` (`staffId`, `acknowledgementType`, `version`, `acceptedAt`)
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `staff_device_sessions` (
   `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `staffId` INT NOT NULL,

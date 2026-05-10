@@ -10,29 +10,25 @@ ALTER TABLE `prescriptions`
   ADD COLUMN `consentSource` enum('app','whatsapp','pharmacist','doctor','manual') NULL,
   ADD COLUMN `consentRevokedAt` timestamp NULL,
   ADD COLUMN `onFileMarkedBy` int,
-  ADD COLUMN `onFileMarkedAt` timestamp NULL;
-
+  ADD COLUMN `onFileMarkedAt` timestamp NULL;--> statement-breakpoint
 -- Backfill canonical metadata aliases from legacy fields where present.
 UPDATE `prescriptions`
 SET
   `doctorRegNo` = COALESCE(`doctorRegNo`, `doctorReg`),
   `prescriptionDate` = COALESCE(`prescriptionDate`, `prescribedDate`),
   `validUntil` = COALESCE(`validUntil`, `expiryDate`)
-WHERE `doctorReg` IS NOT NULL OR `prescribedDate` IS NOT NULL OR `expiryDate` IS NOT NULL;
-
+WHERE `doctorReg` IS NOT NULL OR `prescribedDate` IS NOT NULL OR `expiryDate` IS NOT NULL;--> statement-breakpoint
 -- Preserve existing on-file readability while marking legacy rows as system-governed, not fake user consent.
 UPDATE `prescriptions`
 SET
   `onFileMarkedAt` = COALESCE(`onFileMarkedAt`, `updatedAt`, `createdAt`),
   `consentSource` = COALESCE(`consentSource`, 'manual')
-WHERE `status` = 'on_file';
-
+WHERE `status` = 'on_file';--> statement-breakpoint
 ALTER TABLE `prescription_access_log`
   ADD COLUMN `actorId` int,
   ADD COLUMN `actorRole` varchar(50),
   ADD COLUMN `channel` varchar(50) DEFAULT 'app',
-  ADD COLUMN `accessedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;
-
+  ADD COLUMN `accessedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;--> statement-breakpoint
 UPDATE `prescription_access_log`
 SET
   `actorId` = COALESCE(`actorId`, `accessedBy`),

@@ -29,9 +29,9 @@ CREATE TABLE `worker_jobs` (
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `worker_jobs_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_worker_jobs_idempotency_key` UNIQUE(`idempotencyKey`)
-);
-CREATE INDEX `idx_worker_jobs_queue_status` ON `worker_jobs` (`queueName`, `status`);
-CREATE INDEX `idx_worker_jobs_next_retry_at` ON `worker_jobs` (`nextRetryAt`);
-CREATE INDEX `idx_worker_jobs_correlation_id` ON `worker_jobs` (`correlationId`);
-CREATE INDEX `idx_worker_jobs_created_at` ON `worker_jobs` (`createdAt`);
+);--> statement-breakpoint
+CREATE INDEX `idx_worker_jobs_queue_status` ON `worker_jobs` (`queueName`, `status`);--> statement-breakpoint
+CREATE INDEX `idx_worker_jobs_next_retry_at` ON `worker_jobs` (`nextRetryAt`);--> statement-breakpoint
+CREATE INDEX `idx_worker_jobs_correlation_id` ON `worker_jobs` (`correlationId`);--> statement-breakpoint
+CREATE INDEX `idx_worker_jobs_created_at` ON `worker_jobs` (`createdAt`);--> statement-breakpoint
 CREATE INDEX `idx_worker_jobs_heartbeat_at` ON `worker_jobs` (`heartbeatAt`);

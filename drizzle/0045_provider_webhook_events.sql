@@ -18,8 +18,8 @@ CREATE TABLE `provider_webhook_events` (
   CONSTRAINT `provider_webhook_events_id` PRIMARY KEY(`id`),
   CONSTRAINT `provider_webhook_events_provider_event_id_uq` UNIQUE(`provider`,`providerEventId`),
   CONSTRAINT `provider_webhook_events_idempotency_key_uq` UNIQUE(`provider`,`idempotencyKey`)
-);
-CREATE INDEX `idx_provider_webhook_events_payload_hash` ON `provider_webhook_events` (`rawPayloadHash`);
-CREATE INDEX `idx_provider_webhook_events_payment` ON `provider_webhook_events` (`paymentId`);
-CREATE INDEX `idx_provider_webhook_events_order` ON `provider_webhook_events` (`orderId`);
+);--> statement-breakpoint
+CREATE INDEX `idx_provider_webhook_events_payload_hash` ON `provider_webhook_events` (`rawPayloadHash`);--> statement-breakpoint
+CREATE INDEX `idx_provider_webhook_events_payment` ON `provider_webhook_events` (`paymentId`);--> statement-breakpoint
+CREATE INDEX `idx_provider_webhook_events_order` ON `provider_webhook_events` (`orderId`);--> statement-breakpoint
 CREATE INDEX `idx_provider_webhook_events_refund` ON `provider_webhook_events` (`refundId`);

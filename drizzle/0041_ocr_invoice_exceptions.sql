@@ -16,12 +16,10 @@ ALTER TABLE `ocr_extracted_lines`
   ADD COLUMN `approvedBy` int NULL AFTER `approvalStatus`,
   ADD COLUMN `approvedAt` timestamp NULL AFTER `approvedBy`,
   ADD COLUMN `approvalDecision` enum('approve','hold','reject') NULL AFTER `approvedAt`,
-  ADD COLUMN `correctionNotes` text NULL AFTER `approvalDecision`;
-
+  ADD COLUMN `correctionNotes` text NULL AFTER `approvalDecision`;--> statement-breakpoint
 ALTER TABLE `purchase_drafts`
   ADD COLUMN `approvalDecision` enum('approve','hold','reject') NULL AFTER `status`,
-  ADD COLUMN `correctionNotes` text NULL AFTER `approvalDecision`;
-
+  ADD COLUMN `correctionNotes` text NULL AFTER `approvalDecision`;--> statement-breakpoint
 ALTER TABLE `purchase_draft_lines`
   ADD COLUMN `rawLineText` text NULL AFTER `productId`,
   ADD COLUMN `extractedProductName` varchar(300) NULL AFTER `rawLineText`,
@@ -39,8 +37,7 @@ ALTER TABLE `purchase_draft_lines`
   ADD COLUMN `approvedAt` timestamp NULL AFTER `approvedBy`,
   ADD COLUMN `approvalDecision` enum('approve','hold','reject') NULL AFTER `approvedAt`,
   ADD COLUMN `correctionNotes` text NULL AFTER `approvalDecision`,
-  MODIFY COLUMN `status` enum('pending','approved','held','rejected') NOT NULL DEFAULT 'pending';
-
+  MODIFY COLUMN `status` enum('pending','approved','held','rejected') NOT NULL DEFAULT 'pending';--> statement-breakpoint
 UPDATE `ocr_extracted_lines`
 SET
   `rawLineText` = COALESCE(`rawLineText`, `rawText`),

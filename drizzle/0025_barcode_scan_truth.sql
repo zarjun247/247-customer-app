@@ -10,8 +10,7 @@ CREATE TABLE IF NOT EXISTS barcode_aliases (
   metadata text NULL,
   createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS label_print_jobs (
   id int AUTO_INCREMENT PRIMARY KEY,
   barcodeAliasId int NULL,
