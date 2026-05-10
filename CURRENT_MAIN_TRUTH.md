@@ -13,6 +13,8 @@ Canonical production-readiness and merge-control entry as of 2026-05-10.
 - Successful provider refund settlement now posts a balanced refund accounting reversal through existing journal batches exactly once; failed refund webhooks do not post reversal entries.
 - Supplier invoice duplicate enforcement is a non-destructive guard plus business-review backfill plan for supplier + store + invoice number before hard DB uniqueness.
 
+- Operational visibility audit hardened the newly merged observability foundation: staff/admin gating was added to observability endpoints, sensitive HTTP log fields are sanitized, provider/dead-letter metrics derive from durable provider/worker tables, and dashboard definitions no longer claim unbacked capabilities.
+
 ## Launch mode decision
 
 | Launch mode | Current decision | Rationale |
@@ -26,8 +28,8 @@ Canonical production-readiness and merge-control entry as of 2026-05-10.
 
 | Area | Estimated score | Meaning |
 | --- | ---: | --- |
-| Code maturity | 8.0 / 10 | Router parity, reservation accounting, provider dead-letter, refund reversal, invoice collision handling, and webhook replay idempotency are materially improved. |
-| Proof maturity | 7.6 / 10 | Real local MySQL proof is green and P1 guard tests were added; hosted MySQL 8.4 workflow observation remains a P1 parity item. |
+| Code maturity | 8.1 / 10 | Router parity, reservation accounting, provider dead-letter, refund reversal, invoice collision handling, webhook replay idempotency, and observability route hardening are materially improved. |
+| Proof maturity | 7.7 / 10 | Real local MySQL proof is green and P1 guard tests include observability RBAC/logging/dashboard guards; hosted MySQL 8.4 workflow observation remains a P1 parity item. |
 | Investor-demo readiness | 8.5 / 10 | Suitable for supervised demos with fewer DB-proof and provider-retry caveats. |
 | Controlled-pilot readiness | 7.6 / 10 | Closer to pilot readiness, pending hosted CI proof and operational fallback drills. |
 | Multi-store beta readiness | 6.3 / 10 | Still blocked by CI parity, hard supplier uniqueness backfill/constraint, and operational hardening. |
