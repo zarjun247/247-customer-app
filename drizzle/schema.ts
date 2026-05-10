@@ -1298,6 +1298,23 @@ export const accountingJournalBatches = mysqlTable("accounting_journal_batches",
   uqJournalBatchSource: uniqueIndex("uq_journal_batch_source").on(t.sourceType, t.sourceRef),
 }));
 
+export const accountingJournalBatches = mysqlTable("accounting_journal_batches", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceType: varchar("sourceType", { length: 64 }).notNull(),
+  sourceRef: varchar("sourceRef", { length: 128 }).notNull(),
+  storeId: int("storeId"),
+  status: mysqlEnum("status", ["draft", "posted", "reversed", "failed"]).default("draft").notNull(),
+  totalDebit: decimal("totalDebit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  totalCredit: decimal("totalCredit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  postedBy: int("postedBy"),
+  postedAt: timestamp("postedAt"),
+  failureReason: text("failureReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  uqJournalBatchSource: uniqueIndex("uq_journal_batch_source").on(t.sourceType, t.sourceRef),
+}));
+
 export const accountingJournalEntries = mysqlTable("accounting_journal_entries", {
   id: int("id").autoincrement().primaryKey(),
   journalBatchId: int("journalBatchId"),
