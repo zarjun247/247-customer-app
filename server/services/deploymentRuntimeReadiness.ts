@@ -82,6 +82,64 @@ export function getBackupRestoreDrillReadiness() {
   };
 }
 
+export function getOperationalFailureExerciseMatrix() {
+  return safeMetadata({
+    status: "manual_required" as const,
+    generatedAt: new Date().toISOString(),
+    proofClaim: "exercise_plan_only",
+    exercises: [
+      {
+        name: "payment_provider_outage",
+        degradedSignal: "provider_unavailable",
+        failClosed: true,
+        manualFallback: "cash/UPI only after pharmacist and cashier approval; no paid status without settlement evidence",
+      },
+      {
+        name: "ocr_outage",
+        degradedSignal: "ocr_unavailable",
+        failClosed: true,
+        manualFallback: "manual invoice/prescription entry with H/H1/pharmacist gates preserved",
+      },
+      {
+        name: "whatsapp_sms_outage",
+        degradedSignal: "notification_provider_unavailable",
+        failClosed: false,
+        manualFallback: "operator phone call and in-app status notes; no PHI in fallback messages",
+      },
+      {
+        name: "queue_backlog",
+        degradedSignal: "worker_queue_degraded",
+        failClosed: false,
+        manualFallback: "pause non-critical jobs, prioritize payment/refund/provider retries",
+      },
+      {
+        name: "dead_letter_growth",
+        degradedSignal: "dead_letters_require_review",
+        failClosed: true,
+        manualFallback: "operator review and replay only through audited retry path",
+      },
+      {
+        name: "db_connection_degradation",
+        degradedSignal: "database_degraded",
+        failClosed: true,
+        manualFallback: "stop stock-changing operations until readiness recovers",
+      },
+      {
+        name: "worker_crash",
+        degradedSignal: "worker_unhealthy",
+        failClosed: false,
+        manualFallback: "restart worker, monitor stale running jobs, reconcile provider side effects",
+      },
+      {
+        name: "deployment_rollback",
+        degradedSignal: "rollback_in_progress",
+        failClosed: true,
+        manualFallback: "freeze deploys and stock/commercial mutations until post-rollback smoke passes",
+      },
+    ],
+  });
+}
+
 export async function getMultiStoreRuntimeOverview() {
   try {
     const db = await getDb();

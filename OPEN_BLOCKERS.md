@@ -44,3 +44,13 @@ Supplier invoice hard uniqueness still needs a business-review backfill before a
 - AI assistive-only boundary and no regulated mutation authority.
 - PHI/PII/secret redaction and staff/admin gating for sensitive runtime surfaces.
 - Migration safety: no destructive migrations without explicit review and rollback/restore proof.
+
+## 2026-05-10 survivability blockers
+
+| Blocker | Severity | Current state | Closure evidence |
+| --- | --- | --- | --- |
+| Hosted staging deployment evidence | P0 | Checklist and env guard exist; no deployed staging URL/artifact transcript attached. | Artifact ID, commit SHA, URL, health/readiness output, operator, timestamp. |
+| Rollback rehearsal evidence | P0 | Rollback checklist exists; no measured rollback attached. | Staging rollback action ID, pre/post readiness, duration, queue/provider reconciliation. |
+| Measured restore drill | P0 | Dry-run and verification scripts exist; no isolated restore transcript attached. | Backup checksum, restore duration/exit status, verification queries, app smoke, reconciliation signoff. |
+| Provider outage drill evidence | P0 | Exercise matrix/checklist exists; no sandbox outage transcript attached. | Payment, OCR, WhatsApp/SMS, dead-letter/queue drill outputs with expected fail-closed behavior. |
+| Monitoring ownership | P0 | Daily review checklist exists; no named 24/7 rota/signoff attached. | Incident commander rota, escalation path, and daily review evidence. |

@@ -44,3 +44,24 @@ For a controlled deployment readiness review, attach:
 5. Provider verification matrix.
 6. Measured backup/restore drill report.
 7. Named operational ownership, staff access, pharmacist SOP, legal/compliance review, and monitoring rota.
+
+
+## Survivability evidence register — 2026-05-10 sprint
+
+| Evidence item | Attached evidence | Pending evidence | Proof class | Closure rule |
+| --- | --- | --- | --- | --- |
+| Deployment env validation guard | `scripts/validate-deployment-env.mjs` and guard tests. | Real staging env transcript with URL/artifact ID. | Simulated/code guard. | Close only when command output from deployed staging environment is attached. |
+| Staging deployment | `STAGING_DEPLOYMENT_STATUS.md` topology/checklist. | Hosted deploy artifact ID, commit SHA, URL, health/readiness transcript. | Pending observed proof. | Close only with timestamped platform/deploy evidence. |
+| Rollback rehearsal | `DEPLOYMENT_ROLLBACK_CHECKLIST.md`. | Staging rollback action ID and pre/post checks. | Pending observed proof. | Close only with measured rollback duration and post-rollback smoke evidence. |
+| Restore dry-run safety | `scripts/restore-db-drill.mjs`, `scripts/restore-verify.mjs`, tests. | Executed isolated restore transcript. | Code guard; not restore proof. | Close only with non-production restore execution plus verification queries. |
+| Restore checksum/integrity | `scripts/restore-verify.mjs` computes SHA256 and checks optional checksum file. | Backup checksum artifact and post-restore query output. | Simulated/checksum proof only. | Close only when checksum and restored DB checks are captured. |
+| Provider outage simulations | `STAGING_DRILL_CHECKLIST.md` and `failureExercises` matrix. | Payment/OCR/WhatsApp/SMS outage drill transcripts. | Exercise plan only. | Close only when sandbox/provider outage drill logs are attached. |
+| Hosted CI proof | Existing workflow expectations and validation commands. | Green hosted run ID/artifacts for DB concurrency and full validation. | Pending observed proof. | Close only with hosted run URL, SHA, logs, and artifacts. |
+
+## Simulated proof vs observed proof rules
+
+- Code guards and dry-run scripts prove refusal behavior and command construction only.
+- Observed proof requires an external transcript with environment, artifact ID, timestamp, command/action, result, and operator.
+- Restore evidence must include checksum, restore duration, target classification, read-only verification queries, app smoke, and reconciliation results.
+- Provider outage evidence must distinguish sandbox simulation from real provider outage behavior.
+- No evidence row may be marked closed because a document template exists.

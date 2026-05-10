@@ -77,3 +77,11 @@ See `OPEN_BLOCKERS.md`, `PRODUCTION_9_5_READINESS.md`, `CONTROLLED_ROLLOUT_CHECK
 - Public runtime endpoints are minimal; detailed health/observability remains staff/admin gated.
 - Existing stockInvariant, reconciliation truth, H/H1/X, pharmacist gates, and commercial lifecycle protections are not weakened.
 - Controlled production remains a no-go until evidence, owner, legal, provider, restore, monitoring, and rollout gates are closed.
+
+## 2026-05-10 survivability sprint update
+
+- Staging deployment, rollback, degraded-mode, and restore evidence templates/checklists are now present, but no real staging deploy/rollback/restore proof is claimed.
+- Safe deployment environment validation was added via `scripts/validate-deployment-env.mjs`; it validates URL/artifact/rollback assumptions without printing secret values.
+- Safe restore verification planning was added via `scripts/restore-verify.mjs`; it refuses destructive execution and production-looking targets.
+- Deployment readiness now exposes a staff/admin-gated failure exercise matrix for payment, OCR, WhatsApp/SMS, queue, dead-letter, DB, worker, and rollback drills as exercise plan data only.
+- Controlled-production readiness remains **8.8 / 10** after this sprint: evidence infrastructure improved, but hosted CI, measured staging deployment, rollback, restore, provider outage, legal/pharmacist, and monitoring evidence remain open.

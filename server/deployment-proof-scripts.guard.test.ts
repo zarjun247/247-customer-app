@@ -119,6 +119,61 @@ describe("deployment proof scripts", () => {
     expect(result.stderr).toContain("Restore target looks production-like");
   });
 
+  it("restore verification is read-only, validates checksum, and redacts credentials", () => {
+    const dir = tempDir("restore-verify");
+    const backup = path.join(dir, "backup.sql");
+    fs.writeFileSync(backup, "select 1;\n");
+    const result = runScript("scripts/restore-verify.mjs", ["--backup-file", backup], {
+      RESTORE_DATABASE_URL: "mysql://restore_user:secret-password@restore-db.internal:3306/customer_app_restore",
+      APP_ENV: "staging",
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    expect(result.status).toBe(0);
+    expect(output).toContain("Restore verification dry-run plan");
+    expect(output).toContain("SHA256:");
+    expect(output).not.toContain("secret-password");
+  });
+
+  it("restore verification refuses production-looking targets and execute flags", () => {
+    const dir = tempDir("restore-verify-prod");
+    const backup = path.join(dir, "backup.sql");
+    fs.writeFileSync(backup, "select 1;\n");
+    const result = runScript("scripts/restore-verify.mjs", ["--execute", "--backup-file", backup], {
+      RESTORE_DATABASE_URL: "mysql://restore_user:secret@primary-prod-db.internal:3306/customer_app",
+      APP_ENV: "production",
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("refuses execute/apply flags");
+    expect(result.stderr).toContain("refuses production-looking targets");
+  });
+
+  it("deployment env validation enforces staging URL, artifact identity, and unsafe flag posture without leaking secrets", () => {
+    const result = runScript("scripts/validate-deployment-env.mjs", ["--env", "staging"], {
+      APP_ENV: "staging",
+      DEPLOYMENT_URL: "https://staging.pharmacy-os.internal",
+      DATABASE_URL: "mysql://app_user:secret-db-password@staging-db.internal:3306/customer_app",
+      GIT_SHA: "abc123",
+      ADMIN_HEALTH_TOKEN: "secret-admin-health-token",
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    expect(result.status).toBe(0);
+    expect(output).toContain("Deployment environment validation (staging)");
+    expect(output).not.toContain("secret-db-password");
+    expect(output).not.toContain("secret-admin-health-token");
+  });
+
+  it("deployment env validation fails unsafe staging assumptions", () => {
+    const result = runScript("scripts/validate-deployment-env.mjs", ["--env", "staging"], {
+      APP_ENV: "staging",
+      DEPLOYMENT_URL: "http://localhost:3000",
+      DATABASE_URL: "mysql://app@localhost:3306/customer_app",
+      USE_MOCK_PROVIDERS: "true",
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toContain("FAIL deployment URL");
+    expect(result.stdout).toContain("FAIL unsafe flags");
+  });
+
   it("release gate summarizes blockers and exits nonzero on critical failure", () => {
     const dir = tempDir("release-gate");
     const result = runScript("scripts/release-gate.mjs", ["--mode", "production", "--artifact-dir", dir], {

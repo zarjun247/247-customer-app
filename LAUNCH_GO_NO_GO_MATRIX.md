@@ -56,3 +56,13 @@ Reason: the repository shows strong software foundations, but live launch still 
 - **Next allowable activity:** staging launch rehearsal and evidence collection.
 - **First live launch after P0 closure:** maximum 1 store, 7-day hold, daily reconciliation/stock/dead-letter review, named pharmacist and incident commander on call.
 - **Expansion:** only after explicit day-7 go/no-go review and no open P0/P1 blocker affecting live scope.
+
+## 2026-05-10 survivability go/no-go update
+
+| Gate | Current decision | Why |
+| --- | --- | --- |
+| Staging deployment rehearsal | Go | Checklists, env validation, and evidence register are ready for real staging evidence capture. |
+| Production deployment | No-go | Staging deploy, rollback, restore, provider outage simulation, hosted CI, and monitoring ownership evidence are not attached. |
+| Restore confidence | No-go for production claim | Safe dry-run and verification scripts exist, but measured isolated restore has not been observed. |
+| Degraded-mode confidence | Partial | Expected behavior is documented and exposed as exercise plan data; outage drills remain pending. |
+| Rollback confidence | Partial | Checklist and rollback acceptance criteria exist; measured rollback proof remains pending. |

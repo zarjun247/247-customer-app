@@ -19,7 +19,9 @@
     "backup:db:dry-run": "node scripts/backup-db.mjs --dry-run",
     "restore:db:dry-run": "node scripts/restore-db-drill.mjs --dry-run",
     "test:db:concurrency": "vitest run server/mysql-concurrency.integration.test.ts",
-    "test:mysql:concurrency": "pnpm run test:db:concurrency"
+    "test:mysql:concurrency": "pnpm run test:db:concurrency",
+    "deploy:env:validate": "node scripts/validate-deployment-env.mjs --env staging",
+    "restore:db:verify": "node scripts/restore-verify.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
