@@ -23,7 +23,7 @@ export async function processDeadLettersOnce() {
     console.log('[deadLetterWorker] Processed dead letters. Latest snapshot:');
     console.log(JSON.stringify(deadLetters, null, 2));
     return { processed: Array.isArray(deadLetters) ? deadLetters.length : 0 };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[deadLetterWorker] Error processing dead letters:', error?.message ?? error);
     return { processed: 0, error };
   }

@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getDb } from "../db";
 import { processQueue } from "../worker";
+import { processDeadLettersOnce } from "../services/deadLetterWorker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
@@ -95,6 +96,19 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Optional Dead-letter worker: start periodic processing if enabled via env
+  const deadLetterEnabledRaw = (process.env.DEAD_LETTER_WORKER_ENABLED ?? "").toLowerCase();
+  const deadLetterEnabled = ["1", "true", "yes", "on"].includes(deadLetterEnabledRaw);
+  if (deadLetterEnabled) {
+    const intervalMs = Number(process.env.DEAD_LETTER_WORKER_INTERVAL_MS ?? String(5 * 60 * 1000));
+    console.log(`[deadLetterWorker] Enabled. Running every ${intervalMs}ms`);
+    // Run once immediately, then schedule
+    void processDeadLettersOnce();
+    setInterval(() => {
+      void processDeadLettersOnce();
+    }, intervalMs).unref();
+  }
 }
 
 startServer().catch(console.error);
