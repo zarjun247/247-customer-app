@@ -114,3 +114,22 @@ node scripts/restore-verify.mjs --backup-file <non-production-backup.sql> --chec
 ```
 
 The restore commands are safe planning/verification steps only. They must not be treated as measured restore success unless an isolated non-production restore has actually been executed and verified.
+
+## 2026-05-10 multi-store runtime validation commands
+
+Required for this sprint:
+
+```bash
+pnpm run check
+pnpm test
+pnpm run build
+node scripts/verify-migrations.mjs
+node scripts/ci-governance-guards.mjs all
+git diff --check
+```
+
+Targeted guard added:
+
+```bash
+pnpm exec vitest run server/multi-store-runtime-isolation.guard.test.ts
+```

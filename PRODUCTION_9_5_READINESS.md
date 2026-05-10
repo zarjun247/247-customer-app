@@ -86,3 +86,9 @@ Survivability evidence infrastructure improved, but the controlled-production sc
 | Operational cadence | SOP fragments. | Daily runtime review checklist added. | No named rota/signoff yet. |
 
 **Updated readiness score: 8.8 / 10.** This sprint raises evidence-system maturity, not production proof. A 9.5/10 rating still requires hosted CI proof, staging deploy/rollback evidence, measured restore, provider outage drills, monitoring ownership, pharmacist SOP signoff, and legal/compliance signoff.
+
+## 2026-05-10 multi-store readiness update
+
+Current multi-store runtime readiness is **8.6 / 10** for controlled staging rehearsal and remains **below 9.5 / 10** for live multi-store expansion. The sprint hardened runtime detail access, stock audit visibility, and transfer fail-closed behavior. Readiness remains blocked by first-class store-scoped provider dead-letter visibility, first-class worker queue store scope, hosted/staging transfer contention evidence, and named access roster proof.
+
+Do **not** mark multi-store readiness closed until measurable runtime evidence exists for store isolation, transfer safety, reconciliation isolation, permission isolation, dead-letter isolation, worker visibility isolation, and operational fail-closed drills.

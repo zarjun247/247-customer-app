@@ -85,3 +85,11 @@ See `OPEN_BLOCKERS.md`, `PRODUCTION_9_5_READINESS.md`, `CONTROLLED_ROLLOUT_CHECK
 - Safe restore verification planning was added via `scripts/restore-verify.mjs`; it refuses destructive execution and production-looking targets.
 - Deployment readiness now exposes a staff/admin-gated failure exercise matrix for payment, OCR, WhatsApp/SMS, queue, dead-letter, DB, worker, and rollback drills as exercise plan data only.
 - Controlled-production readiness remains **8.8 / 10** after this sprint: evidence infrastructure improved, but hosted CI, measured staging deployment, rollback, restore, provider outage, legal/pharmacist, and monitoring evidence remain open.
+
+## 2026-05-10 multi-store runtime evidence sprint update
+
+- Multi-store runtime readiness is now estimated at **8.6 / 10** for controlled staging rehearsal, up from foundational readiness, but it is **not closed at 9.5 / 10** because provider dead-letter and worker queue store isolation are not first-class schema-backed proofs yet.
+- Fixed a true isolation gap: `multiStoreRuntime.store` now enforces store assignment for store staff while allowing admin/ops/super-admin operational cross-store visibility.
+- Fixed transfer safety gaps: transfer initiation validates source/destination separation, source batch ownership, product match, destination store existence, and source-store authority; transfer receive now fails closed inside one transaction for reservation consumption, source debit, destination inventory creation, movement evidence, and transfer state transition.
+- Reconciliation visibility was tightened: stock audit list defaults to caller store for non-admin users and audit line reads check the parent audit store before returning rows.
+- New status and drill documents distinguish implemented guarantees, simulated proof, observed guard proof, and unsupported/not-yet-proven behavior.

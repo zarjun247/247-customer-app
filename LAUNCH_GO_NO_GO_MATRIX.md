@@ -66,3 +66,12 @@ Reason: the repository shows strong software foundations, but live launch still 
 | Restore confidence | No-go for production claim | Safe dry-run and verification scripts exist, but measured isolated restore has not been observed. |
 | Degraded-mode confidence | Partial | Expected behavior is documented and exposed as exercise plan data; outage drills remain pending. |
 | Rollback confidence | Partial | Checklist and rollback acceptance criteria exist; measured rollback proof remains pending. |
+
+## 2026-05-10 multi-store go/no-go update
+
+| Gate | Current decision | Reason |
+| --- | --- | --- |
+| Single-store controlled rehearsal | Go after normal P0 evidence | Multi-store hardening does not weaken single-store controls. |
+| Second-store staging simulation | Go | Scenario, expected outcomes, and guard tests are documented for controlled evidence collection. |
+| Second-store live beta | No-go | Provider dead-letter and worker queue store isolation are unsupported/not-yet-proven as first-class runtime evidence; transfer contention proof and access roster review are pending. |
+| Multi-store readiness 9.5 closure | No-go | Current score is 8.6 / 10 until measured runtime evidence closes the documented P1 blockers. |

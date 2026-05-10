@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireStoreAccess } from "../_core/rbac";
 import { router, staffProcedure } from "../_core/trpc";
 import {
   getMultiStoreRuntimeOverview,
@@ -11,5 +12,8 @@ export const multiStoreRuntimeRouter = router({
   isolationChecks: staffProcedure.query(() => getStoreIsolationChecks()),
   store: staffProcedure
     .input(z.object({ storeId: z.number().int().positive() }))
-    .query(({ input }) => getStoreRuntimeDetail(input.storeId)),
+    .query(({ ctx, input }) => {
+      requireStoreAccess(ctx.user, input.storeId, { allowAdminCrossStore: true });
+      return getStoreRuntimeDetail(input.storeId);
+    }),
 });
