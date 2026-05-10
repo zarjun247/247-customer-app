@@ -2,9 +2,9 @@
 
 Updated: 2026-05-10.
 
-## Required validation for this sprint
+## Required validation for the final 9.5 controlled-production gate
 
-Run these commands before merge. For observability changes, `pnpm test` includes guards for sensitive logging, route RBAC, dashboard metric backing, metrics shape, and provider/dead-letter source derivation:
+Run these commands before merge and before any controlled rollout decision:
 
 ```bash
 pnpm run check
@@ -12,12 +12,10 @@ pnpm test
 pnpm run build
 node scripts/verify-migrations.mjs
 node scripts/ci-governance-guards.mjs all
-node scripts/repo-governance-audit.mjs
 git diff --check
-
-# Optional when TEST_DATABASE_URL is available
-pnpm run test:db:concurrency
 ```
+
+These commands validate TypeScript, unit/guard tests, production build, migration safety, governance guardrails, and patch whitespace. They do **not** prove hosted CI, production deployment, provider success, backup/restore success, legal compliance, or operational readiness.
 
 ## DB-backed concurrency proof
 
@@ -68,16 +66,7 @@ This workflow is the exact CI MySQL 8.4 parity proof path. To run it manually, o
 
 If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully. CI MySQL 8.4 parity run still needs observation until the hosted `DB Concurrency Proof` workflow is confirmed green.
 
-## Deployment/runtime readiness sprint commands
-
-```bash
-pnpm run check
-pnpm test
-pnpm run build
-node scripts/verify-migrations.mjs
-node scripts/ci-governance-guards.mjs all
-git diff --check
-```
+## Backup/restore validation
 
 Dry-run backup/restore checks:
 
@@ -86,11 +75,9 @@ node scripts/backup-db.mjs --dry-run --metadata
 node scripts/restore-db-drill.mjs --dry-run --backup-file <non-production-backup.sql>
 ```
 
-Do not claim production deployment proof from local commands alone. Deployment proof requires real CI/CD and runtime evidence.
+Dry-run commands do not prove restore success. A production launch requires a measured staging restore drill with backup ID, restore target, start/end time, verification commands, data checks, and owner signoff. Do not run destructive restore drills against production or production-looking database URLs.
 
----
-
-## 2026-05-10 governance/security targeted checks
+## Governance/security targeted checks
 
 ```bash
 pnpm test -- server/ai-governance-seal.guard.test.ts server/phi-pii-redaction-seal.guard.test.ts
@@ -102,3 +89,15 @@ Expected proof points:
 - AI/OCR worker jobs are assistive-only, non-mutating, and audited.
 - PHI/PII/secrets are redacted from structured logs, audit payloads, worker/provider payloads, and safe error serialization.
 - Public health/readiness endpoints remain minimal and secret-free.
+
+## Hosted CI and deployment proof requirements
+
+Local commands are necessary but insufficient for go-live. Before controlled production, archive:
+
+- Hosted target-branch CI status, including DB concurrency workflow where available.
+- Release artifact ID and commit SHA.
+- Runtime URL health/readiness proof.
+- Rollback proof or rehearsal notes.
+- Provider sandbox/staging verification evidence.
+- Staging backup/restore drill report.
+- Staff access, pharmacist SOP, legal/compliance, monitoring rota, and incident commander signoffs.
