@@ -45,6 +45,11 @@ P1
   Owner status: Engineering - address per sprint/accounting
   State: Partially mitigated (durable event capture added); Unresolved for final removal of placeholders
 
+- Provider retry / dead-letter proof (in-progress)
+  Impact: Webhook/refund provider failures must be durably captured and escalated for operator review without emitting false-success markers.
+  Mitigation path: Service-level guards added to prevent duplicate dead-letter rows and to ensure retry_scheduled increments attempt counts. Provider dead-letter insertion now guarded by NOT EXISTS at the service layer (non-destructive). Operator review fields (operatorReviewed) are preserved. CI/DB-backed observation of retry exhaustion is still required.
+  State: In progress (service guards added; tests and CI observation in validation)
+
 P2
 ---
 - Accounting completion gaps

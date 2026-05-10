@@ -16,8 +16,8 @@ Canonical production-readiness and merge-control entry as of 2026-05-08.
 - Current migration count: 47 (drizzle)
 - Latest migration number: 0049
 - Latest validation timestamp: 2026-05-10T07:12:40.864+05:30
-- Latest validation status: PARTIAL PASS — typecheck, unit tests, build, and migration verification passed; repo governance scan completed with WARNINGS (provider placeholders). Dead-letter processing not run locally due to DATABASE_URL missing. CI workflow added to run DB-backed concurrency proof; proof unclaimed until workflow run.
-- Current repo score (conservative): 6.9 / 10
+- Latest validation status: PARTIAL PASS — typecheck, unit tests, build, and migration verification passed; repo governance scan completed with WARNINGS (provider placeholders). Dead-letter processing not run locally due to DATABASE_URL missing. Service-level guards for provider dead-letter uniqueness and refund journal posting have been implemented; CI observation required to claim full proof. CI workflow added to run DB-backed concurrency proof; proof unclaimed until workflow run.
+- Current repo score (conservative): 7.2 / 10
 - Current launch posture: controlled pilot
 
 ## 2. CURRENT REALISTIC SCORES (conservative / honest)
@@ -26,16 +26,16 @@ Canonical production-readiness and merge-control entry as of 2026-05-08.
 - governance: 6 / 10 — governance infra present; runtime placeholders and roadmap drift found
 - stock truth: 7 / 10 — canonical orchestrator present; DB concurrency proof pending
 - OCR safety: 7 / 10 — handoff gates present; provider edge cases need tightening
-- accounting maturity: 5 / 10 — scaffolds exist; export/ledgers incomplete
+- accounting maturity: 6 / 10 — refund reversal posting added; further ledger backfill & exports needed
 - observability: 4 / 10 — limited dashboards/alerts
-- provider/runtime truth: 5 / 10 — provider_unconfigured markers exist in runtime files
+- provider/runtime truth: 6 / 10 — provider dead-letter guards added; runtime placeholders remain in some files
 - compliance: 6 / 10 — basic scanning present; reporting incomplete
 - deployment readiness: 6 / 10 — build OK; deployment infra and rollback procedures need documentation
 - scalability: 5 / 10 — no verified concurrency proofs; load testing absent
 - auditability: 7 / 10 — centralized audit scaffolds, some legacy direct audit calls removed
 - production readiness (composite): 6 / 10
 
-Overall conservative repo score: 7.0 / 10
+Overall conservative repo score: 7.2 / 10
 
 ## 3. CURRENT BLOCKERS (AUTHORITATIVE)
 Aligned to OPEN_BLOCKERS.md and repo-governance-audit findings.

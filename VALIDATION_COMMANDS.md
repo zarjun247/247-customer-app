@@ -59,3 +59,7 @@ Local DB setup (optional for concurrency proof):
 Exact pass/fail meaning:
 - PASS: command exit code 0 and scanner/test assertions satisfied
 - FAIL: non-zero exit code or governance findings > 0
+
+Notes (2026-05-10):
+- Use the Windows-safe form of vitest invocation; avoid passing `--runInBand` if the local vitest wrapper/CLI does not support it.
+- Provider dead-letter processing exists: run `node scripts/process-dead-letters.mjs` against a safe `DATABASE_URL` to insert missing dead-letters for operator review. The service layer now guards duplicate dead-letter creation; prefer observation via DB-backed CI run before removing proof warnings.

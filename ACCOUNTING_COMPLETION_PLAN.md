@@ -34,3 +34,8 @@ Reconciliation truth requirements:
 
 Next steps:
 - Implement exports, add tests, and integrate into release gating
+
+Notes (2026-05-10):
+- Refund accounting reversal: service-level posting of a balanced refund journal batch has been added to the refund success lifecycle. The batch is posted only once per refund via existing `accounting_journal_batches` source uniqueness semantics and a service-level idempotency guard. This avoids destructive migrations while ensuring linkage from refund -> posted journal batch.
+- Backfill plan: a separate non-destructive backfill must be prepared to group legacy orphan entries into balanced posted batches where possible. This backfill requires manual reconciliation and should be executed under a controlled script that inserts `accounting_journal_batches` rows and updates `accounting_journal_entries.journalBatchId` only when debit == credit for a source event. Do not run the backfill without accounting sign-off.
+- Next test steps: add DB-backed guard tests for refund journal posting and audit the `accounting_journal_batches` UQ before any migration that enforces uniqueness at the schema level.

@@ -27,6 +27,17 @@ export async function markEventRetryScheduled(eventId: number, attemptCount: num
 export async function moveToDeadLetter(eventId: number, reason?: string, lastError?: string, attemptCount = 0) {
   const db = await getDb();
   if (!db) return;
-  await db.execute(sql`INSERT INTO provider_dead_letters (providerEventId, reason, attemptCount, lastError, createdAt) VALUES (${eventId}, ${reason ?? null}, ${attemptCount}, ${lastError ?? null}, NOW())`);
-  await db.execute(sql`UPDATE provider_events SET status = 'dead_letter', updatedAt = NOW() WHERE id = ${eventId}`);
+  try {
+    // Insert dead-letter row only if not already present to ensure exactly-once dead-lettering.
+    const insertSql = sql`INSERT INTO provider_dead_letters (providerEventId, reason, attemptCount, lastError, createdAt)
+      SELECT ${eventId}, ${reason ?? null}, ${attemptCount}, ${lastError ?? null}, NOW()
+      FROM DUAL
+      WHERE NOT EXISTS (SELECT 1 FROM provider_dead_letters pd WHERE pd.providerEventId = ${eventId})`;
+    await db.execute(insertSql);
+    // Mark the provider event as dead_letter (idempotent update)
+    await db.execute(sql`UPDATE provider_events SET status = 'dead_letter', updatedAt = NOW() WHERE id = ${eventId}`);
+  } catch (error: any) {
+    console.error('[providerEventsService] moveToDeadLetter error:', error?.message ?? error);
+    throw error;
+  }
 }

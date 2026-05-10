@@ -195,6 +195,25 @@ export async function markRefundSuccess(input: { refundId: number; providerRefun
     idempotencyKey: input.providerRefundId ? `refund_completed:${input.providerRefundId}` : `refund:${input.refundId}:completed`,
     correlationId: payment?.gatewayOrderId ?? null,
   });
+
+  // --- Accounting reversal: post a balanced refund journal batch exactly-once ---
+  try {
+    const dbCheck = await getDb();
+    if (dbCheck) {
+      const { accountingJournalBatches } = await import("../../drizzle/schema");
+      const { postBalancedJournalBatch, createRefundJournalBatch } = await import("./accountingLedger");
+      // Check for an existing posted batch for this refund (idempotency guard)
+      const [existingBatch] = await dbCheck.select().from(accountingJournalBatches).where(and(eq(accountingJournalBatches.sourceType, "refund"), eq(accountingJournalBatches.sourceRef, String(refund.id)), eq(accountingJournalBatches.status, "posted"))).limit(1);
+      if (!existingBatch) {
+        const batchInput = createRefundJournalBatch({ refundId: refund.id, storeId: null, amount: Number(refund.amountPaise ?? 0) / 100, gstAmount: 0, postedBy: input.ctx?.user?.id ?? null });
+        await postBalancedJournalBatch(dbCheck, batchInput);
+        await logAudit({ action: "refund.journal_posted", entityType: "refund", entityId: input.refundId, afterJson: { refundId: input.refundId, journalForRefundId: refund.id } }, input.ctx);
+      }
+    }
+  } catch (err: any) {
+    // Do not revert refund success on journal failures; surface audit and continue.
+    await logAudit({ action: "refund.journal_failed", entityType: "refund", entityId: input.refundId, afterJson: { error: err?.message ?? String(err) } }, input.ctx);
+  }
 }
 
 export async function markRefundFailedRecord(input: { refundId: number; reason: string; providerRefundId?: string | null; provider?: string; ctx?: any }) {
