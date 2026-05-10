@@ -75,3 +75,16 @@ Reason: the repository shows strong software foundations, but live launch still 
 | Second-store staging simulation | Go | Scenario, expected outcomes, and guard tests are documented for controlled evidence collection. |
 | Second-store live beta | No-go | Provider dead-letter and worker queue store isolation are unsupported/not-yet-proven as first-class runtime evidence; transfer contention proof and access roster review are pending. |
 | Multi-store readiness 9.5 closure | No-go | Current score is 8.6 / 10 until measured runtime evidence closes the documented P1 blockers. |
+
+## 2026-05-10 operationalization go/no-go update
+
+| Gate | Current decision | Reason |
+| --- | --- | --- |
+| Operational doctrine completeness | Go for staging rehearsal | Pharmacist SOPs, shift/store checklists, escalation matrices, ownership matrix, reconciliation/override governance, readiness matrix, and training/runbooks are now documented. |
+| Operator-ready claim | No-go for production claim | Staff roster, observed opening/closing/handoff drills, and training acknowledgements are not attached. |
+| Pharmacist-ready claim | No-go for production claim | Pharmacist SOP/training exists, but pharmacist-in-charge signoff and observed regulated-flow drills are not attached. |
+| Legally reviewed claim | No-go | No legal/compliance approval or accountable exception is attached. |
+| Provider-verified claim | No-go | Provider sandbox/staging evidence remains missing. |
+| Production-approved claim | No-go | P0 evidence remains open despite improved operational doctrine. |
+
+Updated readiness score: **8.9 / 10 controlled-production readiness**. The next allowable activity remains staging launch rehearsal and evidence collection, not unsupervised live production.

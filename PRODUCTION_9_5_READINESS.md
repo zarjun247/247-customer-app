@@ -92,3 +92,15 @@ Survivability evidence infrastructure improved, but the controlled-production sc
 Current multi-store runtime readiness is **8.6 / 10** for controlled staging rehearsal and remains **below 9.5 / 10** for live multi-store expansion. The sprint hardened runtime detail access, stock audit visibility, and transfer fail-closed behavior. Readiness remains blocked by first-class store-scoped provider dead-letter visibility, first-class worker queue store scope, hosted/staging transfer contention evidence, and named access roster proof.
 
 Do **not** mark multi-store readiness closed until measurable runtime evidence exists for store isolation, transfer safety, reconciliation isolation, permission isolation, dead-letter isolation, worker visibility isolation, and operational fail-closed drills.
+
+## 2026-05-10 operationalization readiness update
+
+Operational readiness improved because the repository now contains executable human-governance doctrine rather than only software-ready infrastructure:
+
+- Pharmacist SOPs now cover prescription intake, validation, verification, H/H1 handling, repeat/rejected prescriptions, stock discrepancies, controlled-drug escalation, emergency stop, degraded mode, and manual fallback.
+- Store/shift SOPs now cover opening, closing, handoff, queue review, inventory spot-checks, rider handoff, dead-letter review, unresolved orders, overrides, refunds, and reconciliation signoff.
+- Incident governance now defines incident commander, pharmacist/store/provider/platform escalation chains, rollback authority, stop-the-line authority, and emergency freeze authority.
+- Reconciliation governance now formalizes override reason requirements, reconciliation cadence, unresolved drift handling, supplier invoice disputes, dead-letter reviews, and rollback reviews.
+- Training packets now define pharmacist, store manager, and incident commander drills and fail-closed expectations.
+
+Readiness movement: **8.9 / 10 controlled-production readiness**. This is a doctrine and launch-preparation improvement only. The system is still **not 9.5 / 10 production-approved** until P0 evidence is attached: legal/compliance review, pharmacist-in-charge signoff, named staff/monitoring rota, provider verification, hosted CI DB observation, deployment/rollback proof, restore drill, and observed operational drills.

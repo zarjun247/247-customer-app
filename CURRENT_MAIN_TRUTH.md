@@ -93,3 +93,24 @@ See `OPEN_BLOCKERS.md`, `PRODUCTION_9_5_READINESS.md`, `CONTROLLED_ROLLOUT_CHECK
 - Fixed transfer safety gaps: transfer initiation validates source/destination separation, source batch ownership, product match, destination store existence, and source-store authority; transfer receive now fails closed inside one transaction for reservation consumption, source debit, destination inventory creation, movement evidence, and transfer state transition.
 - Reconciliation visibility was tightened: stock audit list defaults to caller store for non-admin users and audit line reads check the parent audit store before returning rows.
 - New status and drill documents distinguish implemented guarantees, simulated proof, observed guard proof, and unsupported/not-yet-proven behavior.
+
+## 2026-05-10 operationalization and human-governance sprint update
+
+- Added executable pharmacist operations doctrine covering prescription intake, validation, pharmacist verification, H/H1 handling, repeat/rejected prescriptions, stock discrepancies, controlled-drug escalation, emergency stop, degraded mode, and manual fallback without claiming legal or pharmacist signoff.
+- Added shift/store operating controls for shift handoff, opening checks, closing checks, queue/dead-letter review, rider handoff, inventory spot-checks, override/refund review, reconciliation signoff, and unresolved order handling.
+- Added incident and escalation doctrine defining incident commander, pharmacist escalation, store manager escalation, provider escalation, rollback authority, stop-the-line authority, and emergency freeze authority.
+- Added reconciliation and override governance for override reason requirements, daily launch-period override review, unresolved drift handling, supplier invoice disputes, dead-letter review cadence, and rollback review cadence.
+- Added pharmacist, store manager, and incident commander training/runbook packets with drills for degraded mode, reconciliation discipline, rollback awareness, fail-closed expectations, and emergency stop.
+- Added `server/operational-governance.guard.test.ts` to guard the new operational doctrine corpus, required escalation metadata, AI/pharmacist/H/H1 boundaries, and no unsupported legal/provider/production signoff claims.
+
+## Updated readiness truth after operationalization sprint
+
+| Area | Previous truth | Updated truth |
+| --- | --- | --- |
+| Operator readiness | SOP/training/signoff gap remained a P0 operational blocker. | Doctrine materially improved: opening, closing, shift handoff, manual fallback, override/refund/dead-letter review, and reconciliation discipline are documented; observed staff drills and signed roster remain missing. |
+| Pharmacist readiness | Pharmacist SOP signoff missing. | Pharmacist-operability is improved by a detailed SOP and training packet; pharmacist-in-charge signoff and legal review remain missing and are not claimed. |
+| Escalation maturity | Incident foundations existed but ownership/authority were incomplete. | Incident commander, stop-the-line, rollback, freeze, pharmacist, store manager, and provider escalation authorities are documented; live rota and observed incident drills remain missing. |
+| Reconciliation governance | Reconciliation truth existed technically; human cadence and owner doctrine were incomplete. | Override reason requirements, drift handling, supplier dispute, dead-letter, and rollback review cadence are formalized; named owners and observed reviews remain missing. |
+| Operational readiness score | 8.7-8.8 / 10 controlled-production readiness depending on prior sprint slice. | **8.9 / 10 controlled-production readiness** for launch preparation. This is an operational doctrine improvement, not a production approval. 9.5+ still requires P0 evidence closure. |
+
+Controlled production remains **NO-GO today** until hosted CI, provider verification, deployment/rollback proof, measured restore drill, legal/compliance review, pharmacist signoff, staff access roster, monitoring rota, and observed operational drills are attached.
