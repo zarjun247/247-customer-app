@@ -163,6 +163,33 @@ export default function AdminCommandCenter() {
           </div>
         </div>
 
+        <div className="premium-card p-4">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-100">Operational Safety Board</h2>
+              <p className="text-xs text-zinc-500">Frontend control-room map for incident, provider, deployment/runtime, multi-store, refund, reconciliation, and dead-letter review flows.</p>
+            </div>
+            <Badge variant="info">No PHI in broad dashboards</Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+            {[
+              ["Incident command", "Escalate by severity", "critical"],
+              ["Provider health", "Gateway/provider status", "warn"],
+              ["Deployment/runtime", "Runtime health surface", "warn"],
+              ["Multi-store", "Store isolation health", "ok"],
+              ["Reconciliation", "Variance review", "warn"],
+              ["Refund exceptions", "Reasoned reversal queue", "warn"],
+              ["Dead letters", "Retry / quarantine review", "critical"],
+            ].map(([title, sub, tone]) => (
+              <div key={title} className="rounded-xl border border-white/5 bg-black/20 p-3">
+                <span className={`status-dot ${tone === "ok" ? "status-dot-success" : tone === "critical" ? "status-dot-critical" : "status-dot-warning"}`} />
+                <p className="mt-2 text-xs font-semibold text-zinc-100">{title}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">{sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Critical events banner */}
         {events.data && events.data.events.length > 0 && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-3">

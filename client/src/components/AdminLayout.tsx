@@ -345,7 +345,19 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto premium-page">
+        <div className="border-b border-white/5 bg-zinc-950/75 px-4 py-3 backdrop-blur md:px-6">
+          <div className="flex flex-col gap-2 text-xs text-zinc-400 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="success">Pharmacist gates enforced</Badge>
+              <Badge variant="regulated">H/H1 visually flagged</Badge>
+              <Badge variant="info">PHI minimized dashboards</Badge>
+            </div>
+            <span className="max-w-3xl text-[11px] leading-relaxed text-zinc-500">
+              Pharmacy OS uses live backend state only; override, refund, stock, reconciliation, and regulated-sale actions must keep their required reasons and approvals.
+            </span>
+          </div>
+        </div>
         {children}
       </main>
     </div>
