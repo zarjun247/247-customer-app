@@ -15,6 +15,7 @@ const ocrService = readFileSync("server/services/ocrPurchaseInwarding.ts", "utf8
 const purchaseRouter = readFileSync("server/routers/purchaseRouter.ts", "utf8");
 const salesRouter = readFileSync("server/routers/salesRouter.ts", "utf8");
 const stockInvariant = readFileSync("server/services/stockInvariant.ts", "utf8");
+const reservationService = readFileSync("server/services/reservationService.ts", "utf8");
 
 describe("stock truth final audit certification", () => {
   it("scanner detects rogue direct stock mutation", () => {
@@ -52,6 +53,17 @@ describe("stock truth final audit certification", () => {
     expect(salesRouter).toContain("decreaseStockForSaleConfirmation");
     expect(salesRouter).toContain("getCanonicalAvailability");
     expect(salesRouter).not.toMatch(/insert\(stockMovements\)/);
+  });
+
+
+  it("canonical physical reservation accounting is centralized and guarded", () => {
+    expect(reservationService).toContain("reserveBatchAtomic");
+    expect(reservationService).toContain("releaseReservationAtomic");
+    expect(reservationService).toContain("consumeReservationAtomic");
+    expect(reservationService).toContain("Reservation release would make reserved stock negative");
+    expect(reservationService).toContain("Reservation consume would make on-hand stock negative");
+    const out = execSync(`rg -n "(?:db|tx)\\.update\\(batchLedger\\)\\.set\\(\\{[^}]*qtyReserved" server scripts -g '!server/services/reservationService.ts' -g '!server/services/stockInvariant.ts' || true`, { encoding: "utf8" }).trim();
+    expect(out).toBe("");
   });
 
   it("canonical availability subtracts active reservations", () => {

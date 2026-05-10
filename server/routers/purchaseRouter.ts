@@ -9,6 +9,7 @@ import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
 import { increaseStockForPurchaseCommit, decreaseStockForPurchaseReturn } from "../services/stockInvariant";
+import { commitPurchaseInvoiceExactlyOnce } from "../services/commercialTruthSeams";
 import { syncStoreSkuAggregate } from "../services/reservationService";
 import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding, allocatePaymentToInvoice, allocateSupplierPayment, applyPurchaseReturnCredit, getSupplierAgeing, getSupplierReconciliationReport } from "../services/supplierLedger";
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
@@ -257,69 +258,23 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
-      const db = await getDbSafe();
-      const { purchaseInvoices, purchaseLines, batchLedger, batches } = await import("../../drizzle/schema");
-      const idemKey = buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]);
-      return withIdempotency({
-        key: idemKey,
-        scope: "purchase.commitInvoice",
-        operationType: "purchase_commit_invoice",
+      // syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null }) is reconciled after canonical seam stock movements.
+      const result = await commitPurchaseInvoiceExactlyOnce({
+        invoiceId: input.id,
+        idempotencyKey: buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]),
         actorId: ctx.user!.id,
-        storeId: (ctx.user as any)?.staffStoreId ?? null,
-        entityType: "purchase_invoice",
-        entityId: String(input.id),
-        requestHash: createMutationFingerprint(input),
-        ctx,
-      }, async () => {
-      const [inv] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id));
-      if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
-      if (inv.status === "committed") return { success: true, idempotent: true, status: inv.status, gstSummary: inv.gstSummary };
-      if (inv.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
-      const lines = await db.select().from(purchaseLines).where(eq(purchaseLines.purchaseInvoiceId, input.id));
-      if (!lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines to commit" });
-      const gstSummary: Record<string, { taxable: number; gst: number; total: number }> = {};
-      for (const line of lines) {
-        const pr = parseFloat(line.purchaseRate ?? "0"), gr = parseFloat(line.gstRate ?? "12"), sd = parseFloat(line.schemeDiscount ?? "0"), cd = parseFloat(line.cashDiscount ?? "0");
-        const qty = line.qty + (line.freeQty ?? 0);
-        const { landingCost, gstAmount, taxableAmount } = calcGst(pr, gr, line.qty, sd, cd);
-        const mrp = parseFloat(line.mrp ?? "0");
-        const margin = mrp > 0 ? +((mrp - landingCost) / mrp * 100).toFixed(2) : 0;
-        const bucket = computeExpiryBucket(line.expiryDate);
-        // Upsert batch_ledger
-        const [existingLedger] = await db.select().from(batchLedger).where(and(eq(batchLedger.batchNo, line.batchNo), eq(batchLedger.storeId, inv.storeId), eq(batchLedger.productId, line.productId))).limit(1);
-        let ledgerId: number;
-        if (existingLedger) {
-          ledgerId = existingLedger.id;
-          await db.update(batchLedger).set({ mrp: line.mrp, purchaseRate: line.purchaseRate, saleRate: line.saleRate ?? line.mrp, landingCost: landingCost.toString(), margin: margin.toString(), expiryBucket: bucket, purchaseInvoiceId: inv.id }).where(eq(batchLedger.id, existingLedger.id));
-        } else {
-          const [lr] = await db.insert(batchLedger).values({ productId: line.productId, storeId: inv.storeId, supplierId: inv.supplierId, batchNo: line.batchNo, mfgDate: line.mfgDate ?? null, expiryDate: line.expiryDate, mrp: line.mrp, purchaseRate: line.purchaseRate, saleRate: line.saleRate ?? line.mrp, schemeDiscount: line.schemeDiscount ?? "0", cashDiscount: line.cashDiscount ?? "0", landingCost: landingCost.toString(), margin: margin.toString(), qtyOnHand: 0, qtyReserved: 0, qtyQuarantined: 0, qtyExpired: 0, purchaseInvoiceId: inv.id, expiryBucket: bucket, status: "active", createdBy: ctx.user!.id });
-          ledgerId = (lr as { insertId: number }).insertId;
-        }
-        // Upsert legacy batches
-        const [existingBatch] = await db.select().from(batches).where(and(eq(batches.batchNumber, line.batchNo), eq(batches.storeId, inv.storeId))).limit(1);
-        let batchId: number;
-        if (existingBatch) {
-          batchId = existingBatch.id;
-        } else {
-          const [br] = await db.insert(batches).values({ productId: line.productId, batchNumber: line.batchNo, expiryDate: line.expiryDate, unitCost: line.purchaseRate, quantity: 0, storeId: inv.storeId, status: "active" });
-          batchId = (br as { insertId: number }).insertId;
-        }
-        await db.update(purchaseLines).set({ batchId }).where(eq(purchaseLines.id, line.id));
-        const movement = await increaseStockForPurchaseCommit({ batchId: ledgerId, storeId: inv.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: inv.id, reason: `Purchase commit ${inv.invoiceNo}`, actor: { actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, productId: line.productId });
-        await db.update(batches).set({ quantity: movement.qtyAfter }).where(eq(batches.id, batchId));
-        await syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null });
-        const rateKey = `${gr}%`;
-        if (!gstSummary[rateKey]) gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
-        gstSummary[rateKey].taxable += taxableAmount;
-        gstSummary[rateKey].gst += gstAmount;
-        gstSummary[rateKey].total += taxableAmount + gstAmount;
-      }
-      await db.update(purchaseInvoices).set({ status: "committed", committedAt: new Date(), approvedBy: ctx.user!.id, approvedAt: new Date(), gstSummary: JSON.stringify(gstSummary) }).where(eq(purchaseInvoices.id, input.id));
-      await recordSupplierPayable(db, { supplierId: inv.supplierId, purchaseInvoiceId: inv.id, storeId: inv.storeId, amount: Number(inv.netAmount ?? 0), actorId: ctx.user!.id, actorRole: ctx.user!.role, source: "admin" }, ctx);
-      await logAudit({ action: "purchase.committed", entityType: "purchase_invoice", entityId: input.id, beforeJson: { status: "draft" }, afterJson: { status: "committed", gstSummary } }, ctx);
-      return { success: true, gstSummary };
+        actorRole: ctx.user!.role,
       });
+      const db = await getDbSafe();
+      const { purchaseInvoices } = await import("../../drizzle/schema");
+      const [invoice] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id)).limit(1);
+      return {
+        success: result.success,
+        gstSummary: invoice?.gstSummary ?? (result as any).gstSummary ?? null,
+        idempotent: (result as any).idempotent,
+        duplicate: (result as any).duplicate,
+        status: (result as any).status,
+      };
     }),
 
   stockMovements: protectedProcedure

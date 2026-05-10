@@ -4,10 +4,11 @@ import { and, eq, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { getOrderById, getOrderItems, updateOrderStatus } from "../db";
 import { createSlaEvent, getPaymentByGatewayOrderId } from "../payment";
-import { providerWebhookEvents, refunds } from "../../drizzle/schema";
+import { paymentRecords, providerWebhookEvents, refunds } from "../../drizzle/schema";
 import { verifyGatewayWebhookSignature, markPaymentCaptured, markPaymentFailed, type PaymentVerificationStatus } from "./paymentGateway";
 import { releaseReservationOnPaymentFailure } from "./reservationService";
 import { markRefundFailedRecord, markRefundSuccess } from "./refundService";
+import { settleProviderRefundExactlyOnce } from "./commercialTruthSeams";
 import { logAudit } from "./audit";
 import { redactObject } from "../_core/redact";
 
@@ -119,8 +120,9 @@ export function extractProviderWebhookRefs(payload: Record<string, any>) {
   const gatewayOrderId = safeString(paymentEntity.order_id) ?? safeString(orderEntity.id) ?? safeString(payload.gatewayOrderId) ?? safeString(payload.order_id);
   const gatewayPaymentId = safeString(paymentEntity.id) ?? safeString(payload.gatewayPaymentId) ?? safeString(payload.payment_id);
   const providerRefundId = safeString(refundEntity.id) ?? safeString(payload.refundId) ?? safeString(payload.refund_id);
+  const refundAmountPaise = safeNumber(refundEntity.amount) ?? safeNumber(payload.amountPaise) ?? safeNumber(payload.amount);
   const orderId = safeNumber(paymentEntity.notes?.orderId) ?? safeNumber(orderEntity.notes?.orderId) ?? safeNumber(payload.orderId);
-  return { eventType, providerEventId, gatewayOrderId, gatewayPaymentId, providerRefundId, orderId };
+  return { eventType, providerEventId, gatewayOrderId, gatewayPaymentId, providerRefundId, refundAmountPaise, orderId };
 }
 
 function idempotencyKeyFor(providerEventId: string | null, rawPayloadHash: string) {
@@ -271,7 +273,10 @@ export async function handleRazorpayWebhook(input: { rawBody?: string | Buffer |
         return { ok: true, status: "processed", eventType: refs.eventType, providerEventId: refs.providerEventId, idempotent: true, paymentLifecycle: refund.status === "success" ? "refunded" : undefined };
       }
       if (REFUND_SUCCESS_EVENTS.has(refs.eventType)) {
-        await markRefundSuccess({ refundId: refund.id, providerRefundId: refs.providerRefundId, provider: PROVIDER });
+        const [refundPayment] = await db.select().from(paymentRecords).where(eq(paymentRecords.id, refund.paymentId)).limit(1);
+        const gatewayOrderId = refs.gatewayOrderId ?? refundPayment?.gatewayOrderId;
+        if (!gatewayOrderId) throw new TRPCError({ code: "BAD_REQUEST", message: "Refund webhook missing payment order reference" });
+        await settleProviderRefundExactlyOnce({ gatewayOrderId, providerRefundId: refs.providerRefundId, amountPaise: Number(refs.refundAmountPaise ?? refund.amountPaise ?? 0), idempotencyKey: idempotencyKeyFor(refs.providerEventId, rawPayloadHash), actorId: null });
         await appendLifecycleAudit("refund_completed", { providerRefundId: refs.providerRefundId, refundId: refund.id });
       } else {
         await markRefundFailedRecord({ refundId: refund.id, providerRefundId: refs.providerRefundId, provider: PROVIDER, reason: "provider_refund_failed" });
