@@ -1,3 +1,5 @@
+import { recordProviderEvent } from "./providerEventsService";
+
 export type OcrUnavailableStatus =
   | "not_configured"
   | "manual_required"
@@ -39,6 +41,8 @@ export function getOcrProviderReadiness(): OcrProviderReadiness {
     envValue("OCR_PROVIDER_API_KEY") || envValue("BUILT_IN_FORGE_API_KEY")
   );
   if (!hasProviderCredential) {
+    // record a durable provider event so ops can triage missing OCR credentials in production
+    void recordProviderEvent({ provider: "ocr", operation: "provider_not_configured", status: "provider_unconfigured", errorMessage: "OCR provider API key missing" }).catch(() => {});
     return {
       ok: false,
       status: "not_configured",
