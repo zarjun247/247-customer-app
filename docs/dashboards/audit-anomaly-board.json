@@ -1,8 +1,8 @@
 {
   "id": "audit-anomaly-board",
   "title": "Audit Anomaly Board",
-  "metrics": [
-    { "name": "audit_unexpected_events", "query": "audit_unexpected_events_total" }
-  ],
-  "note": "Highlights suspicious audit events or gaps in audit trails."
+  "status": "blocked_no_backing_endpoint",
+  "metrics": [],
+  "blockedMetrics": "original sprint dashboard metrics removed until backed by audited runtime endpoints",
+  "note": "This dashboard is intentionally metadata-only after the observability audit; it must not display synthetic or unbacked data."
 }

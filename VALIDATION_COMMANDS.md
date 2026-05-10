@@ -4,7 +4,7 @@ Updated: 2026-05-10.
 
 ## Required validation for this sprint
 
-Run these commands before merge:
+Run these commands before merge. For observability changes, `pnpm test` includes guards for sensitive logging, route RBAC, dashboard metric backing, metrics shape, and provider/dead-letter source derivation:
 
 ```bash
 pnpm run check

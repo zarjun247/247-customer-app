@@ -8,12 +8,14 @@ Updated: 2026-05-10.
 
 ## P1
 
+- Incident Command Center remains foundation-only: first-class incident records, SLA breach counters, provider heartbeat rollups, stock anomaly rules, and audit anomaly rules still need real runtime implementations before launch claims.
 - Observe the GitHub Actions MySQL 8.4 `DB Concurrency Proof` workflow green for hosted-runner parity. CI MySQL 8.4 parity run still needs observation.
 - Supplier invoice uniqueness is guarded at the purchase commit seam for future committed invoices, but hard DB uniqueness still needs a business-review backfill before adding a destructive-risk unique constraint. The target key is supplier + store + invoice number.
 - Remove legacy `batches.quantity` mirrors after all inventory readers use canonical `batch_ledger`.
 
 ## Completed in this pass
 
+- Hardened observability foundation: `/metrics` and `/api/observability/*` are staff/admin gated, HTTP telemetry is structured and redacted, provider/dead-letter metrics derive from durable provider/worker tables, and fake/unbacked dashboard claims were removed.
 - Added provider retry/dead-letter proof: provider failures remain tied to `provider_webhook_events`, retry scheduling records `retry_scheduled` and increments `attemptCount`, and exhaustion inserts into `provider_dead_letters` exactly once through `uq_provider_dead_letters_event`.
 - Added provider dead-letter operator-review fields and duplicate-dead-letter protection; retry/dead-letter paths return `emittedSuccess: false` and do not claim fake provider success.
 - Wired refund settlement to post a balanced accounting refund reversal batch through the existing `accounting_journal_batches` / `accounting_journal_entries` ledger once a provider refund succeeds.

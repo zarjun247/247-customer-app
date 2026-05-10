@@ -1,9 +1,12 @@
 {
   "id": "dead-letter-board",
   "title": "Dead Letter Board",
+  "status": "backed_by_observability_endpoints",
+  "endpoint": "/api/observability/provider-events",
   "metrics": [
-    { "name": "dead_letter_total", "query": "dead_letter_total" },
-    { "name": "retry_count", "query": "retry_total" }
+    { "name": "provider_dead_letter_total", "query": "provider_dead_letter_total" },
+    { "name": "worker_job_dead_letter_total", "query": "worker_job_dead_letter_total" },
+    { "name": "worker_job_backlog", "query": "worker_job_backlog" }
   ],
-  "note": "Shows items in dead-letter stores and retry trends."
+  "note": "Shows durable provider_dead_letters and worker_jobs dead-letter/backlog counts only."
 }

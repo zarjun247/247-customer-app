@@ -1,28 +1,49 @@
-import { Express } from "express";
+import type { Express } from "express";
 import fs from "fs/promises";
 import path from "path";
-import { metrics } from "../_core/observability";
+import { requireStaff } from "./healthRouter";
+import { safeError } from "../services/observability";
+import { OBSERVABILITY_METRIC_NAMES, getProviderVisibilitySummary } from "../services/operationalVisibility";
+
+export async function loadDashboardDefinitions() {
+  const dashDir = path.join(process.cwd(), "docs", "dashboards");
+  const files = await fs.readdir(dashDir);
+  return Promise.all(
+    files.filter((f) => f.endsWith(".json")).sort().map(async (f) => {
+      const raw = await fs.readFile(path.join(dashDir, f), "utf-8");
+      return JSON.parse(raw);
+    })
+  );
+}
 
 export function registerObservabilityRoutes(app: Express) {
-  app.get("/api/observability/dashboards", async (_req, res) => {
+  app.get("/api/observability/dashboards", requireStaff, async (_req, res) => {
     try {
-      const dashDir = path.join(process.cwd(), "docs", "dashboards");
-      const files = await fs.readdir(dashDir);
-      const dashboards = await Promise.all(
-        files.filter(f => f.endsWith('.json')).map(async (f) => {
-          const raw = await fs.readFile(path.join(dashDir, f), 'utf-8');
-          return JSON.parse(raw);
-        })
-      );
-      res.json({ dashboards });
-    } catch (err) {
-      res.status(500).json({ error: 'Failed to read dashboards' });
+      const dashboards = await loadDashboardDefinitions();
+      res.json({ dashboards, supportedMetrics: OBSERVABILITY_METRIC_NAMES });
+    } catch (_err) {
+      res.status(500).json({ error: "Failed to read dashboards" });
     }
   });
 
-  app.get('/api/observability/health-summary', async (_req, res) => {
-    // Lightweight health summary based on metrics exposed in-memory
-    // In future this should aggregate provider heartbeats and lastSuccess timestamps
-    res.json({ ok: true, note: 'Health summary (placeholder)'});
+  app.get("/api/observability/health-summary", requireStaff, async (_req, res) => {
+    try {
+      const providerVisibility = await getProviderVisibilitySummary();
+      res.json({
+        ok: providerVisibility.databaseConfigured,
+        source: providerVisibility.source,
+        providerVisibility,
+      });
+    } catch (error) {
+      res.status(503).json({ status: "unavailable", error: safeError(error) });
+    }
+  });
+
+  app.get("/api/observability/provider-events", requireStaff, async (_req, res) => {
+    try {
+      res.json(await getProviderVisibilitySummary());
+    } catch (error) {
+      res.status(503).json({ status: "unavailable", error: safeError(error) });
+    }
   });
 }
