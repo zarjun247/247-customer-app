@@ -2,37 +2,45 @@
 
 Updated: 2026-05-10.
 
-## Production readiness blockers
+## Current launch decision
 
-1. **Deployment evidence missing**
-   - No production deployment proof is claimed by the codebase.
-   - Need CI/CD logs, release artifact IDs, runtime URL checks, and rollback plan evidence.
-2. **Hosted CI observation still required**
-   - Run and archive the target branch checks on hosted CI after merge/rebase.
-3. **Backup/restore drill not proven**
-   - Dry-run scripts and runbook exist, but measured staging restore evidence is still required.
-4. **Provider verification still required**
-   - Payment, WhatsApp/SMS, maps, OCR, printer, storage, and Tally integrations must be verified in staging/sandbox.
-   - Unconfigured/demo/skipped states must never be reported as production success.
-5. **Operational ownership**
-   - Assign owners for dead-letter queues, incident response, degraded mode, backup/restore, provider outages, and store isolation anomalies.
-6. **Multi-store runtime data proof**
-   - Run new staff/admin-gated aggregate checks against staging/production-like data and record actual counts.
+**NO-GO for live controlled production** until all P0 launch blockers below have closure evidence. The repository remains suitable for supervised demos, staging rehearsals, investor evidence review, and launch-preparation work.
+
+## Blocker classification
+
+| Blocker | Class | Why it blocks | Closure evidence |
+| --- | --- | --- | --- |
+| Deployment evidence missing | P0 launch blocker | Runtime, artifact, health/readiness, and rollback paths are not proven for a real environment. | CI/CD logs, release artifact ID, staging/prod URL, health/readiness output, rollback proof, release owner signoff. |
+| Real provider credentials/sandbox verification missing | P0 launch blocker | Payment, WhatsApp/SMS, maps, OCR, printer, storage, and Tally/export flows cannot be trusted from unconfigured/demo/skipped states. | Provider verification matrix with sandbox/staging test IDs, failure cases, disabled states, and owner signoff. |
+| Measured staging backup/restore drill missing | P0 launch blocker | Recovery from data loss, failed deploy, or migration incident is not proven. | Backup ID, restore target, start/end time, verification commands, data checks, and restore owner signoff. |
+| Staff access assignment missing | P0 launch blocker | Shared/unscoped accounts can breach PHI/PII, stock, payment, prescription, and store isolation controls. | Named staff roster with role, store scope, removal path, and no shared admin accounts. |
+| Pharmacist SOP signoff missing | P0 launch blocker | Regulated medicine release, prescription review, substitutions, H/H1/X handling, and exceptions require accountable pharmacy signoff. | Pharmacist-in-charge signed SOP and staff acknowledgements. |
+| Legal/compliance review missing | P0 launch blocker | Technical controls do not equal jurisdictional legal compliance. | Written legal/compliance approval or accountable written launch exception. |
+| Live monitoring ownership missing | P0 launch blocker | Provider failures, dead letters, refunds, stock exceptions, security events, and incidents may go unowned. | Primary/secondary rota, escalation thresholds, daily review schedule, and incident commander assignment. |
+| Emergency stop and rollback rehearsal missing | P0 launch blocker | Launch team has not proven it can safely stop, roll back, and reconcile. | Rehearsal notes with timeline, owner, commands/procedures, and signoff. |
+| Hosted CI observation still required | P1 controlled rollout blocker | Local proof is meaningful but hosted target-branch parity has not been archived. | Hosted workflow links/log IDs for target branch, including DB concurrency workflow where available. |
+| Multi-store runtime data proof missing | P1 controlled rollout blocker before second store | Store isolation checks need production-like counts before expansion. | Report for missing assigned stores, missing order store IDs, negative stock rows, and cross-store anomalies. |
+| Supplier invoice duplicate backfill/migration approval | P1 if live purchasing is enabled; P2 scale blocker otherwise | Hard uniqueness cannot be added safely until supplier + store + invoice number duplicates are reviewed. | Business-reviewed duplicate report, remediation plan, and approved non-destructive constraint migration. |
+| Accounting/compliance SOP evidence incomplete | P1 controlled rollout blocker | Daily reconciliation, statutory export, refund reversal review, and H1 record ownership need assigned operators. | Named owners and signed daily/monthly accounting/compliance checklist. |
+| Incident command center incomplete | P2 scale blocker | Current observability is a foundation, not a complete command center. | Persisted incident records, backed SLA/provider heartbeat/anomaly metrics, and deployment scrape/access policy. |
+| Provider heartbeat and SLA rollups absent | P2 scale blocker | Scaling without provider performance trends increases outage risk. | Durable latency/availability counters and alert thresholds. |
+| UX/operator polish | P3 polish/deferred | Does not block a one-store launch if training/manual fallback cover gaps. | Prioritized post-launch backlog from launch staff feedback. |
 
 ## Current readiness score
 
-**72/100** until deployment evidence, restore evidence, provider verification, and owner sign-off are complete.
+**Overall controlled-production readiness: 8.4 / 10 today.**
 
-## Data backfill blockers preserved from main truth
+A 9.5/10 controlled-production rating requires all P0 blockers closed with evidence while validation remains green. No production proof, provider proof, restore proof, or legal compliance is claimed until the relevant evidence is attached.
 
-- Supplier invoice hard uniqueness still needs a business-review backfill before adding a destructive-risk unique constraint. The target key is supplier + store + invoice number.
+## Data backfill blocker preserved from main truth
 
----
+Supplier invoice hard uniqueness still needs a business-review backfill before adding a destructive-risk unique constraint. The target key is **supplier + store + invoice number**.
 
-## 2026-05-10 Healthcare governance seal additions
+## Governance boundaries that must not be weakened
 
-- AI governance boundary is explicit and tested.
-- PHI/PII/secret redaction is strengthened across logs, audit, errors, and worker/provider payloads.
-- Observability and detailed health remain staff/admin gated.
-- Remaining regulated deployment blockers: real provider credentials, backup/restore drills, pharmacist SOP sign-off, named staff access, legal/compliance review, and launch incident monitoring.
-- Supplier invoice hard uniqueness remains blocked until **supplier + store + invoice number** duplicates complete **business-review backfill** and approval for a non-destructive constraint migration.
+- `stockInvariant`, reservation accounting, and reconciliation truth.
+- Commercial truth, provider idempotency, refund reversal safeguards, and no fake provider success.
+- Prescription, H/H1/X, pharmacist, statutory, and compliance gates.
+- AI assistive-only boundary and no regulated mutation authority.
+- PHI/PII/secret redaction and staff/admin gating for sensitive runtime surfaces.
+- Migration safety: no destructive migrations without explicit review and rollback/restore proof.
