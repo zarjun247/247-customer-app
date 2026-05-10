@@ -14,6 +14,8 @@ Updated: 2026-05-10.
 
 ## Completed in this pass
 
+- Added accounting + compliance operations layer: 16 TRPC endpoints across 3 routers covering daily sales/purchase summaries, payment breakdown, supplier ageing, GST/HSN, H1 register visibility, compliance queues, reconciliation boards, and stock valuation reports. All endpoints RBAC-gated, PHI/PII redacted, non-destructive, and deriving from existing services (no parallel accounting truth).
+- All 5 dashboard documentation files (accounting-ops-board, compliance-ops-board, reconciliation-ops-board, supplier-outstanding-board, gst-hsn-board) created with endpoint mappings, source tables, safety notes, and role gating requirements.
 - Added provider retry/dead-letter proof: provider failures remain tied to `provider_webhook_events`, retry scheduling records `retry_scheduled` and increments `attemptCount`, and exhaustion inserts into `provider_dead_letters` exactly once through `uq_provider_dead_letters_event`.
 - Added provider dead-letter operator-review fields and duplicate-dead-letter protection; retry/dead-letter paths return `emittedSuccess: false` and do not claim fake provider success.
 - Wired refund settlement to post a balanced accounting refund reversal batch through the existing `accounting_journal_batches` / `accounting_journal_entries` ledger once a provider refund succeeds.
