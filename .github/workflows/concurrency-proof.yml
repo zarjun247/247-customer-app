@@ -30,18 +30,26 @@ jobs:
           --health-start-period=20s
     env:
       TEST_DATABASE_URL: mysql://247_test_user:247_test_password@127.0.0.1:3306/247_customer_app_test
+
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@10.4.1 --activate
+
       - name: Install
         run: pnpm install --frozen-lockfile
+
       - name: Apply test DB migrations
         run: pnpm run test:db:bootstrap
+
       - name: Run MySQL concurrency proof
         run: pnpm run test:db:concurrency
