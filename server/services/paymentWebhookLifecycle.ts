@@ -160,21 +160,30 @@ async function recordWebhookEvent(input: {
 }) {
   const db = await getDb();
   if (!db) return null;
-  const [row] = await db.insert(providerWebhookEvents).values({
-    provider: input.provider,
-    providerEventId: input.providerEventId,
-    eventType: input.eventType,
-    paymentId: input.paymentId ?? null,
-    orderId: input.orderId ?? null,
-    refundId: input.refundId ?? null,
-    rawPayloadHash: input.rawPayloadHash,
-    payloadJson: input.payloadJson as any,
-    signatureVerified: input.signatureVerified,
-    processingStatus: input.processingStatus,
-    failureReason: input.failureReason ?? null,
-    idempotencyKey: idempotencyKeyFor(input.providerEventId, input.rawPayloadHash),
-  });
-  return (row as { insertId?: number }).insertId ?? null;
+  try {
+    const [row] = await db.insert(providerWebhookEvents).values({
+      provider: input.provider,
+      providerEventId: input.providerEventId,
+      eventType: input.eventType,
+      paymentId: input.paymentId ?? null,
+      orderId: input.orderId ?? null,
+      refundId: input.refundId ?? null,
+      rawPayloadHash: input.rawPayloadHash,
+      payloadJson: input.payloadJson as any,
+      signatureVerified: input.signatureVerified,
+      processingStatus: input.processingStatus,
+      failureReason: input.failureReason ?? null,
+      idempotencyKey: idempotencyKeyFor(input.providerEventId, input.rawPayloadHash),
+    });
+    return (row as { insertId?: number }).insertId ?? null;
+  } catch (error) {
+    const e = error as { code?: string; errno?: number; message?: string };
+    if (e?.code === "ER_DUP_ENTRY" || e?.errno === 1062 || /duplicate/i.test(String(e?.message ?? ""))) {
+      const existing = await findExistingEvent(input.provider, input.providerEventId, input.rawPayloadHash);
+      return existing?.id ?? null;
+    }
+    throw error;
+  }
 }
 
 async function updateWebhookEventStatus(id: number | null, status: ProviderWebhookProcessingStatus, failureReason?: string | null) {

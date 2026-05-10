@@ -151,7 +151,8 @@ async function updateReservationStatus(input: any, status: ReservationReleaseSta
   if (input.cartId) conds.push(eq(stockReservations.cartId, input.cartId));
   if (input.storeId) conds.push(eq(stockReservations.storeId, input.storeId));
   if (input.productId) conds.push(eq(stockReservations.productId, input.productId));
-  await db.update(stockReservations).set({ status, releaseReason }).where(and(...conds));
+  const [updateResult] = await db.update(stockReservations).set({ status, releaseReason }).where(and(...conds));
+  const won = Number((updateResult as { affectedRows?: number }).affectedRows ?? 0) > 0;
   await logAudit({ action: `reservation.${status}`, entityType: "stock_reservation", entityId: Number(input.id ?? input.orderId ?? 0), afterJson: { ...input, status, releaseReason } }, input.ctx);
   const eventType = status === "consumed" ? "reservation_consumed" : status === "expired" ? "reservation_expired" : "reservation_released";
   await appendCommercialEventBestEffort({
@@ -167,9 +168,13 @@ async function updateReservationStatus(input: any, status: ReservationReleaseSta
     idempotencyKey: input.idempotencyKey ?? `${eventType}:${input.id ?? input.orderId ?? input.cartId ?? "unknown"}`,
     correlationId: input.correlationId ?? input.ctx?.requestId ?? null,
   });
-  return { status, releaseReason };
+  return { status, releaseReason, won };
 }
 
+
+export async function claimReservationTerminalState(input: any & { terminalStatus: ReservationReleaseStatus; releaseReason?: string }) {
+  return updateReservationStatus(input, input.terminalStatus, input.releaseReason ?? input.terminalStatus);
+}
 export function releaseReservation(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "manual_release"); }
 export function expireReservation(input: any) { return updateReservationStatus(input, "expired", input.releaseReason ?? "reservation_expired"); }
 export function releaseReservationOnPaymentFailure(input: any) { return updateReservationStatus(input, "released", input.releaseReason ?? "payment_failed"); }

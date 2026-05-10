@@ -93,3 +93,10 @@ git diff --check
 - Use `MERGE_GOVERNANCE_STATUS.md` for merge rules.
 - Use `FINAL_HARDENING_ROADMAP_STATUS.md` for next-wave sequencing.
 - Do not claim the repository is production 10/10 until the final merge-captain audit and proof dashboard validate that claim.
+
+## 2026-05-10 Commercial Truth + DB Concurrency Proof Sprint
+
+- Added focused service seams for purchase commit, sale confirmation, provider webhook replay, refund settlement, and reservation terminal claiming.
+- Extended the MySQL concurrency harness with DB-backed tests for purchase double-submit, sale double-submit, payment webhook replay, over-refund prevention, and reservation payment-vs-expiry terminal race.
+- No production-safety claim is made unless `TEST_DATABASE_URL`-backed `pnpm run test:db:concurrency` passes in the target environment.
+- Updated estimated scores: proof maturity 5.8/10 with DB harness green; race-mode readiness 4.0/10 until router parity and reservation quantity accounting are complete.
