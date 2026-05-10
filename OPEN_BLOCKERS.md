@@ -54,3 +54,12 @@ Supplier invoice hard uniqueness still needs a business-review backfill before a
 | Measured restore drill | P0 | Dry-run and verification scripts exist; no isolated restore transcript attached. | Backup checksum, restore duration/exit status, verification queries, app smoke, reconciliation signoff. |
 | Provider outage drill evidence | P0 | Exercise matrix/checklist exists; no sandbox outage transcript attached. | Payment, OCR, WhatsApp/SMS, dead-letter/queue drill outputs with expected fail-closed behavior. |
 | Monitoring ownership | P0 | Daily review checklist exists; no named 24/7 rota/signoff attached. | Incident commander rota, escalation path, and daily review evidence. |
+
+## 2026-05-10 multi-store runtime blockers
+
+| Blocker | Class | Status | Required closure evidence |
+| --- | --- | --- | --- |
+| First-class provider dead-letter store scope | P1 before second-store rollout | Open | Add/store-resolve `storeId` for provider events/dead letters or produce a redacted runtime report joining provider events to orders/payments by store with replay permissions verified. |
+| First-class worker queue store scope | P1 before second-store rollout | Open | Add/store-resolve `storeId` on worker jobs or prove queue naming/payload correlation with operator visibility and replay restrictions. |
+| Transfer receive hosted/staging contention proof | P1 before second-store rollout | Open | Run a two-store transfer contention test against staging/hosted DB and archive evidence showing no negative source stock or phantom destination stock. |
+| Access roster and break-glass review | P0 for live launch, P1 for multi-store beta | Open | Named staff/admin roster with role, store assignment, pharmacist privileges, session/device policy, and break-glass owner signoff. |

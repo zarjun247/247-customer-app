@@ -16,11 +16,11 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { requireStoreAccess } from "../_core/rbac";
+import { isAdmin, isSuperAdmin, requireStaffStore, requireStoreAccess } from "../_core/rbac";
 import { logAudit } from "../services/audit";
-import { adjustStock, quarantineBatch, disposeBatch, transferStock, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection } from "../services/stockInvariant";
+import { adjustStock, quarantineBatch, disposeBatch, releaseQuarantine, createBatchWithOpeningStock, applyStockAuditCorrection, receiveTransferStockAtomic } from "../services/stockInvariant";
 import { resolveBarcodeForStockAudit } from "../services/barcodeService";
-import { reserveBatchAtomic, releaseReservationAtomic } from "../services/reservationService";
+import { reserveBatchAtomic } from "../services/reservationService";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -54,6 +54,24 @@ function assertManagerRole(role: string | null | undefined) {
   }
 }
 
+function requireStoreScopedFilter(user: any, requestedStoreId?: number): number | undefined {
+  if (requestedStoreId !== undefined) {
+    requireStoreAccess(user, requestedStoreId, { allowAdminCrossStore: true });
+    return requestedStoreId;
+  }
+  if (isSuperAdmin(user) || isAdmin(user)) return undefined;
+  return requireStaffStore(user);
+}
+
+function requireTransferEndpointAccess(user: any, transfer: { fromStoreId: number; toStoreId: number }, endpoint: "initiate" | "receive" | "read"): void {
+  if (isSuperAdmin(user) || isAdmin(user)) return;
+  const staffStoreId = requireStaffStore(user);
+  if (endpoint === "initiate" && staffStoreId === transfer.fromStoreId) return;
+  if (endpoint === "receive" && staffStoreId === transfer.toStoreId) return;
+  if (endpoint === "read" && (staffStoreId === transfer.fromStoreId || staffStoreId === transfer.toStoreId)) return;
+  throw new TRPCError({ code: "FORBIDDEN", message: "Store-scope transfer access denied" });
+}
+
 // ─── Expiry bucket ────────────────────────────────────────────────────────────
 
 function computeExpiryBucket(expiryDate: string | Date): "normal" | "warning" | "critical" | "quarantine_candidate" | "expired" {
@@ -83,12 +101,12 @@ const batchRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
+      const visibleStoreId = requireStoreScopedFilter(ctx.user, input.storeId);
       const db = await getDb();
       const { batchLedger, stockReservations, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
       const conds: ReturnType<typeof eq>[] = [];
-      if (input.storeId) conds.push(eq(batchLedger.storeId, input.storeId));
+      if (visibleStoreId) conds.push(eq(batchLedger.storeId, visibleStoreId));
       if (input.productId) conds.push(eq(batchLedger.productId, input.productId));
       if (input.expiryBucket) conds.push(eq(batchLedger.expiryBucket, input.expiryBucket));
       if (input.status) conds.push(eq(batchLedger.status, input.status));
@@ -542,12 +560,12 @@ const transferRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
+      const visibleStoreId = requireStoreScopedFilter(ctx.user, input.storeId);
       const db = await getDb();
       const { stockTransfers, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
       const conds: ReturnType<typeof eq>[] = [];
-      if (input.storeId) conds.push(or(eq(stockTransfers.fromStoreId, input.storeId), eq(stockTransfers.toStoreId, input.storeId)) as any);
+      if (visibleStoreId) conds.push(or(eq(stockTransfers.fromStoreId, visibleStoreId), eq(stockTransfers.toStoreId, visibleStoreId)) as any);
       if (input.status) conds.push(eq(stockTransfers.status, input.status));
 
       const rows = await db
@@ -573,11 +591,16 @@ const transferRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.fromStoreId === input.toStoreId) throw new TRPCError({ code: "BAD_REQUEST", message: "Source and destination stores must differ" });
+      requireTransferEndpointAccess(ctx.user, { fromStoreId: input.fromStoreId, toStoreId: input.toStoreId }, "initiate");
       const db = await getDb();
-      const { batchLedger, stockTransfers } = await schema();
+      const { batchLedger, stockTransfers, stores } = await schema();
       const [batch] = await db.select().from(batchLedger).where(eq(batchLedger.id, input.batchId));
       if (!batch) throw new TRPCError({ code: "NOT_FOUND" });
+      if (batch.storeId !== input.fromStoreId) throw new TRPCError({ code: "BAD_REQUEST", message: "Source batch does not belong to fromStoreId" });
+      if (batch.productId !== input.productId) throw new TRPCError({ code: "BAD_REQUEST", message: "Source batch product mismatch" });
+      const [destinationStore] = await db.select({ id: stores.id }).from(stores).where(eq(stores.id, input.toStoreId)).limit(1);
+      if (!destinationStore) throw new TRPCError({ code: "NOT_FOUND", message: "Destination store not found" });
       await reserveBatchAtomic({ batchId: input.batchId, productId: input.productId, storeId: input.fromStoreId, qty: input.qty, releaseReason: "transfer_initiated", ctx });
       const [result] = await db.insert(stockTransfers).values({
         fromStoreId: input.fromStoreId, toStoreId: input.toStoreId, batchId: input.batchId,
@@ -594,32 +617,20 @@ const transferRouter = router({
     .input(z.object({ transferId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
-      const { stockTransfers, batchLedger } = await schema();
+      const { stockTransfers } = await schema();
       const [transfer] = await db.select().from(stockTransfers).where(eq(stockTransfers.id, input.transferId));
       if (!transfer) throw new TRPCError({ code: "NOT_FOUND" });
+      requireTransferEndpointAccess(ctx.user, transfer, "receive");
       if (transfer.status !== "in_transit") throw new TRPCError({ code: "BAD_REQUEST", message: "Transfer is not in transit" });
-      const [src] = await db.select().from(batchLedger).where(eq(batchLedger.id, transfer.batchId));
-      if (!src) throw new TRPCError({ code: "NOT_FOUND", message: "Source batch not found" });
-
-      if ((src.qtyOnHand ?? 0) < transfer.qtyTransferred) throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient source stock for transfer receive" });
-      await releaseReservationAtomic({ batchId: transfer.batchId, storeId: transfer.fromStoreId, productId: transfer.productId, releaseReason: `transfer_receive_${input.transferId}`, ctx });
-      const bucket = computeExpiryBucket(src.expiryDate);
-      const [destResult] = await db.insert(batchLedger).values({
-        productId: src.productId, variantId: src.variantId, storeId: transfer.toStoreId,
-        supplierId: src.supplierId, batchNo: src.batchNo, mfgDate: src.mfgDate,
-        expiryDate: src.expiryDate, mrp: src.mrp, purchaseRate: src.purchaseRate,
-        saleRate: src.saleRate, qtyOnHand: transfer.qtyTransferred,
-        storageCondition: src.storageCondition, coldChainFlag: src.coldChainFlag,
-        expiryBucket: bucket, status: "active", createdBy: ctx.user.id,
+      const destResult = await receiveTransferStockAtomic({
+        transferId: input.transferId,
+        actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" },
       });
-      await transferStock({ sourceBatchId: transfer.batchId, sourceStoreId: transfer.fromStoreId, destinationBatchId: destResult.insertId, destinationStoreId: transfer.toStoreId, qty: transfer.qtyTransferred, referenceId: input.transferId, reason: `Transfer receive ${input.transferId}`, actor: { actorId: ctx.user.id, actorRole: ctx.user.role, source: "admin" }, productId: transfer.productId });
-      await db.update(stockTransfers).set({ status: "received", receivedBy: ctx.user.id, receivedAt: new Date() }).where(eq(stockTransfers.id, input.transferId));
       try {
         await logAudit({ actorId: ctx.user.id, entityType: "stock_transfer", entityId: input.transferId, action: "inventory.receive", reason: `Received ${transfer.qtyTransferred} units at store ${transfer.toStoreId}`, source: "admin" });
       } catch { /* non-critical */ }
-      return { ok: true, destBatchId: destResult.insertId };
+      return { ok: true, destBatchId: destResult.destinationBatchId };
     }),
 });
 
@@ -640,11 +651,11 @@ const auditSessionRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
+      const visibleStoreId = requireStoreScopedFilter(ctx.user, input.storeId);
       const db = await getDb();
       const { stockAudits } = await schema();
       const conds: ReturnType<typeof eq>[] = [];
-      if (input.storeId) conds.push(eq(stockAudits.storeId, input.storeId));
+      if (visibleStoreId) conds.push(eq(stockAudits.storeId, visibleStoreId));
       if (input.status) conds.push(eq(stockAudits.status, input.status));
       return db.select().from(stockAudits).where(conds.length > 0 ? and(...conds) : undefined).orderBy(desc(stockAudits.startedAt));
     }),
@@ -657,7 +668,7 @@ const auditSessionRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
+      requireStoreAccess(ctx.user, input.storeId, { allowAdminCrossStore: true });
       const db = await getDb();
       const { stockAudits, stockAuditLines, batchLedger } = await schema();
       const [result] = await db.insert(stockAudits).values({ storeId: input.storeId, auditType: input.auditType, status: "draft", startedBy: ctx.user.id, note: input.note });
@@ -675,9 +686,11 @@ const auditSessionRouter = router({
     .input(z.object({ auditId: z.number() }))
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined) requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
-      const { stockAuditLines, batchLedger, products } = await schema();
+      const { stockAudits, stockAuditLines, batchLedger, products } = await schema();
+      const [audit] = await db.select().from(stockAudits).where(eq(stockAudits.id, input.auditId)).limit(1);
+      if (!audit) throw new TRPCError({ code: "NOT_FOUND" });
+      requireStoreAccess(ctx.user, audit.storeId, { allowAdminCrossStore: true });
       return db.select({ line: stockAuditLines, productName: products.name, batchNo: batchLedger.batchNo, expiryDate: batchLedger.expiryDate })
         .from(stockAuditLines)
         .leftJoin(products, eq(stockAuditLines.productId, products.id))
