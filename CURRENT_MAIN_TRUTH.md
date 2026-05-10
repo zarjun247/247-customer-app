@@ -9,14 +9,14 @@ Canonical production-readiness and merge-control entry as of 2026-05-08.
 ## 1. CURRENT CANONICAL STATE
 
 - Current sprint branch: sprint/production-readiness-integration
-- Current branch SHA: 32eb92b36c138adc1e8664292c4a0ab8298a37fa
+- Current branch SHA: 008f54fdc9a5f004fa6195c5b43e2d0d2e48b7a8
 - Current main SHA: b7d2ede9f07916ae4223a184c57f7b84701d7e08
 - Latest visible merge (local): 6686a6fadac240508d6cdbfd654d237ac999e580 (Merge pull request #123)
 - Latest governance sprint applied: sprint/production-readiness-integration
 - Current migration count: 47 (drizzle)
 - Latest migration number: 0049
-- Latest validation timestamp: 2026-05-10T07:09:16.622+05:30
-- Latest validation status: PARTIAL PASS — typecheck, unit tests, build, and migration verification passed; repo governance scan completed with WARNINGS (provider placeholders). Dead-letter processing not run due to DATABASE_URL missing. DB-backed concurrency proof unclaimed.
+- Latest validation timestamp: 2026-05-10T07:12:40.864+05:30
+- Latest validation status: PARTIAL PASS — typecheck, unit tests, build, and migration verification passed; repo governance scan completed with WARNINGS (provider placeholders). Dead-letter processing not run locally due to DATABASE_URL missing. CI workflow added to run DB-backed concurrency proof; proof unclaimed until workflow run.
 - Current repo score (conservative): 6.8 / 10
 - Current launch posture: controlled pilot
 
