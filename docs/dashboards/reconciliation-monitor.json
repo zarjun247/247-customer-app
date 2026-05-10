@@ -1,0 +1,9 @@
+{
+  "id": "reconciliation-monitor",
+  "title": "Reconciliation Monitor",
+  "metrics": [
+    { "name": "reconciliation_failures", "query": "reconciliation_failures_total" },
+    { "name": "reconciliation_latency", "query": "reconciliation_latency_seconds" }
+  ],
+  "note": "Tracks reconciliation runs, failures and latency."
+}

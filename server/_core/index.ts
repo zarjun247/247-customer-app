@@ -15,6 +15,8 @@ import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
 import { registerPaymentWebhookRoutes } from "../paymentWebhookRoutes";
 import { registerHealthRoutes } from "../routers/healthRouter";
+import { initObservability } from "./observability";
+import { registerObservabilityRoutes } from "../routers/observabilityRouter";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +40,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  initObservability(app, server);
+  registerObservabilityRoutes(app);
   applyHttpSecurity(app);
   registerStorageProxy(app);
   registerOAuthRoutes(app);

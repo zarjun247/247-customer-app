@@ -1,0 +1,9 @@
+{
+  "id": "runtime-incident-board",
+  "title": "Runtime Incident Board",
+  "metrics": [
+    { "name": "incidents_open", "query": "incidents_open" },
+    { "name": "incident_rate", "query": "incidents_total" }
+  ],
+  "note": "Operational incidents, status and timelines."
+}

@@ -1,0 +1,9 @@
+{
+  "id": "refill-pipeline-board",
+  "title": "Refill Pipeline Board",
+  "metrics": [
+    { "name": "refill_pipeline_backlog", "query": "refill_pipeline_backlog" },
+    { "name": "refill_pipeline_throughput", "query": "refill_pipeline_throughput_total" }
+  ],
+  "note": "Visibility into refill pipeline queues and throughput."
+}
