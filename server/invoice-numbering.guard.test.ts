@@ -60,7 +60,7 @@ describe('invoice numbering foundation', () => {
     const salesRouter = fs.readFileSync('server/routers/salesRouter.ts', 'utf8');
     expect(src).toContain('db.transaction');
     expect(src).toContain('for("update")');
-    expect(src).toContain('GET_LOCK');
+    expect(src).toContain('LAST_INSERT_ID');
     expect(src).toContain('for (let attempt = 0; attempt < 3');
     expect(src).toContain('financialYearFromIndiaBusinessDate');
     expect(salesRouter).toContain('reserveInvoiceNumber(db, sale.storeId, "sale_invoice")');

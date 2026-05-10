@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import crypto from "node:crypto";
 import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 import { eq } from "drizzle-orm";
 import { batchLedger, batches, counterPayments, idempotencyKeys, paymentRecords, providerWebhookEvents, purchaseInvoices, purchaseLines, refunds, saleLines, sales, stockMovements, h1Register, invoiceSequences, stockReservations } from "../drizzle/schema";
+import * as schema from "../drizzle/schema";
 import {
   applyTestMigrations,
   cleanupDbTestContext,
@@ -42,17 +44,18 @@ async function insertId(connection: mysql.Connection, sql: string, values: unkno
 }
 
 async function seedConcurrencyFixture(ctx: DbTestContext, suffix: string) {
-  const store = await createDeterministicTestStore(ctx);
-  const customerA = await createDeterministicTestCustomer(ctx);
-  const staff = await createDeterministicTestStaff(ctx, store.id);
-  const productSet = await createDeterministicTestProductSkuBatch(ctx, store.id);
+  const fixtureRunId = `${ctx.runId.slice(-12)}-${suffix.slice(0, 10)}`;
+  const store = await createDeterministicTestStore(ctx, fixtureRunId);
+  const customerA = await createDeterministicTestCustomer(ctx, fixtureRunId);
+  const staff = await createDeterministicTestStaff(ctx, store.id, fixtureRunId);
+  const productSet = await createDeterministicTestProductSkuBatch(ctx, store.id, fixtureRunId);
   await ctx.connection.execute("UPDATE batches SET qtyOnHand = 1, quantity = 1, qtyReserved = 0 WHERE id = ?", [productSet.batch.id]);
   await ctx.connection.execute("UPDATE store_skus SET stockQty = 1, softLockedQty = 0 WHERE id = ?", [productSet.storeSku.id]);
 
   const customerB = await insertId(
     ctx.connection,
     "INSERT INTO users (openId, name, email, phone, loginMethod, role, onboardingComplete) VALUES (?, ?, ?, ?, 'test', 'customer', 1)",
-    [`test-customer-b-${ctx.runId}-${suffix}`, "Test Customer B", `customer-b-${ctx.runId}-${suffix}@example.test`, "+910000000003"],
+    [`test-customer-b-${fixtureRunId}`, "Test Customer B", `customer-b-${fixtureRunId}@example.test`, "+910000000003"],
   );
   ctx.created.userIds.push(customerB);
 
@@ -151,14 +154,14 @@ async function createSaleConfirmFixture(ctx: DbTestContext, seed: Seed) {
     "INSERT INTO batch_ledger (productId, storeId, batchNo, expiryDate, mrp, purchaseRate, saleRate, qtyOnHand, qtyReserved, qtyQuarantined, qtyExpired, status, createdBy) VALUES (?, ?, ?, '2035-12-31', '100.00', '70.00', '95.00', 1, 0, 0, 0, 'active', ?)",
     [seed.productSet.product.id, seed.store.id, `SL-${ctx.runId}`, seed.staff.id],
   );
-  const saleId = `1${String(Date.now()).slice(-8)}`;
+  const saleId = `1${String(Date.now()).slice(-6)}`;
   await ctx.connection.execute(
     "INSERT INTO sales (id, bill_no, sale_type, store_id, subtotal, discount_amount, gst_amount, total, payment_mode, status, bill_printed, whatsapp_sent, email_sent, created_by, created_at, updated_at) VALUES (?, ?, 'counter', ?, '95.00', '0.00', '0.00', '95.00', 'cash', 'draft', 0, 0, 0, ?, ?, ?)",
     [saleId, `DRF-${ctx.runId}`, String(seed.store.id), String(seed.staff.id), Date.now(), Date.now()],
   );
   await ctx.connection.execute(
     "INSERT INTO sale_lines (id, sale_id, product_id, batch_ledger_id, batch_no, expiry_date, mrp, sale_rate, qty, discount_pct, discount_amount, gst_rate, gst_amount, line_total, requires_prescription, rx_cleared, created_at) VALUES (?, ?, ?, ?, ?, '2035-12-31', '100.00', '95.00', 1, '0.00', '0.00', '0.00', '0.00', '95.00', 0, 1, ?)",
-    [`line-${ctx.runId}`, saleId, String(seed.productSet.product.id), String(ledgerId), `SL-${ctx.runId}`, Date.now()],
+    [`ln-${ctx.runId.slice(-12)}`, saleId, String(seed.productSet.product.id), String(ledgerId), `SL-${ctx.runId}`, Date.now()],
   );
   return { saleId, ledgerId };
 }
@@ -177,11 +180,11 @@ describeWithDb("MySQL-backed concurrency proof harness", () => {
     previousDatabaseUrl = process.env.DATABASE_URL;
     previousWebhookEnabled = process.env.PAYMENT_WEBHOOK_ENABLED;
     previousWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    process.env.DATABASE_URL = testDatabaseUrl;
     process.env.PAYMENT_WEBHOOK_ENABLED = "true";
     process.env.RAZORPAY_WEBHOOK_SECRET = "mysql-concurrency-secret";
     await applyTestMigrations(testDatabaseUrl);
     ctx = await createDbTestContext(`mysql_concurrency_${Date.now()}_${process.pid}`);
+    process.env.DATABASE_URL = testDatabaseUrl;
   }, 120_000);
 
   afterAll(async () => {
@@ -224,8 +227,16 @@ describeWithDb("MySQL-backed concurrency proof harness", () => {
   });
 
   it("proves concurrent invoice number reservations remain unique through the existing invoiceNumbering service", async () => {
-    const storeRef = `store-${ctx.runId}`;
-    const invoices = await Promise.all(Array.from({ length: 12 }, () => reserveInvoiceNumber(ctx.db, storeRef, "sale_invoice", new Date("2026-05-09T00:00:00.000Z"))));
+    const storeRef = `s-${ctx.runId.slice(-18)}`;
+    const reserveWithIsolatedConnection = async () => {
+      const connection = await openTestConnection(testDatabaseUrl);
+      try {
+        return await reserveInvoiceNumber(drizzle(connection, { schema, mode: "default" }), storeRef, "sale_invoice", new Date("2026-05-09T00:00:00.000Z"));
+      } finally {
+        await connection.end();
+      }
+    };
+    const invoices = await Promise.all(Array.from({ length: 12 }, () => reserveWithIsolatedConnection()));
 
     expect(new Set(invoices).size).toBe(invoices.length);
     const rows = await ctx.db.select().from(invoiceSequences).where(eq(invoiceSequences.storeId, storeRef));
@@ -280,8 +291,9 @@ describeWithDb("MySQL-backed concurrency proof harness", () => {
   });
 
   it("proves duplicate H1 sale-line registration is rejected by the H1 register unique key", async () => {
-    const saleRef = `sale-${ctx.runId}`;
-    const saleLineRef = `sale-line-${ctx.runId}`;
+    const h1Ref = ctx.runId.slice(-24);
+    const saleRef = `sale-${h1Ref}`;
+    const saleLineRef = `line-${h1Ref}`;
     const insert = async () => {
       const connection = await openTestConnection(testDatabaseUrl);
       try {
@@ -372,28 +384,37 @@ describeWithDb("MySQL-backed concurrency proof harness", () => {
 
     expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
     expect(outcomes.filter((o) => o.status === "rejected")).toHaveLength(1);
-    const rows = await ctx.db.select().from(refunds).where(eq(refunds.providerRefundId, `rfnd_a_${ctx.runId}`));
-    expect(rows).toHaveLength(1);
-    const duplicate = await settleProviderRefundExactlyOnce({ gatewayOrderId, providerRefundId: `rfnd_a_${ctx.runId}`, amountPaise: 700, idempotencyKey: `refund:a-replay:${ctx.runId}`, actorId: seed.staff.id });
+    const [payment] = await ctx.db.select().from(paymentRecords).where(eq(paymentRecords.gatewayOrderId, gatewayOrderId)).limit(1);
+    const allRefunds = await ctx.db.select().from(refunds).where(eq(refunds.paymentId, payment.id));
+    expect(allRefunds).toHaveLength(1);
+    const winningProviderRefundId = allRefunds[0].providerRefundId;
+    const duplicate = await settleProviderRefundExactlyOnce({ gatewayOrderId, providerRefundId: winningProviderRefundId, amountPaise: 700, idempotencyKey: `refund:replay:${ctx.runId}`, actorId: seed.staff.id });
     expect(duplicate.idempotent).toBe(true);
-    const allRefunds = await ctx.db.select().from(refunds).where(eq(refunds.paymentId, rows[0].paymentId));
     expect(allRefunds.reduce((sum, row) => sum + Number(row.amountPaise), 0)).toBeLessThanOrEqual(1000);
   });
 
   it("proves reservation expiry during payment has one deterministic terminal winner", async () => {
     const seed = await seedConcurrencyFixture(ctx, "reservation-terminal");
-    await reserveOneUnit(seed, ctx.runId, seed.orderA);
-    const [reservation] = await ctx.db.select().from(stockReservations).where(eq(stockReservations.orderId, seed.orderA)).limit(1);
+    const ledgerId = await insertId(
+      ctx.connection,
+      "INSERT INTO batch_ledger (productId, storeId, batchNo, expiryDate, mrp, purchaseRate, saleRate, qtyOnHand, qtyReserved, qtyQuarantined, qtyExpired, status, createdBy) VALUES (?, ?, ?, '2035-12-31', '100.00', '70.00', '95.00', 1, 1, 0, 0, 'active', ?)",
+      [seed.productSet.product.id, seed.store.id, `RS-${ctx.runId}`, seed.staff.id],
+    );
+    const reservationId = await insertId(
+      ctx.connection,
+      "INSERT INTO stock_reservations (batchId, orderId, productId, variantId, skuId, storeId, qty, qtyReserved, status, releaseReason, expiresAt) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 'active', ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))",
+      [ledgerId, seed.orderA, seed.productSet.product.id, seed.productSet.variant.id, seed.productSet.storeSku.id, seed.store.id, `terminal_${ctx.runId}`],
+    );
     const outcomes = await Promise.all([
-      claimReservationTerminalState({ id: reservation.id, terminalStatus: "consumed", releaseReason: `payment_claim_${ctx.runId}` }),
-      claimReservationTerminalState({ id: reservation.id, terminalStatus: "expired", releaseReason: `expiry_claim_${ctx.runId}` }),
+      claimReservationTerminalState({ id: reservationId, terminalStatus: "consumed", releaseReason: `payment_claim_${ctx.runId}` }),
+      claimReservationTerminalState({ id: reservationId, terminalStatus: "expired", releaseReason: `expiry_claim_${ctx.runId}` }),
     ]);
 
     expect(outcomes.filter((outcome) => outcome.won)).toHaveLength(1);
-    const [current] = await ctx.db.select().from(stockReservations).where(eq(stockReservations.id, reservation.id)).limit(1);
+    const [current] = await ctx.db.select().from(stockReservations).where(eq(stockReservations.id, reservationId)).limit(1);
     expect(["consumed", "expired"]).toContain(current.status);
-    const [batch] = await ctx.db.select().from(batches).where(eq(batches.id, seed.productSet.batch.id)).limit(1);
-    expect(batch.qtyOnHand ?? 0).toBeGreaterThanOrEqual(0);
-    expect(batch.qtyReserved ?? 0).toBeGreaterThanOrEqual(0);
+    const [ledger] = await ctx.db.select().from(batchLedger).where(eq(batchLedger.id, ledgerId)).limit(1);
+    expect(ledger.qtyOnHand ?? 0).toBeGreaterThanOrEqual(0);
+    expect(ledger.qtyReserved ?? 0).toBeGreaterThanOrEqual(0);
   });
 });

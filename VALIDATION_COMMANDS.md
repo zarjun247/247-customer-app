@@ -28,6 +28,7 @@ It requires `TEST_DATABASE_URL`. The database name must include `test`, must use
 
 ```bash
 export TEST_DATABASE_URL='mysql://USER:PASSWORD@HOST:PORT/DB_NAME_WITH_test'
+pnpm run test:db:bootstrap
 pnpm run test:db:concurrency
 ```
 
@@ -58,8 +59,8 @@ pnpm run test:db:bootstrap
 pnpm run test:db:concurrency
 ```
 
-This workflow is the exact CI proof path when local `TEST_DATABASE_URL` is unavailable.
+This workflow is the exact CI MySQL 8.4 parity proof path. To run it manually, open GitHub Actions, select **DB Concurrency Proof**, choose **Run workflow**, and confirm the `mysql-concurrency-proof` job passes both DB bootstrap and concurrency proof steps.
 
 ## Proof claim rule
 
-If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:concurrency` actually executes the MySQL integration cases and exits successfully.
+If `TEST_DATABASE_URL` is absent, `server/mysql-concurrency.integration.test.ts` intentionally skips and prints that DB-backed race proof is not claimed. Do not remove that warning or claim DB proof unless `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` actually execute against MySQL and exit successfully.

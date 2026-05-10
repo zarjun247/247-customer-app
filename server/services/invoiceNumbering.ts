@@ -44,15 +44,26 @@ async function reserveInvoiceNumberOnce(db: any, storeId: string, docType: Invoi
   const financialYear = financialYearFromIndiaBusinessDate(date);
   const prefix = prefixFor(storeId, docType, date);
   const reserve = async (tx: any) => {
-    const [row] = await tx.select().from(invoiceSequences).where(and(eq(invoiceSequences.storeId, storeId), eq(invoiceSequences.financialYear, financialYear), eq(invoiceSequences.documentType, docType as any))).for("update").limit(1);
-    const sequence = Number(row?.lastNumber ?? 0) + 1;
-    if (row) await tx.update(invoiceSequences).set({ lastNumber: sequence, prefix }).where(eq(invoiceSequences.id, row.id));
-    else await tx.insert(invoiceSequences).values({ storeId, financialYear, documentType: docType as any, prefix, lastNumber: sequence });
+    if (typeof tx.execute !== "function") {
+      const [row] = await tx.select().from(invoiceSequences).where(and(eq(invoiceSequences.storeId, storeId), eq(invoiceSequences.financialYear, financialYear), eq(invoiceSequences.documentType, docType as any))).for("update").limit(1);
+      const sequence = Number(row?.lastNumber ?? 0) + 1;
+      if (row) await tx.update(invoiceSequences).set({ lastNumber: sequence, prefix }).where(eq(invoiceSequences.id, row.id));
+      else await tx.insert(invoiceSequences).values({ storeId, financialYear, documentType: docType as any, prefix, lastNumber: sequence });
+      return formatInvoiceNumber({ prefix, sequence });
+    }
+    const [result] = await tx.execute(sql`
+      INSERT INTO invoice_sequences (store_id, financial_year, document_type, prefix, last_number)
+      VALUES (${storeId}, ${financialYear}, ${docType}, ${prefix}, 1)
+      ON DUPLICATE KEY UPDATE last_number = LAST_INSERT_ID(last_number + 1), prefix = VALUES(prefix)
+    `);
+    const affectedRows = Number((result as { affectedRows?: number })?.affectedRows ?? 0);
+    if (affectedRows === 1) return formatInvoiceNumber({ prefix, sequence: 1 });
+    const [rows] = await tx.execute(sql`SELECT LAST_INSERT_ID() AS sequence`);
+    const sequence = Number((rows as Array<{ sequence?: number }>)[0]?.sequence ?? 0);
     return formatInvoiceNumber({ prefix, sequence });
   };
   if (typeof db.transaction === "function") return db.transaction(reserve);
-  await db.execute?.(sql`SELECT GET_LOCK(${`invoice:${storeId}:${financialYear}:${docType}`}, 10)`);
-  try { return await reserve(db); } finally { await db.execute?.(sql`SELECT RELEASE_LOCK(${`invoice:${storeId}:${financialYear}:${docType}`})`); }
+  return reserve(db);
 }
 
 export async function reserveInvoiceNumber(db: any, storeId: string, docType: InvoiceDocumentType, date = new Date()) {

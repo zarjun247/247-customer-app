@@ -1,6 +1,5 @@
 ALTER TABLE supplier_payments
-  MODIFY COLUMN paymentMode ENUM('cash','cheque','upi','neft','rtgs','credit','advance','debit_note','return_credit','adjustment') NOT NULL DEFAULT 'upi';
-
+  MODIFY COLUMN paymentMode ENUM('cash','cheque','upi','neft','rtgs','credit','advance','debit_note','return_credit','adjustment') NOT NULL DEFAULT 'upi';--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS supplier_payment_allocations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   supplierPaymentId INT NOT NULL,
@@ -12,8 +11,7 @@ CREATE TABLE IF NOT EXISTS supplier_payment_allocations (
   createdBy INT NULL,
   createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_supplier_alloc_payment_invoice_type (supplierPaymentId, purchaseInvoiceId, allocationType)
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS accounting_journal_entries (
   id INT AUTO_INCREMENT PRIMARY KEY,
   storeId INT NULL,
@@ -29,8 +27,7 @@ CREATE TABLE IF NOT EXISTS accounting_journal_entries (
   metadataJson JSON NULL,
   createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_journal_source_account_direction (sourceType, sourceId, accountCode, debit, credit)
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS tally_export_runs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   storeId INT NULL,

@@ -14,8 +14,7 @@ CREATE TABLE IF NOT EXISTS `notification_events` (
   `readAt` timestamp NULL,
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `notification_preferences` (
   `id` bigint AUTO_INCREMENT PRIMARY KEY,
   `userId` int NOT NULL,
@@ -25,8 +24,7 @@ CREATE TABLE IF NOT EXISTS `notification_preferences` (
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `notification_preferences_user_channel_uq` (`userId`,`channel`)
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `dosage_schedules` (
   `id` bigint AUTO_INCREMENT PRIMARY KEY,
   `userId` int NOT NULL,
@@ -42,8 +40,7 @@ CREATE TABLE IF NOT EXISTS `dosage_schedules` (
   `isActive` boolean NOT NULL DEFAULT true,
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `dose_logs` (
   `id` bigint AUTO_INCREMENT PRIMARY KEY,
   `scheduleId` bigint NOT NULL,
@@ -53,8 +50,7 @@ CREATE TABLE IF NOT EXISTS `dose_logs` (
   `recordedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `note` varchar(500),
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
+);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `order_ratings` (
   `id` bigint AUTO_INCREMENT PRIMARY KEY,
   `orderId` int NOT NULL,

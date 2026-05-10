@@ -127,7 +127,7 @@ function main() {
   }
 
   const proofStatusText = readRequired("CONCURRENCY_PROOF_STATUS.md", findings);
-  assertContains(findings, "CONCURRENCY_PROOF_STATUS.md", proofStatusText, /DB-backed concurrency proof is \*\*not claimed\*\*/i, "must not claim DB proof unless executed.");
+  assertContains(findings, "CONCURRENCY_PROOF_STATUS.md", proofStatusText, /(DB-backed concurrency proof is \*\*not claimed\*\*|DB proof status:\s*\*\*CLAIMED[\s\S]*pnpm run test:db:concurrency[\s\S]*11 (tests )?passed)/i, "must either avoid DB-proof claims or include executed MySQL proof output.");
   assertContains(findings, "CONCURRENCY_PROOF_STATUS.md", proofStatusText, /CI proof path/i, "must document the CI proof path.");
 
   if (findings.length > 0) {

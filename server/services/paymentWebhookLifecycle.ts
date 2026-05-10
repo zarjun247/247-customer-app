@@ -177,12 +177,12 @@ async function recordWebhookEvent(input: {
       failureReason: input.failureReason ?? null,
       idempotencyKey: idempotencyKeyFor(input.providerEventId, input.rawPayloadHash),
     });
-    return (row as { insertId?: number }).insertId ?? null;
+    return { id: (row as { insertId?: number }).insertId ?? null, duplicate: false };
   } catch (error) {
-    const e = error as { code?: string; errno?: number; message?: string };
-    if (e?.code === "ER_DUP_ENTRY" || e?.errno === 1062 || /duplicate/i.test(String(e?.message ?? ""))) {
+    const e = error as { code?: string; errno?: number; message?: string; cause?: { code?: string; errno?: number; message?: string } };
+    if (e?.code === "ER_DUP_ENTRY" || e?.errno === 1062 || e?.cause?.code === "ER_DUP_ENTRY" || e?.cause?.errno === 1062 || /duplicate/i.test(String(e?.message ?? e?.cause?.message ?? ""))) {
       const existing = await findExistingEvent(input.provider, input.providerEventId, input.rawPayloadHash);
-      return existing?.id ?? null;
+      return { id: existing?.id ?? null, duplicate: true };
     }
     throw error;
   }
@@ -243,7 +243,12 @@ export async function handleRazorpayWebhook(input: { rawBody?: string | Buffer |
     return { ok: true, status: "ignored_duplicate", eventType: refs.eventType, providerEventId: refs.providerEventId, idempotent: true };
   }
 
-  const eventRowId = await recordWebhookEvent({ provider: PROVIDER, providerEventId: refs.providerEventId, eventType: refs.eventType, paymentId: payment?.id ?? null, orderId: payment?.orderId ?? refs.orderId, refundId: refs.providerRefundId, rawPayloadHash, payloadJson: sanitized, signatureVerified: true, processingStatus: "verified" });
+  const eventRecord = await recordWebhookEvent({ provider: PROVIDER, providerEventId: refs.providerEventId, eventType: refs.eventType, paymentId: payment?.id ?? null, orderId: payment?.orderId ?? refs.orderId, refundId: refs.providerRefundId, rawPayloadHash, payloadJson: sanitized, signatureVerified: true, processingStatus: "verified" });
+  const eventRowId = eventRecord?.id ?? null;
+  if (eventRecord?.duplicate) {
+    await appendLifecycleAudit("payment_duplicate_event_ignored", { eventType: refs.eventType, providerEventId: refs.providerEventId, rawPayloadHash });
+    return { ok: true, status: "ignored_duplicate", eventType: refs.eventType, providerEventId: refs.providerEventId, idempotent: true };
+  }
 
   try {
     if (PAYMENT_CAPTURED_EVENTS.has(refs.eventType)) {

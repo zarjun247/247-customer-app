@@ -9,7 +9,6 @@ CREATE TABLE `invoice_sequences` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `invoice_sequences_id` PRIMARY KEY(`id`),
   CONSTRAINT `uq_invoice_seq_store_fy_doc` UNIQUE(`store_id`,`financial_year`,`document_type`)
-);
-
-ALTER TABLE `sales` ADD CONSTRAINT `uq_sales_bill_no` UNIQUE(`bill_no`);
+);--> statement-breakpoint
+ALTER TABLE `sales` ADD CONSTRAINT `uq_sales_bill_no` UNIQUE(`bill_no`);--> statement-breakpoint
 ALTER TABLE `sale_returns` ADD CONSTRAINT `uq_sale_returns_return_no` UNIQUE(`return_no`);
