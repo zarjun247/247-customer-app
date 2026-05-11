@@ -74,14 +74,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="text-xs font-medium" style={{ color: "#F0F0F2" }}>
                   {contextLine}
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }} />
-                  <span className="text-[10px]" style={{ color: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }}>
-                    {(store as any)?.openNow === false ? "Closed" : "Open now"}
-                  </span>
-                  {etaText && (
-                    <span className="text-[10px]" style={{ color: "#6B6B75" }}>· {etaText}</span>
-                  )}
+                <div className="flex items-center gap-2" role="status" aria-live="polite">
+                  <div
+                    className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-semibold`}
+                    style={{
+                      background: (store as any)?.openNow === false ? "rgba(255,107,107,0.10)" : "rgba(0,200,150,0.08)",
+                      color: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896",
+                      border: `1px solid ${(store as any)?.openNow === false ? "rgba(255,107,107,0.2)" : "rgba(0,200,150,0.18)"}`,
+                    }}
+                  >
+                    <div className="w-2 h-2 rounded-full" style={{ background: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }} />
+                    <span>{(store as any)?.openNow === false ? "Closed" : "Open now"}</span>
+                    {(store as any)?.openUntil && <span className="text-[10px] text-muted-foreground"> · closes {(store as any).openUntil}</span>}
+                  </div>
+                  {etaText && <span className="text-[10px]" style={{ color: "#6B6B75" }}>· {etaText}</span>}
                 </div>
               </div>
             )}
@@ -124,14 +130,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {contextLine}
                 </span>
               )}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ background: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }} />
-                <span className="text-[10px] font-medium" style={{ color: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }}>
-                  {(store as any)?.openNow === false ? "Closed" : "Open now"}
-                </span>
-                {etaText && (
-                  <span className="text-[10px]" style={{ color: "#6B6B75" }}>· {etaText}</span>
-                )}
+              <div className="flex items-center gap-2 flex-shrink-0" role="status" aria-live="polite">
+                <div
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold"
+                  style={{
+                    background: (store as any)?.openNow === false ? "rgba(255,107,107,0.10)" : "rgba(0,200,150,0.08)",
+                    color: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896",
+                    border: `1px solid ${(store as any)?.openNow === false ? "rgba(255,107,107,0.2)" : "rgba(0,200,150,0.18)"}`,
+                  }}
+                >
+                  <div className="w-2 h-2 rounded-full" style={{ background: (store as any)?.openNow === false ? "#FF6B6B" : "#00C896" }} />
+                  <span className="text-[11px]">{(store as any)?.openNow === false ? "Closed" : "Open now"}</span>
+                  {(store as any)?.openUntil && <span className="text-[10px] text-muted-foreground"> · {(store as any).openUntil}</span>}
+                </div>
+                {etaText && <span className="text-[10px]" style={{ color: "#6B6B75" }}>· {etaText}</span>}
               </div>
             </div>
           </div>

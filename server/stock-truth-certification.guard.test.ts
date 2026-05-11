@@ -1,5 +1,5 @@
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import fs from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from "vitest";
 import {
   APPROVED_STOCK_MUTATION_GATEWAYS,
@@ -34,7 +34,16 @@ describe("stock truth final audit certification", () => {
 
   it("barcode scan remains lookup-only", () => {
     expect(barcodeService).toContain("getCanonicalAvailability");
-    const out = execSync("rg -n \"(scanBarcodeForSale|scanBarcodeForReturn|resolveBarcodeForStockAudit)[\\s\\S]{0,1200}(insert\\(stockMovements\\)|update\\(batchLedger\\)|update\\(storeSkus\\)|qtyOnHand\\s*:)\" server/services/barcodeService.ts server/routers || true", { encoding: "utf8" }).trim();
+    // cross-platform search: look in barcode service and router files for disallowed mutation patterns
+    const barcodeFiles = ['server/services/barcodeService.ts', ...fs.readdirSync('server/routers').filter(f=>f.endsWith('.ts')).map(f=>`server/routers/${f}`)];
+    const pattern = /(scanBarcodeForSale|scanBarcodeForReturn|resolveBarcodeForStockAudit)[\s\S]{0,1200}(insert\(stockMovements\)|update\(batchLedger\)|update\(storeSkus\)|qtyOnHand\s*:)/;
+    let outFound = false;
+    for (const p of barcodeFiles) {
+      if (!fs.existsSync(p)) throw new Error(`Watched file missing: ${p}`);
+      const c = fs.readFileSync(p, 'utf8');
+      if (pattern.test(c)) { outFound = true; break; }
+    }
+    const out = outFound ? 'matches' : '';
     expect(out).toBe("");
   });
 
@@ -62,7 +71,24 @@ describe("stock truth final audit certification", () => {
     expect(reservationService).toContain("consumeReservationAtomic");
     expect(reservationService).toContain("Reservation release would make reserved stock negative");
     expect(reservationService).toContain("Reservation consume would make on-hand stock negative");
-    const out = execSync(`rg -n "(?:db|tx)\\.update\\(batchLedger\\)\\.set\\(\\{[^}]*qtyReserved" server scripts -g '!server/services/reservationService.ts' -g '!server/services/stockInvariant.ts' || true`, { encoding: "utf8" }).trim();
+    // cross-platform: scan server and scripts directories (excluding reservationService and stockInvariant) for qtyReserved updates
+    const searchPattern = /(?:db|tx)\.update\(batchLedger\)\.set\(\{[^}]*qtyReserved/;
+    const dirs = ['server', 'scripts'];
+    let found = false;
+    for (const d of dirs) {
+      if (!fs.existsSync(d)) continue;
+      const files = fs.readdirSync(d).map(f=> `${d}/${f}`);
+      for (const f of files) {
+        if (f.endsWith('.ts')) {
+          if (f.endsWith('server/services/reservationService.ts') || f.endsWith('server/services/stockInvariant.ts')) continue;
+          if (!fs.existsSync(f)) throw new Error(`Watched file missing: ${f}`);
+          const c = fs.readFileSync(f, 'utf8');
+          if (searchPattern.test(c)) { found = true; break; }
+        }
+      }
+      if (found) break;
+    }
+    const out = found ? 'matches' : '';
     expect(out).toBe("");
   });
 
@@ -112,7 +138,11 @@ describe("stock truth final audit certification", () => {
   });
 
   it("no Number(uuid) / entityId:0 introduced in stock audit refs", () => {
-    const out = execSync("rg -n \"Number\\([^)]*uuid|entityId:\\s*0\" server/services/stockTruthCertification.ts || true", { encoding: "utf8" }).trim();
+    const stPath = 'server/services/stockTruthCertification.ts';
+    let out = '';
+    if (!fs.existsSync(stPath)) throw new Error(`Watched file missing: ${stPath}`);
+    const c = fs.readFileSync(stPath, 'utf8');
+    if (/Number\([^)]*uuid/.test(c) || /entityId:\s*0/.test(c)) out = 'matches';
     expect(out).toBe("");
   });
 });

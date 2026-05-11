@@ -38,6 +38,11 @@ import { salesRouter } from "./routers/salesRouter";
 import { prescriptionGovRouter } from "./routers/prescriptionGovRouter";
 import { ocrIngestionRouter } from "./routers/ocrIngestionRouter";
 import { reportsRouter } from "./routers/reportsRouter";
+import { accountingOpsRouter } from "./routers/accountingOpsRouter";
+import { complianceOpsRouter } from "./routers/complianceOpsRouter";
+import { reconciliationRouter } from "./routers/reconciliationRouter";
+import { multiStoreRuntimeRouter } from "./routers/multiStoreRuntimeRouter";
+import { deploymentReadinessRouter } from "./routers/deploymentReadinessRouter";
 import { customerMedicineRouter } from "./routers/customerMedicineRouter";
 import { assertWhatsappWebhookGuard, isRegulatedMedicineIntent, normalizeWhatsAppPhone, whatsappFullRouter } from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
@@ -936,6 +941,9 @@ export const appRouter = router({
   purchase: purchaseRouter,
   sales: salesRouter,
   ocr: ocrIngestionRouter,
+  accountingOps: accountingOpsRouter,
+  complianceOps: complianceOpsRouter,
+  reconciliation: reconciliationRouter,
   reports: reportsRouter,
   prescriptionGov: prescriptionGovRouter,
   customerMedicine: customerMedicineRouter,

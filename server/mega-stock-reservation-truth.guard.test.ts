@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { execSync } from "child_process";
+import fs from 'node:fs';
 import { readFileSync } from "fs";
 import { computeAvailableQty } from "./services/reservationService";
 
@@ -55,7 +55,19 @@ describe("mega stock reservation truth hardening", () => {
   });
 
   it("production reservation path has no deferred stock-truth stub", () => {
-    const out = execSync("rg -n 'Deferred to stock-truth hardening' server --glob '!**/*.test.ts' || true", { encoding: "utf8" }).trim();
+    function walk(dir){
+      const res = [];
+      for (const name of fs.readdirSync(dir)){
+        const p = `${dir}/${name}`;
+        const st = fs.statSync(p);
+        if (st.isDirectory()) res.push(...walk(p));
+        else if (st.isFile() && !p.endsWith('.test.ts') && p.endsWith('.ts')) res.push(p);
+      }
+      return res;
+    }
+    const files = walk('server');
+    const found = files.some(f => fs.readFileSync(f,'utf8').includes('Deferred to stock-truth hardening'));
+    const out = found ? 'matches' : '';
     expect(out).toBe("");
   });
 });

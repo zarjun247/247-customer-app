@@ -1,6 +1,26 @@
 # OPEN_BLOCKERS
 
-Updated: 2026-05-10.
+Updated: 2026-05-11.
+
+## Pre-existing test failures observed during PR #155 (logged 2026-05-11)
+
+All 12 suites below failed during the PR #155 test run and were confirmed
+pre-existing (present on origin/main or attributable to collection environment,
+not to code introduced in #155). See evidence/pr155-prexisting-bisect.txt and
+evidence/pr155-introduced-recheck.json for full analysis.
+
+- server/accounting-compliance.guard.test.ts — cause: ReferenceError: describe is not defined; file uses describe/test without importing them from vitest
+- server/ci-governance-guards.guard.test.ts — cause: SyntaxError: cannot statically import .mjs (scripts/ci-governance-guards.mjs) from a TypeScript vitest test file
+- server/ocr-production-safety.test.ts — cause: SyntaxError: same .mjs static import issue
+- server/auth.logout.test.ts — cause: bisect artifact; fails only under NODE_ENV=production (assertProductionEnvSafe at module load); passes cleanly in standard test environment
+- server/auth.phone.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
+- server/connectors.failclosed.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
+- server/ingestion.helpdesk.consent.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
+- server/mysql-concurrency.integration.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; skips cleanly (TEST_DATABASE_URL unset) in standard test environment
+- server/payment-gateway.guard.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
+- server/payment-webhook-lifecycle.guard.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
+- server/pharmacy.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
+- server/refund-ledger.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
 
 ## Current launch decision
 

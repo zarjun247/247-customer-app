@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Search, Plus, Minus, X, Pill, Stethoscope, Baby, Leaf, ShoppingBag, Sparkles, ShieldCheck, FileText, MapPin, AlertCircle, RefreshCw, Clock, ChevronLeft, ChevronRight, Info, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -130,10 +132,11 @@ function ProductDetailModal({ item, cartQty, onAdd, onRemove, onClose }: {
             <p className="text-xs" style={{ color: "#6B6B75" }}>{item.companyName}</p>
           )}
           {isRx && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg w-fit"
-              style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)" }}>
-              <ShieldCheck size={12} strokeWidth={2} style={{ color: "#F59E0B" }} />
-              <span className="text-xs font-semibold" style={{ color: "#F59E0B" }}>Prescription required</span>
+            <div className="mt-2">
+              <Badge variant="rx" className="text-xs inline-flex items-center gap-2">
+                <ShieldCheck size={12} strokeWidth={2} />
+                Prescription required
+              </Badge>
             </div>
           )}
           <div className="flex items-baseline gap-2">
@@ -145,9 +148,12 @@ function ProductDetailModal({ item, cartQty, onAdd, onRemove, onClose }: {
               <span className="text-xs ml-auto" style={{ color: "#4B4B55" }}>incl. {item.gstRate}% GST</span>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: avail.color }} />
-            <span className="text-xs font-medium" style={{ color: avail.color }}>{avail.label}</span>
+          <div className="flex items-center gap-2">
+            <Badge variant={
+              avail.label.includes('Available') && !isRx ? 'available' : (avail.label.includes('Prescription') ? 'rx' : (avail.label.includes('Currently') ? 'unavailable' : 'low'))
+            } className="text-xs">
+              {avail.label}
+            </Badge>
           </div>
           {canAdd && (
             cartQty === 0 ? (
@@ -272,10 +278,9 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
           return (
             <div className="flex flex-wrap gap-1 mb-2">
               {flags.map(f => (
-                <span key={f.label} className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                  style={{ color: f.color, background: f.bg }}>
+                <Badge key={f.label} variant="outline" className="text-[9px]" style={{ color: f.color, background: f.bg }}>
                   {f.label}
-                </span>
+                </Badge>
               ))}
             </div>
           );

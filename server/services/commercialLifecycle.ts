@@ -246,6 +246,40 @@ async function appendCommercialEventToDatabase(event: CommercialEventRecord): Pr
   return event;
 }
 
+// Append a commercial event using an existing DB/transaction object (tx).
+// This allows callers that are already within a transaction to persist the canonical
+// commercial event inside the same transactional boundary. tx must implement the same
+// query interface as the Drizzle DB client (select/insert/update)
+export async function appendCommercialEventWithDb(db: any, input: CommercialEventInput): Promise<CommercialEventRecord> {
+  const event = normalizeCommercialEvent(input);
+  if (!db) throw new Error("DB/tx unavailable for commercial event append");
+  if (event.idempotencyKey) {
+    const [existing] = await db.select().from(commercialEvents).where(eq(commercialEvents.idempotencyKey, event.idempotencyKey)).limit(1);
+    if (existing) return fromDbEvent(existing, true);
+  }
+  await db.insert(commercialEvents).values({
+    eventId: event.eventId,
+    aggregateType: event.aggregateType,
+    aggregateId: event.aggregateId,
+    eventType: event.eventType,
+    eventVersion: event.eventVersion,
+    actorType: event.actorType,
+    actorId: event.actorId,
+    storeId: event.storeId,
+    orderId: event.orderId,
+    saleId: event.saleId,
+    invoiceId: event.invoiceId,
+    reservationId: event.reservationId,
+    paymentId: event.paymentId,
+    refundId: event.refundId,
+    eventPayload: JSON.stringify(event.eventPayload),
+    occurredAt: event.occurredAt,
+    idempotencyKey: event.idempotencyKey,
+    correlationId: event.correlationId,
+  } as any);
+  return event;
+}
+
 function fromDbEvent(row: any, duplicate = false): CommercialEventRecord {
   let payload: Record<string, unknown> = {};
   if (typeof row.eventPayload === "string" && row.eventPayload) {
