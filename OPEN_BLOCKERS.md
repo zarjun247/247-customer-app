@@ -103,3 +103,14 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **OTEL_* env var documentation (D8 follow-up):** Neither `.env.example` nor `docs/ENVIRONMENT.md` exists in this repo. The four new optional OTel env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`) are typed and defaulted in `server/_core/env.ts`. Create `.env.example` or `docs/ENVIRONMENT.md` and document these keys with examples when the project adds environment documentation.
 
 **OTel bootstrap ordering — separate entry file (PR 4.1 design note):** The current `server/_core/index.ts` calls `initializeTelemetry()` as the first line of `startServer()` before `express()` and `createServer()`. This is sufficient for HTTP + Express auto-instrumentation via shimmer prototype patching. If DB-level instrumentation (e.g., `mysql2` via `@opentelemetry/instrumentation-mysql2`) is added in a later MP1 or MP6 PR, a separate `server/bootstrap.ts` entry file using dynamic `import()` will be required so the OTel SDK starts before `mysql2` is required at all. Revisit before adding DB-level OTel instrumentation.
+
+## MP1-rest PR-A follow-ups (logged 2026-05-11)
+
+**SLO emission is wired but no emitter is currently calling sloService.emitSloEvent().** Future PRs will wire emission into critical paths:
+  - PR-B (MP1-rest dead-letter router + provider health): emit around dead-letter retry and provider health rollups
+  - MP5 (executeCommand wrapper): emit around sale/purchase/payment/refund command latency
+  - MP6 (stockReplayEngine): emit around replay lag
+
+**METRICS_SCRAPE_TOKEN is optional.** When unset, the /metrics endpoint continues to require staff cookie auth via the existing requireStaff middleware. When set, Prometheus scrapers can use `Authorization: Bearer <token>` as an alternative auth path. Both work simultaneously.
+
+**slo_events table is migration 0050.** Reserved migration numbers continuing: 0051 (MP5 outbox dispatch tracking), 0052/0053 (MP6 reservation ledger + stock movement locks), 0054/0055/0056 (MP7 audit hash chain + PII keys + capability grants), 0057 (MP8 AI eval ledger).
