@@ -61,6 +61,8 @@ import AdminOutboxDispatch from "@/pages/admin/AdminOutboxDispatch";
 import AdminReservations from "@/pages/admin/AdminReservations";
 import AdminAvailability from "@/pages/admin/AdminAvailability";
 import AdminSecurity from "@/pages/admin/AdminSecurity";
+import AdminIntelligence from "@/pages/admin/AdminIntelligence";
+import AdminAiEvalLedger from "@/pages/admin/AdminAiEvalLedger";
 
 export type AdminRouteDefinition = {
   path: string;
@@ -144,6 +146,8 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/masters/printers", Component: AdminPrinters },
   { path: "/admin/masters/products", Component: AdminProducts },
   { path: "/admin/sales", Component: AdminSales },
+  { path: "/admin/intelligence", Component: AdminIntelligence },
+  { path: "/admin/ai-eval-ledger", Component: AdminAiEvalLedger },
 ];
 
 type RestrictedRouteComponent = ComponentType<{

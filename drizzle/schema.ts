@@ -3159,3 +3159,44 @@ export const capabilityGrants = mysqlTable("capability_grants", {
 export type CapabilityDefinitionRecord = typeof capabilityDefinitions.$inferSelect;
 export type CapabilityGrantRecord = typeof capabilityGrants.$inferSelect;
 export type NewCapabilityGrantRecord = typeof capabilityGrants.$inferInsert;
+
+// ─── MP8: AI Eval Ledger (append-only, tamper-evident, chained hashes) ────────
+export const aiEvalLedger = mysqlTable("ai_eval_ledger", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  sequenceNumber: bigint("sequence_number", { mode: "number" }).notNull(),
+  prevHash: varchar("prev_hash", { length: 64 }).notNull(),
+  rowHash: varchar("row_hash", { length: 64 }).notNull(),
+  suggestionKind: varchar("suggestion_kind", { length: 64 }).notNull(),
+  scopeType: varchar("scope_type", { length: 32 }).notNull(),
+  scopeId: varchar("scope_id", { length: 64 }),
+  inputHash: varchar("input_hash", { length: 64 }).notNull(),
+  inputSnapshot: json("input_snapshot").notNull(),
+  outputPayload: json("output_payload").notNull(),
+  modelVersion: varchar("model_version", { length: 64 }).notNull(),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  generatedByUserId: varchar("generated_by_user_id", { length: 36 }),
+  traceId: varchar("trace_id", { length: 64 }),
+}, (t) => ({
+  uqAiEvalSequence: uniqueIndex("uq_ai_eval_sequence").on(t.sequenceNumber),
+  uqAiEvalRowHash: uniqueIndex("uq_ai_eval_row_hash").on(t.rowHash),
+  idxAiEvalKindGenerated: index("idx_ai_eval_kind_generated").on(t.suggestionKind, t.generatedAt),
+  idxAiEvalScope: index("idx_ai_eval_scope").on(t.scopeType, t.scopeId, t.generatedAt),
+  idxAiEvalSeq: index("idx_ai_eval_seq").on(t.sequenceNumber),
+}));
+
+export const aiEvalOutcomes = mysqlTable("ai_eval_outcomes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  evalLedgerId: bigint("eval_ledger_id", { mode: "number" }).notNull(),
+  outcomeKind: varchar("outcome_kind", { length: 64 }).notNull(),
+  outcomePayload: json("outcome_payload"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  recordedByUserId: varchar("recorded_by_user_id", { length: 36 }),
+}, (t) => ({
+  idxAiEvalOutcomesEval: index("idx_ai_eval_outcomes_eval").on(t.evalLedgerId),
+  idxAiEvalOutcomesKind: index("idx_ai_eval_outcomes_kind").on(t.outcomeKind, t.recordedAt),
+}));
+
+export type AiEvalLedgerRecord = typeof aiEvalLedger.$inferSelect;
+export type NewAiEvalLedgerRecord = typeof aiEvalLedger.$inferInsert;
+export type AiEvalOutcomeRecord = typeof aiEvalOutcomes.$inferSelect;
+export type NewAiEvalOutcomeRecord = typeof aiEvalOutcomes.$inferInsert;
