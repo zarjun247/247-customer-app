@@ -3093,3 +3093,69 @@ export type NewReservationRecord = typeof reservations.$inferInsert;
 export type ReservationLineRecord = typeof reservationLines.$inferSelect;
 export type NewReservationLineRecord = typeof reservationLines.$inferInsert;
 export type StockLockKeyRecord = typeof stockLockKeys.$inferSelect;
+
+// ─── MP7: Audit Hash Chain (migration 0054) ───────────────────────────────────
+export const auditLogChain = mysqlTable("audit_log_chain", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  auditLogId: bigint("audit_log_id", { mode: "number" }),
+  sequenceNumber: bigint("sequence_number", { mode: "number" }).notNull(),
+  prevHash: varchar("prev_hash", { length: 64 }).notNull(),
+  rowHash: varchar("row_hash", { length: 64 }).notNull(),
+  hashedPayload: json("hashed_payload").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  uqAuditChainSequence: uniqueIndex("uq_audit_chain_sequence").on(t.sequenceNumber),
+  uqAuditChainRowHash: uniqueIndex("uq_audit_chain_row_hash").on(t.rowHash),
+  idxAuditChainSeq: index("idx_audit_chain_seq").on(t.sequenceNumber),
+  idxAuditChainAudit: index("idx_audit_chain_audit").on(t.auditLogId),
+}));
+
+export type AuditLogChainRecord = typeof auditLogChain.$inferSelect;
+export type NewAuditLogChainRecord = typeof auditLogChain.$inferInsert;
+
+// ─── MP7: PII Encryption Keys (migration 0055) ────────────────────────────────
+export const piiEncryptionKeys = mysqlTable("pii_encryption_keys", {
+  id: varchar("id", { length: 36 }).notNull().primaryKey(),
+  keyVersion: int("key_version").notNull(),
+  scope: varchar("scope", { length: 64 }).notNull(),
+  wrappedDataKey: text("wrapped_data_key").notNull(),  // base64-encoded wrapped binary
+  algorithm: varchar("algorithm", { length: 32 }).notNull().default("aes-256-gcm"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  rotatedFromId: varchar("rotated_from_id", { length: 36 }),
+  retiredAt: timestamp("retired_at"),
+}, (t) => ({
+  uqPiiKeysScopeVersion: uniqueIndex("uq_pii_keys_scope_version").on(t.scope, t.keyVersion),
+  idxPiiKeysScope: index("idx_pii_keys_scope").on(t.scope, t.keyVersion),
+  idxPiiKeysRetired: index("idx_pii_keys_retired").on(t.retiredAt),
+}));
+
+export type PiiEncryptionKeyRecord = typeof piiEncryptionKeys.$inferSelect;
+export type NewPiiEncryptionKeyRecord = typeof piiEncryptionKeys.$inferInsert;
+
+// ─── MP7: Capability Grants (migration 0056) ──────────────────────────────────
+export const capabilityDefinitions = mysqlTable("capability_definitions", {
+  capabilityName: varchar("capability_name", { length: 128 }).notNull().primaryKey(),
+  description: text("description").notNull(),
+  riskLevel: varchar("risk_level", { length: 16 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const capabilityGrants = mysqlTable("capability_grants", {
+  id: varchar("id", { length: 36 }).notNull().primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  capabilityName: varchar("capability_name", { length: 128 }).notNull(),
+  grantedByUserId: varchar("granted_by_user_id", { length: 36 }),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  revokedAt: timestamp("revoked_at"),
+  revokedByUserId: varchar("revoked_by_user_id", { length: 36 }),
+  reason: text("reason"),
+}, (t) => ({
+  uqCapabilityGrantsUserCap: uniqueIndex("uq_capability_grants_user_cap").on(t.userId, t.capabilityName, t.grantedAt),
+  idxCapabilityGrantsUser: index("idx_capability_grants_user").on(t.userId, t.capabilityName),
+  idxCapabilityGrantsRevoked: index("idx_capability_grants_revoked").on(t.revokedAt),
+}));
+
+export type CapabilityDefinitionRecord = typeof capabilityDefinitions.$inferSelect;
+export type CapabilityGrantRecord = typeof capabilityGrants.$inferSelect;
+export type NewCapabilityGrantRecord = typeof capabilityGrants.$inferInsert;

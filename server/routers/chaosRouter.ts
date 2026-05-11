@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure, managerProcedure, router } from "../_core/trpc";
+import { adminProcedure, managerProcedure, router, capabilityProcedure } from "../_core/trpc";
 import {
   listScenarios,
   canTrigger,
@@ -35,7 +35,7 @@ export const chaosRouter = router({
       return listDrillRecords(input.limit);
     }),
 
-  recordDrill: adminProcedure
+  recordDrill: capabilityProcedure("chaos.trigger")
     .input(ChaosDrillRecordSchema)
     .mutation(async ({ input }) => {
       await recordDrill(input as ChaosDrillRecord);

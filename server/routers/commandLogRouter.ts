@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure, managerProcedure, router } from "../_core/trpc";
+import { adminProcedure, managerProcedure, router, capabilityProcedure } from "../_core/trpc";
 import {
   getCommandLog,
   getCommandStats,
@@ -45,7 +45,7 @@ export const commandLogRouter = router({
       return record;
     }),
 
-  stats: adminProcedure
+  stats: capabilityProcedure("audit.view")
     .input(z.object({ windowHours: z.number().min(1).max(720).default(24) }))
     .query(async ({ input }) => {
       return getCommandStats(input.windowHours);

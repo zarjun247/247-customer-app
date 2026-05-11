@@ -14,7 +14,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, protectedProcedure, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { isAdmin, isSuperAdmin, requireStaffStore, requireStoreAccess } from "../_core/rbac";
 import { logAudit } from "../services/audit";
@@ -510,7 +510,7 @@ const adjustmentRouter = router({
       return { adjustmentId: result.insertId };
     }),
 
-  approve: protectedProcedure
+  approve: capabilityProcedure("inventory.adjust")
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
@@ -530,7 +530,7 @@ const adjustmentRouter = router({
       return { ok: true };
     }),
 
-  reject: protectedProcedure
+  reject: capabilityProcedure("inventory.adjust")
     .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);

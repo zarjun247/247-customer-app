@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure, managerProcedure, router } from "../_core/trpc";
+import { adminProcedure, managerProcedure, router, capabilityProcedure } from "../_core/trpc";
 import {
   getCurrentOnCall,
   listUpcomingShifts,
@@ -45,7 +45,7 @@ export const onCallRouter = router({
       return listUpcomingShifts(input.role as OnCallRole, input.days);
     }),
 
-  upsert: adminProcedure
+  upsert: capabilityProcedure("chaos.trigger")
     .input(OnCallShiftSchema)
     .mutation(async ({ input }) => {
       await upsertShift(input as OnCallShift);

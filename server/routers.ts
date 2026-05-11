@@ -58,6 +58,7 @@ import { commandLogRouter } from "./routers/commandLogRouter";
 import { outboxRouter } from "./routers/outboxRouter";
 import { reservationRouter } from "./routers/reservationRouter";
 import { availabilityRouter } from "./routers/availabilityRouter";
+import { securityRouter } from "./routers/securityRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
@@ -974,6 +975,7 @@ export const appRouter = router({
   outbox: outboxRouter,
   reservation: reservationRouter,
   availability: availabilityRouter,
+  security: securityRouter,
 });
 
 export type AppRouter = typeof appRouter;

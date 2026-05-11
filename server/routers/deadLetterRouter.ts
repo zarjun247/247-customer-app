@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb, writeAuditLog } from "../db";
@@ -132,7 +132,7 @@ export const deadLetterRouter = router({
       return { success: true, reviewStatus: "resolved" as const };
     }),
 
-  escalate: adminProcedure
+  escalate: capabilityProcedure("chaos.trigger")
     .input(
       z.object({
         deadLetterId: z.number().int(),
