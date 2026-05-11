@@ -24,6 +24,7 @@ import { ENV } from "./_core/env";
 import { redactSensitive } from "./_core/redact";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
 import { reserveStockForOrder, releaseReservationOnOrderCancel } from "./services/reservationService";
+import { getCanonicalAvailability as getCanonicalAvailabilityLedger } from "./services/canonicalAvailability";
 import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
 import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
 import { ingestionRouter } from "./routers/ingestionRouter";
@@ -55,6 +56,8 @@ import { chaosRouter } from "./routers/chaosRouter";
 import { restoreDrillRouter } from "./routers/restoreDrillRouter";
 import { commandLogRouter } from "./routers/commandLogRouter";
 import { outboxRouter } from "./routers/outboxRouter";
+import { reservationRouter } from "./routers/reservationRouter";
+import { availabilityRouter } from "./routers/availabilityRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
@@ -315,7 +318,10 @@ const cartRouter = router({
       if (sku.storeId !== user.assignedStoreId) throw new TRPCError({ code: "FORBIDDEN", message: "SKU not available for your assigned store" });
       if (!sku.isActive) throw new TRPCError({ code: "BAD_REQUEST", message: "SKU is inactive" });
       if (input.productId && input.productId !== sku.productId) throw new TRPCError({ code: "BAD_REQUEST", message: "Product mismatch for SKU" });
-      if (input.quantity > 0 && Number(sku.availableQty ?? 0) < input.quantity) throw new TRPCError({ code: "BAD_REQUEST", message: "Requested quantity unavailable" });
+      if (input.quantity > 0) {
+        const avail = await getCanonicalAvailabilityLedger(sku.productId, sku.storeId, sku.variantId ?? null);
+        if (avail.totalSellable < input.quantity) throw new TRPCError({ code: "BAD_REQUEST", message: "Requested quantity unavailable" });
+      }
       await upsertCartItem(ctx.user.id, input.skuId, sku.productId, input.quantity);
       return { success: true };
     }),
@@ -966,6 +972,8 @@ export const appRouter = router({
   restoreDrill: restoreDrillRouter,
   commandLog: commandLogRouter,
   outbox: outboxRouter,
+  reservation: reservationRouter,
+  availability: availabilityRouter,
 });
 
 export type AppRouter = typeof appRouter;

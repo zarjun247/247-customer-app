@@ -40,7 +40,7 @@ const EXAMPLE_PATH_RE =
   /(^|\/)(\.env\.example|.*\.example(\.|$)|config\/secrets\.json\.example$)/i;
 
 const STOCK_ALLOWED_RE =
-  /(^|\/)(server\/.*(stock|inventory|reservation).*service\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
+  /(^|\/)(server\/.*(stock|inventory|reservation).*(service|ledger)\.[jt]s|server\/services\/stockTruthCertification\.[jt]s|server\/.*stock.*invariant.*\.[jt]s|server\/.*reservation.*truth.*\.[jt]s|server\/stockTruth\.[jt]s|server\/stock-invariant.*\.[jt]s|server\/routers\/(inventoryRouter|purchaseRouter)\.[jt]s)$/i;
 const RUNTIME_PATH_RE = /(^|\/)(client|server|shared|scripts)\//;
 const GOVERNANCE_RULE_PATH_RE =
   /^scripts\/(ci-governance-guards|check-runtime-placeholders)\.mjs$/;
