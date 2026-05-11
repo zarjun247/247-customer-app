@@ -136,3 +136,19 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **Restore drill runner is a wrapper.** It depends on `scripts/restore-db-drill.mjs` existing. If that script needs hardening (better error reporting, dry-run mode), it should be done in a follow-up PR. The current wrapper records outcomes; it does not re-implement the underlying restore logic.
 
 **Backup-age check is documentation-only.** `scripts/deployment-readiness-check.mjs` warns if the latest backup is older than `BACKUP_DRILL_MIN_INTERVAL_HOURS`, but it does not actually run a backup. Backup execution remains a separately-scheduled job (likely a cron or Manus-platform-managed task).
+
+## MP5 follow-ups (logged 2026-05-11)
+
+**Outbox dispatcher is not started at boot.** `server/services/outboxDispatcher.ts` ships the polling worker as a library, but `startOutboxDispatcher()` is never called from server boot code. Side effects accumulate in `command_outbox` in `pending` state with no dispatch. Wiring `startOutboxDispatcher()` into server startup is a one-line follow-up change; it is deferred because it requires per-side-effect-kind handler registration (see below), which is incremental work across future PRs.
+
+**Side-effect handlers are not registered.** The three pilot migrations (`sale.confirm`, `purchase.commitInvoice`, `payment.verifyPayment`) emit side effects to `command_outbox` but no `registerOutboxHandler()` calls exist. Until handlers are registered, the dispatcher logs "no handler registered" warnings and skips those rows. Register handlers incrementally in follow-up PRs as in-line side-effect call sites (WhatsApp notifications, inventory snapshot refresh, provider webhook ack) are extracted from router logic.
+
+**Only three procedures are migrated.** `saleRouter.confirmSale`, `purchaseRouter.commitInvoice`, `paymentRouter.verifyPayment`. The remaining ~30 command-style procedures (stock adjustments, refunds, credit notes, prescription dispense, etc.) continue to use direct DB writes and inline side effects. Migrating them to `executeCommand` is incremental — one router per follow-up PR, each requiring careful side-effect identification and idempotency-key design.
+
+**Failed commands are terminal by idempotency key.** Per `executeCommand` contract, a failed command (state=`failed`) cannot be retried with the same `(idempotencyKey, commandName)` pair. Clients must mint a new idempotency key to retry. Existing tRPC retry middleware (if any) must be audited to ensure it does not silently retry with the same key on failure, which would produce a `CommandPriorFailureError`.
+
+**Outbox retry is exponential backoff, hard-capped at 60 s.** Backoff sequence for `attemptNum`: 2 s, 4 s, 8 s, 16 s, 32 s, 60 s, 60 s… Rows that exhaust `maxAttempts` go to `state=failed`. No automatic routing to the dead-letter surface. Admin manual retry via `outbox.retry` tRPC procedure. Auto-DLQ on permanent failure and integration with the existing dead-letter remediation UI is a future enhancement. Note: the spec comment in MP1-rest PR-B (`deadLetterRouter.retry`) noted "wire into the MP5 outbox/dispatch layer" — that integration is now actionable.
+
+**Compensation flow is defined but not used.** `commandStateMachine.ts` permits transitions from `completed`/`failed` to `compensated` (trigger: `compensation_run`), but no compensation runner exists. MP6 (reservation ledger) may need compensation for partial-rollback flows. Defer concrete compensation implementation until a real use case materialises.
+
+**Multi-node dispatcher coordination is unaddressed.** `pollOnce()` uses `state=pending AND nextAttemptAt<=now AND attempts<maxAttempts` filtering with no row-level locking. Under concurrent dispatchers (multi-node production), two workers may pick up the same row. Before scaling beyond a single-node deployment, add a `SELECT ... FOR UPDATE SKIP LOCKED` pattern or a distributed lock (Redis-backed) to prevent double-dispatch.

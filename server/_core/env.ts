@@ -78,6 +78,11 @@ export const ENV = {
   chaosDrillEnabled: (process.env.CHAOS_DRILL_ENABLED ?? "").toLowerCase() === "true",
   deploymentValidationRequired: (process.env.DEPLOYMENT_VALIDATION_REQUIRED ?? "").toLowerCase() === "true",
   backupDrillMinIntervalHours: Number(process.env.BACKUP_DRILL_MIN_INTERVAL_HOURS ?? "168"),
+  // MP5: outbox dispatcher optional vars. Never add to assertProductionEnvSafe().
+  outboxDispatchEnabled: (process.env.OUTBOX_DISPATCH_ENABLED ?? "").toLowerCase() === "true",
+  outboxPollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? "5000"),
+  outboxBatchSize: Number(process.env.OUTBOX_BATCH_SIZE ?? "20"),
+  outboxMaxAttempts: Number(process.env.OUTBOX_MAX_ATTEMPTS ?? "5"),
 };
 
 assertProductionEnvSafe();

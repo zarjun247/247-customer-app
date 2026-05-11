@@ -25,6 +25,7 @@ import {
 } from "../payment";
 import { getOrderById } from "../db";
 import { buildIdempotencyKey, createMutationFingerprint, withIdempotency } from "../services/idempotencyService";
+import { executeCommand } from "../services/executeCommand";
 import { initiateRefund, verifyRefundStatus } from "../services/refundService";
 
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
@@ -78,29 +79,48 @@ export const paymentRouter = router({
       method: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const idemKey = buildIdempotencyKey(["payment","verify",input.gatewayOrderId,input.gatewayPaymentId]);
-      return withIdempotency({ key: idemKey, scope: "payment.verify", operationType: "payment_verify", actorId: ctx.user.id, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint(input), ctx }, async () => {
-      await logAudit({ action: "payment.verify_attempted", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
-      const verification = await verifyGatewayPaymentSignature({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
-      if (!verification.verified) {
-        await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId, verificationStatus: verification.status } }, ctx);
-        const code = verification.status === "provider_unconfigured" ? "PRECONDITION_FAILED" : "BAD_REQUEST";
-        throw new TRPCError({ code, message: verification.message ?? "Payment signature verification failed" });
-      }
+      return executeCommand({
+        name: "payment.verifyPayment",
+        version: 1,
+        idempotencyKey: `payment:verify:${input.gatewayOrderId}`,
+        input,
+        context: {
+          actorUserId: String(ctx.user.id),
+          actorRole: ctx.user.role,
+          storeId: null,
+          traceId: null,
+        },
+        handler: async (_inp, _tx, _commandCtx) => {
+          const idemKey = buildIdempotencyKey(["payment","verify",input.gatewayOrderId,input.gatewayPaymentId]);
+          const result = await withIdempotency({ key: idemKey, scope: "payment.verify", operationType: "payment_verify", actorId: ctx.user.id, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint(input), ctx }, async () => {
+            await logAudit({ action: "payment.verify_attempted", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
+            const verification = await verifyGatewayPaymentSignature({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature });
+            if (!verification.verified) {
+              await logAudit({ action: "payment.verify_failed", entityType: "payment", entityId: null, afterJson: { gatewayOrderId: input.gatewayOrderId, verificationStatus: verification.status } }, ctx);
+              const code = verification.status === "provider_unconfigured" ? "PRECONDITION_FAILED" : "BAD_REQUEST";
+              throw new TRPCError({ code, message: verification.message ?? "Payment signature verification failed" });
+            }
 
-      // Get the payment record
-      const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
-      if (!payment) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
-      }
-      if (payment.status === "paid") { await logAudit({ action: "payment.duplicate_detected", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx); return { success: true, orderId: payment.orderId, idempotent: true }; }
+            // Get the payment record
+            const payment = await getPaymentByGatewayOrder(input.gatewayOrderId);
+            if (!payment) {
+              throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
+            }
+            if (payment.status === "paid") { await logAudit({ action: "payment.duplicate_detected", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx); return { success: true, orderId: payment.orderId, idempotent: true }; }
 
-      // Confirm payment and advance order through the shared idempotent lifecycle helper.
-      // Static guard equivalence: await markPaymentCaptured happens inside advanceOrderAfterPaymentCaptured before await updateOrderStatus.
-      await advanceOrderAfterPaymentCaptured({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature, method: input.method });
-      await logAudit({ action: "payment.verified", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
+            // Confirm payment and advance order through the shared idempotent lifecycle helper.
+            // Static guard equivalence: await markPaymentCaptured happens inside advanceOrderAfterPaymentCaptured before await updateOrderStatus.
+            await advanceOrderAfterPaymentCaptured({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, signature: input.signature, method: input.method });
+            await logAudit({ action: "payment.verified", entityType: "payment", entityId: payment.id, afterJson: { gatewayOrderId: input.gatewayOrderId } }, ctx);
 
-      return { success: true, orderId: payment.orderId };
+            return { success: true, orderId: payment.orderId };
+          });
+          return {
+            output: result,
+            sideEffects: [{ kind: "provider.webhook-ack", payload: { gatewayOrderId: input.gatewayOrderId } }],
+          };
+        },
+        sloName: "trpc.payment.verify.p99",
       });
     }),
 

@@ -53,6 +53,8 @@ import { onCallRouter } from "./routers/onCallRouter";
 import { deploymentRouter } from "./routers/deploymentRouter";
 import { chaosRouter } from "./routers/chaosRouter";
 import { restoreDrillRouter } from "./routers/restoreDrillRouter";
+import { commandLogRouter } from "./routers/commandLogRouter";
+import { outboxRouter } from "./routers/outboxRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
@@ -962,6 +964,8 @@ export const appRouter = router({
   deployment: deploymentRouter,
   chaos: chaosRouter,
   restoreDrill: restoreDrillRouter,
+  commandLog: commandLogRouter,
+  outbox: outboxRouter,
 });
 
 export type AppRouter = typeof appRouter;
