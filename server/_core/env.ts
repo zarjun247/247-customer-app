@@ -102,6 +102,9 @@ export const ENV = {
   stockoutLookaheadDays: Number(process.env.STOCKOUT_LOOKAHEAD_DAYS ?? "30"),
   continuityGraphMaxNodes: Number(process.env.CONTINUITY_GRAPH_MAX_NODES ?? "500"),
   aiEvalLedgerEnabled: ((process.env.AI_EVAL_LEDGER_ENABLED ?? "true").toLowerCase()) === "true",
+  // SM-A: store-scope RBAC enforcement mode. Never add to assertProductionEnvSafe().
+  // "off" skips enforcement (migration), "log_only" warns without blocking, "enforce" blocks (default).
+  storeScopeEnforcementMode: (process.env.STORE_SCOPE_ENFORCEMENT_MODE ?? "enforce") as "off" | "log_only" | "enforce",
 };
 
 assertProductionEnvSafe();

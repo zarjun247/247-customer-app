@@ -23,26 +23,38 @@ export async function getCurrentBatchQty(db: Awaited<ReturnType<typeof getDb>>, 
 }
 
 export async function applyStockMovement(input: {
+  // Optional outer transaction — when provided the caller's transaction context is reused,
+  // avoiding a nested transaction that would break atomicity with the surrounding operation.
+  // When absent, this function starts its own transaction (original behaviour, fully backward-compatible).
+  tx?: any;
   batchId: number; storeId: number; qtyDelta: number; movementType: "purchase_inward"|"sale_fulfil"|"sale_return"|"purchase_return"|"stock_adjustment"|"quarantine"|"disposal";
   referenceType?: string; referenceId?: number; reason?: string; actor: StockActor; productId?: number;
 }) {
-  const db = await getDb();
   const { batchLedger, stockMovements } = await import("../../drizzle/schema");
-  return db.transaction(async (tx) => {
-    const [batch] = await tx.select().from(batchLedger).where(eq(batchLedger.id, input.batchId)).limit(1);
+
+  const runMovement = async (conn: any) => {
+    const [batch] = await conn.select().from(batchLedger).where(eq(batchLedger.id, input.batchId)).limit(1);
     if (!batch) throw new TRPCError({ code: "NOT_FOUND", message: "Batch not found" });
     const qtyBefore = batch.qtyOnHand ?? 0;
     const qtyAfter = qtyBefore + input.qtyDelta;
     await assertNoNegativeStock(qtyAfter);
-    await tx.update(batchLedger).set({ qtyOnHand: qtyAfter }).where(eq(batchLedger.id, input.batchId));
-    await tx.insert(stockMovements).values({
+    await conn.update(batchLedger).set({ qtyOnHand: qtyAfter }).where(eq(batchLedger.id, input.batchId));
+    await conn.insert(stockMovements).values({
       batchId: input.batchId, storeId: input.storeId, movementType: input.movementType, qty: input.qtyDelta,
       qtyBefore, qtyAfter, referenceType: input.referenceType, referenceId: input.referenceId, reason: input.reason,
       performedBy: input.actor.actorId ?? 0,
     });
+    // logAudit uses its own connection (best-effort); intentionally outside the transaction context.
     await logAudit({ action: `stock.${input.movementType}`, entityType: "batch_ledger", entityId: input.batchId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", beforeJson: { qtyOnHand: qtyBefore }, afterJson: { qtyOnHand: qtyAfter }, reason: input.reason, metadata: { storeId: input.storeId, qtyDelta: input.qtyDelta, referenceType: input.referenceType, referenceId: input.referenceId, productId: input.productId } });
     return { qtyBefore, qtyAfter };
-  });
+  };
+
+  if (input.tx) {
+    // Caller owns the transaction — use it directly without starting a nested one.
+    return runMovement(input.tx);
+  }
+  const db = await getDb();
+  return db.transaction(runMovement);
 }
 
 export const increaseStockForPurchaseCommit = (i: Omit<Parameters<typeof applyStockMovement>[0], "movementType">) => applyStockMovement({ ...i, movementType: "purchase_inward" });
@@ -79,17 +91,25 @@ export async function releaseQuarantine(input: {
 }
 
 export async function createBatchWithOpeningStock(input: {
+  // Optional outer transaction — reused when called from within an already-open transaction.
+  tx?: any;
   batch: { productId: number; variantId?: number; storeId: number; supplierId?: number; batchNo: string; mfgDate?: Date; expiryDate: Date; mrp: string; purchaseRate: string; saleRate: string; schemeDiscount?: string; cashDiscount?: string; landingCost?: string; margin?: string; qtyOnHand: number; internalBarcode?: string; manufacturerBarcode?: string; purchaseInvoiceId?: number; grnId?: number; storageCondition: "ambient" | "cold_chain" | "controlled" | "frozen"; coldChainFlag: boolean; expiryBucket: "normal" | "warning" | "critical" | "quarantine_candidate" | "expired"; status: "active" | "quarantined" | "depleted" | "expired" | "recalled" | "damaged" | "returned_to_supplier"; createdBy: number };
   actor: StockActor;
 }) {
-  const db = await getDb();
   const { batchLedger } = await import("../../drizzle/schema");
   const openingQty = Math.max(0, input.batch.qtyOnHand ?? 0);
-  const [result] = await db.insert(batchLedger).values({ ...input.batch, qtyOnHand: 0 });
-  const batchId = result.insertId;
-  if (openingQty > 0) {
-    await applyStockMovement({ batchId, storeId: input.batch.storeId, qtyDelta: openingQty, movementType: "purchase_inward", referenceType: input.batch.purchaseInvoiceId ? "purchase_invoice" : "batch_create", referenceId: input.batch.purchaseInvoiceId ?? batchId, reason: `Batch ${input.batch.batchNo} opening stock`, actor: input.actor, productId: input.batch.productId });
-  }
+
+  const run = async (conn: any) => {
+    const [result] = await conn.insert(batchLedger).values({ ...input.batch, qtyOnHand: 0 });
+    const batchId = result.insertId;
+    if (openingQty > 0) {
+      await applyStockMovement({ tx: conn, batchId, storeId: input.batch.storeId, qtyDelta: openingQty, movementType: "purchase_inward", referenceType: input.batch.purchaseInvoiceId ? "purchase_invoice" : "batch_create", referenceId: input.batch.purchaseInvoiceId ?? batchId, reason: `Batch ${input.batch.batchNo} opening stock`, actor: input.actor, productId: input.batch.productId });
+    }
+    return batchId;
+  };
+
+  const batchId = input.tx ? await run(input.tx) : await (await getDb()).transaction(run);
+  // logAudit uses its own connection (best-effort); intentionally outside the transaction context.
   await logAudit({ action: "inventory.batch_created_with_opening_stock", entityType: "batch_ledger", entityId: batchId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", afterJson: { ...input.batch }, metadata: { openingStockQty: openingQty } });
   return { batchId };
 }
