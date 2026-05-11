@@ -1,8 +1,18 @@
 {
   "id": "runtime-incident-board",
-  "title": "Runtime Incident Board",
-  "status": "blocked_no_backing_endpoint",
+  "title": "Runtime Incident Command",
+  "status": "blocked_no_prometheus_metrics",
   "metrics": [],
-  "blockedMetrics": "original sprint dashboard metrics removed until backed by audited runtime endpoints",
-  "note": "This dashboard is intentionally metadata-only after the observability audit; it must not display synthetic or unbacked data."
+  "note": "Backed by tRPC endpoints at /admin/runtime — not by Prometheus metric claims. No Prometheus metrics are defined for deployment readiness or store isolation signals.",
+  "trpcRoute": "/admin/runtime",
+  "trpcEndpoints": [
+    "trpc.deploymentReadiness.summary",
+    "trpc.deploymentReadiness.providers",
+    "trpc.deploymentReadiness.workerQueue",
+    "trpc.deploymentReadiness.health",
+    "trpc.deploymentReadiness.failureExercises",
+    "trpc.multiStoreRuntime.overview",
+    "trpc.multiStoreRuntime.isolationChecks",
+    "trpc.commandCenter.recentEvents"
+  ]
 }

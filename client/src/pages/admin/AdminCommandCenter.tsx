@@ -18,6 +18,7 @@ import {
   Thermometer, Calendar, Eye, AlertCircle, Wifi, Wallet, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "wouter";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number | null | undefined, decimals = 0) {
@@ -172,21 +173,32 @@ export default function AdminCommandCenter() {
             <Badge variant="info">No PHI in broad dashboards</Badge>
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
-            {[
-              ["Incident command", "Escalate by severity", "critical"],
-              ["Provider health", "Gateway/provider status", "warn"],
-              ["Deployment/runtime", "Runtime health surface", "warn"],
-              ["Multi-store", "Store isolation health", "ok"],
-              ["Reconciliation", "Variance review", "warn"],
-              ["Refund exceptions", "Reasoned reversal queue", "warn"],
-              ["Dead letters", "Retry / quarantine review", "critical"],
-            ].map(([title, sub, tone]) => (
-              <div key={title} className="rounded-xl border border-white/5 bg-black/20 p-3">
-                <span className={`status-dot ${tone === "ok" ? "status-dot-success" : tone === "critical" ? "status-dot-critical" : "status-dot-warning"}`} />
-                <p className="mt-2 text-xs font-semibold text-zinc-100">{title}</p>
-                <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">{sub}</p>
-              </div>
-            ))}
+            {([
+              ["Incident command", "Escalate by severity", "critical", "/admin/runtime/incident"],
+              ["Provider health", "Gateway/provider status", "warn", "/admin/runtime"],
+              ["Deployment/runtime", "Runtime health surface", "warn", "/admin/runtime"],
+              ["Multi-store", "Store isolation health", "ok", "/admin/runtime"],
+              ["Reconciliation", "Variance review", "warn", null],
+              ["Refund exceptions", "Reasoned reversal queue", "warn", null],
+              ["Dead letters", "Retry / quarantine review", "critical", null],
+            ] as const).map(([title, sub, tone, href]) => {
+              const inner = (
+                <>
+                  <span className={`status-dot ${tone === "ok" ? "status-dot-success" : tone === "critical" ? "status-dot-critical" : "status-dot-warning"}`} />
+                  <p className="mt-2 text-xs font-semibold text-zinc-100">{title}</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">{sub}</p>
+                </>
+              );
+              return href ? (
+                <Link key={title} href={href} className="rounded-xl border border-white/5 bg-black/20 p-3 block hover:bg-black/40 hover:border-white/10 transition-colors cursor-pointer">
+                  {inner}
+                </Link>
+              ) : (
+                <div key={title} className="rounded-xl border border-white/5 bg-black/20 p-3 opacity-60">
+                  {inner}
+                </div>
+              );
+            })}
           </div>
         </div>
 
