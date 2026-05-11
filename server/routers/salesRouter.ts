@@ -53,6 +53,7 @@ import {
 import { appendCommercialEventBestEffort } from "../services/commercialLifecycle";
 import { executeCommand } from "../services/executeCommand";
 import { salesRouterExtension } from "./salesRouterExtension";
+import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -328,8 +329,11 @@ export const salesRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "sale",
+        input.saleId as unknown as number,
+        ctx
+      );
       const db = await getDbSafe();
       const { saleLines, sales, products } = await import(
         "../../drizzle/schema"
@@ -458,8 +462,11 @@ export const salesRouter = router({
     .input(z.object({ saleId: z.string(), lineId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "sale",
+        input.saleId as unknown as number,
+        ctx
+      );
       const db = await getDbSafe();
       const { saleLines, sales } = await import("../../drizzle/schema");
       const [sale] = await db

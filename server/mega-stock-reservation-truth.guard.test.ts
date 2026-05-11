@@ -3,21 +3,37 @@ import fs from "node:fs";
 import { readFileSync, readdirSync } from "fs";
 import { computeAvailableQty } from "./services/reservationService";
 
-const reservationService = readFileSync(
-  "server/services/reservationService.ts",
-  "utf8"
+const normalizeCode = (s: string): string =>
+  s
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .replace(/\( /g, "(")
+    .replace(/\[ /g, "[")
+    .replace(/ \)/g, ")")
+    .replace(/, \]/g, "]")
+    .replace(/ \]/g, "]");
+
+const reservationService = normalizeCode(
+  readFileSync("server/services/reservationService.ts", "utf8")
 );
-const purchaseRouter = readFileSync("server/routers/purchaseRouter.ts", "utf8");
+const purchaseRouter = normalizeCode(
+  readFileSync("server/routers/purchaseRouter.ts", "utf8") +
+    "\n" +
+    readFileSync("server/routers/purchaseRouterExtension.ts", "utf8")
+);
 const barcodeService = readFileSync(
   "server/services/barcodeService.ts",
   "utf8"
 );
 const salesRouter = readFileSync("server/routers/salesRouter.ts", "utf8");
 const dbHelpers = readFileSync("server/db.ts", "utf8");
-const schema = readdirSync("drizzle/schema")
-  .filter(f => f.endsWith(".ts") && f !== "index.ts")
-  .map(f => readFileSync(`drizzle/schema/${f}`, "utf8"))
-  .join("\n");
+const schema = normalizeCode(
+  readdirSync("drizzle/schema")
+    .filter(f => f.endsWith(".ts") && f !== "index.ts")
+    .map(f => readFileSync(`drizzle/schema/${f}`, "utf8"))
+    .join("\n")
+);
 
 describe("mega stock reservation truth hardening", () => {
   it("purchase commits sync product-store aggregate instead of movement qtyAfter", () => {

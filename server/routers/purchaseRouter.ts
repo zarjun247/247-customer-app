@@ -26,6 +26,7 @@ import {
 } from "../services/productMasterValidation";
 import { executeCommand } from "../services/executeCommand";
 import { purchaseRouterExtension } from "./purchaseRouterExtension";
+import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -341,8 +342,7 @@ export const purchaseRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity("purchase_invoice", input.id, ctx);
       const db = await getDbSafe();
       const { purchaseInvoices } = await import("../../drizzle/schema");
       const [inv] = await db
@@ -382,6 +382,7 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user.role);
+      await requireStoreAccessForEntity("purchase_invoice", input.id, ctx);
       const db = await getDbSafe();
       const { purchaseInvoices } = await import("../../drizzle/schema");
       const [inv] = await db
@@ -436,8 +437,11 @@ export const purchaseRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "purchase_invoice",
+        input.purchaseInvoiceId,
+        ctx
+      );
       const db = await getDbSafe();
       const { purchaseInvoices, purchaseLines, products } = await import(
         "../../drizzle/schema"
@@ -533,8 +537,6 @@ export const purchaseRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseLines, purchaseInvoices } = await import(
         "../../drizzle/schema"
@@ -544,6 +546,11 @@ export const purchaseRouter = router({
         .from(purchaseLines)
         .where(eq(purchaseLines.id, input.id));
       if (!line) throw new TRPCError({ code: "NOT_FOUND" });
+      await requireStoreAccessForEntity(
+        "purchase_invoice",
+        line.purchaseInvoiceId,
+        ctx
+      );
       const [inv] = await db
         .select()
         .from(purchaseInvoices)
@@ -592,8 +599,6 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseLines, purchaseInvoices } = await import(
         "../../drizzle/schema"
@@ -603,6 +608,11 @@ export const purchaseRouter = router({
         .from(purchaseLines)
         .where(eq(purchaseLines.id, input.id));
       if (!line) throw new TRPCError({ code: "NOT_FOUND" });
+      await requireStoreAccessForEntity(
+        "purchase_invoice",
+        line.purchaseInvoiceId,
+        ctx
+      );
       const [inv] = await db
         .select()
         .from(purchaseInvoices)

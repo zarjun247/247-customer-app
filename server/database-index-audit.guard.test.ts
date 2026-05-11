@@ -17,7 +17,7 @@ const indexNames = [...migrationSql.matchAll(/ADD\s+INDEX\s+`([^`]+)`/gi)].map(
   match => match[1]
 );
 const schemaIndexNames = [
-  ...schemaSql.matchAll(/(?:index|uniqueIndex)\("([^"]+)"\)/g),
+  ...schemaSql.matchAll(/(?:index|uniqueIndex)\(\s*"([^"]+)"/g),
 ].map(match => match[1]);
 
 const requiredCoverage = [

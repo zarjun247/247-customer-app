@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
+
+const normalizeCode = (s: string): string =>
+  s
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .replace(/\( /g, "(")
+    .replace(/\[ /g, "[")
+    .replace(/ \)/g, ")")
+    .replace(/, \]/g, "]")
+    .replace(/ \]/g, "]");
 import {
   assertBalancedJournalBatch,
   createPaymentJournalBatch,
@@ -115,9 +126,8 @@ describe("balanced accounting journal batches", () => {
   });
 
   it("trial balance is limited to posted batches and detects legacy/orphan rows", () => {
-    const service = fs.readFileSync(
-      "server/services/accountingLedger.ts",
-      "utf8"
+    const service = normalizeCode(
+      fs.readFileSync("server/services/accountingLedger.ts", "utf8")
     );
     expect(service).toContain("innerJoin(accountingJournalBatches");
     expect(service).toContain('eq(accountingJournalBatches.status, "posted")');
