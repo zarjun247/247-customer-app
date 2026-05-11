@@ -4,7 +4,7 @@ import { appendCommercialEventWithDb, normalizeCommercialEvent } from "./commerc
 describe("appendCommercialEventWithDb transactional behavior", () => {
   it("uses provided DB/tx for inserts when idempotencyKey absent", async () => {
     const fakeTx: any = {
-      insert: vi.fn().mockResolvedValue([{ insertId: 42 }]),
+      insert: vi.fn().mockImplementation(() => ({ values: async () => ({ insertId: 42 }) })),
     };
     const input = {
       aggregateType: "payment",
