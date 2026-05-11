@@ -23,7 +23,7 @@ describe("appendCommercialEventWithDb transactional behavior", () => {
     const existingRow = { eventId: "e1", idempotencyKey: "k1", eventPayload: "{}" };
     const fakeTx: any = {
       select: vi.fn().mockReturnValue({ from: () => ({ where: () => ({ limit: async () => [existingRow] }) }) }),
-      insert: vi.fn().mockImplementation((table: any) => ({ values: vi.fn() })),
+      insert: vi.fn().mockImplementation((table: any) => ({ values: async (_: any) => ({ insertId: 1 }) })),
     };
     const input = {
       aggregateType: "refund",
