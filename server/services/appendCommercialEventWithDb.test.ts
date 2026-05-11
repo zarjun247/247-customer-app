@@ -22,8 +22,8 @@ describe("appendCommercialEventWithDb transactional behavior", () => {
   it("respects idempotencyKey by checking existing before insert when provided", async () => {
     const existingRow = { eventId: "e1", idempotencyKey: "k1", eventPayload: "{}" };
     const fakeTx: any = {
-      select: vi.fn().mockReturnValue({ from: () => ({ where: () => ({ limit: async () => [existingRow] }) }) }),
-      insert: vi.fn(),
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [existingRow] }) }) }),
+      insert: (table: any) => ({ values: vi.fn() }),
     };
     const input = {
       aggregateType: "refund",
