@@ -50,6 +50,9 @@ import { commandCenterRouter } from "./routers/commandCenterRouter";
 import { deadLetterRouter } from "./routers/deadLetterRouter";
 import { providerHealthRouter } from "./routers/providerHealthRouter";
 import { onCallRouter } from "./routers/onCallRouter";
+import { deploymentRouter } from "./routers/deploymentRouter";
+import { chaosRouter } from "./routers/chaosRouter";
+import { restoreDrillRouter } from "./routers/restoreDrillRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
@@ -956,6 +959,9 @@ export const appRouter = router({
   deadLetters: deadLetterRouter,
   providerHealth: providerHealthRouter,
   onCall: onCallRouter,
+  deployment: deploymentRouter,
+  chaos: chaosRouter,
+  restoreDrill: restoreDrillRouter,
 });
 
 export type AppRouter = typeof appRouter;

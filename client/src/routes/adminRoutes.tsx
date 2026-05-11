@@ -53,6 +53,9 @@ import AdminRuntimeIncident from "@/pages/admin/AdminRuntimeIncident";
 import AdminDeadLetters from "@/pages/admin/AdminDeadLetters";
 import AdminProviderHealth from "@/pages/admin/AdminProviderHealth";
 import AdminOnCall from "@/pages/admin/AdminOnCall";
+import AdminDeploymentReadiness from "@/pages/admin/AdminDeploymentReadiness";
+import AdminChaosLab from "@/pages/admin/AdminChaosLab";
+import AdminRestoreDrills from "@/pages/admin/AdminRestoreDrills";
 
 export type AdminRouteDefinition = {
   path: string;
@@ -67,6 +70,9 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/dead-letters", Component: AdminDeadLetters },
   { path: "/admin/provider-health", Component: AdminProviderHealth },
   { path: "/admin/on-call", Component: AdminOnCall },
+  { path: "/admin/deployment-readiness", Component: AdminDeploymentReadiness },
+  { path: "/admin/chaos-lab", Component: AdminChaosLab },
+  { path: "/admin/restore-drills", Component: AdminRestoreDrills },
   { path: "/admin/orders", Component: AdminOrders },
   { path: "/admin/prescriptions", Component: AdminPrescriptionGov },
   { path: "/admin/sales/counter", Component: AdminCounterBilling },
