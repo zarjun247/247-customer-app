@@ -58,6 +58,8 @@ import AdminChaosLab from "@/pages/admin/AdminChaosLab";
 import AdminRestoreDrills from "@/pages/admin/AdminRestoreDrills";
 import AdminCommandLog from "@/pages/admin/AdminCommandLog";
 import AdminOutboxDispatch from "@/pages/admin/AdminOutboxDispatch";
+import AdminReservations from "@/pages/admin/AdminReservations";
+import AdminAvailability from "@/pages/admin/AdminAvailability";
 
 export type AdminRouteDefinition = {
   path: string;
@@ -77,6 +79,8 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/restore-drills", Component: AdminRestoreDrills },
   { path: "/admin/command-log", Component: AdminCommandLog },
   { path: "/admin/outbox-dispatch", Component: AdminOutboxDispatch },
+  { path: "/admin/reservations", Component: AdminReservations },
+  { path: "/admin/availability", Component: AdminAvailability },
   { path: "/admin/orders", Component: AdminOrders },
   { path: "/admin/prescriptions", Component: AdminPrescriptionGov },
   { path: "/admin/sales/counter", Component: AdminCounterBilling },

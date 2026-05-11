@@ -96,7 +96,18 @@ export async function syncStoreSkuAggregate(input: { storeId: number; productId:
 }
 
 export async function getCanonicalAvailability(storeId: number, productId: number, variantId?: number | null) {
-  return explainAvailability(await getCanonicalStockAggregate(storeId, productId, variantId));
+  const { getCanonicalAvailability: fromLedger } = await import("./canonicalAvailability");
+  const ledger = await fromLedger(productId, storeId, variantId);
+  return {
+    availableQty: ledger.totalSellable,
+    rawAvailableQty: ledger.totalSellable,
+    onHandQty: ledger.totalOnHand,
+    reservedQty: ledger.totalReserved,
+    softLockedQty: 0,
+    quarantinedQty: 0,
+    expiredQty: 0,
+    formula: "availableQty = totalSellable from canonical ledger (FEFO)",
+  };
 }
 
 export async function assertAvailableForReservation(input: { storeId: number; productId: number; variantId?: number | null; qty: number }) {
