@@ -168,3 +168,23 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **Multi-line reservation atomicity depends on DB transaction.** `reservationLedger.reserve()` inserts the parent `reservations` row and all `reservation_lines` in a single transaction. If the transaction rolls back after partial inserts (e.g., lock acquisition failure), no orphan rows exist. However, the advisory lock acquired via `withLock` is released in a `finally` block that runs after the transaction — ensure the DB transaction commit/rollback completes before the lock is released. Current implementation is correct for the happy path; validate under DB failover scenarios.
 
 **`reservation.confirm` writes `stockMovements` with `movementType='sale_fulfil'`.** This mirrors the existing `consumeReservationAtomic` pattern. If a distinct `movementType` for reservation confirmation is needed for reporting, add it to the `stockMovements` enum in a schema migration and update `confirm()` accordingly.
+
+## MP7 follow-ups (logged 2026-05-11)
+
+**PII encryption is not yet applied at write paths.** `customerPiiService.ts` and `prescriptionPiiService.ts` ship the encrypt/decrypt helpers but no router currently calls them when writing to DB or reading from DB. Wire them into `userRouter` (phone, email) and `prescriptionRouter` (pharmacistNote, ocrText) in follow-up PRs. Until wired, fields remain plaintext in the DB. Master key activation + write-path wiring must happen atomically with a data backfill pass.
+
+**Data backfill required before full PII encryption.** Existing plaintext rows in `users.phone`, `users.email`, `prescriptions.pharmacist_note`, and `prescriptions.ocr_text` must be encrypted in a backfill migration before `decrypt()` can be made mandatory. The backfill must run in a maintenance window with the master key present. A phased approach: (1) wire encrypt on new writes, (2) schedule a backfill job, (3) enforce decrypt-only for `v1:`-prefixed rows.
+
+**CSP is `off` by default.** Set `CSP_MODE=report_only` in staging to collect violation reports via `CSP_REPORT_URI` before promoting to `enforce`. Tighten `unsafe-inline` script/style directives with nonces once Vite-build hash injection is confirmed; the current directives permit inline scripts for dev/Vite compatibility.
+
+**Rate limit store is in-memory.** `MemoryRateLimitStore` is not shared across nodes. Before multi-node production, set `API_RATE_LIMIT_BACKEND=redis` and wire a `RedisRateLimitStore` implementation. The current store works correctly for single-node deployments.
+
+**Capability grants require manual seeding.** `capability_definitions` is seeded by migration 0056 but `capability_grants` is empty at first boot. The `capabilityProcedure` wrapper falls back to role-default mapping (defined in `CAPABILITY_ROLE_DEFAULTS`) so existing admin/manager roles retain access during the pilot. Explicit grants must be issued via `security.grantCapability` before relying on per-user capability enforcement without role fallback.
+
+**Audit chain genesis is DB-seeded.** The genesis row (sequence 0) is inserted by migration 0054 using MySQL `SHA2()`. The `verifyChain()` function skips hash recomputation for sequence 0 because the genesis hash is computed server-side. All subsequent rows (sequence ≥ 1) are fully verified by `verifyChain()`.
+
+**`onCall.upsert` uses `chaos.trigger` capability.** This is a semantic approximation — on-call rota management is not exactly a chaos action. A dedicated `oncall.manage` capability should be added to `capability_definitions` in a follow-up migration if fine-grained on-call scheduling control is required.
+
+**`helpdeskRouter.resolve` uses `audit.view` capability.** Ticket resolution is not an audit action. A dedicated `helpdesk.resolve` capability is preferable. Tracked as P3 polish follow-up.
+
+**Audit chain `appendChainedAudit` is best-effort.** Failures are swallowed and return `{sequenceNumber: -1, rowHash: ""}`. Downstream callers (grantCapability, revokeCapability, piiRotateKey) cannot distinguish a successful audit-chain append from a silent failure. Add a monitoring alert on `auditHashChain: append failed after retries` log lines to detect chain gaps in production.

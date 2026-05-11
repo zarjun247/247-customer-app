@@ -3,6 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import { isSafeRequestId } from "../services/observability";
 import { requestIdMiddleware, requestLoggerMiddleware, requestErrorLoggerMiddleware, buildRequestLogEntry } from "./requestLogger";
+import { buildCspMiddleware, parseCspMode } from "./cspEnforcer";
 
 export const NORMAL_JSON_LIMIT = "1mb";
 export const NORMAL_URLENCODED_LIMIT = "256kb";
@@ -113,6 +114,7 @@ export function uploadJsonParser(): RequestHandler {
 export function applyHttpSecurity(app: MiddlewareRegistrar, env: NodeJS.ProcessEnv = process.env) {
   app.use(requestIdMiddleware());
   app.use(securityHeadersMiddleware());
+  app.use(buildCspMiddleware(parseCspMode(env.CSP_MODE), env.CSP_REPORT_URI ?? null));
   app.use(corsAllowlistMiddleware(env));
   app.use(accessLogMiddleware());
   registerRawWebhookParsers(app);

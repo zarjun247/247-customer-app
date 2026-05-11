@@ -44,6 +44,9 @@ export function assertProductionEnvSafe(): void {
     if (!["database", "memory_allowed_for_single_instance"].includes(otpRateBackend)) missing.push("OTP_RATE_LIMIT_BACKEND");
   }
 
+  // MP7: PII_ENCRYPTION_MASTER_KEY is the ONLY required-in-production env var added across all 8 MPs.
+  requireProductionEnv("PII_ENCRYPTION_MASTER_KEY", missing);
+
   assertPaymentWebhookRoutePosture(missing);
   if (missing.length) throw new Error(`Missing required production env: ${missing.join(", ")}`);
 }
@@ -88,6 +91,12 @@ export const ENV = {
   reservationExpirySweepIntervalMs: Number(process.env.RESERVATION_EXPIRY_SWEEP_INTERVAL_MS ?? "30000"),
   reservationExpiryBatchSize: Number(process.env.RESERVATION_EXPIRY_BATCH_SIZE ?? "100"),
   stockLockTimeoutMs: Number(process.env.STOCK_LOCK_TIMEOUT_MS ?? "5000"),
+  // MP7: security hardening optional vars. PII_ENCRYPTION_MASTER_KEY is REQUIRED in production (handled above).
+  // CSP_MODE, CSP_REPORT_URI, and AUDIT_CHAIN_VERIFY_ON_STARTUP are optional in all environments.
+  cspMode: (process.env.CSP_MODE ?? "off") as "off" | "report_only" | "enforce",
+  cspReportUri: process.env.CSP_REPORT_URI ?? "",
+  auditChainVerifyOnStartup: (process.env.AUDIT_CHAIN_VERIFY_ON_STARTUP ?? "").toLowerCase() === "true",
+  apiRateLimitBackend: process.env.API_RATE_LIMIT_BACKEND ?? "memory",
 };
 
 assertProductionEnvSafe();

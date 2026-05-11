@@ -4,6 +4,7 @@ import superjson from "superjson";
 import { context as otelContext, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { TrpcContext } from "./context";
 import { requireStaffStore } from './rbac';
+import { hasCapability } from '../services/capabilityGrantService';
 
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -271,6 +272,26 @@ export function requirePrescriptionOwnershipOrStaff(
   if (!isStaffRole(userRole) && userId !== prescriptionUserId) {
     throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this prescription" });
   }
+}
+
+// ─── Capability-based procedure builder (MP7 RBAC v2) ────────────────────────
+
+/**
+ * Returns a procedure that enforces a named capability grant in addition to
+ * requiring the caller to be authenticated. Falls back gracefully to FORBIDDEN
+ * if the DB is unavailable rather than erroring.
+ *
+ * Usage:  capabilityProcedure("refund.large").query(...)
+ */
+export function capabilityProcedure(capabilityName: string) {
+  return baseProcedure.use(
+    t.middleware(async ({ ctx, next }) => {
+      if (!ctx.user?.id) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+      const allowed = await hasCapability(ctx.user.id, capabilityName, new Date(), ctx.user.role ?? undefined);
+      if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: `Capability '${capabilityName}' required` });
+      return next({ ctx: { ...ctx, user: ctx.user } });
+    }),
+  );
 }
 
 // ─── Boolean helpers ──────────────────────────────────────────────────────────

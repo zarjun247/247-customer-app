@@ -6,7 +6,7 @@
  * Admins can view all tickets and resolve them.
  */
 
-import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
+import { router, protectedProcedure, adminProcedure, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -192,7 +192,7 @@ export const helpdeskRouter = router({
    * Resolve a ticket with a resolution note (admin only).
    * Convenience wrapper around updateStatus.
    */
-  resolve: adminProcedure
+  resolve: capabilityProcedure("audit.view")
     .input(
       z.object({
         ticketId: z.number().int().positive(),
