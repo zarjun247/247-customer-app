@@ -3,6 +3,10 @@
 ## Mandatory Reads Before Any Work
 - docs/PRODUCT_NORTH_STAR.md
 - docs/PHARMACY_OS_BLUEPRINT.md
+- docs/OPERATIONS.md
+- docs/COMPLIANCE.md
+- docs/STATUS.md
+- OPEN_BLOCKERS.md
 
 Agents MUST read and align with these before making architectural or behavioral changes.
 

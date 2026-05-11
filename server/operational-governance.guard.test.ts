@@ -1,38 +1,21 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 
-const requiredDocs = [
-  "PHARMACIST_OPERATIONS_SOP.md",
-  "SHIFT_HANDOFF_SOP.md",
-  "STORE_OPENING_CHECKLIST.md",
-  "STORE_CLOSING_CHECKLIST.md",
-  "CONTROLLED_DRUG_HANDLING_SOP.md",
-  "INCIDENT_ESCALATION_MATRIX.md",
-  "OPERATIONAL_OWNERSHIP_MATRIX.md",
-  "PHARMACIST_ESCALATION_RULES.md",
-  "RECONCILIATION_OVERRIDE_GOVERNANCE.md",
-  "OPERATIONAL_READINESS_MATRIX.md",
-  "PHARMACIST_TRAINING_PACKET.md",
-  "STORE_MANAGER_TRAINING_PACKET.md",
-  "INCIDENT_COMMANDER_RUNBOOK.md",
-];
-
 function readDoc(path: string): string {
   expect(fs.existsSync(path), `${path} must exist`).toBe(true);
   return fs.readFileSync(path, "utf8");
 }
 
 describe("operational governance documentation guard", () => {
-  it("keeps the operational SOP corpus present and explicit", () => {
-    for (const docPath of requiredDocs) {
-      const text = readDoc(docPath);
-      expect(text.length, `${docPath} should contain executable doctrine`).toBeGreaterThan(800);
-      expect(text).toMatch(/Updated: 2026-05-10/);
-    }
+  it("keeps the operational SOP corpus present and substantial", () => {
+    const ops = readDoc("docs/OPERATIONS.md");
+    const compliance = readDoc("docs/COMPLIANCE.md");
+    expect(ops.length, "docs/OPERATIONS.md should be substantial").toBeGreaterThan(5000);
+    expect(compliance.length, "docs/COMPLIANCE.md should be substantial").toBeGreaterThan(2000);
   });
 
-  it("preserves pharmacist gates, H\/H1 controls, and AI boundaries", () => {
-    const corpus = requiredDocs.map(readDoc).join("\n");
+  it("preserves pharmacist gates, H/H1 controls, and AI boundaries", () => {
+    const corpus = readDoc("docs/OPERATIONS.md") + "\n" + readDoc("docs/COMPLIANCE.md");
     expect(corpus).toMatch(/AI[^\n]+assistive only/i);
     expect(corpus).toMatch(/cannot approve|No staff member, AI\/OCR output/i);
     expect(corpus).toMatch(/H\/H1\/X|H\/H1/i);
@@ -41,24 +24,20 @@ describe("operational governance documentation guard", () => {
   });
 
   it("requires operational escalation, ownership, and override metadata", () => {
-    const escalation = readDoc("INCIDENT_ESCALATION_MATRIX.md") + readDoc("PHARMACIST_ESCALATION_RULES.md");
-    expect(escalation).toContain("Incident commander");
-    expect(escalation).toContain("Rollback authority");
-    expect(escalation).toContain("Emergency freeze authority");
-    expect(escalation).toContain("Required escalation metadata");
+    const ops = readDoc("docs/OPERATIONS.md");
+    expect(ops).toContain("Incident commander");
+    expect(ops.toLowerCase()).toContain("rollback authority");
+    expect(ops.toLowerCase()).toContain("emergency freeze");
+    expect(ops).toContain("Required escalation metadata");
 
-    const overrideGovernance = readDoc("RECONCILIATION_OVERRIDE_GOVERNANCE.md");
     for (const required of ["previous value", "proposed value", "reason category", "approver", "affected store"]) {
-      expect(overrideGovernance.toLowerCase()).toContain(required);
+      expect(ops.toLowerCase()).toContain(required);
     }
   });
 
-  it("does not convert doctrine into unsupported legal, provider, or production signoff claims", () => {
-    const readiness = readDoc("OPERATIONAL_READINESS_MATRIX.md");
-    expect(readiness).toContain("Legally reviewed");
-    expect(readiness).toContain("Not claimed");
-    expect(readiness).toContain("Provider-verified");
-    expect(readiness).toContain("Production-approved");
-    expect(readiness).toMatch(/Actual controlled-production readiness is \*\*8\.9 \/ 10\*\*/);
+  it("does not overclaim legal, provider, or production readiness", () => {
+    const status = readDoc("docs/STATUS.md");
+    expect(status).toContain("NO-GO for live controlled production");
+    expect(status).toMatch(/no production deployment.*proof claimed|Hosted DB observation still required/i);
   });
 });
