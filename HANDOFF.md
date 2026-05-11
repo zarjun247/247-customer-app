@@ -61,3 +61,10 @@
 - No starting sale confirmation atomic rewrite.
 - No new *_STATUS.md / *_TRUTH.md / *_AUDIT.md / *_PROOF.md files at root.
 - No declaring merge-ready in writing — the human decides from the data.
+
+## Session complete (Claude Code, 2026-05-11)
+
+All five PR #155 closeout tasks (A-F) complete. PR moved from draft to
+ready-for-review. Human approval pending before merge. Next branch in
+roadmap is roadmap/mp1-runtime-incident-command — DO NOT start that
+work in this session. Wait for human to merge #155 first.
