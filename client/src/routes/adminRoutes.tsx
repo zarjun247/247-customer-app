@@ -49,6 +49,7 @@ import AdminPurchaseReturns from "@/pages/purchase/AdminPurchaseReturns";
 import AdminSupplierPayments from "@/pages/purchase/AdminSupplierPayments";
 import AdminPurchaseReports from "@/pages/purchase/AdminPurchaseReports";
 import AdminOcr from "@/pages/ocr/AdminOcr";
+import AdminRuntimeIncident from "@/pages/admin/AdminRuntimeIncident";
 
 export type AdminRouteDefinition = {
   path: string;
@@ -58,6 +59,8 @@ export type AdminRouteDefinition = {
 export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin", Component: AdminCommandCenter },
   { path: "/admin/command-center", Component: AdminCommandCenter },
+  { path: "/admin/runtime", Component: AdminRuntimeIncident },
+  { path: "/admin/runtime/incident", Component: AdminRuntimeIncident },
   { path: "/admin/orders", Component: AdminOrders },
   { path: "/admin/prescriptions", Component: AdminPrescriptionGov },
   { path: "/admin/sales/counter", Component: AdminCounterBilling },
