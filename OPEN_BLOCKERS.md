@@ -126,3 +126,13 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **Provider health drilldown queries last 50 events/dead-letters.** The `getProviderHealthDrilldown` function returns the 50 most recent rows for each category. If a provider accumulates high event volume, older failures will not appear in the drilldown UI. Adjust the limit or add cursor pagination when provider throughput exceeds ~500 events/day.
 
 **`ONCALL_ALERT_EMAIL` is captured in ENV but not yet used.** The field is reserved for a future email fallback when PagerDuty is not configured. Wire it to an SMTP/SES call before relying on email escalation in any SOP.
+
+## MP2 follow-ups (logged 2026-05-11)
+
+**Chaos drills are script-only, not router-triggered.** The admin UI surfaces drill history but does not trigger drills. This is intentional: drills must run from an operator's terminal with full shell context, env var control, and direct stderr visibility. A future PR may add admin-triggered drills if and only if (a) RBAC for chaos triggers is hardened beyond admin role, (b) an approval workflow is added, (c) staging-only enforcement is verified independently of NODE_ENV (which can be misconfigured).
+
+**Deployment readiness is opt-in.** When `DEPLOYMENT_VALIDATION_REQUIRED` is unset (the default), `/healthz` does not block on stale validation records. Production deployments should set this flag after the readiness check is integrated into the deploy pipeline (likely a follow-up PR or a Manus platform configuration change).
+
+**Restore drill runner is a wrapper.** It depends on `scripts/restore-db-drill.mjs` existing. If that script needs hardening (better error reporting, dry-run mode), it should be done in a follow-up PR. The current wrapper records outcomes; it does not re-implement the underlying restore logic.
+
+**Backup-age check is documentation-only.** `scripts/deployment-readiness-check.mjs` warns if the latest backup is older than `BACKUP_DRILL_MIN_INTERVAL_HOURS`, but it does not actually run a backup. Backup execution remains a separately-scheduled job (likely a cron or Manus-platform-managed task).

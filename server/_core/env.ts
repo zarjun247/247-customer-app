@@ -74,6 +74,10 @@ export const ENV = {
   // MP1-rest PR-B: on-call optional vars. Never add to assertProductionEnvSafe().
   onCallPagerDutyIntegrationKey: process.env.ONCALL_PAGERDUTY_INTEGRATION_KEY ?? "",
   onCallAlertEmail: process.env.ONCALL_ALERT_EMAIL ?? "",
+  // MP2: chaos + deployment validation optional vars. Never add to assertProductionEnvSafe().
+  chaosDrillEnabled: (process.env.CHAOS_DRILL_ENABLED ?? "").toLowerCase() === "true",
+  deploymentValidationRequired: (process.env.DEPLOYMENT_VALIDATION_REQUIRED ?? "").toLowerCase() === "true",
+  backupDrillMinIntervalHours: Number(process.env.BACKUP_DRILL_MIN_INTERVAL_HOURS ?? "168"),
 };
 
 assertProductionEnvSafe();

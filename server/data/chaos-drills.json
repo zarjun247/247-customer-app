@@ -1,0 +1,22 @@
+{
+  "records": [
+    {
+      "id": "drill-1778494386784-9d448135",
+      "ts": "2026-05-11T10:13:06.784Z",
+      "actor": "arjun",
+      "scenario": "readiness-fail-injection",
+      "outcome": "started",
+      "observations": "drill_started",
+      "durationMs": 0
+    },
+    {
+      "id": "drill-1778494386784-9d448135-done",
+      "ts": "2026-05-11T10:13:06.790Z",
+      "actor": "arjun",
+      "scenario": "readiness-fail-injection",
+      "outcome": "success",
+      "observations": "Fail record injected and cleaned up. id=chaos-fail-1778494386788",
+      "durationMs": 2
+    }
+  ]
+}
