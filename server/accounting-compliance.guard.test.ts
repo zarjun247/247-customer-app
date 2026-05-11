@@ -1,3 +1,4 @@
+import { describe, test, expect } from "vitest";
 import fs from 'fs';
 import path from 'path';
 
@@ -12,7 +13,7 @@ describe('Accounting & Compliance routers present', () => {
   test('accountingOps router file exists', () => {
     const p = path.join('server','routers','accountingOpsRouter.ts');
     const src = fs.readFileSync(p, 'utf8');
-    expect(src).toContain('refundSummary');
+    expect(src).toContain('grossMarginSummary');
     expect(src).toContain('paymentMethodBreakdown');
   });
 });
