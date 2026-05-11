@@ -3,19 +3,30 @@ import fs from "node:fs";
 
 describe("accounting+tally production guards", () => {
   it("supplier allocation table and journal/tally tables are in schema", () => {
-    const txt = fs.readFileSync("drizzle/schema.ts", "utf8");
+    const txt = fs
+      .readdirSync("drizzle/schema")
+      .filter(f => f.endsWith(".ts") && f !== "index.ts")
+      .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
+      .join("\n");
     expect(txt).toContain("supplierPaymentAllocations");
     expect(txt).toContain("accountingJournalEntries");
     expect(txt).toContain("tallyExportRuns");
   });
 
   it("migration includes paymentMode enum alter + new durable tables", () => {
-    const txt = fs.readFileSync("drizzle/0028_accounting_allocation_journal_tally.sql", "utf8");
+    const txt = fs.readFileSync(
+      "drizzle/0028_accounting_allocation_journal_tally.sql",
+      "utf8"
+    );
     expect(txt).toContain("ALTER TABLE supplier_payments");
     expect(txt).toContain("credit");
     expect(txt).toContain("advance");
-    expect(txt).toContain("CREATE TABLE IF NOT EXISTS supplier_payment_allocations");
-    expect(txt).toContain("CREATE TABLE IF NOT EXISTS accounting_journal_entries");
+    expect(txt).toContain(
+      "CREATE TABLE IF NOT EXISTS supplier_payment_allocations"
+    );
+    expect(txt).toContain(
+      "CREATE TABLE IF NOT EXISTS accounting_journal_entries"
+    );
     expect(txt).toContain("CREATE TABLE IF NOT EXISTS tally_export_runs");
   });
 

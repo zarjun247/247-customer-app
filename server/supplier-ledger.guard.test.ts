@@ -3,7 +3,9 @@ import fs from "node:fs";
 
 describe("supplier ledger guards", () => {
   it("purchase commit path references payable creation", () => {
-    const src = fs.readFileSync("server/routers/purchaseRouter.ts", "utf8");
+    const src =
+      fs.readFileSync("server/routers/purchaseRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/purchaseRouterExtension.ts", "utf8");
     expect(src.includes("recordSupplierPayable")).toBe(true);
   });
 

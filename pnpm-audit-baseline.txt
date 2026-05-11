@@ -1,0 +1,2 @@
+73 vulnerabilities found
+Severity: 4 low | 42 moderate | 26 high | 1 critical

@@ -88,12 +88,23 @@ describe('payment gateway guards', () => {
     });
   });
 
-  it('lifecycle stubs do not return fake success in production', async () => {
-    process.env.NODE_ENV = 'production';
-    process.env.PAYMENT_DEMO_MODE = 'false';
-    await expect(recordPaymentAttempt({})).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    await expect(markPaymentAuthorized({})).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
-    await expect(markPaymentRefunded({})).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+  it('lifecycle helpers reject missing gatewayOrderId with BAD_REQUEST', async () => {
+    await expect(recordPaymentAttempt({})).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(markPaymentAuthorized({})).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(markPaymentRefunded({})).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('recordPaymentAttempt is wired to DB (not a NOT_IMPLEMENTED stub)', async () => {
+    // Throws INTERNAL_SERVER_ERROR (DB unavailable) not NOT_IMPLEMENTED — proves implementation is active.
+    await expect(recordPaymentAttempt({ gatewayOrderId: 'order_guard_1' })).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('markPaymentAuthorized is wired to DB (not a NOT_IMPLEMENTED stub)', async () => {
+    await expect(markPaymentAuthorized({ gatewayOrderId: 'order_guard_2', gatewayPaymentId: 'pay_guard_2' })).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
+  });
+
+  it('markPaymentRefunded is wired to DB (not a NOT_IMPLEMENTED stub)', async () => {
+    await expect(markPaymentRefunded({ gatewayOrderId: 'order_guard_3', providerRefundId: 'rfnd_guard_3' })).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
   });
 
   it('payment route checks real verification before marking captured or advancing orders', () => {

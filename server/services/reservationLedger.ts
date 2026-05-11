@@ -5,7 +5,12 @@ import { executeCommand, type CommandContext } from "./executeCommand";
 import { withLock, makeLockKey } from "./stockLockService";
 import { getCanonicalAvailability } from "./canonicalAvailability";
 import { getDb } from "../db";
-import { reservations, reservationLines, stockMovements, batchLedger } from "../../drizzle/schema";
+import {
+  reservations,
+  reservationLines,
+  stockMovements,
+  batchLedger,
+} from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -108,10 +113,10 @@ export class InsufficientStockError extends Error {
   constructor(
     public readonly productId: number,
     public readonly requested: number,
-    public readonly available: number,
+    public readonly available: number
   ) {
     super(
-      `Insufficient stock for product ${productId}: requested ${requested}, available ${available}`,
+      `Insufficient stock for product ${productId}: requested ${requested}, available ${available}`
     );
     this.name = "InsufficientStockError";
   }
@@ -134,7 +139,7 @@ export class ReservationExpiredError extends Error {
 export class IllegalReservationStateError extends Error {
   constructor(reservationId: string, current: string, expected: string) {
     super(
-      `Reservation ${reservationId} is in state "${current}", expected "${expected}"`,
+      `Reservation ${reservationId} is in state "${current}", expected "${expected}"`
     );
     this.name = "IllegalReservationStateError";
   }
@@ -144,7 +149,7 @@ export class IllegalReservationStateError extends Error {
 
 async function loadReservation(
   tx: Awaited<ReturnType<typeof getDb>>,
-  reservationId: string,
+  reservationId: string
 ) {
   if (!tx) throw new ReservationNotFoundError(reservationId);
   const rows = await (tx as any)
@@ -152,13 +157,14 @@ async function loadReservation(
     .from(reservations)
     .where(eq(reservations.id, reservationId))
     .limit(1);
-  if (!rows || rows.length === 0) throw new ReservationNotFoundError(reservationId);
+  if (!rows || rows.length === 0)
+    throw new ReservationNotFoundError(reservationId);
   return rows[0] as ReservationRecord;
 }
 
 async function loadReservationLines(
   tx: Awaited<ReturnType<typeof getDb>>,
-  reservationId: string,
+  reservationId: string
 ) {
   if (!tx) return [];
   return (tx as any)
@@ -171,11 +177,11 @@ async function loadReservationLines(
 
 export async function reserve(
   input: ReserveInput,
-  context: CommandContext,
+  context: CommandContext
 ): Promise<ReserveOutput> {
   const ttlSeconds = Math.min(
     input.ttlSeconds ?? ENV.reservationTtlSeconds,
-    ENV.reservationTtlSeconds,
+    ENV.reservationTtlSeconds
   );
 
   // Sort lines by productId (deterministic lock ordering prevents deadlocks).
@@ -188,18 +194,20 @@ export async function reserve(
   // before entering executeCommand. This prevents deadlocks and ensures serial
   // allocation within the same store+product.
   const lockKeys = Array.from(
-    new Set(sortedLines.map((l) => makeLockKey(input.storeId, l.productId, l.variantId))),
+    new Set(
+      sortedLines.map(l => makeLockKey(input.storeId, l.productId, l.variantId))
+    )
   );
 
-  return withLock(lockKeys[0]!, async () => {
+  return withLock(lockKeys[0], async () => {
     // Nested locks for multi-SKU reservations (sorted so deadlock-free).
     const runWithRemainingLocks = async (
-      idx: number,
+      idx: number
     ): Promise<ReserveOutput> => {
       if (idx >= lockKeys.length) {
         return executeReserveCommand(input, context, ttlSeconds, sortedLines);
       }
-      return withLock(lockKeys[idx]!, () => runWithRemainingLocks(idx + 1));
+      return withLock(lockKeys[idx], () => runWithRemainingLocks(idx + 1));
     };
 
     return runWithRemainingLocks(1);
@@ -210,7 +218,7 @@ async function executeReserveCommand(
   input: ReserveInput,
   context: CommandContext,
   ttlSeconds: number,
-  sortedLines: ReserveLine[],
+  sortedLines: ReserveLine[]
 ): Promise<ReserveOutput> {
   return executeCommand<ReserveInput, ReserveOutput>({
     name: "reservation.reserve",
@@ -246,14 +254,14 @@ async function executeReserveCommand(
         const avail = await getCanonicalAvailability(
           line.productId,
           input.storeId,
-          line.variantId,
+          line.variantId
         );
 
         if (avail.totalSellable < line.quantity) {
           throw new InsufficientStockError(
             line.productId,
             line.quantity,
-            avail.totalSellable,
+            avail.totalSellable
           );
         }
 
@@ -267,9 +275,10 @@ async function executeReserveCommand(
           const take = Math.min(batch.sellable, remaining);
           remaining -= take;
 
-          const expiryStr = batch.expiryDate instanceof Date
-            ? batch.expiryDate.toISOString().slice(0, 10)
-            : String(batch.expiryDate);
+          const expiryStr =
+            batch.expiryDate instanceof Date
+              ? batch.expiryDate.toISOString().slice(0, 10)
+              : String(batch.expiryDate);
 
           lineRows.push({
             id: randomUUID(),
@@ -294,7 +303,7 @@ async function executeReserveCommand(
           throw new InsufficientStockError(
             line.productId,
             line.quantity,
-            line.quantity - remaining,
+            line.quantity - remaining
           );
         }
 
@@ -340,7 +349,7 @@ async function executeReserveCommand(
 
 export async function confirm(
   input: ConfirmInput,
-  context: CommandContext,
+  context: CommandContext
 ): Promise<ConfirmOutput> {
   return executeCommand<ConfirmInput, ConfirmOutput>({
     name: "reservation.confirm",
@@ -358,13 +367,13 @@ export async function confirm(
           throw new IllegalReservationStateError(
             input.reservationId,
             reservation.state,
-            "active",
+            "active"
           );
         }
         throw new IllegalReservationStateError(
           input.reservationId,
           reservation.state,
-          "active",
+          "active"
         );
       }
 
@@ -448,7 +457,7 @@ export async function confirm(
 
 export async function release(
   input: ReleaseInput,
-  context: CommandContext,
+  context: CommandContext
 ): Promise<ReleaseOutput> {
   return executeCommand<ReleaseInput, ReleaseOutput>({
     name: "reservation.release",
@@ -460,11 +469,14 @@ export async function release(
     handler: async (_input, tx, _ctx) => {
       const reservation = await loadReservation(tx, input.reservationId);
 
-      if (reservation.state !== "active" && reservation.state !== "pending_confirmation") {
+      if (
+        reservation.state !== "active" &&
+        reservation.state !== "pending_confirmation"
+      ) {
         throw new IllegalReservationStateError(
           input.reservationId,
           reservation.state,
-          "active or pending_confirmation",
+          "active or pending_confirmation"
         );
       }
 
@@ -487,7 +499,7 @@ export async function release(
 
 export async function expire(
   input: ExpireInput,
-  context: CommandContext,
+  context: CommandContext
 ): Promise<ExpireOutput> {
   return executeCommand<ExpireInput, ExpireOutput>({
     name: "reservation.expire",
@@ -503,7 +515,7 @@ export async function expire(
         throw new IllegalReservationStateError(
           input.reservationId,
           reservation.state,
-          "active",
+          "active"
         );
       }
 
@@ -511,7 +523,7 @@ export async function expire(
         throw new IllegalReservationStateError(
           input.reservationId,
           reservation.state,
-          "active and past TTL",
+          "active and past TTL"
         );
       }
 
@@ -534,20 +546,22 @@ export async function expire(
 
 export async function listActive(
   storeId: number,
-  limit = 100,
+  limit = 100
 ): Promise<ReservationRecord[]> {
   const db = await getDb();
   if (!db) return [];
   return (db as any)
     .select()
     .from(reservations)
-    .where(and(eq(reservations.storeId, storeId), eq(reservations.state, "active")))
+    .where(
+      and(eq(reservations.storeId, storeId), eq(reservations.state, "active"))
+    )
     .limit(limit) as Promise<ReservationRecord[]>;
 }
 
 export async function listByCustomer(
   customerId: number,
-  limit = 100,
+  limit = 100
 ): Promise<ReservationRecord[]> {
   const db = await getDb();
   if (!db) return [];
@@ -559,7 +573,7 @@ export async function listByCustomer(
 }
 
 export async function getById(
-  reservationId: string,
+  reservationId: string
 ): Promise<ReservationRecord | null> {
   const db = await getDb();
   if (!db) return null;

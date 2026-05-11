@@ -8,27 +8,45 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
-import { assertSensitiveActionAllowed, requirePermission } from "../services/rbacPolicy";
-import { canUsePrescriptionOnFile, isPrescriptionExpired, logPrescriptionVaultAccess } from "../services/prescriptionVault";
+import {
+  assertSensitiveActionAllowed,
+  requirePermission,
+} from "../services/rbacPolicy";
+import {
+  canUsePrescriptionOnFile,
+  isPrescriptionExpired,
+  logPrescriptionVaultAccess,
+} from "../services/prescriptionVault";
 import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
+import { prescriptionGovRouterExtension } from "./prescriptionGovRouterExtension";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
   const db = await getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  if (!db)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "DB unavailable",
+    });
   return db;
 }
 
 function requirePharmacist(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "pharmacist"];
   if (!role || !allowed.includes(role))
-    throw new TRPCError({ code: "FORBIDDEN", message: "Pharmacist role required" });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Pharmacist role required",
+    });
 }
 
 function requireManager(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "store_manager", "pharmacist"];
   if (!role || !allowed.includes(role))
-    throw new TRPCError({ code: "FORBIDDEN", message: "Manager or pharmacist role required" });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Manager or pharmacist role required",
+    });
 }
 
 async function logAccess(
@@ -38,7 +56,7 @@ async function logAccess(
   accessType: "view" | "download" | "print" | "api_check" | "audit",
   purpose: string,
   actorRole: string | null | undefined,
-  channel: "admin" | "api" | "app" | "system" | "whatsapp" = "admin",
+  channel: "admin" | "api" | "app" | "system" | "whatsapp" = "admin"
 ) {
   await logPrescriptionVaultAccess(db, {
     prescriptionId,
@@ -54,14 +72,27 @@ export const prescriptionGovRouter = router({
   // ── Queue ──────────────────────────────────────────────────────────────────
   /** List pending prescriptions for pharmacist review */
   queue: protectedProcedure
-    .input(z.object({
-      status: z.enum(["pending_ocr", "pending_pharmacist", "quick_verify", "approved", "rejected",
-        "additional_verification", "on_file", "all"]).optional().default("pending_pharmacist"),
-      storeId: z.number().int().optional(),
-      search: z.string().optional(),
-      page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(100).default(20),
-    }))
+    .input(
+      z.object({
+        status: z
+          .enum([
+            "pending_ocr",
+            "pending_pharmacist",
+            "quick_verify",
+            "approved",
+            "rejected",
+            "additional_verification",
+            "on_file",
+            "all",
+          ])
+          .optional()
+          .default("pending_pharmacist"),
+        storeId: z.number().int().optional(),
+        search: z.string().optional(),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(20),
+      })
+    )
     .query(async ({ ctx, input }) => {
       requirePermission(ctx, "prescription.view");
       await assertSensitiveActionAllowed(ctx, "prescription.vault.access");
@@ -70,14 +101,18 @@ export const prescriptionGovRouter = router({
       const offset = (input.page - 1) * input.pageSize;
 
       const conditions = [];
-      if (input.status !== "all") conditions.push(eq(prescriptions.status, input.status));
-      if (input.storeId) conditions.push(eq(prescriptions.storeId, input.storeId));
+      if (input.status !== "all")
+        conditions.push(eq(prescriptions.status, input.status));
+      if (input.storeId)
+        conditions.push(eq(prescriptions.storeId, input.storeId));
       if (input.search) {
-        conditions.push(or(
-          like(prescriptions.patientName, `%${input.search}%`),
-          like(prescriptions.doctorName, `%${input.search}%`),
-          like(prescriptions.patientPhone, `%${input.search}%`),
-        ));
+        conditions.push(
+          or(
+            like(prescriptions.patientName, `%${input.search}%`),
+            like(prescriptions.doctorName, `%${input.search}%`),
+            like(prescriptions.patientPhone, `%${input.search}%`)
+          )
+        );
       }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -131,7 +166,12 @@ export const prescriptionGovRouter = router({
         .from(prescriptions)
         .where(where);
 
-      return { rows, total: Number(countRow?.count ?? 0), page: input.page, pageSize: input.pageSize };
+      return {
+        rows,
+        total: Number(countRow?.count ?? 0),
+        page: input.page,
+        pageSize: input.pageSize,
+      };
     }),
 
   // ── Get single prescription with lines ────────────────────────────────────
@@ -141,7 +181,9 @@ export const prescriptionGovRouter = router({
       requirePermission(ctx, "prescription.view");
       await assertSensitiveActionAllowed(ctx, "prescription.vault.access");
       const db = await getDbSafe();
-      const { prescriptions, prescriptionLines, users } = await import("../../drizzle/schema");
+      const { prescriptions, prescriptionLines, users } = await import(
+        "../../drizzle/schema"
+      );
 
       const [rx] = await db
         .select()
@@ -150,7 +192,11 @@ export const prescriptionGovRouter = router({
         .where(eq(prescriptions.id, input.id))
         .limit(1);
 
-      if (!rx) throw new TRPCError({ code: "NOT_FOUND", message: "Prescription not found" });
+      if (!rx)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Prescription not found",
+        });
 
       const lines = await db
         .select()
@@ -159,86 +205,127 @@ export const prescriptionGovRouter = router({
         .orderBy(prescriptionLines.lineNo);
 
       // Log access
-      await logAccess(db, input.id, ctx.user.id as number, "view", "pharmacist_review", ctx.user.role, "admin");
+      await logAccess(
+        db,
+        input.id,
+        ctx.user.id,
+        "view",
+        "pharmacist_review",
+        ctx.user.role,
+        "admin"
+      );
 
       return { prescription: rx, lines };
     }),
 
   // ── Update prescription metadata (patient/doctor details) ─────────────────
   updateMetadata: protectedProcedure
-    .input(z.object({
-      id: z.number().int(),
-      patientName: z.string().optional(),
-      patientPhone: z.string().optional(),
-      patientAddress: z.string().optional(),
-      doctorName: z.string().optional(),
-      doctorReg: z.string().optional(),
-      doctorRegNo: z.string().optional(),
-      clinicName: z.string().optional(),
-      prescribedDate: z.string().optional(), // ISO date string
-      prescriptionDate: z.string().optional(),
-      expiryDate: z.string().optional(),
-      validUntil: z.string().optional(),
-      linkedProductIds: z.array(z.number().int().positive()).max(50).optional(),
-      source: z.enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"]).optional(),
-      repeatDispenseMax: z.number().int().min(1).max(12).optional(),
-    }))
+    .input(
+      z.object({
+        id: z.number().int(),
+        patientName: z.string().optional(),
+        patientPhone: z.string().optional(),
+        patientAddress: z.string().optional(),
+        doctorName: z.string().optional(),
+        doctorReg: z.string().optional(),
+        doctorRegNo: z.string().optional(),
+        clinicName: z.string().optional(),
+        prescribedDate: z.string().optional(), // ISO date string
+        prescriptionDate: z.string().optional(),
+        expiryDate: z.string().optional(),
+        validUntil: z.string().optional(),
+        linkedProductIds: z
+          .array(z.number().int().positive())
+          .max(50)
+          .optional(),
+        source: z
+          .enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"])
+          .optional(),
+        repeatDispenseMax: z.number().int().min(1).max(12).optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       requirePermission(ctx, "prescription.review");
       await assertSensitiveActionAllowed(ctx, "prescription.review");
       const db = await getDbSafe();
       const { prescriptions } = await import("../../drizzle/schema");
 
-      const [before] = await db.select().from(prescriptions).where(eq(prescriptions.id, input.id)).limit(1);
+      const [before] = await db
+        .select()
+        .from(prescriptions)
+        .where(eq(prescriptions.id, input.id))
+        .limit(1);
       if (!before) throw new TRPCError({ code: "NOT_FOUND" });
 
       const updateData: Record<string, unknown> = {};
-      if (input.patientName !== undefined) updateData.patientName = input.patientName;
-      if (input.patientPhone !== undefined) updateData.patientPhone = input.patientPhone;
-      if (input.patientAddress !== undefined) updateData.patientAddress = input.patientAddress;
-      if (input.doctorName !== undefined) updateData.doctorName = input.doctorName;
+      if (input.patientName !== undefined)
+        updateData.patientName = input.patientName;
+      if (input.patientPhone !== undefined)
+        updateData.patientPhone = input.patientPhone;
+      if (input.patientAddress !== undefined)
+        updateData.patientAddress = input.patientAddress;
+      if (input.doctorName !== undefined)
+        updateData.doctorName = input.doctorName;
       if (input.doctorReg !== undefined) updateData.doctorReg = input.doctorReg;
       if (input.doctorRegNo !== undefined) {
         updateData.doctorRegNo = input.doctorRegNo;
         updateData.doctorReg = input.doctorRegNo;
       }
-      if (input.clinicName !== undefined) updateData.clinicName = input.clinicName;
-      if (input.prescribedDate !== undefined) updateData.prescribedDate = new Date(input.prescribedDate);
+      if (input.clinicName !== undefined)
+        updateData.clinicName = input.clinicName;
+      if (input.prescribedDate !== undefined)
+        updateData.prescribedDate = new Date(input.prescribedDate);
       if (input.prescriptionDate !== undefined) {
         updateData.prescriptionDate = new Date(input.prescriptionDate);
         updateData.prescribedDate = new Date(input.prescriptionDate);
       }
-      if (input.expiryDate !== undefined) updateData.expiryDate = new Date(input.expiryDate);
+      if (input.expiryDate !== undefined)
+        updateData.expiryDate = new Date(input.expiryDate);
       if (input.validUntil !== undefined) {
         updateData.validUntil = new Date(input.validUntil);
         updateData.expiryDate = new Date(input.validUntil);
       }
-      if (input.linkedProductIds !== undefined) updateData.linkedProductIds = JSON.stringify(input.linkedProductIds);
+      if (input.linkedProductIds !== undefined)
+        updateData.linkedProductIds = JSON.stringify(input.linkedProductIds);
       if (input.source !== undefined) updateData.source = input.source;
-      if (input.repeatDispenseMax !== undefined) updateData.repeatDispenseMax = input.repeatDispenseMax;
+      if (input.repeatDispenseMax !== undefined)
+        updateData.repeatDispenseMax = input.repeatDispenseMax;
 
-      await db.update(prescriptions).set(updateData).where(eq(prescriptions.id, input.id));
-      await logAudit({ actorId: ctx.user.id as number, action: "prescription.update_metadata", entityType: "prescription", entityId: input.id, beforeJson: before, afterJson: updateData, source: "admin" });
+      await db
+        .update(prescriptions)
+        .set(updateData)
+        .where(eq(prescriptions.id, input.id));
+      await logAudit({
+        actorId: ctx.user.id,
+        action: "prescription.update_metadata",
+        entityType: "prescription",
+        entityId: input.id,
+        beforeJson: before,
+        afterJson: updateData,
+        source: "admin",
+      });
       return { success: true };
     }),
 
   // ── Add/update prescription lines (OCR-extracted or manual) ───────────────
   upsertLine: protectedProcedure
-    .input(z.object({
-      prescriptionId: z.number().int(),
-      lineId: z.number().int().optional(), // if editing existing
-      lineNo: z.number().int().min(1),
-      drugName: z.string().min(1),
-      genericName: z.string().optional(),
-      strength: z.string().optional(),
-      dosageForm: z.string().optional(),
-      qty: z.number().int().positive().optional(),
-      duration: z.string().optional(),
-      frequency: z.string().optional(),
-      instructions: z.string().optional(),
-      scheduleCode: z.enum(["OTC", "Rx", "H", "H1", "X", "NRX"]).optional(),
-      linkedProductId: z.number().int().optional(),
-    }))
+    .input(
+      z.object({
+        prescriptionId: z.number().int(),
+        lineId: z.number().int().optional(), // if editing existing
+        lineNo: z.number().int().min(1),
+        drugName: z.string().min(1),
+        genericName: z.string().optional(),
+        strength: z.string().optional(),
+        dosageForm: z.string().optional(),
+        qty: z.number().int().positive().optional(),
+        duration: z.string().optional(),
+        frequency: z.string().optional(),
+        instructions: z.string().optional(),
+        scheduleCode: z.enum(["OTC", "Rx", "H", "H1", "X", "NRX"]).optional(),
+        linkedProductId: z.number().int().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       requirePermission(ctx, "prescription.review");
       await assertSensitiveActionAllowed(ctx, "prescription.review");
@@ -249,10 +336,19 @@ export const prescriptionGovRouter = router({
       const requiresH1 = lineData.scheduleCode === "H1" ? 1 : 0;
 
       if (lineId) {
-        await db.update(prescriptionLines)
+        await db
+          .update(prescriptionLines)
           .set({ ...lineData, requiresH1 })
           .where(eq(prescriptionLines.id, lineId));
-        await logAudit({ actorId: ctx.user.id as number, action: "prescription.update_line", entityType: "prescription_line", entityId: lineId, beforeJson: null, afterJson: lineData, source: "admin" });
+        await logAudit({
+          actorId: ctx.user.id,
+          action: "prescription.update_line",
+          entityType: "prescription_line",
+          entityId: lineId,
+          beforeJson: null,
+          afterJson: lineData,
+          source: "admin",
+        });
         return { success: true, lineId };
       } else {
         const [result] = await db.insert(prescriptionLines).values({
@@ -261,450 +357,111 @@ export const prescriptionGovRouter = router({
           requiresH1,
           status: "pending",
         });
-        await logAudit({ actorId: ctx.user.id as number, action: "prescription.add_line", entityType: "prescription_line", entityId: (result as { insertId: number }).insertId, beforeJson: null, afterJson: lineData, source: "admin" });
-        return { success: true, lineId: (result as { insertId: number }).insertId };
+        await logAudit({
+          actorId: ctx.user.id,
+          action: "prescription.add_line",
+          entityType: "prescription_line",
+          entityId: (result as { insertId: number }).insertId,
+          beforeJson: null,
+          afterJson: lineData,
+          source: "admin",
+        });
+        return {
+          success: true,
+          lineId: (result as { insertId: number }).insertId,
+        };
       }
     }),
 
   // ── Approve individual line ────────────────────────────────────────────────
   approveLine: protectedProcedure
-    .input(z.object({
-      lineId: z.number().int(),
-      pharmacistNote: z.string().optional(),
-      linkedProductId: z.number().int().optional(),
-      linkedBatchNo: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        lineId: z.number().int(),
+        pharmacistNote: z.string().optional(),
+        linkedProductId: z.number().int().optional(),
+        linkedBatchNo: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       requirePermission(ctx, "regulated.release.approve");
       await assertSensitiveActionAllowed(ctx, "regulated.release.approve");
       const db = await getDbSafe();
       const { prescriptionLines } = await import("../../drizzle/schema");
 
-      const [line] = await db.select().from(prescriptionLines).where(eq(prescriptionLines.id, input.lineId)).limit(1);
-      if (!line) throw new TRPCError({ code: "NOT_FOUND", message: "Line not found" });
+      const [line] = await db
+        .select()
+        .from(prescriptionLines)
+        .where(eq(prescriptionLines.id, input.lineId))
+        .limit(1);
+      if (!line)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Line not found" });
 
-      await db.update(prescriptionLines).set({
-        status: "approved",
-        pharmacistNote: input.pharmacistNote ?? null,
-        reviewedBy: ctx.user.id as number,
-        reviewedAt: new Date(),
-        linkedProductId: input.linkedProductId ?? line.linkedProductId,
-        linkedBatchNo: input.linkedBatchNo ?? line.linkedBatchNo,
-      }).where(eq(prescriptionLines.id, input.lineId));
+      await db
+        .update(prescriptionLines)
+        .set({
+          status: "approved",
+          pharmacistNote: input.pharmacistNote ?? null,
+          reviewedBy: ctx.user.id,
+          reviewedAt: new Date(),
+          linkedProductId: input.linkedProductId ?? line.linkedProductId,
+          linkedBatchNo: input.linkedBatchNo ?? line.linkedBatchNo,
+        })
+        .where(eq(prescriptionLines.id, input.lineId));
 
-      await logAudit({ actorId: ctx.user.id as number, action: "prescription.approve_line", entityType: "prescription_line", entityId: input.lineId, beforeJson: line, afterJson: { status: "approved" }, source: "admin" });
+      await logAudit({
+        actorId: ctx.user.id,
+        action: "prescription.approve_line",
+        entityType: "prescription_line",
+        entityId: input.lineId,
+        beforeJson: line,
+        afterJson: { status: "approved" },
+        source: "admin",
+      });
       return { success: true };
     }),
 
   // ── Reject individual line ─────────────────────────────────────────────────
   rejectLine: protectedProcedure
-    .input(z.object({
-      lineId: z.number().int(),
-      pharmacistNote: z.string().min(1, "Rejection reason required"),
-    }))
+    .input(
+      z.object({
+        lineId: z.number().int(),
+        pharmacistNote: z.string().min(1, "Rejection reason required"),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       requirePharmacist(ctx.user.role);
       const db = await getDbSafe();
       const { prescriptionLines } = await import("../../drizzle/schema");
 
-      const [line] = await db.select().from(prescriptionLines).where(eq(prescriptionLines.id, input.lineId)).limit(1);
+      const [line] = await db
+        .select()
+        .from(prescriptionLines)
+        .where(eq(prescriptionLines.id, input.lineId))
+        .limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND" });
 
-      await db.update(prescriptionLines).set({
-        status: "rejected",
-        pharmacistNote: input.pharmacistNote,
-        reviewedBy: ctx.user.id as number,
-        reviewedAt: new Date(),
-      }).where(eq(prescriptionLines.id, input.lineId));
-
-      await logAudit({ actorId: ctx.user.id as number, action: "prescription.reject_line", entityType: "prescription_line", entityId: input.lineId, beforeJson: line, afterJson: { status: "rejected", reason: input.pharmacistNote }, source: "admin" });
-      return { success: true };
-    }),
-
-  // ── Full prescription review (approve/reject entire Rx) ───────────────────
-  review: protectedProcedure
-    .input(z.object({
-      id: z.number().int(),
-      decision: z.enum(["approved", "rejected"]),
-      pharmacistNote: z.string().optional(),
-      linkedSaleId: z.number().int().optional(),
-      linkedOrderId: z.number().int().optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      requirePharmacist(ctx.user.role);
-      const db = await getDbSafe();
-      const { prescriptions, prescriptionLines } = await import("../../drizzle/schema");
-
-      const [rx] = await db.select().from(prescriptions).where(eq(prescriptions.id, input.id)).limit(1);
-      if (!rx) throw new TRPCError({ code: "NOT_FOUND" });
-
-      // Update prescription status
-      await db.update(prescriptions).set({
-        status: input.decision,
-        pharmacistNote: input.pharmacistNote ?? null,
-        pharmacistId: ctx.user.id as number,
-        reviewedAt: new Date(),
-        linkedSaleId: input.linkedSaleId ?? rx.linkedSaleId,
-        linkedOrderId: input.linkedOrderId ?? rx.linkedOrderId,
-      }).where(eq(prescriptions.id, input.id));
-
-      // If approving, auto-approve all pending lines
-      if (input.decision === "approved") {
-        await db.update(prescriptionLines).set({
-          status: "approved",
-          reviewedBy: ctx.user.id as number,
+      await db
+        .update(prescriptionLines)
+        .set({
+          status: "rejected",
+          pharmacistNote: input.pharmacistNote,
+          reviewedBy: ctx.user.id,
           reviewedAt: new Date(),
-        }).where(and(
-          eq(prescriptionLines.prescriptionId, input.id),
-          eq(prescriptionLines.status, "pending"),
-        ));
-      }
+        })
+        .where(eq(prescriptionLines.id, input.lineId));
 
-      await logAudit({ actorId: ctx.user.id as number, action: `prescription.rx_${input.decision}`, entityType: "prescription", entityId: input.id, beforeJson: rx, afterJson: { status: input.decision, note: input.pharmacistNote }, source: "admin" });
-      await logAccess(db, input.id, ctx.user.id as number, "audit", `rx_${input.decision}`, ctx.user.role, "admin");
+      await logAudit({
+        actorId: ctx.user.id,
+        action: "prescription.reject_line",
+        entityType: "prescription_line",
+        entityId: input.lineId,
+        beforeJson: line,
+        afterJson: { status: "rejected", reason: input.pharmacistNote },
+        source: "admin",
+      });
       return { success: true };
     }),
 
-  // ── Request clarification ──────────────────────────────────────────────────
-  requestClarification: protectedProcedure
-    .input(z.object({
-      id: z.number().int(),
-      clarificationNote: z.string().min(1, "Clarification note required"),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      requirePharmacist(ctx.user.role);
-      const db = await getDbSafe();
-      const { prescriptions } = await import("../../drizzle/schema");
-
-      const [rx] = await db.select().from(prescriptions).where(eq(prescriptions.id, input.id)).limit(1);
-      if (!rx) throw new TRPCError({ code: "NOT_FOUND" });
-
-      await db.update(prescriptions).set({
-        status: "additional_verification",
-        clarificationNote: input.clarificationNote,
-        clarificationRequestedAt: new Date(),
-        pharmacistId: ctx.user.id as number,
-      }).where(eq(prescriptions.id, input.id));
-
-      await logAudit({ actorId: ctx.user.id as number, action: "prescription.request_clarification", entityType: "prescription", entityId: input.id, beforeJson: rx, afterJson: { status: "additional_verification", note: input.clarificationNote }, source: "admin" });
-      return { success: true };
-    }),
-
-  // ── Access log ────────────────────────────────────────────────────────────
-  accessLog: protectedProcedure
-    .input(z.object({
-      prescriptionId: z.number().int(),
-      page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(100).default(20),
-    }))
-    .query(async ({ ctx, input }) => {
-      requireManager(ctx.user.role);
-      const db = await getDbSafe();
-      const { prescriptionAccessLog, users } = await import("../../drizzle/schema");
-
-      const offset = (input.page - 1) * input.pageSize;
-      const rows = await db
-        .select({
-          id: prescriptionAccessLog.id,
-          prescriptionId: prescriptionAccessLog.prescriptionId,
-          accessedBy: prescriptionAccessLog.accessedBy,
-          accessType: prescriptionAccessLog.accessType,
-          purpose: prescriptionAccessLog.purpose,
-          actorId: prescriptionAccessLog.actorId,
-          actorRole: prescriptionAccessLog.actorRole,
-          channel: prescriptionAccessLog.channel,
-          accessedAt: prescriptionAccessLog.accessedAt,
-          createdAt: prescriptionAccessLog.createdAt,
-          accessorName: users.name,
-        })
-        .from(prescriptionAccessLog)
-        .leftJoin(users, eq(prescriptionAccessLog.accessedBy, users.id))
-        .where(eq(prescriptionAccessLog.prescriptionId, input.prescriptionId))
-        .orderBy(desc(prescriptionAccessLog.createdAt))
-        .limit(input.pageSize)
-        .offset(offset);
-
-      return { rows };
-    }),
-
-  // ── H1 Register ───────────────────────────────────────────────────────────
-  h1: router({
-    /** Create H1 register entry (required for H1 schedule drugs) */
-    create: protectedProcedure
-      .input(z.object({
-        prescriptionId: z.number().int(),
-        prescriptionLineId: z.number().int().optional(),
-        storeId: z.number().int(),
-        patientName: z.string().min(1),
-        patientPhone: z.string().optional(),
-        prescribingDoctor: z.string().optional(),
-        doctorRegNo: z.string().optional(),
-        drugName: z.string().min(1),
-        productId: z.string().optional(),
-        batchNo: z.string().optional(),
-        batchLedgerId: z.string().optional(),
-        batchId: z.string().optional(),
-        qty: z.number().int().positive(),
-        billNo: z.string().optional(),
-        saleBillNo: z.string().optional(),
-        saleId: z.number().int().optional(),
-        saleRef: z.string().optional(),
-        saleLineRef: z.string().optional(),
-        orderId: z.number().int().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        requirePharmacist(ctx.user.role);
-        if (!input.prescribingDoctor?.trim()) {
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Doctor name required before creating final H1 register row" });
-        }
-        const db = await getDbSafe();
-        const { h1Register } = await import("../../drizzle/schema");
-
-        const [result] = await db.insert(h1Register).values({
-          prescriptionId: input.prescriptionId,
-          prescriptionLineId: input.prescriptionLineId ?? null,
-          storeId: input.storeId,
-          patientName: input.patientName,
-          patientPhone: input.patientPhone ?? null,
-          prescribingDoctor: input.prescribingDoctor,
-          doctorName: input.prescribingDoctor,
-          doctorRegNo: input.doctorRegNo ?? null,
-          drugName: input.drugName,
-          productId: input.productId ?? null,
-          batchNo: input.batchNo ?? null,
-          batchLedgerId: input.batchLedgerId ?? null,
-          batchId: input.batchId ?? input.batchLedgerId ?? null,
-          qty: input.qty,
-          billNo: input.billNo ?? input.saleBillNo ?? null,
-          saleBillNo: input.saleBillNo ?? input.billNo ?? null,
-          saleId: input.saleId ?? null,
-          saleRef: input.saleRef ?? (input.saleId == null ? null : String(input.saleId)),
-          saleLineRef: input.saleLineRef ?? null,
-          statutoryContextStatus: "complete",
-          pharmacistId: ctx.user.id as number,
-          dispensedAt: new Date(),
-        });
-
-        await logAudit({ actorId: ctx.user.id as number, action: "h1.h1_entry_created", entityType: "h1_register", entityId: (result as { insertId: number }).insertId, beforeJson: null, afterJson: input, source: "admin" });
-        return { success: true, id: (result as { insertId: number }).insertId };
-      }),
-
-    /** List H1 register entries */
-    list: protectedProcedure
-      .input(z.object({
-        storeId: z.number().int().optional(),
-        search: z.string().optional(),
-        dateFrom: z.string().optional(),
-        dateTo: z.string().optional(),
-        page: z.number().int().min(1).default(1),
-        pageSize: z.number().int().min(1).max(100).default(20),
-      }))
-      .query(async ({ ctx, input }) => {
-        requireManager(ctx.user.role);
-        const db = await getDbSafe();
-        const { h1Register, users } = await import("../../drizzle/schema");
-
-        const offset = (input.page - 1) * input.pageSize;
-        const conditions = [];
-        if (input.storeId) conditions.push(eq(h1Register.storeId, input.storeId));
-        if (input.search) {
-          conditions.push(or(
-            like(h1Register.patientName, `%${input.search}%`),
-            like(h1Register.drugName, `%${input.search}%`),
-            like(h1Register.billNo, `%${input.search}%`),
-          ));
-        }
-        if (input.dateFrom) conditions.push(sql`${h1Register.dispensedAt} >= ${new Date(input.dateFrom)}`);
-        if (input.dateTo) conditions.push(sql`${h1Register.dispensedAt} <= ${new Date(input.dateTo)}`);
-
-        const where = conditions.length > 0 ? and(...conditions) : undefined;
-        const rows = await db
-          .select({
-            id: h1Register.id,
-            prescriptionId: h1Register.prescriptionId,
-            storeId: h1Register.storeId,
-            patientName: h1Register.patientName,
-            patientPhone: h1Register.patientPhone,
-            prescribingDoctor: h1Register.prescribingDoctor,
-            drugName: h1Register.drugName,
-            batchNo: h1Register.batchNo,
-            qty: h1Register.qty,
-            billNo: h1Register.billNo,
-            saleId: h1Register.saleId,
-            pharmacistId: h1Register.pharmacistId,
-            dispensedAt: h1Register.dispensedAt,
-            pharmacistName: users.name,
-          })
-          .from(h1Register)
-          .leftJoin(users, eq(h1Register.pharmacistId, users.id))
-          .where(where)
-          .orderBy(desc(h1Register.dispensedAt))
-          .limit(input.pageSize)
-          .offset(offset);
-
-        const [countRow] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(h1Register)
-          .where(where);
-
-        return { rows, total: Number(countRow?.count ?? 0) };
-      }),
-  }),
-
-  // ── Gate check (used by checkout and counter billing) ─────────────────────
-  /** Check if a prescription is approved for a given product. Returns gate status. */
-  gateCheck: protectedProcedure
-    .input(z.object({
-      prescriptionId: z.number().int(),
-      productId: z.number().int().optional(),
-      scheduleCode: z.enum(["OTC", "Rx", "H", "H1", "X", "NRX"]).optional(),
-    }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { prescriptions, prescriptionLines } = await import("../../drizzle/schema");
-
-      const [rx] = await db.select().from(prescriptions).where(eq(prescriptions.id, input.prescriptionId)).limit(1);
-      if (!rx) return { allowed: false, reason: "Prescription not found" };
-      if (rx.status !== "approved" && rx.status !== "on_file") return { allowed: false, reason: `Prescription status: ${rx.status}` };
-      if (rx.status === "on_file") {
-        const usable = canUsePrescriptionOnFile(rx as any);
-        if (!usable.usable) return { allowed: false, reason: usable.reason };
-      }
-
-      // Check expiry
-      if (isPrescriptionExpired(rx as any)) {
-        return { allowed: false, reason: "Prescription has expired" };
-      }
-
-      // Check repeat dispense limit
-      if (rx.repeatDispenseCount !== null && rx.repeatDispenseMax !== null &&
-          rx.repeatDispenseCount >= rx.repeatDispenseMax) {
-        return { allowed: false, reason: "Repeat dispense limit reached" };
-      }
-
-      // If product specified, check if the line is approved
-      if (input.productId) {
-        const lines = await db.select().from(prescriptionLines)
-          .where(and(
-            eq(prescriptionLines.prescriptionId, input.prescriptionId),
-            eq(prescriptionLines.linkedProductId, input.productId),
-          )).limit(1);
-
-        if (lines.length > 0 && lines[0].status !== "approved") {
-          return { allowed: false, reason: `Line status: ${lines[0].status}` };
-        }
-      }
-
-      // H1 always requires pharmacist at dispense
-      if (input.scheduleCode === "H1") {
-        return { allowed: true, requiresH1Register: true, reason: "H1 drug: H1 register entry required at dispense" };
-      }
-
-      return { allowed: true, requiresH1Register: false };
-    }),
-
-  // ── Archive (list approved/rejected with filters) ─────────────────────────
-  archive: protectedProcedure
-    .input(z.object({
-      status: z.enum(["approved", "rejected", "on_file", "all"]).default("approved"),
-      search: z.string().optional(),
-      dateFrom: z.string().optional(),
-      dateTo: z.string().optional(),
-      page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(1).max(100).default(20),
-    }))
-    .query(async ({ ctx, input }) => {
-      requireManager(ctx.user.role);
-      const db = await getDbSafe();
-      const { prescriptions, users } = await import("../../drizzle/schema");
-
-      const offset = (input.page - 1) * input.pageSize;
-      const conditions = [];
-      if (input.status !== "all") conditions.push(eq(prescriptions.status, input.status));
-      if (input.search) {
-        conditions.push(or(
-          like(prescriptions.patientName, `%${input.search}%`),
-          like(prescriptions.doctorName, `%${input.search}%`),
-        ));
-      }
-      if (input.dateFrom) conditions.push(sql`${prescriptions.reviewedAt} >= ${new Date(input.dateFrom)}`);
-      if (input.dateTo) conditions.push(sql`${prescriptions.reviewedAt} <= ${new Date(input.dateTo)}`);
-
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
-      const rows = await db
-        .select({
-          id: prescriptions.id,
-          userId: prescriptions.userId,
-          status: prescriptions.status,
-          patientName: prescriptions.patientName,
-          doctorName: prescriptions.doctorName,
-          prescribedDate: prescriptions.prescribedDate,
-          reviewedAt: prescriptions.reviewedAt,
-          pharmacistNote: prescriptions.pharmacistNote,
-          imageUrl: prescriptions.imageUrl,
-          linkedSaleId: prescriptions.linkedSaleId,
-          linkedOrderId: prescriptions.linkedOrderId,
-          createdAt: prescriptions.createdAt,
-          userName: users.name,
-        })
-        .from(prescriptions)
-        .leftJoin(users, eq(prescriptions.userId, users.id))
-        .where(where)
-        .orderBy(desc(prescriptions.reviewedAt))
-        .limit(input.pageSize)
-        .offset(offset);
-
-      const [countRow] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(prescriptions)
-        .where(where);
-
-      return { rows, total: Number(countRow?.count ?? 0) };
-    }),
-
-  /**
-   * checkRxClearance — called by counter billing before setting rxCleared:true
-   * Verifies a prescription is approved/on-file before dispensing.
-   */
-  checkRxClearance: protectedProcedure
-    .input(z.object({
-      prescriptionId: z.number().int().optional(),
-      scheduleCode: z.string(),
-    }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { prescriptions } = await import("../../drizzle/schema");
-
-      // H1/X always require explicit prescription
-      const hardSchedules = ["H1", "X"];
-      if (hardSchedules.includes(input.scheduleCode) && !input.prescriptionId) {
-        return { cleared: false, reason: `Schedule ${input.scheduleCode} requires an approved prescription ID` };
-      }
-
-      if (!input.prescriptionId) {
-        // Rx/H/NRX: allow pharmacist counter override without linking a prescription
-        return { cleared: true, reason: "Pharmacist counter override — no prescription linked" };
-      }
-
-      const [rx] = await db
-        .select({ id: prescriptions.id, status: prescriptions.status, userId: prescriptions.userId, expiryDate: prescriptions.expiryDate, validUntil: prescriptions.validUntil, consentRevokedAt: prescriptions.consentRevokedAt, repeatDispenseCount: prescriptions.repeatDispenseCount, repeatDispenseMax: prescriptions.repeatDispenseMax })
-        .from(prescriptions)
-        .where(eq(prescriptions.id, input.prescriptionId))
-        .limit(1);
-
-      if (!rx) return { cleared: false, reason: "Prescription not found" };
-      if (rx.status !== "approved" && rx.status !== "on_file") {
-        return { cleared: false, reason: `Prescription status is '${rx.status}' — must be approved before dispensing` };
-      }
-      if (rx.status === "on_file") {
-        const usable = canUsePrescriptionOnFile(rx as any);
-        if (!usable.usable) return { cleared: false, reason: usable.reason };
-      } else if (isPrescriptionExpired(rx as any)) {
-        return { cleared: false, reason: "Prescription has expired" };
-      }
-
-      // Log the API check access
-      await logAccess(db, input.prescriptionId, ctx.user.id as number, "api_check", "counter_billing_rx_gate", ctx.user.role, "api");
-      return { cleared: true, prescriptionId: rx.id };
-    }),
+  ...prescriptionGovRouterExtension,
 });

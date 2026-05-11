@@ -1,10 +1,13 @@
 import crypto from "crypto";
+import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { paymentConnector } from "../connectors";
-import { getOrderById } from "../db";
+import { getDb, getOrderById } from "../db";
 import { createPaymentRecord, getPaymentByGatewayOrderId, getPaymentByOrderId, confirmPaymentRecord, failPaymentRecord } from "../payment";
 import { isProviderEnabled } from "../_core/env";
 import { redactObject } from "../_core/redact";
+import { paymentRecords } from "../../drizzle/schema";
+import { appendCommercialEventWithDb } from "./commercialLifecycle";
 
 export type PaymentVerificationStatus = "verified" | "failed" | "provider_unconfigured" | "demo_skipped";
 export type PaymentLifecycleStatus = "persisted" | "demo_skipped" | "not_implemented";
@@ -80,11 +83,47 @@ export function verifyGatewayWebhookSignature(rawBody: string, signature?: strin
 }
 
 export function normalizeGatewayPaymentEvent(event: any) { return { id: event?.id ?? null, type: event?.event ?? "unknown", payload: event?.payload ?? null }; }
-export async function recordPaymentAttempt(_: any): Promise<PaymentLifecycleResult> { return notImplementedLifecycleResult("recordPaymentAttempt"); }
-export async function markPaymentAuthorized(_: any): Promise<PaymentLifecycleResult> { return notImplementedLifecycleResult("markPaymentAuthorized"); }
+
+export async function recordPaymentAttempt(input: { gatewayOrderId?: string; gatewayPaymentId?: string; method?: string }): Promise<PaymentLifecycleResult> {
+  if (!input?.gatewayOrderId) throw new TRPCError({ code: "BAD_REQUEST", message: "gatewayOrderId required" });
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  await db.transaction(async (tx: any) => {
+    const [payment] = await tx.select().from(paymentRecords).where(eq(paymentRecords.gatewayOrderId, input.gatewayOrderId!)).for("update").limit(1);
+    if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
+    await appendCommercialEventWithDb(tx, { aggregateType: "payment", aggregateId: payment.id, eventType: "payment_attempt_recorded", actorType: "provider", orderId: payment.orderId ?? null, paymentId: payment.id, eventPayload: { gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId ?? null, method: input.method ?? null }, idempotencyKey: `payment_attempt:${input.gatewayOrderId}:${input.gatewayPaymentId ?? "initiated"}`, correlationId: input.gatewayOrderId });
+  });
+  return { ok: true, status: "persisted" };
+}
+
+export async function markPaymentAuthorized(input: { gatewayOrderId?: string; gatewayPaymentId?: string; method?: string }): Promise<PaymentLifecycleResult> {
+  if (!input?.gatewayOrderId) throw new TRPCError({ code: "BAD_REQUEST", message: "gatewayOrderId required" });
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  await db.transaction(async (tx: any) => {
+    const [payment] = await tx.select().from(paymentRecords).where(eq(paymentRecords.gatewayOrderId, input.gatewayOrderId!)).for("update").limit(1);
+    if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
+    // No "authorized" status in enum — record the lifecycle event; status stays "pending" until capture.
+    await appendCommercialEventWithDb(tx, { aggregateType: "payment", aggregateId: payment.id, eventType: "payment_authorized", actorType: "provider", orderId: payment.orderId ?? null, paymentId: payment.id, eventPayload: { gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId ?? null, method: input.method ?? null }, idempotencyKey: `payment_authorized:${input.gatewayOrderId}:${input.gatewayPaymentId ?? "unknown"}`, correlationId: input.gatewayOrderId });
+  });
+  return { ok: true, status: "persisted" };
+}
+
 export async function markPaymentCaptured(input: { gatewayOrderId: string; gatewayPaymentId: string; signature: string; method?: string }): Promise<PaymentLifecycleResult> { await confirmPaymentRecord({ gatewayOrderId: input.gatewayOrderId, gatewayPaymentId: input.gatewayPaymentId, gatewaySignature: input.signature, method: input.method }); return { ok: true, status: "persisted" }; }
 export async function markPaymentFailed(input: { gatewayOrderId: string; reason?: string }): Promise<PaymentLifecycleResult> { await failPaymentRecord(input); return { ok: true, status: "persisted" }; }
-export async function markPaymentRefunded(_: any): Promise<PaymentLifecycleResult> { return notImplementedLifecycleResult("markPaymentRefunded"); }
+
+export async function markPaymentRefunded(input: { gatewayOrderId?: string; providerRefundId?: string; amountPaise?: number }): Promise<PaymentLifecycleResult> {
+  if (!input?.gatewayOrderId) throw new TRPCError({ code: "BAD_REQUEST", message: "gatewayOrderId required" });
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  await db.transaction(async (tx: any) => {
+    const [payment] = await tx.select().from(paymentRecords).where(eq(paymentRecords.gatewayOrderId, input.gatewayOrderId!)).for("update").limit(1);
+    if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
+    await tx.update(paymentRecords).set({ status: "refunded", refundId: input.providerRefundId ?? null, refundedAt: new Date() }).where(eq(paymentRecords.id, payment.id));
+    await appendCommercialEventWithDb(tx, { aggregateType: "payment", aggregateId: payment.id, eventType: "refund_completed", actorType: "provider", orderId: payment.orderId ?? null, paymentId: payment.id, eventPayload: { gatewayOrderId: input.gatewayOrderId, providerRefundId: input.providerRefundId ?? null, amountPaise: input.amountPaise ?? null }, idempotencyKey: `payment_refunded:${input.gatewayOrderId}:${input.providerRefundId ?? "unknown"}`, correlationId: input.gatewayOrderId });
+  });
+  return { ok: true, status: "persisted" };
+}
 export async function getPaymentStatus(input: { orderId: number }) { return getPaymentByOrderId(input.orderId); }
 export async function assertPaymentCanRelease(input: { orderId: number; allowCod?: boolean }) {
   const payment = await getPaymentByOrderId(input.orderId);

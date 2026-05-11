@@ -36,7 +36,7 @@ export const restoreDrillRouter = router({
   recordDrill: adminProcedure
     .input(RestoreDrillRecordSchema)
     .mutation(async ({ input }) => {
-      await recordDrill(input as RestoreDrillRecord);
+      await recordDrill(input);
       return { success: true, id: input.id };
     }),
 });

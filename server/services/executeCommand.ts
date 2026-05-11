@@ -31,7 +31,7 @@ export type CommandResult<TOutput> = {
 export type CommandHandler<TInput, TOutput> = (
   input: TInput,
   tx: DbInstance,
-  ctx: CommandContext,
+  ctx: CommandContext
 ) => Promise<CommandResult<TOutput>>;
 
 export type ExecuteCommandOptions<TInput, TOutput> = {
@@ -66,14 +66,14 @@ export class CommandPriorFailureError extends Error {
 }
 
 function findSloTarget(sloName: string): number {
-  return SLO_DEFINITIONS.find((d) => d.name === sloName)?.target ?? 0.99;
+  return SLO_DEFINITIONS.find(d => d.name === sloName)?.target ?? 0.99;
 }
 
 function canonicalize(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map(canonicalize);
   const sorted: Record<string, unknown> = {};
-  for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+  for (const k of Object.keys(value).sort()) {
     sorted[k] = canonicalize((value as Record<string, unknown>)[k]);
   }
   return sorted;
@@ -86,7 +86,7 @@ function computeInputHash(input: unknown): string {
 }
 
 export async function executeCommand<TInput, TOutput>(
-  options: ExecuteCommandOptions<TInput, TOutput>,
+  options: ExecuteCommandOptions<TInput, TOutput>
 ): Promise<TOutput> {
   const started = Date.now();
   const inputHash = computeInputHash(options.input);
@@ -103,8 +103,8 @@ export async function executeCommand<TInput, TOutput>(
     .where(
       and(
         eq(commandLog.idempotencyKey, options.idempotencyKey),
-        eq(commandLog.commandName, options.name),
-      ),
+        eq(commandLog.commandName, options.name)
+      )
     )
     .limit(1);
 
@@ -113,27 +113,27 @@ export async function executeCommand<TInput, TOutput>(
 
     if (prior.inputHash !== inputHash) {
       throw new IdempotencyMismatchError(
-        `Replay of ${options.name} with key ${options.idempotencyKey} has different input hash. Prior: ${prior.inputHash}, current: ${inputHash}.`,
+        `Replay of ${options.name} with key ${options.idempotencyKey} has different input hash. Prior: ${prior.inputHash}, current: ${inputHash}.`
       );
     }
 
     if (prior.state === "completed") {
       logger.info(
         { commandName: options.name, idempotencyKey: options.idempotencyKey },
-        "Command replayed; returning prior output",
+        "Command replayed; returning prior output"
       );
       return prior.outputPayload as TOutput;
     }
 
     if (prior.state === "in_flight") {
       throw new CommandInFlightError(
-        `Command ${options.name} with key ${options.idempotencyKey} is still in flight (started ${prior.startedAt.toISOString()}).`,
+        `Command ${options.name} with key ${options.idempotencyKey} is still in flight (started ${prior.startedAt.toISOString()}).`
       );
     }
 
     // failed or compensated — terminal; require new key
     throw new CommandPriorFailureError(
-      `Command ${options.name} with key ${options.idempotencyKey} previously failed: ${prior.errorMessage ?? "unknown error"}. Use a new idempotency key to retry.`,
+      `Command ${options.name} with key ${options.idempotencyKey} previously failed: ${prior.errorMessage ?? "unknown error"}. Use a new idempotency key to retry.`
     );
   }
 
@@ -149,7 +149,7 @@ export async function executeCommand<TInput, TOutput>(
     actorRole: options.context.actorRole,
     storeId: options.context.storeId,
     inputHash,
-    inputPayload: options.input as Record<string, unknown>,
+    inputPayload: options.input,
     state: "in_flight",
     startedAt: new Date(started),
     traceId: options.context.traceId,
@@ -168,8 +168,7 @@ export async function executeCommand<TInput, TOutput>(
           sideEffectKind: se.kind,
           sideEffectPayload: se.payload as Record<string, unknown>,
           maxAttempts:
-            se.maxAttempts ??
-            Number(process.env.OUTBOX_MAX_ATTEMPTS ?? "5"),
+            se.maxAttempts ?? Number(process.env.OUTBOX_MAX_ATTEMPTS ?? "5"),
         });
       }
 
@@ -199,16 +198,14 @@ export async function executeCommand<TInput, TOutput>(
           commandName: options.name,
           idempotencyKey: options.idempotencyKey,
         },
-      }).catch((err) => logger.warn({ err }, "SLO emission failed (non-fatal)"));
+      }).catch(err => logger.warn({ err }, "SLO emission failed (non-fatal)"));
     }
 
     return handlerResult.output;
   } catch (err) {
     const duration = Date.now() - started;
-    const errorClass =
-      err instanceof Error ? err.constructor.name : "Unknown";
-    const errorMessage =
-      err instanceof Error ? err.message : String(err);
+    const errorClass = err instanceof Error ? err.constructor.name : "Unknown";
+    const errorMessage = err instanceof Error ? err.message : String(err);
 
     assertTransition("in_flight", "failed", "handler_failure");
 
@@ -222,10 +219,10 @@ export async function executeCommand<TInput, TOutput>(
         durationMs: duration,
       })
       .where(eq(commandLog.id, commandId))
-      .catch((updateErr) => {
+      .catch(updateErr => {
         logger.error(
           { updateErr },
-          "Failed to mark command as failed in command_log",
+          "Failed to mark command as failed in command_log"
         );
       });
 

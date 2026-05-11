@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { adminProcedure, managerProcedure, router, capabilityProcedure } from "../_core/trpc";
+import {
+  adminProcedure,
+  managerProcedure,
+  router,
+  capabilityProcedure,
+} from "../_core/trpc";
 import {
   getCurrentOnCall,
   listUpcomingShifts,
@@ -31,7 +36,7 @@ export const onCallRouter = router({
   current: managerProcedure
     .input(z.object({ role: OnCallRoleEnum }))
     .query(async ({ input }) => {
-      return getCurrentOnCall(input.role as OnCallRole);
+      return getCurrentOnCall(input.role);
     }),
 
   upcoming: managerProcedure
@@ -39,16 +44,16 @@ export const onCallRouter = router({
       z.object({
         role: OnCallRoleEnum,
         days: z.number().int().min(1).max(90).default(7),
-      }),
+      })
     )
     .query(async ({ input }) => {
-      return listUpcomingShifts(input.role as OnCallRole, input.days);
+      return listUpcomingShifts(input.role, input.days);
     }),
 
   upsert: capabilityProcedure("chaos.trigger")
     .input(OnCallShiftSchema)
     .mutation(async ({ input }) => {
-      await upsertShift(input as OnCallShift);
+      await upsertShift(input);
       return { success: true, id: input.id };
     }),
 

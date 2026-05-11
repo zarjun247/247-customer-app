@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   assertPrescriptionUsableForCustomer,
   canUsePrescriptionOnFile,
   isPrescriptionExpired,
 } from "./services/prescriptionVault";
 
-const migration = readFileSync("drizzle/0034_prescription_vault_consent.sql", "utf8");
-const schema = readFileSync("drizzle/schema.ts", "utf8");
+const migration = readFileSync(
+  "drizzle/0034_prescription_vault_consent.sql",
+  "utf8"
+);
+const schema = readdirSync("drizzle/schema")
+  .filter(f => f.endsWith(".ts") && f !== "index.ts")
+  .map(f => readFileSync(`drizzle/schema/${f}`, "utf8"))
+  .join("\n");
 const router = readFileSync("server/routers.ts", "utf8");
-const govRouter = readFileSync("server/routers/prescriptionGovRouter.ts", "utf8");
+const govRouter =
+  readFileSync("server/routers/prescriptionGovRouter.ts", "utf8") +
+  readFileSync("server/routers/prescriptionGovRouterExtension.ts", "utf8");
 
 describe("prescription vault consent hardening", () => {
   it("adds nullable metadata, consent, on-file, and access audit schema fields", () => {
@@ -70,10 +78,45 @@ describe("prescription vault consent hardening", () => {
 
   it("rejects expired or revoked on-file prescriptions via usability helpers", () => {
     const now = new Date("2026-05-07T00:00:00.000Z");
-    expect(isPrescriptionExpired({ validUntil: "2026-05-06T23:59:59.000Z" }, now)).toBe(true);
-    expect(canUsePrescriptionOnFile({ id: 1, userId: 7, status: "on_file", consentRevokedAt: now }).usable).toBe(false);
-    expect(canUsePrescriptionOnFile({ id: 1, userId: 7, status: "on_file", validUntil: "2026-05-06T23:59:59.000Z" }, now).reason).toContain("expired");
-    expect(assertPrescriptionUsableForCustomer({ id: 1, userId: 8, status: "on_file" }, 7).reason).toContain("does not belong");
-    expect(assertPrescriptionUsableForCustomer({ id: 1, userId: 7, status: "on_file", validUntil: "2026-05-08T00:00:00.000Z" }, 7, now).usable).toBe(true);
+    expect(
+      isPrescriptionExpired({ validUntil: "2026-05-06T23:59:59.000Z" }, now)
+    ).toBe(true);
+    expect(
+      canUsePrescriptionOnFile({
+        id: 1,
+        userId: 7,
+        status: "on_file",
+        consentRevokedAt: now,
+      }).usable
+    ).toBe(false);
+    expect(
+      canUsePrescriptionOnFile(
+        {
+          id: 1,
+          userId: 7,
+          status: "on_file",
+          validUntil: "2026-05-06T23:59:59.000Z",
+        },
+        now
+      ).reason
+    ).toContain("expired");
+    expect(
+      assertPrescriptionUsableForCustomer(
+        { id: 1, userId: 8, status: "on_file" },
+        7
+      ).reason
+    ).toContain("does not belong");
+    expect(
+      assertPrescriptionUsableForCustomer(
+        {
+          id: 1,
+          userId: 7,
+          status: "on_file",
+          validUntil: "2026-05-08T00:00:00.000Z",
+        },
+        7,
+        now
+      ).usable
+    ).toBe(true);
   });
 });

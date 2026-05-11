@@ -2,31 +2,88 @@ import { z } from "zod";
 import { COOKIE_NAME, ONBOARDING_REQUIRED_MSG } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router, requireOrderOwnershipOrStaff, requireAnyRole, isStaffRole, PHARMACIST_ROLES, RIDER_ROLES, STAFF_ROLES } from "./_core/trpc";
+import {
+  protectedProcedure,
+  publicProcedure,
+  router,
+  requireOrderOwnershipOrStaff,
+  requireAnyRole,
+  isStaffRole,
+  PHARMACIST_ROLES,
+  RIDER_ROLES,
+  STAFF_ROLES,
+} from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
-  getBuildings, getStoreById, getCatalog, getSkuById,
-  getCart, upsertCartItem, clearCart, softLockCart, releaseCartLock, applySoftLockToSkus, releaseSoftLock,
-  createOrder, getOrdersByUser, getOrderById, getOrderItems, updateOrderStatus, updateOrderInvoice,
-  createPrescription, getPrescriptionsByUser, getPrescriptionById,
-  getRefillReminders, dismissRefillReminder, upsertRefillReminder,
-  getUserById, updateUserProfile, writeAuditLog, createOtp, verifyOtp,
-  upsertUserByPhone, getUserByPhone,
-  getWhatsappSession, upsertWhatsappSession, getBuildingById,
-  computeRefillIntervalFromHistory, getOrderItemsForReorder,
-  createWhatsappPrescription, generateAndStoreInvoice,
-  getPrescriptionVault, markPrescriptionOnFile, getActivePriorApprovals,
-  getSponsoredShelf, snoozeRefillReminder, getSnoozedReminders,
-  createConsultRequest, getConsultRequests, linkConsultPrescription,
+  getBuildings,
+  getStoreById,
+  getCatalog,
+  getSkuById,
+  getCart,
+  upsertCartItem,
+  clearCart,
+  softLockCart,
+  releaseCartLock,
+  applySoftLockToSkus,
+  releaseSoftLock,
+  createOrder,
+  getOrdersByUser,
+  getOrderById,
+  getOrderItems,
+  updateOrderStatus,
+  updateOrderInvoice,
+  createPrescription,
+  getPrescriptionsByUser,
+  getPrescriptionById,
+  getRefillReminders,
+  dismissRefillReminder,
+  upsertRefillReminder,
+  getUserById,
+  updateUserProfile,
+  writeAuditLog,
+  createOtp,
+  verifyOtp,
+  upsertUserByPhone,
+  getUserByPhone,
+  getWhatsappSession,
+  upsertWhatsappSession,
+  getBuildingById,
+  computeRefillIntervalFromHistory,
+  getOrderItemsForReorder,
+  createWhatsappPrescription,
+  generateAndStoreInvoice,
+  getPrescriptionVault,
+  markPrescriptionOnFile,
+  getActivePriorApprovals,
+  getSponsoredShelf,
+  snoozeRefillReminder,
+  getSnoozedReminders,
+  createConsultRequest,
+  getConsultRequests,
+  linkConsultPrescription,
 } from "./db";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 import { redactSensitive } from "./_core/redact";
 import { resolveStore, formatRoutingAuditEntry } from "./routing";
-import { reserveStockForOrder, releaseReservationOnOrderCancel } from "./services/reservationService";
+import {
+  reserveStockForOrder,
+  releaseReservationOnOrderCancel,
+} from "./services/reservationService";
 import { getCanonicalAvailability as getCanonicalAvailabilityLedger } from "./services/canonicalAvailability";
-import { getPlaceAutocomplete, geocodeAddress, checkServiceability } from "./location";
-import { pharmacistRouter, inventoryRouter, vendorRouter, staffRouter, riderRouter, metricsRouter } from "./routers/pharmacyRouter";
+import {
+  getPlaceAutocomplete,
+  geocodeAddress,
+  checkServiceability,
+} from "./location";
+import {
+  pharmacistRouter,
+  inventoryRouter,
+  vendorRouter,
+  staffRouter,
+  riderRouter,
+  metricsRouter,
+} from "./routers/pharmacyRouter";
 import { ingestionRouter } from "./routers/ingestionRouter";
 import { helpdeskRouter } from "./routers/helpdeskRouter";
 import { consentRouter } from "./routers/consentRouter";
@@ -45,7 +102,12 @@ import { reconciliationRouter } from "./routers/reconciliationRouter";
 import { multiStoreRuntimeRouter } from "./routers/multiStoreRuntimeRouter";
 import { deploymentReadinessRouter } from "./routers/deploymentReadinessRouter";
 import { customerMedicineRouter } from "./routers/customerMedicineRouter";
-import { assertWhatsappWebhookGuard, isRegulatedMedicineIntent, normalizeWhatsAppPhone, whatsappFullRouter } from "./routers/whatsappRouter";
+import {
+  assertWhatsappWebhookGuard,
+  isRegulatedMedicineIntent,
+  normalizeWhatsAppPhone,
+  whatsappFullRouter,
+} from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
 import { commandCenterRouter } from "./routers/commandCenterRouter";
 import { deadLetterRouter } from "./routers/deadLetterRouter";
@@ -63,11 +125,32 @@ import { intelligenceRouter } from "./routers/intelligenceRouter";
 import { aiEvalRouter } from "./routers/aiEvalRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
-import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
+import {
+  createNotification,
+  getCustomerNotifications,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from "./services/notificationService";
 import { createReorderPrompt } from "./services/refillReminderService";
-import { createDosageSchedule, getTodayDosePlan, recordDoseTaken, recordDoseSkipped, getAdherenceSummary, estimateMedicationRemaining, estimateRunoutDate } from "./services/dosageTracking";
-import { createOrderRating, updateOrderRating, getOrderRating, __markOrderDeliveredForTest } from "./services/orderRating";
-import { assertPrescriptionUsableForCustomer, logPrescriptionVaultAccess } from "./services/prescriptionVault";
+import {
+  createDosageSchedule,
+  getTodayDosePlan,
+  recordDoseTaken,
+  recordDoseSkipped,
+  getAdherenceSummary,
+  estimateMedicationRemaining,
+  estimateRunoutDate,
+} from "./services/dosageTracking";
+import {
+  createOrderRating,
+  updateOrderRating,
+  getOrderRating,
+  __markOrderDeliveredForTest,
+} from "./services/orderRating";
+import {
+  assertPrescriptionUsableForCustomer,
+  logPrescriptionVaultAccess,
+} from "./services/prescriptionVault";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const otpRateLimit = new Map<string, { count: number; ts: number }>();
@@ -75,8 +158,16 @@ const otpVerifyFailures = new Map<string, { count: number; ts: number }>();
 
 function assertOtpLimiterMode() {
   const mode = (process.env.OTP_RATE_LIMIT_BACKEND ?? "").trim();
-  if (ENV.isProduction && mode !== "database" && mode !== "memory_allowed_for_single_instance") {
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "OTP disabled: OTP_RATE_LIMIT_BACKEND must be set for production" });
+  if (
+    ENV.isProduction &&
+    mode !== "database" &&
+    mode !== "memory_allowed_for_single_instance"
+  ) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "OTP disabled: OTP_RATE_LIMIT_BACKEND must be set for production",
+    });
   }
 }
 
@@ -96,9 +187,15 @@ const authRouter = router({
       const slot = otpRateLimit.get(input.phone);
       if (slot && now - slot.ts < 15 * 60 * 1000 && slot.count >= 5) {
         console.warn("auth.otp_rate_limited", redactSensitive(input.phone));
-        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many OTP requests" });
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Too many OTP requests",
+        });
       }
-      otpRateLimit.set(input.phone, { count: (slot?.count ?? 0) + 1, ts: slot?.ts ?? now });
+      otpRateLimit.set(input.phone, {
+        count: (slot?.count ?? 0) + 1,
+        ts: slot?.ts ?? now,
+      });
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
       await createOtp(input.phone, code, expiresAt);
@@ -111,13 +208,23 @@ const authRouter = router({
       assertOtpLimiterMode();
       const failSlot = otpVerifyFailures.get(input.phone);
       const now = Date.now();
-      if (failSlot && now - failSlot.ts < 15 * 60 * 1000 && failSlot.count >= 8) {
+      if (
+        failSlot &&
+        now - failSlot.ts < 15 * 60 * 1000 &&
+        failSlot.count >= 8
+      ) {
         console.warn("auth.otp_rate_limited", redactSensitive(input.phone));
-        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many OTP verification attempts" });
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Too many OTP verification attempts",
+        });
       }
       const valid = await verifyOtp(input.phone, input.code);
       if (!valid) {
-        otpVerifyFailures.set(input.phone, { count: (failSlot?.count ?? 0) + 1, ts: failSlot?.ts ?? now });
+        otpVerifyFailures.set(input.phone, {
+          count: (failSlot?.count ?? 0) + 1,
+          ts: failSlot?.ts ?? now,
+        });
         console.warn("auth.otp_failed", redactSensitive(input.phone));
         return { valid: false as const };
       }
@@ -125,19 +232,32 @@ const authRouter = router({
       console.info("auth.otp_verified");
 
       // Upsert the user record keyed by phone
-      const { id: userId } = await upsertUserByPhone(input.phone, { loginMethod: "phone" });
+      const { id: userId } = await upsertUserByPhone(input.phone, {
+        loginMethod: "phone",
+      });
       const user = await getUserByPhone(input.phone);
-      if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
+      if (!user)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create user",
+        });
 
       // Create a session JWT and set the cookie — same mechanism as OAuth callback
       const { sdk } = await import("./_core/sdk");
       // Use phone as the stable identifier (openId may be null for phone users)
       const sessionToken = await sdk.signSession(
-        { openId: `phone:${input.phone}`, appId: ENV.appId, name: user.name ?? "" },
+        {
+          openId: `phone:${input.phone}`,
+          appId: ENV.appId,
+          name: user.name ?? "",
+        },
         { expiresInMs: 1000 * 60 * 60 * 24 * 365 }
       );
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 1000 * 60 * 60 * 24 * 365 });
+      ctx.res.cookie(COOKIE_NAME, sessionToken, {
+        ...cookieOptions,
+        maxAge: 1000 * 60 * 60 * 24 * 365,
+      });
 
       return {
         valid: true as const,
@@ -160,47 +280,69 @@ const userRouter = router({
     return { ...user, buildingName };
   }),
   completeOnboarding: protectedProcedure
-    .input(z.object({
-      name: z.string().min(1),
-      phone: z.string().optional(),
-      // Building-based onboarding
-      buildingId: z.number().optional(),
-      flatNumber: z.string().optional(),
-      // Address-based onboarding (when user types a free-form address)
-      userAddress: z.string().optional(),
-      userLat: z.number().optional(),
-      userLng: z.number().optional(),
-      // Frontend hint only; server resolves the authoritative store.
-      assignedStoreId: z.number().optional(),
-    }))
+    .input(
+      z.object({
+        name: z.string().min(1),
+        phone: z.string().optional(),
+        // Building-based onboarding
+        buildingId: z.number().optional(),
+        flatNumber: z.string().optional(),
+        // Address-based onboarding (when user types a free-form address)
+        userAddress: z.string().optional(),
+        userLat: z.number().optional(),
+        userLng: z.number().optional(),
+        // Frontend hint only; server resolves the authoritative store.
+        assignedStoreId: z.number().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       // Validate: must have either buildingId or (userAddress + coordinates)
-      if (!input.buildingId && (!input.userAddress || input.userLat === undefined || input.userLng === undefined)) {
+      if (
+        !input.buildingId &&
+        (!input.userAddress ||
+          input.userLat === undefined ||
+          input.userLng === undefined)
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Either a building selection or a valid address with coordinates is required.",
+          message:
+            "Either a building selection or a valid address with coordinates is required.",
         });
       }
       // If building-based, validate the building exists
       if (input.buildingId) {
         const building = await getBuildingById(input.buildingId);
         if (!building) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Building not found" });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Building not found",
+          });
         }
       }
       let resolvedStoreId: number | undefined;
       if (input.buildingId) {
         const result = await resolveStore({ buildingId: input.buildingId });
-        if (!result) throw new TRPCError({ code: "BAD_REQUEST", message: "No serviceable store found for building" });
+        if (!result)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No serviceable store found for building",
+          });
         resolvedStoreId = result.storeId;
       } else if (input.userLat !== undefined && input.userLng !== undefined) {
         const svc = await checkServiceability(input.userLat, input.userLng);
-        if (!svc?.serviceable || !svc.storeId) throw new TRPCError({ code: "BAD_REQUEST", message: "Address not serviceable" });
+        if (!svc?.serviceable || !svc.storeId)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Address not serviceable",
+          });
         resolvedStoreId = svc.storeId;
       }
 
       if (!resolvedStoreId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "No serviceable store found for address" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No serviceable store found for address",
+        });
       }
 
       await updateUserProfile(ctx.user.id, {
@@ -209,12 +351,20 @@ const userRouter = router({
         buildingId: input.buildingId,
         flatNumber: input.flatNumber,
         userAddress: input.userAddress,
-        userLat: input.userLat !== undefined ? String(input.userLat) : undefined,
-        userLng: input.userLng !== undefined ? String(input.userLng) : undefined,
+        userLat:
+          input.userLat !== undefined ? String(input.userLat) : undefined,
+        userLng:
+          input.userLng !== undefined ? String(input.userLng) : undefined,
         assignedStoreId: resolvedStoreId,
         onboardingComplete: true,
       });
-      await writeAuditLog(ctx.user.id, "onboarding_complete", "user", ctx.user.id, input);
+      await writeAuditLog(
+        ctx.user.id,
+        "onboarding_complete",
+        "user",
+        ctx.user.id,
+        input
+      );
       return { success: true, assignedStoreId: resolvedStoreId };
     }),
   buildings: publicProcedure.query(() => getBuildings()),
@@ -223,12 +373,14 @@ const userRouter = router({
 // ─── Catalog Router ───────────────────────────────────────────────────────────
 const catalogRouter = router({
   list: protectedProcedure
-    .input(z.object({
-      search: z.string().optional(),
-      category: z.string().optional(),
-      limit: z.number().min(1).max(100).default(60),
-      offset: z.number().min(0).default(0),
-    }))
+    .input(
+      z.object({
+        search: z.string().optional(),
+        category: z.string().optional(),
+        limit: z.number().min(1).max(100).default(60),
+        offset: z.number().min(0).default(0),
+      })
+    )
     .query(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
       // Guard: require completed onboarding before catalog access
@@ -238,7 +390,13 @@ const catalogRouter = router({
           message: ONBOARDING_REQUIRED_MSG,
         });
       }
-      return getCatalog(user.assignedStoreId, input.search, input.category, input.limit, input.offset);
+      return getCatalog(
+        user.assignedStoreId,
+        input.search,
+        input.category,
+        input.limit,
+        input.offset
+      );
     }),
   sku: protectedProcedure
     .input(z.object({ skuId: z.number() }))
@@ -273,18 +431,33 @@ const catalogRouter = router({
       return null;
     }
     // Log routing resolution for auditability
-    console.info(formatRoutingAuditEntry({ buildingId: user.buildingId }, result));
+    console.info(
+      formatRoutingAuditEntry({ buildingId: user.buildingId }, result)
+    );
     const store = await getStoreById(result.storeId);
-    return store ? { ...store, etaMins: result.etaMins, etaText: result.etaText, slaMins: result.slaMins, openNow: result.openNow, openingHoursText: result.openingHoursText, displayLabel: result.displayLabel, resolutionPath: result.resolutionPath } : null;
+    return store
+      ? {
+          ...store,
+          etaMins: result.etaMins,
+          etaText: result.etaText,
+          slaMins: result.slaMins,
+          openNow: result.openNow,
+          openingHoursText: result.openingHoursText,
+          displayLabel: result.displayLabel,
+          resolutionPath: result.resolutionPath,
+        }
+      : null;
   }),
 });
 
 // ─── Routing Router ───────────────────────────────────────────────────────────
 const routingRouter = router({
   resolve: protectedProcedure
-    .input(z.object({
-      requiredSkuIds: z.array(z.number()).optional(),
-    }))
+    .input(
+      z.object({
+        requiredSkuIds: z.array(z.number()).optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
       if (!user?.buildingId) return null;
@@ -293,10 +466,15 @@ const routingRouter = router({
         requiredSkuIds: input.requiredSkuIds,
       });
       if (result) {
-        console.info(formatRoutingAuditEntry(
-          { buildingId: user.buildingId, requiredSkuIds: input.requiredSkuIds },
-          result
-        ));
+        console.info(
+          formatRoutingAuditEntry(
+            {
+              buildingId: user.buildingId,
+              requiredSkuIds: input.requiredSkuIds,
+            },
+            result
+          )
+        );
       }
       return result;
     }),
@@ -306,10 +484,18 @@ const routingRouter = router({
 const cartRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => getCart(ctx.user.id)),
   upsert: protectedProcedure
-    .input(z.object({ skuId: z.number(), productId: z.number().optional(), variantId: z.number().optional(), quantity: z.number().min(0) }))
+    .input(
+      z.object({
+        skuId: z.number(),
+        productId: z.number().optional(),
+        variantId: z.number().optional(),
+        quantity: z.number().min(0),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const sku = await getSkuById(input.skuId);
-      if (!sku) throw new TRPCError({ code: "NOT_FOUND", message: "SKU not found" });
+      if (!sku)
+        throw new TRPCError({ code: "NOT_FOUND", message: "SKU not found" });
 
       const user = await getUserById(ctx.user.id);
       if (!user?.onboardingComplete || !user?.assignedStoreId) {
@@ -318,14 +504,39 @@ const cartRouter = router({
           message: ONBOARDING_REQUIRED_MSG,
         });
       }
-      if (sku.storeId !== user.assignedStoreId) throw new TRPCError({ code: "FORBIDDEN", message: "SKU not available for your assigned store" });
-      if (!sku.isActive) throw new TRPCError({ code: "BAD_REQUEST", message: "SKU is inactive" });
-      if (input.productId && input.productId !== sku.productId) throw new TRPCError({ code: "BAD_REQUEST", message: "Product mismatch for SKU" });
+      if (sku.storeId !== user.assignedStoreId)
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "SKU not available for your assigned store",
+        });
+      if (!sku.isActive)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "SKU is inactive",
+        });
+      if (input.productId && input.productId !== sku.productId)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Product mismatch for SKU",
+        });
       if (input.quantity > 0) {
-        const avail = await getCanonicalAvailabilityLedger(sku.productId, sku.storeId, sku.variantId ?? null);
-        if (avail.totalSellable < input.quantity) throw new TRPCError({ code: "BAD_REQUEST", message: "Requested quantity unavailable" });
+        const avail = await getCanonicalAvailabilityLedger(
+          sku.productId,
+          sku.storeId,
+          sku.variantId ?? null
+        );
+        if (avail.totalSellable < input.quantity)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Requested quantity unavailable",
+          });
       }
-      await upsertCartItem(ctx.user.id, input.skuId, sku.productId, input.quantity);
+      await upsertCartItem(
+        ctx.user.id,
+        input.skuId,
+        sku.productId,
+        input.quantity
+      );
       return { success: true };
     }),
   clear: protectedProcedure.mutation(async ({ ctx }) => {
@@ -352,15 +563,30 @@ const orderRouter = router({
       const store = await getStoreById(user.assignedStoreId);
       const slaMins = store?.slaMins ?? 20;
 
-      const lockItems = cartData.map(i => ({ skuId: i.skuId, qty: i.quantity }));
+      const lockItems = cartData.map(i => ({
+        skuId: i.skuId,
+        qty: i.quantity,
+      }));
       for (const item of cartData) {
         const sku = await getSkuById(item.skuId);
-        if (!sku || !sku.isActive || sku.storeId !== user.assignedStoreId || sku.productId !== item.productId || Number(sku.availableQty ?? 0) < item.quantity) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Cart contains unavailable items" });
+        if (
+          !sku ||
+          !sku.isActive ||
+          sku.storeId !== user.assignedStoreId ||
+          sku.productId !== item.productId ||
+          Number(sku.availableQty ?? 0) < item.quantity
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Cart contains unavailable items",
+          });
         }
       }
 
-      const subtotal = cartData.reduce((s, i) => s + parseFloat(String(i.sellingPrice)) * i.quantity, 0);
+      const subtotal = cartData.reduce(
+        (s, i) => s + parseFloat(String(i.sellingPrice)) * i.quantity,
+        0
+      );
       const total = subtotal;
 
       const needsRx = cartData.some(i => i.requiresPrescription);
@@ -369,20 +595,30 @@ const orderRouter = router({
         if (!input.prescriptionId) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "A valid prescription is required for one or more items in your cart. Please upload your prescription before checkout.",
+            message:
+              "A valid prescription is required for one or more items in your cart. Please upload your prescription before checkout.",
           });
         }
         // Verify prescription belongs to this customer
         const rx = await getPrescriptionById(input.prescriptionId);
         if (!rx || rx.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Prescription does not belong to this account" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Prescription does not belong to this account",
+          });
         }
         if (rx.status === "rejected") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "This prescription has been rejected. Please upload a new prescription." });
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This prescription has been rejected. Please upload a new prescription.",
+          });
         }
       }
       // Initial status: Rx orders enter pharmacist review; OTC orders go to awaiting_allocation
-      const initialStatus = needsRx ? "awaiting_pharmacist_review" : "awaiting_allocation";
+      const initialStatus = needsRx
+        ? "awaiting_pharmacist_review"
+        : "awaiting_allocation";
       let orderId: number | null = null;
       await softLockCart(ctx.user.id);
       await applySoftLockToSkus(lockItems);
@@ -394,7 +630,9 @@ const orderRouter = router({
           subtotal: subtotal.toFixed(2),
           total: total.toFixed(2),
           promisedSlaMins: slaMins,
-          deliveryAddress: user.flatNumber ? `Flat ${user.flatNumber}` : undefined,
+          deliveryAddress: user.flatNumber
+            ? `Flat ${user.flatNumber}`
+            : undefined,
           flatNumber: user.flatNumber ?? undefined,
           buildingId: user.buildingId ?? undefined,
           source: "app",
@@ -404,7 +642,9 @@ const orderRouter = router({
             storeSkuId: i.skuId,
             quantity: i.quantity,
             unitPrice: String(i.sellingPrice),
-            lineTotal: (parseFloat(String(i.sellingPrice)) * i.quantity).toFixed(2),
+            lineTotal: (
+              parseFloat(String(i.sellingPrice)) * i.quantity
+            ).toFixed(2),
           })),
         });
 
@@ -424,7 +664,9 @@ const orderRouter = router({
 
         await updateOrderStatus(orderId, initialStatus);
         await clearCart(ctx.user.id);
-        await writeAuditLog(ctx.user.id, "order_created", "order", orderId, { source: "app" });
+        await writeAuditLog(ctx.user.id, "order_created", "order", orderId, {
+          source: "app",
+        });
 
         // Fire-and-forget: send order confirmation notification
         const notifPayload = tplOrderReceived({
@@ -440,33 +682,51 @@ const orderRouter = router({
           totalAmount: total.toFixed(2),
           itemCount: cartData.length,
         }).catch(() => {}); // non-blocking ops alert
-        console.log(`[Notification] ${notifPayload.title}: ${notifPayload.content}`);
+        console.log(
+          `[Notification] ${notifPayload.title}: ${notifPayload.content}`
+        );
 
         // Trigger refill reminder update for chronic meds
         for (const item of cartData) {
           if (item.isChronicMedication) {
             // Compute avg interval from actual order history; fallback to 30 days
-            const avgIntervalDays = await computeRefillIntervalFromHistory(ctx.user.id, item.productId);
-            await upsertRefillReminder(ctx.user.id, item.productId, new Date(), avgIntervalDays);
+            const avgIntervalDays = await computeRefillIntervalFromHistory(
+              ctx.user.id,
+              item.productId
+            );
+            await upsertRefillReminder(
+              ctx.user.id,
+              item.productId,
+              new Date(),
+              avgIntervalDays
+            );
           }
         }
 
         return { orderId, status: initialStatus, promisedSlaMins: slaMins };
       } catch (error) {
-        if (orderId) await releaseReservationOnOrderCancel({ orderId, ctx, releaseReason: "checkout_failed" });
+        if (orderId)
+          await releaseReservationOnOrderCancel({
+            orderId,
+            ctx,
+            releaseReason: "checkout_failed",
+          });
         await releaseSoftLock(lockItems);
         await releaseCartLock(ctx.user.id);
         throw error;
       }
     }),
 
-  list: protectedProcedure.query(async ({ ctx }) => getOrdersByUser(ctx.user.id)),
+  list: protectedProcedure.query(async ({ ctx }) =>
+    getOrdersByUser(ctx.user.id)
+  ),
 
   detail: protectedProcedure
     .input(z.object({ orderId: z.number() }))
     .query(async ({ ctx, input }) => {
       const order = await getOrderById(input.orderId);
-      if (!order || order.userId !== ctx.user.id) throw new Error("Order not found");
+      if (!order || order.userId !== ctx.user.id)
+        throw new Error("Order not found");
       const items = await getOrderItems(input.orderId);
       return { ...order, items };
     }),
@@ -475,72 +735,134 @@ const orderRouter = router({
     .input(z.object({ orderId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const order = await getOrderById(input.orderId);
-      if (!order || order.userId !== ctx.user.id) throw new Error("Order not found");
+      if (!order || order.userId !== ctx.user.id)
+        throw new Error("Order not found");
       // Use getOrderItemsForReorder which includes storeSkuId
       const items = await getOrderItemsForReorder(input.orderId);
       await clearCart(ctx.user.id);
       for (const item of items) {
         // item.storeSkuId is the correct SKU id, item.productId is the product
-        await upsertCartItem(ctx.user.id, item.storeSkuId, item.productId, item.quantity);
+        await upsertCartItem(
+          ctx.user.id,
+          item.storeSkuId,
+          item.productId,
+          item.quantity
+        );
       }
-      await writeAuditLog(ctx.user.id, "order_reorder", "order", input.orderId, {});
+      await writeAuditLog(
+        ctx.user.id,
+        "order_reorder",
+        "order",
+        input.orderId,
+        {}
+      );
       return { success: true, itemCount: items.length };
     }),
 
   // Advance order status — role-gated, reason required, audit logged
   advanceStatus: protectedProcedure
-    .input(z.object({
-      orderId: z.number(),
-      status: z.enum([
-        "draft", "awaiting_prescription", "awaiting_pharmacist_review",
-        "clarification_needed", "rejected", "awaiting_allocation",
-        "backorder_review", "reserved", "picking", "packed",
-        "assigned_to_rider", "out_for_delivery", "delivery_exception",
-        "returned", "delivered", "closed", "cancelled",
-        // legacy compat
-        "pharmacist_reviewing", "return_to_stock",
-      ]),
-      reason: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        orderId: z.number(),
+        status: z.enum([
+          "draft",
+          "awaiting_prescription",
+          "awaiting_pharmacist_review",
+          "clarification_needed",
+          "rejected",
+          "awaiting_allocation",
+          "backorder_review",
+          "reserved",
+          "picking",
+          "packed",
+          "assigned_to_rider",
+          "out_for_delivery",
+          "delivery_exception",
+          "returned",
+          "delivered",
+          "closed",
+          "cancelled",
+          // legacy compat
+          "pharmacist_reviewing",
+          "return_to_stock",
+        ]),
+        reason: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const order = await getOrderById(input.orderId);
-      if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      if (!order)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
       const userRole = ctx.user.role;
       // Customers cannot advance operational statuses
       const customerOnlyStatuses = ["cancelled"];
       const staffOnlyStatuses = [
-        "awaiting_pharmacist_review", "clarification_needed", "rejected",
-        "awaiting_allocation", "backorder_review", "reserved",
-        "picking", "packed", "assigned_to_rider", "out_for_delivery",
-        "delivery_exception", "returned", "delivered", "closed",
+        "awaiting_pharmacist_review",
+        "clarification_needed",
+        "rejected",
+        "awaiting_allocation",
+        "backorder_review",
+        "reserved",
+        "picking",
+        "packed",
+        "assigned_to_rider",
+        "out_for_delivery",
+        "delivery_exception",
+        "returned",
+        "delivered",
+        "closed",
         // legacy
-        "pharmacist_reviewing", "return_to_stock",
+        "pharmacist_reviewing",
+        "return_to_stock",
       ];
       if (staffOnlyStatuses.includes(input.status) && !isStaffRole(userRole)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only staff can advance to this status" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only staff can advance to this status",
+        });
       }
       // Customers can only cancel their own orders
       if (!isStaffRole(userRole) && input.status !== "cancelled") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Customers can only cancel orders" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Customers can only cancel orders",
+        });
       }
       requireOrderOwnershipOrStaff(ctx.user.id, order.userId, userRole);
       const before = { status: order.status };
-      await updateOrderStatus(input.orderId, input.status, { reason: input.reason, changedBy: ctx.user.id });
-      await writeAuditLog(ctx.user.id, "order_status_changed", "order", input.orderId, undefined, {
-        actorRole: userRole,
-        beforeJson: before,
-        afterJson: { status: input.status },
+      await updateOrderStatus(input.orderId, input.status, {
         reason: input.reason,
-        channel: 'admin',
+        changedBy: ctx.user.id,
       });
+      await writeAuditLog(
+        ctx.user.id,
+        "order_status_changed",
+        "order",
+        input.orderId,
+        undefined,
+        {
+          actorRole: userRole,
+          beforeJson: before,
+          afterJson: { status: input.status },
+          reason: input.reason,
+          channel: "admin",
+        }
+      );
       // Auto-generate invoice on delivery
       if (input.status === "delivered") {
         try {
-          await generateAndStoreInvoice(input.orderId, async (key, data, mime) => {
-            return storagePut(key, data, mime);
-          });
+          await generateAndStoreInvoice(
+            input.orderId,
+            async (key, data, mime) => {
+              return storagePut(key, data, mime);
+            }
+          );
         } catch (e) {
-          console.error("[Invoice] Failed to generate invoice for order", input.orderId, e);
+          console.error(
+            "[Invoice] Failed to generate invoice for order",
+            input.orderId,
+            e
+          );
         }
       }
       return { success: true };
@@ -550,53 +872,100 @@ const orderRouter = router({
 // ─── Prescription Router ──────────────────────────────────────────────────────
 const prescriptionRouter = router({
   upload: protectedProcedure
-    .input(z.object({
-      imageBase64: z.string(),
-      mimeType: z.string().default("image/jpeg"),
-      metadata: z.object({
-        doctorName: z.string().max(200).optional(),
-        doctorRegNo: z.string().max(100).optional(),
-        clinicName: z.string().max(200).optional(),
-        prescriptionDate: z.string().datetime().optional(),
-        validUntil: z.string().datetime().optional(),
-        patientName: z.string().max(300).optional(),
-        linkedProductIds: z.array(z.number().int().positive()).max(50).optional(),
-        source: z.enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"]).optional(),
-      }).optional(),
-    }))
+    .input(
+      z.object({
+        imageBase64: z.string(),
+        mimeType: z.string().default("image/jpeg"),
+        metadata: z
+          .object({
+            doctorName: z.string().max(200).optional(),
+            doctorRegNo: z.string().max(100).optional(),
+            clinicName: z.string().max(200).optional(),
+            prescriptionDate: z.string().datetime().optional(),
+            validUntil: z.string().datetime().optional(),
+            patientName: z.string().max(300).optional(),
+            linkedProductIds: z
+              .array(z.number().int().positive())
+              .max(50)
+              .optional(),
+            source: z
+              .enum(["upload", "whatsapp", "doctor", "pharmacist", "manual"])
+              .optional(),
+          })
+          .optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
       const buffer = Buffer.from(input.imageBase64, "base64");
-      const allowed: Record<string, {ext:string; magic:number[]}> = {"image/jpeg":{ext:"jpg",magic:[0xFF,0xD8,0xFF]},"image/png":{ext:"png",magic:[0x89,0x50,0x4E,0x47]},"application/pdf":{ext:"pdf",magic:[0x25,0x50,0x44,0x46]}};
+      const allowed: Record<string, { ext: string; magic: number[] }> = {
+        "image/jpeg": { ext: "jpg", magic: [0xff, 0xd8, 0xff] },
+        "image/png": { ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
+        "application/pdf": { ext: "pdf", magic: [0x25, 0x50, 0x44, 0x46] },
+      };
       const rule = allowed[input.mimeType];
-      if (!rule) throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported file type" });
-      if (buffer.length > 8 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "File too large" });
-      if (!rule.magic.every((b,i)=>buffer[i]===b)) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid file signature" });
+      if (!rule)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Unsupported file type",
+        });
+      if (buffer.length > 8 * 1024 * 1024)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "File too large" });
+      if (!rule.magic.every((b, i) => buffer[i] === b))
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid file signature",
+        });
       const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
-      const rxId = await createPrescription(ctx.user.id, user?.assignedStoreId ?? undefined, url, key, input.metadata ? {
-        doctorName: input.metadata.doctorName,
-        doctorRegNo: input.metadata.doctorRegNo,
-        clinicName: input.metadata.clinicName,
-        prescriptionDate: input.metadata.prescriptionDate ? new Date(input.metadata.prescriptionDate) : undefined,
-        validUntil: input.metadata.validUntil ? new Date(input.metadata.validUntil) : undefined,
-        patientName: input.metadata.patientName,
-        linkedProductIds: input.metadata.linkedProductIds,
-        source: input.metadata.source ?? "upload",
-      } : { source: "upload" });
-      await writeAuditLog(ctx.user.id, "prescription_uploaded", "prescription", rxId, undefined, {
-        actorRole: ctx.user.role,
-        afterJson: { metadataSupplied: Boolean(input.metadata), source: input.metadata?.source ?? "upload" },
-        channel: "app",
-      });
+      const rxId = await createPrescription(
+        ctx.user.id,
+        user?.assignedStoreId ?? undefined,
+        url,
+        key,
+        input.metadata
+          ? {
+              doctorName: input.metadata.doctorName,
+              doctorRegNo: input.metadata.doctorRegNo,
+              clinicName: input.metadata.clinicName,
+              prescriptionDate: input.metadata.prescriptionDate
+                ? new Date(input.metadata.prescriptionDate)
+                : undefined,
+              validUntil: input.metadata.validUntil
+                ? new Date(input.metadata.validUntil)
+                : undefined,
+              patientName: input.metadata.patientName,
+              linkedProductIds: input.metadata.linkedProductIds,
+              source: input.metadata.source ?? "upload",
+            }
+          : { source: "upload" }
+      );
+      await writeAuditLog(
+        ctx.user.id,
+        "prescription_uploaded",
+        "prescription",
+        rxId,
+        undefined,
+        {
+          actorRole: ctx.user.role,
+          afterJson: {
+            metadataSupplied: Boolean(input.metadata),
+            source: input.metadata?.source ?? "upload",
+          },
+          channel: "app",
+        }
+      );
       return { prescriptionId: rxId, imageUrl: url };
     }),
-  list: protectedProcedure.query(async ({ ctx }) => getPrescriptionsByUser(ctx.user.id)),
+  list: protectedProcedure.query(async ({ ctx }) =>
+    getPrescriptionsByUser(ctx.user.id)
+  ),
   detail: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
-      if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!rx || rx.userId !== ctx.user.id)
+        throw new TRPCError({ code: "NOT_FOUND" });
       const { getDb } = await import("./db");
       const db = await getDb();
       if (db) {
@@ -609,7 +978,14 @@ const prescriptionRouter = router({
           accessType: "view",
         });
       }
-      await writeAuditLog(ctx.user.id, "prescription_viewed", "prescription", input.id, undefined, { channel: "app", actorRole: ctx.user.role });
+      await writeAuditLog(
+        ctx.user.id,
+        "prescription_viewed",
+        "prescription",
+        input.id,
+        undefined,
+        { channel: "app", actorRole: ctx.user.role }
+      );
       return rx;
     }),
   /** Prescription vault — approved + on-file prescriptions */
@@ -618,46 +994,80 @@ const prescriptionRouter = router({
     const { getDb } = await import("./db");
     const db = await getDb();
     if (db) {
-      await Promise.all(rows.map((rx: any) => logPrescriptionVaultAccess(db, {
-        actorId: ctx.user.id,
-        actorRole: ctx.user.role ?? "customer",
-        prescriptionId: rx.id,
-        purpose: "customer_vault_list",
-        channel: "app",
-        accessType: "view",
-      })));
+      await Promise.all(
+        rows.map((rx: any) =>
+          logPrescriptionVaultAccess(db, {
+            actorId: ctx.user.id,
+            actorRole: ctx.user.role ?? "customer",
+            prescriptionId: rx.id,
+            purpose: "customer_vault_list",
+            channel: "app",
+            accessType: "view",
+          })
+        )
+      );
     }
     return rows;
   }),
   /** Mark an approved prescription as permanently on-file */
   markOnFile: protectedProcedure
-    .input(z.object({
-      id: z.number(),
-      consentGiven: z.literal(true),
-      consentSource: z.enum(["app", "whatsapp", "pharmacist", "doctor", "manual"]).default("app"),
-    }))
+    .input(
+      z.object({
+        id: z.number(),
+        consentGiven: z.literal(true),
+        consentSource: z
+          .enum(["app", "whatsapp", "pharmacist", "doctor", "manual"])
+          .default("app"),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const rx = await getPrescriptionById(input.id);
-      if (!rx || rx.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
-      if (rx.status !== "approved") throw new TRPCError({ code: "BAD_REQUEST", message: "Only approved prescriptions can be stored on file" });
-      await markPrescriptionOnFile(input.id, ctx.user.id, { actorId: ctx.user.id, actorRole: ctx.user.role ?? "customer", consentSource: input.consentSource });
-      const updated = await getPrescriptionById(input.id);
-      const usable = assertPrescriptionUsableForCustomer(updated as any, ctx.user.id);
-      await writeAuditLog(ctx.user.id, "prescription_marked_on_file", "prescription", input.id, undefined, {
-        actorRole: ctx.user.role,
-        afterJson: { consentGiven: true, consentSource: input.consentSource, usable },
-        channel: input.consentSource,
+      if (!rx || rx.userId !== ctx.user.id)
+        throw new TRPCError({ code: "NOT_FOUND" });
+      if (rx.status !== "approved")
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only approved prescriptions can be stored on file",
+        });
+      await markPrescriptionOnFile(input.id, ctx.user.id, {
+        actorId: ctx.user.id,
+        actorRole: ctx.user.role ?? "customer",
+        consentSource: input.consentSource,
       });
+      const updated = await getPrescriptionById(input.id);
+      const usable = assertPrescriptionUsableForCustomer(updated, ctx.user.id);
+      await writeAuditLog(
+        ctx.user.id,
+        "prescription_marked_on_file",
+        "prescription",
+        input.id,
+        undefined,
+        {
+          actorRole: ctx.user.role,
+          afterJson: {
+            consentGiven: true,
+            consentSource: input.consentSource,
+            usable,
+          },
+          channel: input.consentSource,
+        }
+      );
       return { success: true };
     }),
   /** Active prior approvals for the current user */
-  priorApprovals: protectedProcedure.query(async ({ ctx }) => getActivePriorApprovals(ctx.user.id)),
+  priorApprovals: protectedProcedure.query(async ({ ctx }) =>
+    getActivePriorApprovals(ctx.user.id)
+  ),
 });
 
 // ─── Refill Reminders Router ──────────────────────────────────────────────────
 const refillRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => getRefillReminders(ctx.user.id)),
-  due: protectedProcedure.query(async ({ ctx }) => getRefillReminders(ctx.user.id)),
+  list: protectedProcedure.query(async ({ ctx }) =>
+    getRefillReminders(ctx.user.id)
+  ),
+  due: protectedProcedure.query(async ({ ctx }) =>
+    getRefillReminders(ctx.user.id)
+  ),
   dismiss: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -672,71 +1082,240 @@ const refillRouter = router({
     }),
   /** Snooze a refill reminder for N days (1, 3, or 7) */
   snooze: protectedProcedure
-    .input(z.object({ id: z.number(), days: z.union([z.literal(1), z.literal(3), z.literal(7)]) }))
+    .input(
+      z.object({
+        id: z.number(),
+        days: z.union([z.literal(1), z.literal(3), z.literal(7)]),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       await snoozeRefillReminder(input.id, ctx.user.id, input.days);
       return { success: true };
     }),
   createReorderPrompt: protectedProcedure
-    .input(z.object({ reminderId: z.number(), productId: z.number(), regulated: z.boolean().default(false) }))
+    .input(
+      z.object({
+        reminderId: z.number(),
+        productId: z.number(),
+        regulated: z.boolean().default(false),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      const pseudo = { id: String(input.reminderId), customerId: ctx.user.id, productId: input.productId, nextRefillDate: new Date().toISOString().slice(0,10), regulated: input.regulated };
+      const pseudo = {
+        id: String(input.reminderId),
+        customerId: ctx.user.id,
+        productId: input.productId,
+        nextRefillDate: new Date().toISOString().slice(0, 10),
+        regulated: input.regulated,
+      };
       if (input.regulated) {
-        await writeAuditLog(ctx.user.id, "refill.regulated_review_required", "refill", input.reminderId, undefined, { channel: "app", payload: { productId: input.productId } });
+        await writeAuditLog(
+          ctx.user.id,
+          "refill.regulated_review_required",
+          "refill",
+          input.reminderId,
+          undefined,
+          { channel: "app", payload: { productId: input.productId } }
+        );
       }
       // foundation flow: prompt only, no order state mutation
-      return { promptId: `draft_prompt_${input.reminderId}_${Date.now()}`, reminderId: input.reminderId, productId: input.productId, complianceGateRequired: input.regulated, autoConfirmedSale: false, status: "draft_prompt", requiresPharmacistReview: input.regulated, persistence: "pending_table_mapping" as const };
+      return {
+        promptId: `draft_prompt_${input.reminderId}_${Date.now()}`,
+        reminderId: input.reminderId,
+        productId: input.productId,
+        complianceGateRequired: input.regulated,
+        autoConfirmedSale: false,
+        status: "draft_prompt",
+        requiresPharmacistReview: input.regulated,
+        persistence: "pending_table_mapping" as const,
+      };
     }),
   /** Snoozed reminders — those with snoozedUntil > now */
-  listSnoozed: protectedProcedure.query(async ({ ctx }) => getSnoozedReminders(ctx.user.id)),
+  listSnoozed: protectedProcedure.query(async ({ ctx }) =>
+    getSnoozedReminders(ctx.user.id)
+  ),
 });
 
-
 const notificationRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => ({ rows: await getCustomerNotifications(ctx.user.id), persistence: "db_backed" as const })),
-  preferences: protectedProcedure.query(async ({ ctx }) => await getNotificationPreferences(ctx.user.id)),
-  updatePreferences: protectedProcedure.input(z.object({ allowSensitiveInUnsafeChannels: z.boolean().optional(), channels: z.record(z.enum(["in_app","push","email","whatsapp","sms"]), z.boolean()).optional() })).mutation(async ({ ctx, input }) => await updateNotificationPreferences(ctx.user.id, input as any)),
-  createTest: protectedProcedure.input(z.object({ channel: z.enum(["in_app","push","email","whatsapp","sms"]), title: z.string(), body: z.string(), sensitive: z.boolean().default(false) })).mutation(async ({ ctx, input }) => await createNotification({ customerId: ctx.user.id, channel: input.channel, title: input.title, body: input.body, sensitive: input.sensitive }))
+  list: protectedProcedure.query(async ({ ctx }) => ({
+    rows: await getCustomerNotifications(ctx.user.id),
+    persistence: "db_backed" as const,
+  })),
+  preferences: protectedProcedure.query(
+    async ({ ctx }) => await getNotificationPreferences(ctx.user.id)
+  ),
+  updatePreferences: protectedProcedure
+    .input(
+      z.object({
+        allowSensitiveInUnsafeChannels: z.boolean().optional(),
+        channels: z
+          .record(
+            z.enum(["in_app", "push", "email", "whatsapp", "sms"]),
+            z.boolean()
+          )
+          .optional(),
+      })
+    )
+    .mutation(
+      async ({ ctx, input }) =>
+        await updateNotificationPreferences(ctx.user.id, input as any)
+    ),
+  createTest: protectedProcedure
+    .input(
+      z.object({
+        channel: z.enum(["in_app", "push", "email", "whatsapp", "sms"]),
+        title: z.string(),
+        body: z.string(),
+        sensitive: z.boolean().default(false),
+      })
+    )
+    .mutation(
+      async ({ ctx, input }) =>
+        await createNotification({
+          customerId: ctx.user.id,
+          channel: input.channel,
+          title: input.title,
+          body: input.body,
+          sensitive: input.sensitive,
+        })
+    ),
 });
 
 const dosageRouter = router({
-  createSchedule: protectedProcedure.input(z.object({ productId: z.number(), unitsPerDay: z.number().positive(), totalUnits: z.number().positive(), source: z.enum(["prescription","user","pharmacist"]).default("user") })).mutation(async ({ ctx, input }) => await createDosageSchedule({ customerId: ctx.user.id, ...input })),
-  todayPlan: protectedProcedure.query(async ({ ctx }) => await getTodayDosePlan(ctx.user.id, new Date().toISOString().slice(0,10))),
-  recordTaken: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ ctx, input }) => ({ ok: await recordDoseTaken(ctx.user.id, input.scheduleId, input.date) })),
-  recordSkipped: protectedProcedure.input(z.object({ scheduleId: z.string(), date: z.string() })).mutation(async ({ ctx, input }) => ({ ok: await recordDoseSkipped(ctx.user.id, input.scheduleId, input.date) })),
-  adherence: protectedProcedure.input(z.object({ scheduleId: z.string() })).query(async ({ ctx, input }) => await getAdherenceSummary(ctx.user.id, input.scheduleId)),
-  remaining: protectedProcedure.input(z.object({ scheduleId: z.string(), startDate: z.string() })).query(async ({ ctx, input }) => ({ remaining: await estimateMedicationRemaining(ctx.user.id, input.scheduleId), runoutDate: await estimateRunoutDate(ctx.user.id, input.scheduleId, input.startDate), persistence: "db_backed" as const })),
+  createSchedule: protectedProcedure
+    .input(
+      z.object({
+        productId: z.number(),
+        unitsPerDay: z.number().positive(),
+        totalUnits: z.number().positive(),
+        source: z.enum(["prescription", "user", "pharmacist"]).default("user"),
+      })
+    )
+    .mutation(
+      async ({ ctx, input }) =>
+        await createDosageSchedule({ customerId: ctx.user.id, ...input })
+    ),
+  todayPlan: protectedProcedure.query(
+    async ({ ctx }) =>
+      await getTodayDosePlan(ctx.user.id, new Date().toISOString().slice(0, 10))
+  ),
+  recordTaken: protectedProcedure
+    .input(z.object({ scheduleId: z.string(), date: z.string() }))
+    .mutation(async ({ ctx, input }) => ({
+      ok: await recordDoseTaken(ctx.user.id, input.scheduleId, input.date),
+    })),
+  recordSkipped: protectedProcedure
+    .input(z.object({ scheduleId: z.string(), date: z.string() }))
+    .mutation(async ({ ctx, input }) => ({
+      ok: await recordDoseSkipped(ctx.user.id, input.scheduleId, input.date),
+    })),
+  adherence: protectedProcedure
+    .input(z.object({ scheduleId: z.string() }))
+    .query(
+      async ({ ctx, input }) =>
+        await getAdherenceSummary(ctx.user.id, input.scheduleId)
+    ),
+  remaining: protectedProcedure
+    .input(z.object({ scheduleId: z.string(), startDate: z.string() }))
+    .query(async ({ ctx, input }) => ({
+      remaining: await estimateMedicationRemaining(
+        ctx.user.id,
+        input.scheduleId
+      ),
+      runoutDate: await estimateRunoutDate(
+        ctx.user.id,
+        input.scheduleId,
+        input.startDate
+      ),
+      persistence: "db_backed" as const,
+    })),
 });
 
 const ratingRouter = router({
-  create: protectedProcedure.input(z.object({ orderId: z.number(), overall: z.number().min(1).max(5), delivery: z.number().min(1).max(5).optional(), packaging: z.number().min(1).max(5).optional(), pharmacistSupport: z.number().min(1).max(5).optional(), availability: z.number().min(1).max(5).optional(), issueTags: z.array(z.string()).optional(), comment: z.string().optional() })).mutation(async ({ ctx, input }) => {
-    const order = await getOrderById(input.orderId);
-    if (!order || order.userId !== ctx.user.id) throw new TRPCError({ code: "NOT_FOUND" });
-    if (!["delivered", "completed"].includes(order.status)) throw new TRPCError({ code: "BAD_REQUEST", message: "Order not eligible for rating" });
-    return await createOrderRating({ ...input, customerId: ctx.user.id });
-  }),
-  update: protectedProcedure.input(z.object({ orderId: z.number(), updates: z.object({ overall: z.number().min(1).max(5).optional(), delivery: z.number().min(1).max(5).optional(), packaging: z.number().min(1).max(5).optional(), pharmacistSupport: z.number().min(1).max(5).optional(), availability: z.number().min(1).max(5).optional(), issueTags: z.array(z.string()).optional(), comment: z.string().optional() }) })).mutation(async ({ ctx, input }) => await updateOrderRating(input.orderId, ctx.user.id, input.updates)),
-  get: protectedProcedure.input(z.object({ orderId: z.number() })).query(async ({ ctx, input }) => await getOrderRating(input.orderId, ctx.user.id)),
+  create: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.number(),
+        overall: z.number().min(1).max(5),
+        delivery: z.number().min(1).max(5).optional(),
+        packaging: z.number().min(1).max(5).optional(),
+        pharmacistSupport: z.number().min(1).max(5).optional(),
+        availability: z.number().min(1).max(5).optional(),
+        issueTags: z.array(z.string()).optional(),
+        comment: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const order = await getOrderById(input.orderId);
+      if (!order || order.userId !== ctx.user.id)
+        throw new TRPCError({ code: "NOT_FOUND" });
+      if (!["delivered", "completed"].includes(order.status))
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Order not eligible for rating",
+        });
+      return await createOrderRating({ ...input, customerId: ctx.user.id });
+    }),
+  update: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.number(),
+        updates: z.object({
+          overall: z.number().min(1).max(5).optional(),
+          delivery: z.number().min(1).max(5).optional(),
+          packaging: z.number().min(1).max(5).optional(),
+          pharmacistSupport: z.number().min(1).max(5).optional(),
+          availability: z.number().min(1).max(5).optional(),
+          issueTags: z.array(z.string()).optional(),
+          comment: z.string().optional(),
+        }),
+      })
+    )
+    .mutation(
+      async ({ ctx, input }) =>
+        await updateOrderRating(input.orderId, ctx.user.id, input.updates)
+    ),
+  get: protectedProcedure
+    .input(z.object({ orderId: z.number() }))
+    .query(
+      async ({ ctx, input }) => await getOrderRating(input.orderId, ctx.user.id)
+    ),
 });
 
 // ─── WhatsApp Bot Router (shared order engine) ────────────────────────────────
 const whatsappRouter = router({
   webhook: publicProcedure
-    .input(z.object({
-      phone: z.string(),
-      message: z.string(),
-      messageType: z.enum(["text", "image", "button"]).default("text"),
-      imageUrl: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        phone: z.string(),
+        message: z.string(),
+        messageType: z.enum(["text", "image", "button"]).default("text"),
+        imageUrl: z.string().optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       assertOtpLimiterMode();
       assertWhatsappWebhookGuard(ctx, JSON.stringify(input));
       const phone = normalizeWhatsAppPhone(input.phone);
       const linkedUser = await getUserByPhone(phone);
       if (!linkedUser && isRegulatedMedicineIntent(input.message)) {
-        await upsertWhatsappSession(phone, { currentFlow: "pending_link", flowState: JSON.stringify({ identity: "unlinked", reason: "regulated_intent" }) });
-        await writeAuditLog({ actor: { id: null, type: "whatsapp" }, action: "whatsapp.regulated_intent.escalated", entityType: "whatsapp_session", payload: JSON.stringify({ phone }) });
-        return { response: "This looks like a regulated medicine or medical question. I cannot give medical advice or confirm refills on WhatsApp. A pharmacist will review it. Please upload a valid prescription or wait for staff assistance." };
+        await upsertWhatsappSession(phone, {
+          currentFlow: "pending_link",
+          flowState: JSON.stringify({
+            identity: "unlinked",
+            reason: "regulated_intent",
+          }),
+        });
+        await writeAuditLog({
+          actor: { id: null, type: "whatsapp" },
+          action: "whatsapp.regulated_intent.escalated",
+          entityType: "whatsapp_session",
+          payload: JSON.stringify({ phone }),
+        });
+        return {
+          response:
+            "This looks like a regulated medicine or medical question. I cannot give medical advice or confirm refills on WhatsApp. A pharmacist will review it. Please upload a valid prescription or wait for staff assistance.",
+        };
       }
       const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
@@ -747,8 +1326,13 @@ const whatsappRouter = router({
       let nextFlow = flow;
       let nextState = state;
 
-      if (input.message.toLowerCase() === "hi" || input.message.toLowerCase() === "hello" || flow === "menu") {
-        response = "Welcome to 24/7 Pharmacy.\n\nReply with:\n1. Search medicines\n2. My orders\n3. Upload prescription\n4. Reorder last order\n5. Refill reminders";
+      if (
+        input.message.toLowerCase() === "hi" ||
+        input.message.toLowerCase() === "hello" ||
+        flow === "menu"
+      ) {
+        response =
+          "Welcome to 24/7 Pharmacy.\n\nReply with:\n1. Search medicines\n2. My orders\n3. Upload prescription\n4. Reorder last order\n5. Refill reminders";
         nextFlow = "menu";
         nextState = {};
       } else if (input.message === "1" || flow === "search") {
@@ -763,7 +1347,8 @@ const whatsappRouter = router({
         }
       } else if (input.message === "2" || flow === "status") {
         if (!linkedUser) {
-          response = "Your phone is not linked to an account, so I cannot show private order details on WhatsApp. Please link your account in the app or ask staff for help.";
+          response =
+            "Your phone is not linked to an account, so I cannot show private order details on WhatsApp. Please link your account in the app or ask staff for help.";
           nextFlow = "menu";
           nextState = {};
         } else if (flow !== "status" || !state.awaitingOrderId) {
@@ -775,7 +1360,8 @@ const whatsappRouter = router({
           if (!isNaN(orderId)) {
             const order = await getOrderById(orderId);
             if (order && order.userId !== linkedUser.id) {
-              response = "I cannot show private order details for this WhatsApp session. Please use the linked account in the 24/7 app or ask staff for help. Reply \"hi\" for main menu.";
+              response =
+                'I cannot show private order details for this WhatsApp session. Please use the linked account in the 24/7 app or ask staff for help. Reply "hi" for main menu.';
             } else if (order) {
               const statusLabel: Record<string, string> = {
                 created: "Order Received",
@@ -790,7 +1376,7 @@ const whatsappRouter = router({
               response = `Order #${orderId} not found. Reply "hi" for main menu.`;
             }
           } else {
-            response = "Invalid order ID. Reply \"hi\" for main menu.";
+            response = 'Invalid order ID. Reply "hi" for main menu.';
           }
           nextFlow = "menu";
           nextState = {};
@@ -804,24 +1390,29 @@ const whatsappRouter = router({
           } catch (e) {
             console.error("[WhatsApp] Failed to persist Rx:", e);
           }
-          response = "Prescription received and saved. Our pharmacist will review it shortly.\n\nReply \"hi\" for main menu.";
+          response =
+            'Prescription received and saved. Our pharmacist will review it shortly.\n\nReply "hi" for main menu.';
           nextFlow = "menu";
           nextState = {};
         } else {
-          response = "Please send your prescription as an image (photo of the prescription).";
+          response =
+            "Please send your prescription as an image (photo of the prescription).";
           nextFlow = "rx_upload";
           nextState = { awaitingImage: true };
         }
       } else if (input.message === "4") {
-        response = "To reorder, please open the 24/7 app and tap 'Reorder' on any past order.\n\nReply \"hi\" for main menu.";
+        response =
+          "To reorder, please open the 24/7 app and tap 'Reorder' on any past order.\n\nReply \"hi\" for main menu.";
         nextFlow = "menu";
         nextState = {};
       } else if (input.message === "5") {
-        response = "Your refill reminders are available in the 24/7 app under 'Refills'.\n\nReply \"hi\" for main menu.";
+        response =
+          "Your refill reminders are available in the 24/7 app under 'Refills'.\n\nReply \"hi\" for main menu.";
         nextFlow = "menu";
         nextState = {};
       } else {
-        response = "I didn't understand that. Reply \"hi\" to see the main menu.";
+        response =
+          'I didn\'t understand that. Reply "hi" to see the main menu.';
         nextFlow = "menu";
         nextState = {};
       }
@@ -843,10 +1434,12 @@ const locationRouter = router({
    * Used in the onboarding address search field.
    */
   autocomplete: publicProcedure
-    .input(z.object({
-      query: z.string().min(1).max(200),
-      sessionToken: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        query: z.string().min(1).max(200),
+        sessionToken: z.string().optional(),
+      })
+    )
     .query(async ({ input }) => {
       return getPlaceAutocomplete(input.query, input.sessionToken);
     }),
@@ -855,10 +1448,12 @@ const locationRouter = router({
    * Geocode a place_id (from autocomplete) or a free-text address to lat/lng.
    */
   geocode: publicProcedure
-    .input(z.object({
-      placeId: z.string().optional(),
-      address: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        placeId: z.string().optional(),
+        address: z.string().optional(),
+      })
+    )
     .query(async ({ input }) => {
       if (input.placeId) {
         return geocodeAddress(input.placeId, true);
@@ -874,12 +1469,14 @@ const locationRouter = router({
    * returns the nearest eligible store and ETA, or serviceable=false.
    */
   checkServiceability: publicProcedure
-    .input(z.object({
-      lat: z.number(),
-      lng: z.number(),
-      buildingPrimaryStoreId: z.number().optional(),
-      pincode: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        lat: z.number(),
+        lng: z.number(),
+        buildingPrimaryStoreId: z.number().optional(),
+        pincode: z.string().optional(),
+      })
+    )
     .query(async ({ input }) => {
       return checkServiceability(
         input.lat,
@@ -894,10 +1491,12 @@ const locationRouter = router({
 const consultRouter = router({
   // Request a new doctor consult
   request: protectedProcedure
-    .input(z.object({
-      chiefComplaint: z.string().min(5).max(1000),
-      consultType: z.enum(["instant", "scheduled"]).default("instant"),
-    }))
+    .input(
+      z.object({
+        chiefComplaint: z.string().min(5).max(1000),
+        consultType: z.enum(["instant", "scheduled"]).default("instant"),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const consult = await createConsultRequest(
         ctx.user.id,
@@ -914,12 +1513,18 @@ const consultRouter = router({
 
   // Link a prescription to a completed consult
   linkPrescription: protectedProcedure
-    .input(z.object({
-      consultId: z.number().int().positive(),
-      prescriptionId: z.number().int().positive(),
-    }))
+    .input(
+      z.object({
+        consultId: z.number().int().positive(),
+        prescriptionId: z.number().int().positive(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      await linkConsultPrescription(input.consultId, ctx.user.id, input.prescriptionId);
+      await linkConsultPrescription(
+        input.consultId,
+        ctx.user.id,
+        input.prescriptionId
+      );
       return { ok: true };
     }),
 });
