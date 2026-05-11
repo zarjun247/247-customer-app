@@ -8,8 +8,7 @@ const migrationName = '0044_index_performance_audit.sql';
 const migrationPath = join(drizzleDir, migrationName);
 const migrationSql = readFileSync(migrationPath, 'utf8');
 const schemaSql = readFileSync(join(drizzleDir, 'schema.ts'), 'utf8');
-const auditStatus = readFileSync(join(repoRoot, 'DATABASE_INDEX_AUDIT_STATUS.md'), 'utf8');
-const queryStatus = readFileSync(join(repoRoot, 'DATABASE_QUERY_PERFORMANCE_STATUS.md'), 'utf8');
+const statusDoc = readFileSync(join(repoRoot, 'docs', 'STATUS.md'), 'utf8');
 
 const indexNames = [...migrationSql.matchAll(/ADD\s+INDEX\s+`([^`]+)`/gi)].map((match) => match[1]);
 const schemaIndexNames = [...schemaSql.matchAll(/(?:index|uniqueIndex)\("([^"]+)"\)/g)].map((match) => match[1]);
@@ -59,7 +58,7 @@ describe('database index audit migration guards', () => {
   });
 
   it('covers critical query families with indexes or documented deferrals', () => {
-    const combinedEvidence = [migrationSql, schemaSql, auditStatus].join('\n');
+    const combinedEvidence = [migrationSql, schemaSql, statusDoc].join('\n');
 
     for (const coverage of requiredCoverage) {
       const hasIndexOrDeferral = coverage.indexes.some((indexName) => combinedEvidence.includes(indexName))
@@ -68,9 +67,8 @@ describe('database index audit migration guards', () => {
     }
   });
 
-  it('documents that EXPLAIN/benchmark proof is still required before performance claims', () => {
-    expect(auditStatus).toMatch(/EXPLAIN\/benchmark proof remains P1/i);
-    expect(queryStatus).toMatch(/EXPLAIN/i);
-    expect(queryStatus).toMatch(/benchmark dataset/i);
+  it('documents that empirical proof is required before performance and deployment claims', () => {
+    expect(statusDoc).toContain('NO-GO for live controlled production');
+    expect(statusDoc).toMatch(/Hosted DB observation still required|no production deployment.*proof claimed/i);
   });
 });

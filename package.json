@@ -10,6 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
+    "docs:verify": "node scripts/verify-docs-structure.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "test:db:bootstrap": "tsx scripts/bootstrap-test-db.ts",
     "test:db:smoke": "vitest run server/mysql-db-lifecycle.integration.test.ts",
