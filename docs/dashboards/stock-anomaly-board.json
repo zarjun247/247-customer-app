@@ -1,9 +1,8 @@
 {
   "id": "stock-anomaly-board",
   "title": "Stock Anomaly Board",
-  "metrics": [
-    { "name": "stock_mismatch_count", "query": "stock_mismatch_total" },
-    { "name": "stock_delta_gauge", "query": "stock_delta" }
-  ],
-  "note": "Detects stock mismatches and anomalies from reconciliation flows."
+  "status": "blocked_no_backing_endpoint",
+  "metrics": [],
+  "blockedMetrics": "original sprint dashboard metrics removed until backed by audited runtime endpoints",
+  "note": "This dashboard is intentionally metadata-only after the observability audit; it must not display synthetic or unbacked data."
 }

@@ -40,7 +40,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  initObservability(app, server);
+  initObservability(app);
   registerObservabilityRoutes(app);
   applyHttpSecurity(app);
   registerStorageProxy(app);

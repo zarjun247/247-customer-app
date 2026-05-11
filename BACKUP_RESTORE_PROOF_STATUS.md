@@ -64,3 +64,17 @@ After an executed restore drill, capture evidence for:
 - The scripts do not provision backup storage buckets, encryption-at-rest policies, retention policies, or offsite replication.
 - The scripts do not run post-restore smoke queries automatically yet.
 - Point-in-time recovery and binlog replay are not automated in this wave.
+
+## 2026-05-10 safe restore drill infrastructure update
+
+Added `scripts/restore-verify.mjs` for read-only restore verification planning. It refuses execute/apply flags, refuses production-looking targets, computes SHA256 for the backup file, optionally checks a checksum file, and prints redacted read-only verification queries. This is not a destructive restore runner and does not prove restore success until an isolated non-production restore transcript is attached.
+
+### Required measured restore evidence
+
+1. Backup command transcript and backup artifact/checksum.
+2. Non-production restore target classification.
+3. Restore command transcript, duration, and exit status from an operator-run drill.
+4. `scripts/restore-verify.mjs` output with checksum.
+5. Read-only query results for migrations, stores, stock sanity, and reconciliation checks.
+6. Application smoke check against the restored database.
+7. Owner signoff and remaining discrepancies.

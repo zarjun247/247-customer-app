@@ -26,13 +26,13 @@ import {
 
 // ── Status badge ────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    pending_ocr: { label: "Pending OCR", variant: "secondary" },
-    pending_pharmacist: { label: "Pending Review", variant: "default" },
-    quick_verify: { label: "Quick Verify", variant: "outline" },
-    approved: { label: "Approved", variant: "default" },
+  const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "info" | "neutral" }> = {
+    pending_ocr: { label: "Pending OCR", variant: "neutral" },
+    pending_pharmacist: { label: "Pharmacist Review", variant: "warning" },
+    quick_verify: { label: "Quick Verify", variant: "info" },
+    approved: { label: "Approved", variant: "success" },
     rejected: { label: "Rejected", variant: "destructive" },
-    additional_verification: { label: "Clarification", variant: "secondary" },
+    additional_verification: { label: "Clarification", variant: "warning" },
     on_file: { label: "On File", variant: "outline" },
   };
   const s = map[status] ?? { label: status, variant: "secondary" as const };
@@ -43,16 +43,16 @@ function StatusBadge({ status }: { status: string }) {
 function ScheduleBadge({ code }: { code?: string | null }) {
   if (!code) return null;
   const color: Record<string, string> = {
-    OTC: "bg-green-100 text-green-800",
-    Rx: "bg-blue-100 text-blue-800",
-    H: "bg-orange-100 text-orange-800",
-    H1: "bg-red-100 text-red-800",
-    X: "bg-purple-100 text-purple-800",
-    NRX: "bg-yellow-100 text-yellow-800",
+    OTC: "border-emerald-400/25 bg-emerald-500/12 text-emerald-200",
+    Rx: "border-blue-400/25 bg-blue-500/12 text-blue-200",
+    H: "border-amber-400/35 bg-amber-500/15 text-amber-100",
+    H1: "border-red-400/35 bg-red-500/15 text-red-100",
+    X: "border-purple-400/35 bg-purple-500/15 text-purple-100",
+    NRX: "border-amber-400/35 bg-amber-500/15 text-amber-100",
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${color[code] ?? "bg-gray-100 text-gray-800"}`}>
-      {code}
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-bold ${color[code] ?? "border-zinc-500/25 bg-zinc-500/12 text-zinc-200"}`}>
+      Schedule {code}
     </span>
   );
 }
@@ -100,7 +100,7 @@ function QueueTab({ onSelect }: { onSelect: (id: number) => void }) {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading queue...</div>
+        <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}</div>
       ) : !data?.rows.length ? (
         <div className="text-center py-12 text-muted-foreground">
           <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -818,11 +818,23 @@ export default function AdminPrescriptionGov() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Prescription Governance</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Pharmacist review queue · Line-level approval · H1 register · Rx archive · Access log
-          </p>
+        <div className="premium-card p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Prescription Governance</h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Pharmacist review queue · Line-level approval · H1 register · Rx archive · Access log
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="regulated">H/H1 guarded</Badge>
+              <Badge variant="info">OCR is assistive only</Badge>
+              <Badge variant="success">Approval explicit</Badge>
+            </div>
+          </div>
+          <div className="safety-callout mt-4 p-3 text-xs leading-relaxed">
+            No prescription decision is automated here. Approvals, rejections, clarification requests, H1 entries, and line edits require a pharmacist action and audit trail.
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>

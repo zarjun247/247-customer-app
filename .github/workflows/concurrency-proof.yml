@@ -30,6 +30,7 @@ jobs:
           --health-start-period=20s
     env:
       TEST_DATABASE_URL: mysql://247_test_user:247_test_password@127.0.0.1:3306/247_customer_app_test
+      CI_EVIDENCE_DIR: ci-evidence/db-concurrency
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +51,49 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply test DB migrations
-        run: pnpm run test:db:bootstrap
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "$CI_EVIDENCE_DIR"
+          pnpm run test:db:bootstrap 2>&1 | tee "$CI_EVIDENCE_DIR/test-db-bootstrap.log"
 
       - name: Run MySQL concurrency proof
-        run: pnpm run test:db:concurrency
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "$CI_EVIDENCE_DIR"
+          pnpm run test:db:concurrency 2>&1 | tee "$CI_EVIDENCE_DIR/mysql-concurrency-proof.log"
+
+      - name: Write DB proof evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$CI_EVIDENCE_DIR"
+          {
+            echo "# DB Concurrency Proof Evidence"
+            echo ""
+            echo "- workflow: ${GITHUB_WORKFLOW}"
+            echo "- job: mysql-concurrency-proof"
+            echo "- run_id: ${GITHUB_RUN_ID}"
+            echo "- run_attempt: ${GITHUB_RUN_ATTEMPT}"
+            echo "- ref: ${GITHUB_REF}"
+            echo "- sha: ${GITHUB_SHA}"
+            echo "- mysql_image: mysql:8.4"
+            echo "- test_database_url_host: 127.0.0.1:3306/247_customer_app_test"
+            echo "- migration_command: pnpm run test:db:bootstrap"
+            echo "- concurrency_command: pnpm run test:db:concurrency"
+            echo "- generated_at_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "## Log checksums"
+            sha256sum "$CI_EVIDENCE_DIR"/*.log 2>/dev/null || true
+          } | tee "$CI_EVIDENCE_DIR/evidence-manifest.md"
+          cat "$CI_EVIDENCE_DIR/evidence-manifest.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload DB proof evidence logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-concurrency-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-evidence/db-concurrency
+          if-no-files-found: warn
+          retention-days: 30

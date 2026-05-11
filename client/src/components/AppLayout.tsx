@@ -8,6 +8,8 @@ import {
   User,
   ShieldCheck,
   MessageSquare,
+  AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { LOGO_URL } from "@/const";
@@ -103,6 +105,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
+        {isAuthenticated && (
+          <div style={{ borderTop: "1px solid #1C1C1F" }}>
+            <div className="max-w-lg mx-auto px-5 py-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
+              <div className="flex items-center gap-1.5" style={{ color: "#00C896" }}>
+                <ShieldCheck size={11} /> Pharmacist verified
+              </div>
+              <div className="flex items-center gap-1.5" style={{ color: "#F59E0B" }}>
+                <AlertTriangle size={11} /> Rx items require approval
+              </div>
+              <div className="flex items-center gap-1.5" style={{ color: "#BFDBFE" }}>
+                <Sparkles size={11} /> AI labels are assistive only
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Context strip — mobile (single compact line) */}
         {isAuthenticated && (
           <div className="sm:hidden" style={{ borderTop: "1px solid #1C1C1F" }}>
@@ -161,7 +179,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Link
                 key={path}
                 href={path}
-                className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl no-underline transition-opacity hover:opacity-80"
+                className="premium-focus flex min-h-11 flex-col items-center gap-1 rounded-xl px-3 py-2 no-underline transition-opacity hover:opacity-80"
               >
                 <Icon
                   size={20}

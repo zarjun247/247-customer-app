@@ -1,9 +1,8 @@
 {
   "id": "reconciliation-monitor",
   "title": "Reconciliation Monitor",
-  "metrics": [
-    { "name": "reconciliation_failures", "query": "reconciliation_failures_total" },
-    { "name": "reconciliation_latency", "query": "reconciliation_latency_seconds" }
-  ],
-  "note": "Tracks reconciliation runs, failures and latency."
+  "status": "blocked_no_backing_endpoint",
+  "metrics": [],
+  "blockedMetrics": "original sprint dashboard metrics removed until backed by audited runtime endpoints",
+  "note": "This dashboard is intentionally metadata-only after the observability audit; it must not display synthetic or unbacked data."
 }

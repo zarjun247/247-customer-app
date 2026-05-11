@@ -3,8 +3,6 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 import AppLayout from "@/components/AppLayout";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Minus, Plus, Trash2, Clock, ShieldCheck, Shield, ArrowLeft, Lock, ClipboardList, Search, FileText, CreditCard, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -142,7 +140,7 @@ export default function Cart() {
   }
   return (
     <AppLayout>
-      <div className="px-5 pt-6 pb-10" style={{ background: "#0A0A0B", minHeight: "100%" }}>
+      <div className="premium-page px-5 pt-6 pb-10">
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3 mb-6">
           <button
@@ -234,21 +232,24 @@ export default function Cart() {
                   ))}
                 </div>
                 {/* Rx notice */}
-                <div className="rounded-xl p-4 flex items-start gap-3" role="note" aria-live="polite"
+                <div className="rounded-xl p-4 flex items-start gap-3"
                   style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)" }}>
                   <ClipboardList size={14} strokeWidth={1.75} className="flex-shrink-0 mt-0.5"
                     style={{ color: "#F59E0B" }} />
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold" style={{ color: "#92400E" }}>Prescription required</span>
-                      <Badge variant="rx" className="text-xs">Rx</Badge>
-                    </div>
-                    <p className="text-xs leading-relaxed" style={{ color: "#B45309" }}>
+                    <p className="text-sm font-semibold mb-0.5" style={{ color: "#FDE68A" }}>
+                      Prescription required
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: "#FBBF24" }}>
                       These medicines will be prepared after a licensed pharmacist reviews your prescription.
                     </p>
-                    <Button onClick={() => navigate("/rx-upload")} size="sm" variant="link" className="mt-2">
+                    <button
+                      onClick={() => navigate("/rx-upload")}
+                      className="mt-2 text-xs font-semibold transition-opacity hover:opacity-70"
+                      style={{ color: "#2B7FFF" }}
+                    >
                       Upload prescription →
-                    </Button>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -271,8 +272,7 @@ export default function Cart() {
             )}
 
             {/* ── Order summary ────────────────────────────────────────── */}
-            <div className="rounded-xl p-4 mb-4"
-              style={{ border: "1px solid #2A2A2E", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            <div className="premium-card p-4 mb-4">
               <p className="text-xs font-semibold tracking-widest uppercase mb-3"
                 style={{ color: "#4B4B55" }}>Summary</p>
               <div className="space-y-2.5">
@@ -288,7 +288,7 @@ export default function Cart() {
                   <span style={{ color: "#6B6B75" }}>Delivery</span>
                   <span className="font-medium" style={{ color: "#00C896" }}>Included</span>
                 </div>
-                <div className="h-px" style={{ background: "#E5E7EB" }} />
+                <div className="h-px" style={{ background: "#2A2A2E" }} />
                 <div className="flex justify-between">
                   <span className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>Total</span>
                   <span className="text-sm font-semibold" style={{ color: "#F0F0F2" }}>
@@ -299,7 +299,7 @@ export default function Cart() {
             </div>
 
             {/* ── Trust + inventory note ───────────────────────────────── */}
-            <div className="flex items-start gap-2 mb-5">
+            <div className="trust-callout flex items-start gap-2 mb-5 p-3">
               <Lock size={11} className="flex-shrink-0 mt-0.5" style={{ color: "#4B4B55" }} />
               <p className="text-xs leading-relaxed" style={{ color: "#4B4B55" }}>
                 Stock is reserved when you confirm. All prescriptions are reviewed by a licensed pharmacist before dispensing.
@@ -307,12 +307,11 @@ export default function Cart() {
             </div>
 
             {/* ── Confirm order ────────────────────────────────────────── */}
-            <Button
+            <button
               onClick={handleConfirm}
               disabled={confirming || checkout.isPending || isPaymentLoading}
-              size="lg"
-              touch
-              className="w-full mb-6 flex items-center justify-center gap-2.5 font-semibold text-sm"
+              className="bottom-action-bar w-full flex items-center justify-center gap-2.5 px-5 py-4 font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50 mb-6"
+              style={{ color: "white" }}
             >
               {paymentStep === "creating" ? (
                 <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Setting up payment…</>
@@ -323,7 +322,7 @@ export default function Cart() {
               ) : (
                 <><CreditCard size={16} />{`Pay ₹${subtotal.toFixed(2)}`}</>
               )}
-            </Button>
+            </button>
           </>
         )}
       </div>
@@ -334,8 +333,7 @@ export default function Cart() {
 // ─── Cart Item Row ────────────────────────────────────────────────────────────
 function CartItem({ item, onUpdate }: { item: any; onUpdate: (qty: number) => void }) {
   return (
-    <div className="rounded-xl p-4"
-      style={{ border: "1px solid #2A2A2E", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+    <div className="premium-card-subtle p-4">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">

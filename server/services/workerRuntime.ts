@@ -9,6 +9,7 @@ import {
   type DeadLetterClass,
   type WorkerJob,
 } from "./jobQueue";
+import { assertAITaskAllowed, auditAIDecision, classifyAITask } from "./aiGovernance";
 
 export type WorkerOperationMetadata = {
   jobType: string;
@@ -20,6 +21,8 @@ export type WorkerOperationMetadata = {
   requiresProviderHealthy: boolean;
   safeInDegradedMode: boolean;
   regulatedExecutionAllowed: false;
+  aiTaskClassification?: ReturnType<typeof classifyAITask>;
+  governanceBoundary?: "assistive_only_no_regulated_mutation";
 };
 
 export type WorkerHandlerResult = Record<string, unknown> | void;
@@ -80,9 +83,13 @@ export const jobTypeRegistry: Record<string, WorkerOperationMetadata> = {
     requiresProviderHealthy: true,
     safeInDegradedMode: false,
     regulatedExecutionAllowed: false,
+    aiTaskClassification: "ocr_data_capture",
+    governanceBoundary: "assistive_only_no_regulated_mutation",
   },
   "ocr.parse.invoice": {
     jobType: "ocr.parse.invoice",
+    aiTaskClassification: "ocr_data_capture",
+    governanceBoundary: "assistive_only_no_regulated_mutation",
     retryable: true,
     maxRetries: 2,
     timeoutMs: 60_000,
@@ -116,6 +123,8 @@ export const jobTypeRegistry: Record<string, WorkerOperationMetadata> = {
   },
   "ai.anomaly.scan": {
     jobType: "ai.anomaly.scan",
+    aiTaskClassification: "operational_anomaly_detection",
+    governanceBoundary: "assistive_only_no_regulated_mutation",
     retryable: true,
     maxRetries: 2,
     timeoutMs: 90_000,
@@ -127,6 +136,8 @@ export const jobTypeRegistry: Record<string, WorkerOperationMetadata> = {
   },
   "ai.expiry.analysis": {
     jobType: "ai.expiry.analysis",
+    aiTaskClassification: "inventory_expiry_analysis",
+    governanceBoundary: "assistive_only_no_regulated_mutation",
     retryable: true,
     maxRetries: 2,
     timeoutMs: 90_000,
@@ -166,6 +177,7 @@ export async function executeJob(job: WorkerJob, input: { workerId: string; hand
   if (job.status === "completed") return { status: "already_completed", job };
 
   const metadata = getJobTypeMetadata(job.jobType);
+  if (metadata.governanceBoundary) assertAITaskAllowed(job.jobType);
   const handler = input.handler ?? handlers.get(job.jobType);
   if (!handler) {
     const dead = await deadLetterJob(job.id, { reason: `No explicit handler registered for ${job.jobType}`, deadLetterClass: "non_retryable", actor: input.workerId });
@@ -177,6 +189,15 @@ export async function executeJob(job: WorkerJob, input: { workerId: string; hand
 
   try {
     const result = await withTimeout(Promise.resolve(handler(job)), metadata.timeoutMs);
+    if (metadata.governanceBoundary) {
+      try {
+        await auditAIDecision({ taskType: job.jobType, input: job.payloadJson, output: result ?? {}, regulatedEntityRef: job.relatedEntityType ? `${job.relatedEntityType}:${job.relatedEntityId ?? "unknown"}` : null, correlationId: job.correlationId });
+      } catch (governanceError) {
+        const reason = governanceError instanceof Error ? governanceError.message : String(governanceError);
+        const dead = await deadLetterJob(job.id, { reason, deadLetterClass: "non_retryable", actor: input.workerId });
+        return { status: "dead_letter", job: dead };
+      }
+    }
     if (isUnsafeProviderSuccess(result)) {
       const dead = await deadLetterJob(job.id, { reason: `Unsafe provider result cannot be treated as success: ${JSON.stringify(result)}`, deadLetterClass: "provider_unavailable", actor: input.workerId });
       return { status: "dead_letter", job: dead };

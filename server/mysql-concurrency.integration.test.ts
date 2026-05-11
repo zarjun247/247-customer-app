@@ -335,6 +335,37 @@ describeWithDb("MySQL-backed concurrency proof harness", () => {
     expect(idemRows).toHaveLength(1);
   });
 
+  it("proves duplicate supplier invoice commit is blocked non-destructively before hard uniqueness", async () => {
+    const seed = await seedConcurrencyFixture(ctx, "supplier-dup");
+    const duplicateInvoiceNo = `DUP-${ctx.runId}`;
+    await ctx.connection.execute(
+      "INSERT INTO purchase_invoices (supplierId, storeId, invoiceNo, invoiceDate, netAmount, createdBy, status, committedAt) VALUES (1, ?, ?, NOW(), '100.00', ?, 'committed', NOW())",
+      [seed.store.id, duplicateInvoiceNo, seed.staff.id],
+    );
+    const invoiceId = await insertId(
+      ctx.connection,
+      "INSERT INTO purchase_invoices (supplierId, storeId, invoiceNo, invoiceDate, netAmount, createdBy, status) VALUES (1, ?, ?, NOW(), '100.00', ?, 'draft')",
+      [seed.store.id, duplicateInvoiceNo, seed.staff.id],
+    );
+    await ctx.connection.execute(
+      "INSERT INTO purchase_lines (purchaseInvoiceId, productId, batchNo, expiryDate, mrp, purchaseRate, saleRate, qty, freeQty, gstRate) VALUES (?, ?, ?, '2035-12-31', '100.00', '70.00', '95.00', 2, 0, '12.00')",
+      [invoiceId, seed.productSet.product.id, `DUP-PL-${ctx.runId}`],
+    );
+
+    const outcome = await Promise.allSettled([
+      commitPurchaseInvoiceExactlyOnce({ invoiceId, idempotencyKey: `purchase:dup:${ctx.runId}`, actorId: seed.staff.id, actorRole: seed.staff.role }),
+    ]);
+
+    expect(outcome[0].status).toBe("rejected");
+    if (outcome[0].status === "rejected") {
+      expect(String(outcome[0].reason?.message ?? outcome[0].reason)).toContain("Duplicate supplier invoice number");
+    }
+    const [invoice] = await ctx.db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, invoiceId)).limit(1);
+    expect(invoice.status).toBe("draft");
+    const movements = await ctx.db.select().from(stockMovements).where(eq(stockMovements.referenceId, invoiceId));
+    expect(movements).toHaveLength(0);
+  });
+
   it("proves sale confirmation double-submit through the exported idempotent service seam", async () => {
     const seed = await seedConcurrencyFixture(ctx, "sale-confirm");
     const { saleId, ledgerId } = await createSaleConfirmFixture(ctx, seed);

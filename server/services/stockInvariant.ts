@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { logAudit } from "./audit";
 
 export type StockActor = { actorId?: number | null; actorRole?: string | null; source?: string };
@@ -112,6 +112,72 @@ export async function applyStockAuditCorrection(input: {
   await db.update(stockAuditLines).set({ status: "adjusted" }).where(eq(stockAuditLines.id, input.lineId));
   await logAudit({ action: "inventory.stock_audit_corrected", entityType: "stock_audit", entityId: input.auditId, actorId: input.actor.actorId ?? undefined, actorRole: input.actor.actorRole ?? undefined, source: input.actor.source ?? "admin", beforeJson: { qtyOnHand: movement.qtyBefore }, afterJson: { qtyOnHand: movement.qtyAfter }, metadata: { lineId: input.lineId, batchId: input.batchId, qtyDelta } });
   return movement;
+}
+
+export async function receiveTransferStockAtomic(input: {
+  transferId: number;
+  actor: StockActor;
+}) {
+  const db = await getDb();
+  const { batchLedger, stockMovements, stockReservations, stockTransfers } = await import("../../drizzle/schema");
+  const { sourceMovement, destinationMovement, destinationBatchId, transfer } = await db.transaction(async (tx: any) => {
+    const [lockedTransfer] = await tx.select().from(stockTransfers).where(eq(stockTransfers.id, input.transferId)).for("update").limit(1);
+    if (!lockedTransfer || lockedTransfer.status !== "in_transit") throw new TRPCError({ code: "BAD_REQUEST", message: "Transfer is not in transit" });
+    const [src] = await tx.select().from(batchLedger).where(eq(batchLedger.id, lockedTransfer.batchId)).for("update").limit(1);
+    if (!src) throw new TRPCError({ code: "NOT_FOUND", message: "Source batch not found" });
+    if (src.storeId !== lockedTransfer.fromStoreId || src.productId !== lockedTransfer.productId) throw new TRPCError({ code: "BAD_REQUEST", message: "Transfer source batch mismatch" });
+    const qty = Number(lockedTransfer.qtyTransferred ?? 0);
+    const reservedBefore = Number(src.qtyReserved ?? 0);
+    const sourceBefore = Number(src.qtyOnHand ?? 0);
+    if (qty <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Transfer quantity must be positive" });
+    const transferReservations = await tx.select().from(stockReservations).where(and(eq(stockReservations.batchId, lockedTransfer.batchId), eq(stockReservations.storeId, lockedTransfer.fromStoreId), eq(stockReservations.productId, lockedTransfer.productId), eq(stockReservations.status, "active"), eq(stockReservations.releaseReason, "transfer_initiated"))).for("update");
+    const transferReservation = transferReservations.find((reservation: any) => Number(reservation.qtyReserved ?? reservation.qty ?? 0) === qty);
+    if (reservedBefore < qty || !transferReservation) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Transfer reservation missing or already released" });
+    const sourceAfter = sourceBefore - qty;
+    await assertNoNegativeStock(sourceAfter);
+    const [created] = await tx.insert(batchLedger).values({
+      productId: src.productId,
+      variantId: src.variantId,
+      storeId: lockedTransfer.toStoreId,
+      supplierId: src.supplierId,
+      batchNo: src.batchNo,
+      mfgDate: src.mfgDate,
+      expiryDate: src.expiryDate,
+      mrp: src.mrp,
+      purchaseRate: src.purchaseRate,
+      saleRate: src.saleRate,
+      qtyOnHand: qty,
+      storageCondition: src.storageCondition,
+      coldChainFlag: src.coldChainFlag,
+      expiryBucket: src.expiryBucket,
+      status: "active",
+      createdBy: input.actor.actorId ?? 0,
+    });
+    const destinationBatchId = Number((created as any).insertId);
+    const destinationBefore = Number(0);
+    const destinationAfter = destinationBefore + qty;
+    await tx.update(batchLedger).set({ qtyOnHand: sourceAfter, qtyReserved: reservedBefore - qty }).where(and(eq(batchLedger.id, lockedTransfer.batchId), sql`${batchLedger.qtyOnHand} >= ${qty}`, sql`${batchLedger.qtyReserved} >= ${qty}`));
+    await tx.update(stockReservations).set({ status: "consumed", qtyReserved: 0, releaseReason: `transfer_receive_${input.transferId}`, fulfilledAt: new Date() }).where(and(eq(stockReservations.id, transferReservation.id), eq(stockReservations.status, "active")));
+    await tx.insert(stockMovements).values([
+      { batchId: lockedTransfer.batchId, storeId: lockedTransfer.fromStoreId, movementType: "stock_transfer", qty: -qty, qtyBefore: sourceBefore, qtyAfter: sourceAfter, referenceType: "stock_transfer", referenceId: input.transferId, reason: `Transfer receive ${input.transferId}`, performedBy: input.actor.actorId ?? 0 },
+      { batchId: destinationBatchId, storeId: lockedTransfer.toStoreId, movementType: "stock_transfer", qty, qtyBefore: destinationBefore, qtyAfter: destinationAfter, referenceType: "stock_transfer", referenceId: input.transferId, reason: `Transfer receive ${input.transferId}`, performedBy: input.actor.actorId ?? 0 },
+    ]);
+    await tx.update(stockTransfers).set({ status: "received", receivedBy: input.actor.actorId ?? 0, receivedAt: new Date() }).where(eq(stockTransfers.id, input.transferId));
+    return { destinationBatchId, sourceMovement: { qtyBefore: sourceBefore, qtyAfter: sourceAfter }, destinationMovement: { qtyBefore: destinationBefore, qtyAfter: destinationAfter }, transfer: lockedTransfer };
+  });
+  await logAudit({
+    action: "inventory.transfer.completed",
+    entityType: "stock_transfer",
+    entityId: input.transferId,
+    actorId: input.actor.actorId ?? undefined,
+    actorRole: input.actor.actorRole ?? undefined,
+    source: input.actor.source ?? "admin",
+    beforeJson: { sourceQtyBefore: sourceMovement.qtyBefore, destinationQtyBefore: destinationMovement.qtyBefore },
+    afterJson: { sourceQtyAfter: sourceMovement.qtyAfter, destinationQtyAfter: destinationMovement.qtyAfter, qty: transfer.qtyTransferred },
+    reason: `Transfer receive ${input.transferId}`,
+    metadata: { sourceBatchId: transfer.batchId, destinationBatchId, sourceStoreId: transfer.fromStoreId, destinationStoreId: transfer.toStoreId, productId: transfer.productId },
+  });
+  return { destinationBatchId, sourceMovement, destinationMovement };
 }
 
 export async function transferStock(input: {

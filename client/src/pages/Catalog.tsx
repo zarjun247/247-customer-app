@@ -203,8 +203,7 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
   const canAdd = available > 0;
 
   return (
-    <div className="flex flex-col rounded-xl overflow-hidden transition-all hover:opacity-90"
-      style={{ background: "#141416", border: "1px solid #2A2A2E" }}
+    <div className="premium-card flex flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:border-blue-400/30 hover:shadow-[0_22px_48px_rgba(43,127,255,0.12)]"
       onClick={onDetail}>
 
       {/* ── Visual zone ─────────────────────────────────────────────────── */}
@@ -288,19 +287,18 @@ function ProductCard({ item, cartQty, onAdd, onRemove, onDetail, onConsult }: {
         })()}
 
         {/* Availability */}
-        {canAdd && (
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-medium" style={{ color: avail.color }}>
-              {avail.label}
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-black/20 px-2 py-1.5">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: avail.color }}>
+            <span className={`status-dot ${canAdd ? (isRx ? "status-dot-warning" : "status-dot-success") : "status-dot-neutral"}`} />
+            {avail.label}
+          </span>
+          {etaText && canAdd && (
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+              style={{ background: "rgba(43,127,255,0.12)", color: "#2B7FFF" }}>
+              {etaText}
             </span>
-            {etaText && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                style={{ background: "rgba(43,127,255,0.12)", color: "#2B7FFF" }}>
-                {etaText}
-              </span>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Price */}
         <div className="flex items-baseline gap-1.5 mb-2.5">
@@ -602,7 +600,7 @@ export default function Catalog() {
   }
   return (
     <AppLayout>
-      <div className="min-h-screen" style={{ background: "#0A0A0B" }}>
+      <div className="premium-page min-h-screen">
         {/* ── Sticky header ──────────────────────────────────────────────── */}
         <div className="sticky top-0 z-20" style={{ background: "#0A0A0B", borderBottom: "1px solid #1C1C1F" }}>
           <div className="px-4 pt-4 pb-3 space-y-3">
@@ -635,6 +633,11 @@ export default function Catalog() {
               </div>
             )}
 
+            <div className="trust-callout flex items-start gap-2 p-3 text-xs leading-relaxed">
+              <Sparkles size={14} className="mt-0.5 shrink-0" />
+              <span><strong>Search assist:</strong> suggestions and sponsored shelves are assistive only. Prescription, H/H1, and availability decisions remain pharmacist reviewed.</span>
+            </div>
+
             {/* Search */}
             <div className="relative">
               <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2"
@@ -644,7 +647,7 @@ export default function Catalog() {
                 placeholder="Search by name, dosage, or generic…"
                 value={search}
                 onChange={e => handleSearch(e.target.value)}
-                className="w-full rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none transition-colors"
+                className="premium-input w-full pl-9 pr-9 text-sm transition-colors"
                 style={{
                   background: "#141416",
                   border: "1px solid #2A2A2E",
@@ -814,8 +817,8 @@ export default function Catalog() {
             <div className="max-w-lg mx-auto">
               <button
                 onClick={() => navigate("/cart")}
-                className="w-full flex items-center justify-between px-5 py-4 rounded-xl font-semibold text-sm transition-opacity hover:opacity-90"
-                style={{ background: "#2B7FFF", color: "white" }}
+                className="bottom-action-bar w-full flex items-center justify-between px-5 py-4 font-semibold text-sm transition-opacity hover:opacity-90"
+                style={{ color: "white" }}
               >
                 <span style={{ opacity: 0.85, fontSize: "0.8125rem" }}>
                   {cartTotal} {cartTotal === 1 ? "item" : "items"}

@@ -22,34 +22,78 @@ evidence/pr155-introduced-recheck.json for full analysis.
 - server/pharmacy.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
 - server/refund-ledger.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
 
-## P0
+## Current launch decision
 
-- None currently open for DB-backed concurrency proof. Local real MySQL execution previously passed `pnpm run test:db:bootstrap` and `pnpm run test:db:concurrency` with 11/11 MySQL harness cases green.
+**NO-GO for live controlled production** until all P0 launch blockers below have closure evidence. The repository remains suitable for supervised demos, staging rehearsals, investor evidence review, and launch-preparation work.
 
-## P1
+## Blocker classification
 
-- Observe the GitHub Actions MySQL 8.4 `DB Concurrency Proof` workflow green for hosted-runner parity. CI MySQL 8.4 parity run still needs observation.
-- Supplier invoice uniqueness is guarded at the purchase commit seam for future committed invoices, but hard DB uniqueness still needs a business-review backfill before adding a destructive-risk unique constraint. The target key is supplier + store + invoice number.
-- Remove legacy `batches.quantity` mirrors after all inventory readers use canonical `batch_ledger`.
+| Blocker | Class | Why it blocks | Closure evidence |
+| --- | --- | --- | --- |
+| Deployment evidence missing | P0 launch blocker | Runtime, artifact, health/readiness, and rollback paths are not proven for a real environment. | CI/CD logs, release artifact ID, staging/prod URL, health/readiness output, rollback proof, release owner signoff. |
+| Real provider credentials/sandbox verification missing | P0 launch blocker | Payment, WhatsApp/SMS, maps, OCR, printer, storage, and Tally/export flows cannot be trusted from unconfigured/demo/skipped states. | Provider verification matrix with sandbox/staging test IDs, failure cases, disabled states, and owner signoff. |
+| Measured staging backup/restore drill missing | P0 launch blocker | Recovery from data loss, failed deploy, or migration incident is not proven. | Backup ID, restore target, start/end time, verification commands, data checks, and restore owner signoff. |
+| Staff access assignment missing | P0 launch blocker | Shared/unscoped accounts can breach PHI/PII, stock, payment, prescription, and store isolation controls. | Named staff roster with role, store scope, removal path, and no shared admin accounts. |
+| Pharmacist SOP signoff missing | P0 launch blocker | Regulated medicine release, prescription review, substitutions, H/H1/X handling, and exceptions require accountable pharmacy signoff. | Pharmacist-in-charge signed SOP and staff acknowledgements. |
+| Legal/compliance review missing | P0 launch blocker | Technical controls do not equal jurisdictional legal compliance. | Written legal/compliance approval or accountable written launch exception. |
+| Live monitoring ownership missing | P0 launch blocker | Provider failures, dead letters, refunds, stock exceptions, security events, and incidents may go unowned. | Primary/secondary rota, escalation thresholds, daily review schedule, and incident commander assignment. |
+| Emergency stop and rollback rehearsal missing | P0 launch blocker | Launch team has not proven it can safely stop, roll back, and reconcile. | Rehearsal notes with timeline, owner, commands/procedures, and signoff. |
+| Hosted CI DB observation missing | P1 controlled rollout blocker | The workflow is wired and evidence-producing, but release branch parity is not archived until a green GitHub Actions run and artifact are attached. | Hosted `DB Concurrency Proof` run URL, run ID, branch, commit SHA, full logs, and `db-concurrency-proof-*` artifact per `HOSTED_CI_DB_PROOF_STATUS.md`. |
+| Multi-store runtime data proof missing | P1 controlled rollout blocker before second store | Store isolation checks need production-like counts before expansion. | Report for missing assigned stores, missing order store IDs, negative stock rows, and cross-store anomalies. |
+| Supplier invoice duplicate backfill/migration approval | P1 if live purchasing is enabled; P2 scale blocker otherwise | The commit seam blocks future committed duplicates non-destructively, but hard uniqueness cannot be added safely until supplier + store + invoice number duplicates are reviewed. | Business-reviewed duplicate report, remediation plan, and approved non-destructive constraint migration. |
+| Accounting/compliance SOP evidence incomplete | P1 controlled rollout blocker | Daily reconciliation, statutory export, refund reversal review, and H1 record ownership need assigned operators. | Named owners and signed daily/monthly accounting/compliance checklist. |
+| Incident command center incomplete | P2 scale blocker | Current observability is a foundation, not a complete command center. | Persisted incident records, backed SLA/provider heartbeat/anomaly metrics, and deployment scrape/access policy. |
+| Provider heartbeat and SLA rollups absent | P2 scale blocker | Scaling without provider performance trends increases outage risk. | Durable latency/availability counters and alert thresholds. |
+| UX/operator polish | P3 polish/deferred | Does not block a one-store launch if training/manual fallback cover gaps. | Prioritized post-launch backlog from launch staff feedback. |
 
-## Completed in this pass
+## Current readiness score
 
-- Added accounting + compliance operations layer: 16 TRPC endpoints across 3 routers covering daily sales/purchase summaries, payment breakdown, supplier ageing, GST/HSN, H1 register visibility, compliance queues, reconciliation boards, and stock valuation reports. All endpoints RBAC-gated, PHI/PII redacted, non-destructive, and deriving from existing services (no parallel accounting truth).
-- All 5 dashboard documentation files (accounting-ops-board, compliance-ops-board, reconciliation-ops-board, supplier-outstanding-board, gst-hsn-board) created with endpoint mappings, source tables, safety notes, and role gating requirements.
-- Added provider retry/dead-letter proof: provider failures remain tied to `provider_webhook_events`, retry scheduling records `retry_scheduled` and increments `attemptCount`, and exhaustion inserts into `provider_dead_letters` exactly once through `uq_provider_dead_letters_event`.
-- Added provider dead-letter operator-review fields and duplicate-dead-letter protection; retry/dead-letter paths return `emittedSuccess: false` and do not claim fake provider success.
-- Wired refund settlement to post a balanced accounting refund reversal batch through the existing `accounting_journal_batches` / `accounting_journal_entries` ledger once a provider refund succeeds.
-- Added refund reversal guard proof that replay returns before posting another journal batch, failed/refused refund webhook handling does not post accounting entries, and journal totals balance.
-- Added a non-destructive supplier invoice duplicate plan/guard: future commits are blocked when another committed/returned invoice already has the same supplier + store + invoice number, while existing dirty data is preserved for business-review backfill.
+**Overall controlled-production readiness: 8.7 / 10 today.**
 
-## Previously completed and still relevant
+A 9.5/10 controlled-production rating requires all P0 blockers closed with evidence while validation remains green; hosted DB proof is not closed by skipped local tests or workflow wiring alone. No production proof, provider proof, restore proof, or legal compliance is claimed until the relevant evidence is attached.
 
-- Executed real DB-backed concurrency proof against local MySQL with `TEST_DATABASE_URL` set.
-- Fixed Drizzle migration journal and SQL statement-breakpoint issues so `pnpm run test:db:bootstrap` applies migrations through `0048`.
-- Fixed DB harness safety setup, unique fixture seeding, invoice collision handling, webhook replay idempotency, and the reservation terminal race fixture.
-- Verified `server/mysql-concurrency.integration.test.ts` passes all 11 MySQL-backed proof cases.
-- Purchase commit router delegates commercial mutation to `commitPurchaseInvoiceExactlyOnce`.
-- Sale confirmation router delegates commercial mutation to `confirmSaleExactlyOnce` after preserving compliance/availability gates.
-- Refund success webhooks settle via `settleProviderRefundExactlyOnce`.
-- Physical reservation accounting is centralized in `reserveBatchAtomic`, `releaseReservationAtomic`, and `consumeReservationAtomic`; terminal transitions release/consume `batch_ledger.qtyReserved` transactionally and guard against negative reserved/on-hand quantities.
-- Governance guard fails direct `db.update(batchLedger).set({ qtyReserved... })` / `tx.update(batchLedger).set({ qtyReserved... })` outside `stockInvariant`/`reservationService`.
+## Data backfill blocker preserved from main truth
+
+Supplier invoice hard uniqueness still needs a business-review backfill before adding a destructive-risk unique constraint. The target key is **supplier + store + invoice number**.
+
+## Governance boundaries that must not be weakened
+
+- `stockInvariant`, reservation accounting, and reconciliation truth.
+- Commercial truth, provider idempotency, refund reversal safeguards, and no fake provider success.
+- Prescription, H/H1/X, pharmacist, statutory, and compliance gates.
+- AI assistive-only boundary and no regulated mutation authority.
+- PHI/PII/secret redaction and staff/admin gating for sensitive runtime surfaces.
+- Migration safety: no destructive migrations without explicit review and rollback/restore proof.
+
+## 2026-05-10 survivability blockers
+
+| Blocker | Severity | Current state | Closure evidence |
+| --- | --- | --- | --- |
+| Hosted staging deployment evidence | P0 | Checklist and env guard exist; no deployed staging URL/artifact transcript attached. | Artifact ID, commit SHA, URL, health/readiness output, operator, timestamp. |
+| Rollback rehearsal evidence | P0 | Rollback checklist exists; no measured rollback attached. | Staging rollback action ID, pre/post readiness, duration, queue/provider reconciliation. |
+| Measured restore drill | P0 | Dry-run and verification scripts exist; no isolated restore transcript attached. | Backup checksum, restore duration/exit status, verification queries, app smoke, reconciliation signoff. |
+| Provider outage drill evidence | P0 | Exercise matrix/checklist exists; no sandbox outage transcript attached. | Payment, OCR, WhatsApp/SMS, dead-letter/queue drill outputs with expected fail-closed behavior. |
+| Monitoring ownership | P0 | Daily review checklist exists; no named 24/7 rota/signoff attached. | Incident commander rota, escalation path, and daily review evidence. |
+
+## 2026-05-10 multi-store runtime blockers
+
+| Blocker | Class | Status | Required closure evidence |
+| --- | --- | --- | --- |
+| First-class provider dead-letter store scope | P1 before second-store rollout | Open | Add/store-resolve `storeId` for provider events/dead letters or produce a redacted runtime report joining provider events to orders/payments by store with replay permissions verified. |
+| First-class worker queue store scope | P1 before second-store rollout | Open | Add/store-resolve `storeId` on worker jobs or prove queue naming/payload correlation with operator visibility and replay restrictions. |
+| Transfer receive hosted/staging contention proof | P1 before second-store rollout | Open | Run a two-store transfer contention test against staging/hosted DB and archive evidence showing no negative source stock or phantom destination stock. |
+| Access roster and break-glass review | P0 for live launch, P1 for multi-store beta | Open | Named staff/admin roster with role, store assignment, pharmacist privileges, session/device policy, and break-glass owner signoff. |
+
+## 2026-05-10 operationalization blocker update
+
+The operationalization sprint reduces documentation/doctrine gaps but does not close evidence blockers. The following blockers are now narrowed from “missing doctrine” to “missing observed/signoff evidence”:
+
+| Blocker | Updated state | Still required for closure |
+| --- | --- | --- |
+| Staff access assignment missing | Store opening/closing and ownership doctrine now define named-user, role, store-scope, and no-shared-admin expectations. | Actual roster with named users, roles, store scopes, removal path, and launch owner approval. |
+| Pharmacist SOP signoff missing | Pharmacist SOP and training packet now exist. | Pharmacist-in-charge signed SOP, acknowledgement records, observed regulated-flow drills. |
+| Live monitoring ownership missing | Incident/escalation and ownership matrices now define incident commander, provider owner, platform owner, and cadence. | Actual rota with primary/secondary contacts, alert thresholds, and launch-period coverage. |
+| Emergency stop and rollback rehearsal missing | Stop-the-line, emergency freeze, rollback awareness, and incident commander runbook now exist. | Observed rehearsal notes with artifact/rollback target, timeline, owners, verification output, and signoff. |
+| Accounting/compliance SOP evidence incomplete | Reconciliation/override governance now defines daily review, supplier dispute, dead-letter, refund, and rollback review cadence. | Named reconciliation/accounting owners and signed daily/monthly checklist evidence. |
+
+Current score update: **8.9 / 10 controlled-production readiness** for launch preparation. This score reflects improved human-governance doctrine only; it is not legal approval, provider verification, production deployment proof, or pharmacist signoff.
