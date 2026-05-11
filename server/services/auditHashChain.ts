@@ -23,7 +23,7 @@ export function canonicalize(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map(canonicalize);
   const sorted: Record<string, unknown> = {};
-  for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+  for (const k of Object.keys(value).sort()) {
     sorted[k] = canonicalize((value as Record<string, unknown>)[k]);
   }
   return sorted;
@@ -35,7 +35,10 @@ function computeRowHash(prevHash: string, payload: unknown): string {
     .digest("hex");
 }
 
-function buildHashedPayload(payload: ChainedAuditPayload, ts: Date): Record<string, unknown> {
+function buildHashedPayload(
+  payload: ChainedAuditPayload,
+  ts: Date
+): Record<string, unknown> {
   return {
     auditLogId: payload.auditLogId ?? null,
     action: payload.action,
@@ -48,7 +51,9 @@ function buildHashedPayload(payload: ChainedAuditPayload, ts: Date): Record<stri
   };
 }
 
-export async function appendChainedAudit(payload: ChainedAuditPayload): Promise<{
+export async function appendChainedAudit(
+  payload: ChainedAuditPayload
+): Promise<{
   sequenceNumber: number;
   rowHash: string;
 }> {
@@ -57,7 +62,9 @@ export async function appendChainedAudit(payload: ChainedAuditPayload): Promise<
     try {
       const db = await getDb();
       if (!db) {
-        logger.error({ msg: "auditHashChain: db unavailable, chain append skipped" });
+        logger.error({
+          msg: "auditHashChain: db unavailable, chain append skipped",
+        });
         return { sequenceNumber: -1, rowHash: "" };
       }
 
@@ -67,7 +74,9 @@ export async function appendChainedAudit(payload: ChainedAuditPayload): Promise<
         .orderBy(desc(auditLogChain.sequenceNumber))
         .limit(1);
 
-      const prevHash = latest?.rowHash ?? "0000000000000000000000000000000000000000000000000000000000000000";
+      const prevHash =
+        latest?.rowHash ??
+        "0000000000000000000000000000000000000000000000000000000000000000";
       const nextSeq = (latest?.sequenceNumber ?? -1) + 1;
       const ts = payload.ts ?? new Date();
       const hashedPayload = buildHashedPayload(payload, ts);
@@ -84,9 +93,14 @@ export async function appendChainedAudit(payload: ChainedAuditPayload): Promise<
       return { sequenceNumber: nextSeq, rowHash };
     } catch (err: unknown) {
       const isUniqueViolation =
-        err instanceof Error && (err.message.includes("uq_audit_chain_sequence") || err.message.includes("ER_DUP_ENTRY"));
+        err instanceof Error &&
+        (err.message.includes("uq_audit_chain_sequence") ||
+          err.message.includes("ER_DUP_ENTRY"));
       if (isUniqueViolation && attempt < MAX_RETRIES - 1) {
-        logger.warn({ attempt, msg: "auditHashChain: sequence conflict, retrying" });
+        logger.warn({
+          attempt,
+          msg: "auditHashChain: sequence conflict, retrying",
+        });
         continue;
       }
       logger.error({ err, msg: "auditHashChain: append failed after retries" });
@@ -109,7 +123,13 @@ export async function verifyChain(options?: {
 }> {
   const db = await getDb();
   if (!db) {
-    return { verified: false, rowsChecked: 0, firstBreakAt: -1, firstBreakReason: "db unavailable", lastSequenceNumber: -1 };
+    return {
+      verified: false,
+      rowsChecked: 0,
+      firstBreakAt: -1,
+      firstBreakReason: "db unavailable",
+      lastSequenceNumber: -1,
+    };
   }
 
   const limit = options?.maxRows ?? 100_000;
@@ -120,9 +140,17 @@ export async function verifyChain(options?: {
     .orderBy(auditLogChain.sequenceNumber)
     .limit(limit);
 
-  const filtered = rows.filter((r) => {
-    if (options?.fromSequence !== undefined && r.sequenceNumber < options.fromSequence) return false;
-    if (options?.toSequence !== undefined && r.sequenceNumber > options.toSequence) return false;
+  const filtered = rows.filter(r => {
+    if (
+      options?.fromSequence !== undefined &&
+      r.sequenceNumber < options.fromSequence
+    )
+      return false;
+    if (
+      options?.toSequence !== undefined &&
+      r.sequenceNumber > options.toSequence
+    )
+      return false;
     return true;
   });
 
@@ -195,7 +223,13 @@ export async function getChainStats(): Promise<{
 }> {
   const db = await getDb();
   if (!db) {
-    return { totalRows: 0, lastVerifiedAt: null, lastVerifiedSequence: null, oldestRow: null, newestRow: null };
+    return {
+      totalRows: 0,
+      lastVerifiedAt: null,
+      lastVerifiedSequence: null,
+      oldestRow: null,
+      newestRow: null,
+    };
   }
 
   // Use two ordered queries (asc/desc) so the mock can handle the full chainable pattern.
@@ -212,7 +246,11 @@ export async function getChainStats(): Promise<{
     totalRows: allRows.length,
     lastVerifiedAt: null,
     lastVerifiedSequence: null,
-    oldestRow: oldest ? { sequenceNumber: oldest.sequenceNumber, createdAt: oldest.createdAt } : null,
-    newestRow: newest ? { sequenceNumber: newest.sequenceNumber, createdAt: newest.createdAt } : null,
+    oldestRow: oldest
+      ? { sequenceNumber: oldest.sequenceNumber, createdAt: oldest.createdAt }
+      : null,
+    newestRow: newest
+      ? { sequenceNumber: newest.sequenceNumber, createdAt: newest.createdAt }
+      : null,
   };
 }

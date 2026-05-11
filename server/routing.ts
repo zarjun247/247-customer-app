@@ -35,11 +35,14 @@ export interface RoutingResult {
   storeLat: number;
   storeLng: number;
   etaMins: number;
-  etaText: string;              // customer-safe: "Arriving in ~X min"
+  etaText: string; // customer-safe: "Arriving in ~X min"
   slaMins: number;
   openNow: boolean;
   openingHoursText: string;
-  resolutionPath: "primary_assignment" | "geo_nearest" | "geo_nearest_with_stock";
+  resolutionPath:
+    | "primary_assignment"
+    | "geo_nearest"
+    | "geo_nearest_with_stock";
   displayLabel: string; // customer-facing label
 }
 
@@ -51,7 +54,9 @@ export interface RoutingContext {
 
 // ─── Core routing function ────────────────────────────────────────────────────
 
-export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult | null> {
+export async function resolveStore(
+  ctx: RoutingContext
+): Promise<RoutingResult | null> {
   const db = await getDb();
   if (!db) return null;
 
@@ -77,12 +82,14 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
   const withDistance =
     buildingLat !== null && buildingLng !== null
       ? allStores
-          .filter((s) => s.lat && s.lng)
-          .map((s) => ({
+          .filter(s => s.lat && s.lng)
+          .map(s => ({
             store: s,
             distanceM: haversineMetres(
-              buildingLat, buildingLng,
-              Number(s.lat), Number(s.lng)
+              buildingLat,
+              buildingLng,
+              Number(s.lat),
+              Number(s.lng)
             ),
           }))
           .sort((a, b) => a.distanceM - b.distanceM)
@@ -94,7 +101,7 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
   // ── Pass 1: Primary assignment (must be within serviceRadius) ───────────────
   if (building.primaryStoreId) {
     const primary = withDistance.find(
-      (w) => w.store.id === building.primaryStoreId
+      w => w.store.id === building.primaryStoreId
     );
     if (primary && primary.distanceM <= primary.store.serviceRadius) {
       resolvedStore = primary.store;
@@ -105,7 +112,7 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
   // ── Pass 2: Geo nearest within serviceRadius ────────────────────────────────
   if (!resolvedStore) {
     const nearest = withDistance.find(
-      (w) => w.distanceM <= w.store.serviceRadius
+      w => w.distanceM <= w.store.serviceRadius
     );
     if (nearest) {
       resolvedStore = nearest.store;
@@ -115,15 +122,20 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
 
   // ── Pass 3: Stock availability filter ──────────────────────────────────────
   if (resolvedStore && ctx.requiredSkuIds && ctx.requiredSkuIds.length > 0) {
-    const hasStock = await checkStoreHasStock(resolvedStore.id, ctx.requiredSkuIds);
+    const hasStock = await checkStoreHasStock(
+      resolvedStore.id,
+      ctx.requiredSkuIds
+    );
     if (!hasStock) {
       const candidates = withDistance.filter(
-        (w) => w.store.id !== resolvedStore!.id && w.distanceM <= w.store.serviceRadius
+        w =>
+          w.store.id !== resolvedStore!.id &&
+          w.distanceM <= w.store.serviceRadius
       );
       for (const candidate of candidates) {
         const candidateHasStock = await checkStoreHasStock(
           candidate.store.id,
-          ctx.requiredSkuIds!
+          ctx.requiredSkuIds
         );
         if (candidateHasStock) {
           resolvedStore = candidate.store;
@@ -138,10 +150,17 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
 
   // ── ETA computation ─────────────────────────────────────────────────────────
   let etaMins = resolvedStore.slaMins;
-  if (buildingLat !== null && buildingLng !== null && resolvedStore.lat && resolvedStore.lng) {
+  if (
+    buildingLat !== null &&
+    buildingLng !== null &&
+    resolvedStore.lat &&
+    resolvedStore.lng
+  ) {
     const mapsEta = await getDrivingEtaMins(
-      Number(resolvedStore.lat), Number(resolvedStore.lng),
-      buildingLat, buildingLng
+      Number(resolvedStore.lat),
+      Number(resolvedStore.lng),
+      buildingLat,
+      buildingLng
     );
     if (mapsEta !== null) {
       etaMins = mapsEta; // getDrivingEtaMins already adds 5-min picking buffer
@@ -149,7 +168,9 @@ export async function resolveStore(ctx: RoutingContext): Promise<RoutingResult |
   }
 
   const openNow = isStoreOpenNow(resolvedStore.openingHours ?? null);
-  const openingHoursText = getTodayHoursText(resolvedStore.openingHours ?? null);
+  const openingHoursText = getTodayHoursText(
+    resolvedStore.openingHours ?? null
+  );
 
   return {
     storeId: resolvedStore.id,

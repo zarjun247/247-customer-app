@@ -353,14 +353,12 @@ export const ocrIngestionRouter = router({
           })
           .$returningId();
         if (parsed.header.confidence < 80) {
-          await db
-            .insert(ocrReviewTasks)
-            .values({
-              ingestionJobId: input.jobId,
-              taskType: "header_review",
-              priority: "high",
-              status: "pending",
-            });
+          await db.insert(ocrReviewTasks).values({
+            ingestionJobId: input.jobId,
+            taskType: "header_review",
+            priority: "high",
+            status: "pending",
+          });
         }
         let autoMatched = 0,
           reviewRequired = 0,
@@ -403,16 +401,14 @@ export const ocrIngestionRouter = router({
             gstRate: line.gstRate,
           });
           for (const candidate of matchCandidates) {
-            await db
-              .insert(ocrMatchCandidates)
-              .values({
-                ocrLineId: lineId,
-                productId: candidate.productId,
-                matchScore: String(candidate.score),
-                matchMethod: candidate.method as any,
-                matchDetails: candidate.details,
-                isSelected: false,
-              });
+            await db.insert(ocrMatchCandidates).values({
+              ocrLineId: lineId,
+              productId: candidate.productId,
+              matchScore: String(candidate.score),
+              matchMethod: candidate.method as any,
+              matchDetails: candidate.details,
+              isSelected: false,
+            });
           }
           const bestMatch = matchCandidates[0];
           const combinedConfidence =
@@ -455,55 +451,47 @@ export const ocrIngestionRouter = router({
                   eq(ocrMatchCandidates.productId, bestMatch.productId)
                 )
               );
-          await db
-            .insert(aiDecisions)
-            .values({
-              ingestionJobId: input.jobId,
-              ocrLineId: lineId,
-              decisionType:
-                matchStatus === "auto_matched"
-                  ? "auto_match"
-                  : matchStatus === "unknown_sku"
-                    ? "sku_create"
-                    : "review_flag",
-              confidence: String(Math.round(combinedConfidence)),
-              reasoning: exceptionReason
-                ? `Exception queued: ${exceptionReason}`
-                : bestMatch
-                  ? `Best match: "${bestMatch.details}" via ${bestMatch.method}`
-                  : "No product match found",
-              modelVersion: "v1-rule-based",
-            });
+          await db.insert(aiDecisions).values({
+            ingestionJobId: input.jobId,
+            ocrLineId: lineId,
+            decisionType:
+              matchStatus === "auto_matched"
+                ? "auto_match"
+                : matchStatus === "unknown_sku"
+                  ? "sku_create"
+                  : "review_flag",
+            confidence: String(Math.round(combinedConfidence)),
+            reasoning: exceptionReason
+              ? `Exception queued: ${exceptionReason}`
+              : bestMatch
+                ? `Best match: "${bestMatch.details}" via ${bestMatch.method}`
+                : "No product match found",
+            modelVersion: "v1-rule-based",
+          });
           if (exceptionReason || matchStatus === "review_required") {
             reviewRequired++;
-            await db
-              .insert(ocrReviewTasks)
-              .values({
-                ingestionJobId: input.jobId,
-                ocrLineId: lineId,
-                taskType:
-                  exceptionReason === "low_confidence"
-                    ? "low_confidence"
-                    : "line_review",
-                priority:
-                  exceptionReason || combinedConfidence < 75
-                    ? "high"
-                    : "medium",
-                status: "pending",
-                notes: exceptionReason,
-              });
+            await db.insert(ocrReviewTasks).values({
+              ingestionJobId: input.jobId,
+              ocrLineId: lineId,
+              taskType:
+                exceptionReason === "low_confidence"
+                  ? "low_confidence"
+                  : "line_review",
+              priority:
+                exceptionReason || combinedConfidence < 75 ? "high" : "medium",
+              status: "pending",
+              notes: exceptionReason,
+            });
           } else if (matchStatus === "unknown_sku") {
             unknownSku++;
-            await db
-              .insert(ocrReviewTasks)
-              .values({
-                ingestionJobId: input.jobId,
-                ocrLineId: lineId,
-                taskType: "sku_creation",
-                priority: "high",
-                status: "pending",
-                notes: "supplier_sku_unmapped",
-              });
+            await db.insert(ocrReviewTasks).values({
+              ingestionJobId: input.jobId,
+              ocrLineId: lineId,
+              taskType: "sku_creation",
+              priority: "high",
+              status: "pending",
+              notes: "supplier_sku_unmapped",
+            });
           } else {
             autoMatched++;
           }
@@ -1469,7 +1457,7 @@ export const ocrIngestionRouter = router({
         .select()
         .from(purchaseDraftLines)
         .where(eq(purchaseDraftLines.purchaseDraftId, input.draftId));
-      assertOcrDraftApprovedForHandoff(draft, lines as any);
+      assertOcrDraftApprovedForHandoff(draft, lines);
       const [invoice] = await db
         .insert(purchaseInvoices)
         .values({
@@ -1506,24 +1494,22 @@ export const ocrIngestionRouter = router({
           }),
           "OCR approved draft has incomplete product master or purchase metadata"
         );
-        await db
-          .insert(purchaseLines)
-          .values({
-            purchaseInvoiceId: invoice.id,
-            productId,
-            batchNo: line.batchNo,
-            expiryDate: new Date(line.expiryDate as string),
-            mrp: line.mrp,
-            purchaseRate: line.purchaseRate,
-            qty: line.qty,
-            freeQty: line.freeQty ?? 0,
-            schemeDiscount: line.discount ?? "0",
-            gstRate: line.gstRate ?? "0",
-            hsnCode: line.hsnCode ?? undefined,
-            rawLineText: line.rawLineText ?? null,
-            confidence: line.confidence ?? null,
-            reviewerId: line.approvedBy ?? ctx.user.id,
-          } as any);
+        await db.insert(purchaseLines).values({
+          purchaseInvoiceId: invoice.id,
+          productId,
+          batchNo: line.batchNo,
+          expiryDate: new Date(line.expiryDate as string),
+          mrp: line.mrp,
+          purchaseRate: line.purchaseRate,
+          qty: line.qty,
+          freeQty: line.freeQty ?? 0,
+          schemeDiscount: line.discount ?? "0",
+          gstRate: line.gstRate ?? "0",
+          hsnCode: line.hsnCode ?? undefined,
+          rawLineText: line.rawLineText ?? null,
+          confidence: line.confidence ?? null,
+          reviewerId: line.approvedBy ?? ctx.user.id,
+        } as any);
       }
       await db
         .update(purchaseDrafts)

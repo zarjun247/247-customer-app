@@ -1,5 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
-import { staffAcknowledgements, staffDeviceSessions } from "../../drizzle/schema";
+import {
+  staffAcknowledgements,
+  staffDeviceSessions,
+} from "../../drizzle/schema";
 import { getDb } from "../db";
 import { logAudit } from "./audit";
 import { redactSensitiveForLogs } from "./sensitiveDataPolicy";
@@ -12,16 +15,20 @@ export const STAFF_ACKNOWLEDGEMENT_TYPES = [
   "no_shared_accounts",
 ] as const;
 
-export type StaffAcknowledgementType = (typeof STAFF_ACKNOWLEDGEMENT_TYPES)[number];
+export type StaffAcknowledgementType =
+  (typeof STAFF_ACKNOWLEDGEMENT_TYPES)[number];
 export type StaffSessionStatus = "active" | "revoked" | "expired";
 
 export const STAFF_SESSION_POLICY = {
   idleTimeoutMinutes: 15,
   absoluteTimeoutHours: 12,
   terminalLockRequired: true,
-  cashierPinRequiredForSensitiveActions: "use existing PIN/auth pattern before enforcing globally",
-  roleSwitchPrevention: "single authenticated staff identity per terminal session; no in-session role elevation without re-auth",
-  sharedSuperAdminAccounts: "prohibited by policy; durable account enforcement remains P1",
+  cashierPinRequiredForSensitiveActions:
+    "use existing PIN/auth pattern before enforcing globally",
+  roleSwitchPrevention:
+    "single authenticated staff identity per terminal session; no in-session role elevation without re-auth",
+  sharedSuperAdminAccounts:
+    "prohibited by policy; durable account enforcement remains P1",
 } as const;
 
 export interface StaffAcknowledgementRecord {
@@ -68,30 +75,57 @@ export class InMemoryStaffSecurityStore {
     return saved;
   }
 
-  async latestAcknowledgement(staffId: number, acknowledgementType: StaffAcknowledgementType, version: string) {
-    return this.acknowledgements
-      .filter((ack) => ack.staffId === staffId && ack.acknowledgementType === acknowledgementType && ack.version === version)
-      .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime())[0] ?? null;
+  async latestAcknowledgement(
+    staffId: number,
+    acknowledgementType: StaffAcknowledgementType,
+    version: string
+  ) {
+    return (
+      this.acknowledgements
+        .filter(
+          ack =>
+            ack.staffId === staffId &&
+            ack.acknowledgementType === acknowledgementType &&
+            ack.version === version
+        )
+        .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime())[0] ??
+      null
+    );
   }
 
-  async upsertSession(record: Omit<StaffDeviceSessionRecord, "id" | "createdAt" | "updatedAt">) {
-    const existing = this.sessions.find((session) => session.staffId === record.staffId && session.sessionId === record.sessionId);
+  async upsertSession(
+    record: Omit<StaffDeviceSessionRecord, "id" | "createdAt" | "updatedAt">
+  ) {
+    const existing = this.sessions.find(
+      session =>
+        session.staffId === record.staffId &&
+        session.sessionId === record.sessionId
+    );
     const now = new Date();
     if (existing) {
       Object.assign(existing, record, { updatedAt: now });
       return existing;
     }
-    const saved = { ...record, id: this.nextSessionId++, createdAt: now, updatedAt: now };
+    const saved = {
+      ...record,
+      id: this.nextSessionId++,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.sessions.push(saved);
     return saved;
   }
 
   async activeSessions(staffId?: number) {
-    return this.sessions.filter((session) => session.status === "active" && (staffId == null || session.staffId === staffId));
+    return this.sessions.filter(
+      session =>
+        session.status === "active" &&
+        (staffId == null || session.staffId === staffId)
+    );
   }
 
   async revokeSession(sessionId: string, revokedBy: number, reason?: string) {
-    const session = this.sessions.find((row) => row.sessionId === sessionId);
+    const session = this.sessions.find(row => row.sessionId === sessionId);
     if (!session) return null;
     session.status = "revoked";
     session.revokedAt = new Date();
@@ -106,7 +140,12 @@ export class InMemoryStaffSecurityStore {
   }
 }
 
-async function auditStaffSecurity(action: string, actorId: number | null, afterJson: unknown, store?: InMemoryStaffSecurityStore) {
+async function auditStaffSecurity(
+  action: string,
+  actorId: number | null,
+  afterJson: unknown,
+  store?: InMemoryStaffSecurityStore
+) {
   const safe = redactSensitiveForLogs(afterJson);
   if (store) {
     await store.audit(action, safe);
@@ -124,56 +163,108 @@ async function auditStaffSecurity(action: string, actorId: number | null, afterJ
 
 export async function recordStaffAcknowledgement(
   input: Omit<StaffAcknowledgementRecord, "acceptedAt"> & { acceptedAt?: Date },
-  store?: InMemoryStaffSecurityStore,
+  store?: InMemoryStaffSecurityStore
 ) {
   const record = { ...input, acceptedAt: input.acceptedAt ?? new Date() };
-  const saved = store ? await store.insertAcknowledgement(record) : await insertDbAcknowledgement(record);
-  await auditStaffSecurity("staff.acknowledgement.recorded", input.staffId, {
-    staffId: input.staffId,
-    acknowledgementType: input.acknowledgementType,
-    version: input.version,
-    ipAddress: input.ipAddress,
-    userAgent: input.userAgent,
-  }, store);
+  const saved = store
+    ? await store.insertAcknowledgement(record)
+    : await insertDbAcknowledgement(record);
+  await auditStaffSecurity(
+    "staff.acknowledgement.recorded",
+    input.staffId,
+    {
+      staffId: input.staffId,
+      acknowledgementType: input.acknowledgementType,
+      version: input.version,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    },
+    store
+  );
   return saved;
 }
 
-export async function hasActiveStaffAcknowledgement(staffId: number, acknowledgementType: StaffAcknowledgementType, version: string, store?: InMemoryStaffSecurityStore) {
-  const latest = store ? await store.latestAcknowledgement(staffId, acknowledgementType, version) : await latestDbAcknowledgement(staffId, acknowledgementType, version);
+export async function hasActiveStaffAcknowledgement(
+  staffId: number,
+  acknowledgementType: StaffAcknowledgementType,
+  version: string,
+  store?: InMemoryStaffSecurityStore
+) {
+  const latest = store
+    ? await store.latestAcknowledgement(staffId, acknowledgementType, version)
+    : await latestDbAcknowledgement(staffId, acknowledgementType, version);
   return Boolean(latest);
 }
 
-export async function recordStaffDeviceSession(input: Omit<StaffDeviceSessionRecord, "id" | "status" | "lastSeenAt" | "createdAt" | "updatedAt"> & { status?: StaffSessionStatus; lastSeenAt?: Date }, store?: InMemoryStaffSecurityStore) {
-  const record = { ...input, status: input.status ?? "active", lastSeenAt: input.lastSeenAt ?? new Date(), requiresReauth: input.requiresReauth ?? false, suspicious: input.suspicious ?? false };
-  const saved = store ? await store.upsertSession(record) : await upsertDbSession(record);
-  await auditStaffSecurity("staff.session.recorded", input.staffId, {
-    staffId: input.staffId,
-    sessionId: input.sessionId,
-    deviceId: input.deviceId,
-    terminalId: input.terminalId,
-    status: record.status,
-  }, store);
+export async function recordStaffDeviceSession(
+  input: Omit<
+    StaffDeviceSessionRecord,
+    "id" | "status" | "lastSeenAt" | "createdAt" | "updatedAt"
+  > & { status?: StaffSessionStatus; lastSeenAt?: Date },
+  store?: InMemoryStaffSecurityStore
+) {
+  const record = {
+    ...input,
+    status: input.status ?? "active",
+    lastSeenAt: input.lastSeenAt ?? new Date(),
+    requiresReauth: input.requiresReauth ?? false,
+    suspicious: input.suspicious ?? false,
+  };
+  const saved = store
+    ? await store.upsertSession(record)
+    : await upsertDbSession(record);
+  await auditStaffSecurity(
+    "staff.session.recorded",
+    input.staffId,
+    {
+      staffId: input.staffId,
+      sessionId: input.sessionId,
+      deviceId: input.deviceId,
+      terminalId: input.terminalId,
+      status: record.status,
+    },
+    store
+  );
   return saved;
 }
 
-export async function listActiveStaffSessions(staffId?: number, store?: InMemoryStaffSecurityStore) {
+export async function listActiveStaffSessions(
+  staffId?: number,
+  store?: InMemoryStaffSecurityStore
+) {
   if (store) return store.activeSessions(staffId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const filters = [eq(staffDeviceSessions.status, "active" as any)];
   if (staffId != null) filters.push(eq(staffDeviceSessions.staffId, staffId));
-  return db.select().from(staffDeviceSessions).where(and(...filters)).orderBy(desc(staffDeviceSessions.lastSeenAt));
+  return db
+    .select()
+    .from(staffDeviceSessions)
+    .where(and(...filters))
+    .orderBy(desc(staffDeviceSessions.lastSeenAt));
 }
 
-export async function revokeStaffSession(sessionId: string, revokedBy: number, reason?: string, store?: InMemoryStaffSecurityStore) {
-  const revoked = store ? await store.revokeSession(sessionId, revokedBy, reason) : await revokeDbSession(sessionId, revokedBy, reason);
+export async function revokeStaffSession(
+  sessionId: string,
+  revokedBy: number,
+  reason?: string,
+  store?: InMemoryStaffSecurityStore
+) {
+  const revoked = store
+    ? await store.revokeSession(sessionId, revokedBy, reason)
+    : await revokeDbSession(sessionId, revokedBy, reason);
   if (revoked) {
-    await auditStaffSecurity("staff.session.revoked", revokedBy, {
-      staffId: revoked.staffId,
-      sessionId: revoked.sessionId,
+    await auditStaffSecurity(
+      "staff.session.revoked",
       revokedBy,
-      reason,
-    }, store);
+      {
+        staffId: revoked.staffId,
+        sessionId: revoked.sessionId,
+        revokedBy,
+        reason,
+      },
+      store
+    );
   }
   return revoked;
 }
@@ -181,30 +272,84 @@ export async function revokeStaffSession(sessionId: string, revokedBy: number, r
 async function insertDbAcknowledgement(record: StaffAcknowledgementRecord) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const [row] = await db.insert(staffAcknowledgements).values(record as any).$returningId();
+  const [row] = await db
+    .insert(staffAcknowledgements)
+    .values(record)
+    .$returningId();
   return { ...record, id: row.id };
 }
 
-async function latestDbAcknowledgement(staffId: number, acknowledgementType: StaffAcknowledgementType, version: string) {
+async function latestDbAcknowledgement(
+  staffId: number,
+  acknowledgementType: StaffAcknowledgementType,
+  version: string
+) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const rows = await db.select().from(staffAcknowledgements).where(and(eq(staffAcknowledgements.staffId, staffId), eq(staffAcknowledgements.acknowledgementType, acknowledgementType), eq(staffAcknowledgements.version, version))).orderBy(desc(staffAcknowledgements.acceptedAt)).limit(1);
+  const rows = await db
+    .select()
+    .from(staffAcknowledgements)
+    .where(
+      and(
+        eq(staffAcknowledgements.staffId, staffId),
+        eq(staffAcknowledgements.acknowledgementType, acknowledgementType),
+        eq(staffAcknowledgements.version, version)
+      )
+    )
+    .orderBy(desc(staffAcknowledgements.acceptedAt))
+    .limit(1);
   return rows[0] ?? null;
 }
 
-async function upsertDbSession(record: Omit<StaffDeviceSessionRecord, "id" | "createdAt" | "updatedAt">) {
+async function upsertDbSession(
+  record: Omit<StaffDeviceSessionRecord, "id" | "createdAt" | "updatedAt">
+) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(staffDeviceSessions).values(record as any).onDuplicateKeyUpdate({ set: { ...record, updatedAt: new Date() } as any });
-  const rows = await db.select().from(staffDeviceSessions).where(and(eq(staffDeviceSessions.staffId, record.staffId), eq(staffDeviceSessions.sessionId, record.sessionId))).limit(1);
+  await db
+    .insert(staffDeviceSessions)
+    .values(record as any)
+    .onDuplicateKeyUpdate({ set: { ...record, updatedAt: new Date() } as any });
+  const rows = await db
+    .select()
+    .from(staffDeviceSessions)
+    .where(
+      and(
+        eq(staffDeviceSessions.staffId, record.staffId),
+        eq(staffDeviceSessions.sessionId, record.sessionId)
+      )
+    )
+    .limit(1);
   return rows[0] as StaffDeviceSessionRecord;
 }
 
-async function revokeDbSession(sessionId: string, revokedBy: number, reason?: string) {
+async function revokeDbSession(
+  sessionId: string,
+  revokedBy: number,
+  reason?: string
+) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const [existing] = await db.select().from(staffDeviceSessions).where(eq(staffDeviceSessions.sessionId, sessionId)).limit(1);
+  const [existing] = await db
+    .select()
+    .from(staffDeviceSessions)
+    .where(eq(staffDeviceSessions.sessionId, sessionId))
+    .limit(1);
   if (!existing) return null;
-  await db.update(staffDeviceSessions).set({ status: "revoked" as any, revokedAt: new Date(), revokedBy, revokeReason: reason ?? null }).where(eq(staffDeviceSessions.sessionId, sessionId));
-  return { ...existing, status: "revoked", revokedAt: new Date(), revokedBy, revokeReason: reason ?? null } as StaffDeviceSessionRecord;
+  await db
+    .update(staffDeviceSessions)
+    .set({
+      status: "revoked",
+      revokedAt: new Date(),
+      revokedBy,
+      revokeReason: reason ?? null,
+    })
+    .where(eq(staffDeviceSessions.sessionId, sessionId));
+  return {
+    ...existing,
+    status: "revoked",
+    revokedAt: new Date(),
+    revokedBy,
+    revokeReason: reason ?? null,
+  } as StaffDeviceSessionRecord;
 }

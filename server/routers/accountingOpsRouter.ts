@@ -6,17 +6,37 @@ import { redactReportPayload } from "../services/reconciliationReports";
 async function getDbSafe() {
   const { getDb } = await import("../db");
   const db = await getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  if (!db)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "DB unavailable",
+    });
   return db;
 }
 
 function requireStaff(role: string) {
-  const STAFF = ["admin", "super_admin", "store_manager", "pharmacist", "purchase_manager", "accountant", "cashier", "salesman", "inventory_operator", "delivery_operator", "auditor"];
+  const STAFF = [
+    "admin",
+    "super_admin",
+    "store_manager",
+    "pharmacist",
+    "purchase_manager",
+    "accountant",
+    "cashier",
+    "salesman",
+    "inventory_operator",
+    "delivery_operator",
+    "auditor",
+  ];
   if (!STAFF.includes(role)) throw new TRPCError({ code: "FORBIDDEN" });
 }
 
 function dateRangeInput() {
-  return z.object({ fromDate: z.string(), toDate: z.string(), storeId: z.number().optional() });
+  return z.object({
+    fromDate: z.string(),
+    toDate: z.string(),
+    storeId: z.number().optional(),
+  });
 }
 
 export const accountingOpsRouter = router({
@@ -24,12 +44,13 @@ export const accountingOpsRouter = router({
   dailySalesSummary: protectedProcedure
     .input(dateRangeInput())
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       // delegate to reportsRouter.dailySale via hardcoded fetch
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const from = new Date(input.fromDate);
-      const to = new Date(input.toDate); to.setHours(23,59,59,999);
+      const to = new Date(input.toDate);
+      to.setHours(23, 59, 59, 999);
       const result = await db.execute(sql`
         SELECT 
           COUNT(DISTINCT o.id) AS orderCount,
@@ -39,19 +60,28 @@ export const accountingOpsRouter = router({
         LEFT JOIN order_items oi ON oi.orderId = o.id
         WHERE o.createdAt >= ${from} AND o.createdAt <= ${to} AND o.status = 'delivered'
       `);
-      const data = (result as any)?.[0]?.[0] ?? { orderCount: 0, totalRevenue: 0, totalUnits: 0 };
-      return redactReportPayload({ rows: [data], totals: data, csvData: [data] });
+      const data = (result as any)?.[0]?.[0] ?? {
+        orderCount: 0,
+        totalRevenue: 0,
+        totalUnits: 0,
+      };
+      return redactReportPayload({
+        rows: [data],
+        totals: data,
+        csvData: [data],
+      });
     }),
 
   // Payment method breakdown (uses paymentRecords table)
   paymentMethodBreakdown: protectedProcedure
     .input(dateRangeInput())
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const from = new Date(input.fromDate);
-      const to = new Date(input.toDate); to.setHours(23,59,59,999);
+      const to = new Date(input.toDate);
+      to.setHours(23, 59, 59, 999);
       const result = await db.execute(sql`
         SELECT 'cash' AS method, COALESCE(SUM(amount),0) AS total FROM payment_records 
         WHERE status = 'paid' AND method = 'cash' AND createdAt >= ${from} AND createdAt <= ${to}
@@ -63,14 +93,23 @@ export const accountingOpsRouter = router({
         WHERE status = 'paid' AND method = 'card' AND createdAt >= ${from} AND createdAt <= ${to}
       `);
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { rowCount: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { rowCount: rows.length },
+        csvData: rows,
+      });
     }),
 
   // Supplier ageing report (reuses builder)
   supplierAgeing: protectedProcedure
-    .input(z.object({ storeId: z.number().optional(), supplierId: z.number().optional() }))
+    .input(
+      z.object({
+        storeId: z.number().optional(),
+        supplierId: z.number().optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const result = await db.execute(sql`
@@ -86,18 +125,23 @@ export const accountingOpsRouter = router({
         GROUP BY pi.supplierId
       `);
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { rowCount: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { rowCount: rows.length },
+        csvData: rows,
+      });
     }),
 
   // Gross margin summary
   grossMarginSummary: protectedProcedure
     .input(dateRangeInput())
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const from = new Date(input.fromDate);
-      const to = new Date(input.toDate); to.setHours(23,59,59,999);
+      const to = new Date(input.toDate);
+      to.setHours(23, 59, 59, 999);
       const result = await db.execute(sql`
         SELECT 
           p.id AS productId,
@@ -113,18 +157,26 @@ export const accountingOpsRouter = router({
         GROUP BY p.id, p.name
       `);
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { rowCount: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { rowCount: rows.length },
+        csvData: rows,
+      });
     }),
 
   // Invoice integrity: journal batch mismatches
   invoiceIntegrity: protectedProcedure
     .input(dateRangeInput())
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
-      const { getJournalBatchMismatches } = await import("../services/accountingLedger");
+      const { getJournalBatchMismatches } = await import(
+        "../services/accountingLedger"
+      );
       const mismatches = await getJournalBatchMismatches(db);
-      return redactReportPayload({ mismatches, totals: { unbalanced: mismatches.unbalancedBatchCount ?? 0 } });
+      return redactReportPayload({
+        mismatches,
+        totals: { unbalanced: mismatches.unbalancedBatchCount ?? 0 },
+      });
     }),
 });
-

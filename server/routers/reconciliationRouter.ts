@@ -6,12 +6,28 @@ import { redactReportPayload } from "../services/reconciliationReports";
 async function getDbSafe() {
   const { getDb } = await import("../db");
   const db = await getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  if (!db)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "DB unavailable",
+    });
   return db;
 }
 
 function requireStaff(role: string) {
-  const STAFF = ["admin", "super_admin", "store_manager", "pharmacist", "purchase_manager", "accountant", "cashier", "salesman", "inventory_operator", "delivery_operator", "auditor"];
+  const STAFF = [
+    "admin",
+    "super_admin",
+    "store_manager",
+    "pharmacist",
+    "purchase_manager",
+    "accountant",
+    "cashier",
+    "salesman",
+    "inventory_operator",
+    "delivery_operator",
+    "auditor",
+  ];
   if (!STAFF.includes(role)) throw new TRPCError({ code: "FORBIDDEN" });
 }
 
@@ -20,7 +36,7 @@ export const reconciliationRouter = router({
   paymentVsOrderMismatch: protectedProcedure
     .input(z.object({ limit: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const limit = input.limit ?? 500;
@@ -42,14 +58,18 @@ export const reconciliationRouter = router({
         `
       );
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { mismatches: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { mismatches: rows.length },
+        csvData: rows,
+      });
     }),
 
   // Refund vs Accounting Reversal Mismatch - track refund accounting integrity
   refundReversalMismatch: protectedProcedure
     .input(z.object({}))
     .query(async ({ ctx }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const result = await db.execute(
@@ -68,18 +88,23 @@ export const reconciliationRouter = router({
         `
       );
       const rows = ((result as any)?.[0] ?? []) as any[];
-      const mismatches = rows.filter((r: any) => 
-        (r.status === 'completed' && r.reversalCount === 0) ||
-        (r.status === 'cancelled' && r.reversalCount > 0)
+      const mismatches = rows.filter(
+        (r: any) =>
+          (r.status === "completed" && r.reversalCount === 0) ||
+          (r.status === "cancelled" && r.reversalCount > 0)
       );
-      return redactReportPayload({ rows, totals: { mismatches: mismatches.length }, csvData: mismatches });
+      return redactReportPayload({
+        rows,
+        totals: { mismatches: mismatches.length },
+        csvData: mismatches,
+      });
     }),
 
   // COD Collection Mismatch - track cash-on-delivery payment reconciliation
   codCollectionMismatch: protectedProcedure
     .input(z.object({ limit: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const limit = input.limit ?? 500;
@@ -106,14 +131,18 @@ export const reconciliationRouter = router({
         `
       );
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { mismatches: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { mismatches: rows.length },
+        csvData: rows,
+      });
     }),
 
   // Supplier Invoice Duplicate Warnings - non-destructive detection
   supplierInvoiceDuplicates: protectedProcedure
     .input(z.object({}))
     .query(async ({ ctx }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const result = await db.execute(
@@ -133,10 +162,13 @@ export const reconciliationRouter = router({
         `
       );
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ 
-        rows, 
-        totals: { duplicateGroups: rows.length, note: 'Non-destructive detection only' }, 
-        csvData: rows 
+      return redactReportPayload({
+        rows,
+        totals: {
+          duplicateGroups: rows.length,
+          note: "Non-destructive detection only",
+        },
+        csvData: rows,
       });
     }),
 
@@ -144,7 +176,7 @@ export const reconciliationRouter = router({
   purchaseInvoiceReconciliation: protectedProcedure
     .input(z.object({}))
     .query(async ({ ctx }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const result = await db.execute(
@@ -161,14 +193,18 @@ export const reconciliationRouter = router({
         `
       );
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { statusCount: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { statusCount: rows.length },
+        csvData: rows,
+      });
     }),
 
   // Stock Valuation vs Stock Movement Summary
   stockValuationMovement: protectedProcedure
     .input(z.object({ limit: z.number().optional() }))
     .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user!.role);
+      requireStaff(ctx.user.role);
       const db = await getDbSafe();
       const { sql } = await import("drizzle-orm");
       const limit = input.limit ?? 100;
@@ -191,6 +227,10 @@ export const reconciliationRouter = router({
         `
       );
       const rows = ((result as any)?.[0] ?? []) as any[];
-      return redactReportPayload({ rows, totals: { medicines: rows.length }, csvData: rows });
+      return redactReportPayload({
+        rows,
+        totals: { medicines: rows.length },
+        csvData: rows,
+      });
     }),
 });

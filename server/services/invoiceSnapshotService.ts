@@ -13,11 +13,19 @@ import {
 } from "../../drizzle/schema";
 import { buildInvoiceLine, computeInvoiceTotals } from "./invoiceService";
 
-export type InvoiceSnapshotStatus = "generated" | "pdf_generated" | "failed" | "cancelled";
+export type InvoiceSnapshotStatus =
+  | "generated"
+  | "pdf_generated"
+  | "failed"
+  | "cancelled";
 
 type AnyRecord = Record<string, any>;
 
-const CRITICAL_STORE_FIELDS = ["storeGSTIN", "storeDrugLicense", "storeAddress"] as const;
+const CRITICAL_STORE_FIELDS = [
+  "storeGSTIN",
+  "storeDrugLicense",
+  "storeAddress",
+] as const;
 
 function r2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -32,7 +40,9 @@ function toNumber(value: unknown): number {
 function toIso(value: unknown): string | null {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value as any);
-  return Number.isNaN(d.getTime()) ? String(value) : d.toISOString().slice(0, 10);
+  return Number.isNaN(d.getTime())
+    ? String(value)
+    : d.toISOString().slice(0, 10);
 }
 
 function normalizeEmpty(value: unknown): string | null {
@@ -47,12 +57,14 @@ export function stableSerialize(value: unknown): string {
   const object = value as AnyRecord;
   return `{${Object.keys(object)
     .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableSerialize(object[key])}`)
+    .map(key => `${JSON.stringify(key)}:${stableSerialize(object[key])}`)
     .join(",")}}`;
 }
 
 export function computeSnapshotHash(snapshotJson: unknown): string {
-  return createHash("sha256").update(stableSerialize(snapshotJson)).digest("hex");
+  return createHash("sha256")
+    .update(stableSerialize(snapshotJson))
+    .digest("hex");
 }
 
 export function evaluateStatutoryCompleteness(payload: AnyRecord) {
@@ -66,14 +78,20 @@ export function evaluateStatutoryCompleteness(payload: AnyRecord) {
   for (const [i, line] of (payload.lineItems ?? []).entries()) {
     if (!line.productName) missingFields.push(`lineItems[${i}].productName`);
     if (!line.hsnCode) missingFields.push(`lineItems[${i}].hsnCode`);
-    if (line.gstRate === null || line.gstRate === undefined) missingFields.push(`lineItems[${i}].gstRate`);
-    if (line.mrp === null || line.mrp === undefined) missingFields.push(`lineItems[${i}].mrp`);
-    if (line.taxableValue === null || line.taxableValue === undefined) missingFields.push(`lineItems[${i}].taxableValue`);
+    if (line.gstRate === null || line.gstRate === undefined)
+      missingFields.push(`lineItems[${i}].gstRate`);
+    if (line.mrp === null || line.mrp === undefined)
+      missingFields.push(`lineItems[${i}].mrp`);
+    if (line.taxableValue === null || line.taxableValue === undefined)
+      missingFields.push(`lineItems[${i}].taxableValue`);
   }
 
-  const productionCriticalMissing = process.env.NODE_ENV === "production"
-    ? missingFields.filter((field) => CRITICAL_STORE_FIELDS.includes(field as any))
-    : [];
+  const productionCriticalMissing =
+    process.env.NODE_ENV === "production"
+      ? missingFields.filter(field =>
+          CRITICAL_STORE_FIELDS.includes(field as any)
+        )
+      : [];
 
   return {
     complete: missingFields.length === 0,
@@ -85,7 +103,11 @@ export function evaluateStatutoryCompleteness(payload: AnyRecord) {
 
 export function buildSaleInvoiceSnapshotPayload(input: {
   sale: AnyRecord;
-  lines: Array<{ line: AnyRecord; productName?: string | null; productHsnCode?: string | null }>;
+  lines: Array<{
+    line: AnyRecord;
+    productName?: string | null;
+    productHsnCode?: string | null;
+  }>;
   store?: AnyRecord | null;
   payment?: AnyRecord | null;
   generatedAt?: Date;
@@ -127,14 +149,24 @@ export function buildSaleInvoiceSnapshotPayload(input: {
   const payload: AnyRecord = {
     type: "sale_invoice_snapshot",
     billNo: sale.billNo,
-    invoiceDate: sale.confirmedAt ? new Date(Number(sale.confirmedAt)).toISOString() : generatedAt.toISOString(),
+    invoiceDate: sale.confirmedAt
+      ? new Date(Number(sale.confirmedAt)).toISOString()
+      : generatedAt.toISOString(),
     storeId: sale.storeId,
     storeName: normalizeEmpty(input.store?.name) ?? `STORE-${sale.storeId}`,
     storeAddress: normalizeEmpty(input.store?.address),
-    storeGSTIN: normalizeEmpty(input.store?.gstin ?? input.store?.gstIn ?? input.store?.gstNumber),
-    storeDrugLicense: normalizeEmpty(input.store?.drugLicense ?? input.store?.drugLicenseNo ?? input.store?.licenseNo),
+    storeGSTIN: normalizeEmpty(
+      input.store?.gstin ?? input.store?.gstIn ?? input.store?.gstNumber
+    ),
+    storeDrugLicense: normalizeEmpty(
+      input.store?.drugLicense ??
+        input.store?.drugLicenseNo ??
+        input.store?.licenseNo
+    ),
     pharmacistName: normalizeEmpty(sale.pharmacistName),
-    pharmacistLicense: normalizeEmpty(sale.pharmacistRegNo ?? sale.pharmacistCode),
+    pharmacistLicense: normalizeEmpty(
+      sale.pharmacistRegNo ?? sale.pharmacistCode
+    ),
     customerId: sale.customerId ?? null,
     customerName: normalizeEmpty(sale.customerName),
     customerPhone: normalizeEmpty(sale.customerMobile),
@@ -145,22 +177,30 @@ export function buildSaleInvoiceSnapshotPayload(input: {
     taxableTotal: totals.taxableAmount,
     gstTotal: totals.totalGst,
     grandTotal: r2(toNumber(sale.total) || totals.netTotal),
-    paymentReference: input.payment ? {
-      mode: input.payment.paymentMode ?? sale.paymentMode ?? null,
-      paymentRef: input.payment.paymentRef ?? sale.paymentRef ?? null,
-      gatewayRef: input.payment.gatewayRef ?? null,
-      status: input.payment.status ?? null,
-      amount: input.payment.amount ?? sale.total ?? null,
-    } : {
-      mode: sale.paymentMode ?? null,
-      paymentRef: sale.paymentRef ?? null,
-      gatewayRef: null,
-      status: null,
-      amount: sale.total ?? null,
-    },
-    prescriptionReference: sale.prescriptionId ? { prescriptionId: sale.prescriptionId } : null,
+    paymentReference: input.payment
+      ? {
+          mode: input.payment.paymentMode ?? sale.paymentMode ?? null,
+          paymentRef: input.payment.paymentRef ?? sale.paymentRef ?? null,
+          gatewayRef: input.payment.gatewayRef ?? null,
+          status: input.payment.status ?? null,
+          amount: input.payment.amount ?? sale.total ?? null,
+        }
+      : {
+          mode: sale.paymentMode ?? null,
+          paymentRef: sale.paymentRef ?? null,
+          gatewayRef: null,
+          status: null,
+          amount: sale.total ?? null,
+        },
+    prescriptionReference: sale.prescriptionId
+      ? { prescriptionId: sale.prescriptionId }
+      : null,
     orderReference: null,
-    saleReference: { saleId: sale.id, status: sale.status, createdBy: sale.createdBy ?? null },
+    saleReference: {
+      saleId: sale.id,
+      status: sale.status,
+      createdBy: sale.createdBy ?? null,
+    },
     generatedAt: generatedAt.toISOString(),
   };
   payload.statutoryCompleteness = evaluateStatutoryCompleteness(payload);
@@ -193,19 +233,65 @@ export function buildInsurerReadyInvoicePackage(snapshot: AnyRecord) {
   };
 }
 
-export async function createSaleInvoiceSnapshot(db: any, saleId: string, opts: { generatedBy?: string | number | null; pdfFileKey?: string | null; pdfFileUrl?: string | null; failureReason?: string | null } = {}) {
-  const existing = await db.select().from(invoiceSnapshots).where(and(eq(invoiceSnapshots.saleId, saleId), eq(invoiceSnapshots.status, "generated" as any))).orderBy(desc(invoiceSnapshots.generatedAt)).limit(1);
+export async function createSaleInvoiceSnapshot(
+  db: any,
+  saleId: string,
+  opts: {
+    generatedBy?: string | number | null;
+    pdfFileKey?: string | null;
+    pdfFileUrl?: string | null;
+    failureReason?: string | null;
+  } = {}
+) {
+  const existing = await db
+    .select()
+    .from(invoiceSnapshots)
+    .where(
+      and(
+        eq(invoiceSnapshots.saleId, saleId),
+        eq(invoiceSnapshots.status, "generated" as any)
+      )
+    )
+    .orderBy(desc(invoiceSnapshots.generatedAt))
+    .limit(1);
   if (existing[0]) return existing[0];
-  const [sale] = await db.select().from(sales).where(eq(sales.id, saleId)).limit(1);
+  const [sale] = await db
+    .select()
+    .from(sales)
+    .where(eq(sales.id, saleId))
+    .limit(1);
   if (!sale) throw new Error("sale_not_found");
-  const lineRows = await db.select({ line: saleLines, productName: products.name, productHsnCode: products.hsnCode })
+  const lineRows = await db
+    .select({
+      line: saleLines,
+      productName: products.name,
+      productHsnCode: products.hsnCode,
+    })
     .from(saleLines)
     .leftJoin(products, eq(saleLines.productId as any, products.id as any))
     .where(eq(saleLines.saleId, saleId));
-  const [store] = await db.select().from(stores).where(eq(stores.id as any, Number(sale.storeId) as any)).limit(1);
-  const [payment] = await db.select().from(counterPayments).where(eq(counterPayments.saleId, saleId)).orderBy(desc(counterPayments.createdAt)).limit(1);
-  const snapshotJson = buildSaleInvoiceSnapshotPayload({ sale, lines: lineRows, store, payment });
-  const status: InvoiceSnapshotStatus = opts.failureReason ? "failed" : (opts.pdfFileKey && opts.pdfFileUrl ? "pdf_generated" : "generated");
+  const [store] = await db
+    .select()
+    .from(stores)
+    .where(eq(stores.id as any, Number(sale.storeId) as any))
+    .limit(1);
+  const [payment] = await db
+    .select()
+    .from(counterPayments)
+    .where(eq(counterPayments.saleId, saleId))
+    .orderBy(desc(counterPayments.createdAt))
+    .limit(1);
+  const snapshotJson = buildSaleInvoiceSnapshotPayload({
+    sale,
+    lines: lineRows,
+    store,
+    payment,
+  });
+  const status: InvoiceSnapshotStatus = opts.failureReason
+    ? "failed"
+    : opts.pdfFileKey && opts.pdfFileUrl
+      ? "pdf_generated"
+      : "generated";
   const [inserted] = await db.insert(invoiceSnapshots).values({
     saleId,
     orderId: null,
@@ -218,27 +304,63 @@ export async function createSaleInvoiceSnapshot(db: any, saleId: string, opts: {
     pdfFileUrl: opts.pdfFileUrl ?? null,
     status,
     failureReason: opts.failureReason ?? null,
-    generatedBy: opts.generatedBy === null || opts.generatedBy === undefined ? null : String(opts.generatedBy),
+    generatedBy:
+      opts.generatedBy === null || opts.generatedBy === undefined
+        ? null
+        : String(opts.generatedBy),
     generatedAt: new Date(),
   });
-  const insertId = (inserted as any)?.insertId;
-  if (!insertId) return { saleId, billNo: sale.billNo, snapshotJson, snapshotHash: computeSnapshotHash(snapshotJson), status };
-  const [row] = await db.select().from(invoiceSnapshots).where(eq(invoiceSnapshots.id, insertId)).limit(1);
+  const insertId = inserted?.insertId;
+  if (!insertId)
+    return {
+      saleId,
+      billNo: sale.billNo,
+      snapshotJson,
+      snapshotHash: computeSnapshotHash(snapshotJson),
+      status,
+    };
+  const [row] = await db
+    .select()
+    .from(invoiceSnapshots)
+    .where(eq(invoiceSnapshots.id, insertId))
+    .limit(1);
   return row;
 }
 
-export function assertCustomerCanAccessInvoiceSnapshot(snapshot: AnyRecord, user: { id: number | string; role?: string | null }) {
-  const staffRoles = new Set(["admin", "super_admin", "store_manager", "pharmacist", "salesman", "cashier", "accountant", "auditor"]);
+export function assertCustomerCanAccessInvoiceSnapshot(
+  snapshot: AnyRecord,
+  user: { id: number | string; role?: string | null }
+) {
+  const staffRoles = new Set([
+    "admin",
+    "super_admin",
+    "store_manager",
+    "pharmacist",
+    "salesman",
+    "cashier",
+    "accountant",
+    "auditor",
+  ]);
   if (user.role && staffRoles.has(user.role)) return true;
   const uid = String(user.id);
   const payload = snapshot.snapshotJson ?? snapshot;
-  if (String(snapshot.customerId ?? payload.customerId ?? "") === uid) return true;
+  if (String(snapshot.customerId ?? payload.customerId ?? "") === uid)
+    return true;
   if (String(payload.saleReference?.createdBy ?? "") === uid) return true;
   return false;
 }
 
-export async function getInvoiceSnapshotPackageForSale(db: any, saleId: string, user: { id: number | string; role?: string | null }) {
-  const rows = await db.select().from(invoiceSnapshots).where(eq(invoiceSnapshots.saleId, saleId)).orderBy(desc(invoiceSnapshots.generatedAt)).limit(1);
+export async function getInvoiceSnapshotPackageForSale(
+  db: any,
+  saleId: string,
+  user: { id: number | string; role?: string | null }
+) {
+  const rows = await db
+    .select()
+    .from(invoiceSnapshots)
+    .where(eq(invoiceSnapshots.saleId, saleId))
+    .orderBy(desc(invoiceSnapshots.generatedAt))
+    .limit(1);
   const snapshot = rows[0];
   if (!snapshot) return null;
   if (!assertCustomerCanAccessInvoiceSnapshot(snapshot, user)) {
@@ -258,10 +380,14 @@ export function buildOrderInvoiceSnapshotPayload(input: {
 }) {
   const order = input.order;
   const generatedAt = input.generatedAt ?? new Date();
-  const lineItems = input.items.map((item) => {
-    const unitPrice = toNumber(item.unitPrice ?? item.sellingPrice ?? item.lineTotal) / Math.max(1, toNumber(item.quantity) || 1);
+  const lineItems = input.items.map(item => {
+    const unitPrice =
+      toNumber(item.unitPrice ?? item.sellingPrice ?? item.lineTotal) /
+      Math.max(1, toNumber(item.quantity) || 1);
     const invoiceLine = buildInvoiceLine({
-      productName: normalizeEmpty(item.name ?? item.productName) ?? `PRODUCT-${item.productId}`,
+      productName:
+        normalizeEmpty(item.name ?? item.productName) ??
+        `PRODUCT-${item.productId}`,
       batchNo: normalizeEmpty(item.batchNo),
       expiryDate: toIso(item.expiryDate),
       quantity: toNumber(item.quantity),
@@ -294,18 +420,28 @@ export function buildOrderInvoiceSnapshotPayload(input: {
   const payload: AnyRecord = {
     type: "order_invoice_snapshot",
     billNo: `ORDER-${order.id}`,
-    invoiceDate: order.deliveredAt ? new Date(order.deliveredAt).toISOString() : generatedAt.toISOString(),
+    invoiceDate: order.deliveredAt
+      ? new Date(order.deliveredAt).toISOString()
+      : generatedAt.toISOString(),
     storeId: String(order.storeId),
     storeName: normalizeEmpty(input.store?.name) ?? `STORE-${order.storeId}`,
     storeAddress: normalizeEmpty(input.store?.address),
-    storeGSTIN: normalizeEmpty(input.store?.gstin ?? input.store?.gstIn ?? input.store?.gstNumber),
-    storeDrugLicense: normalizeEmpty(input.store?.drugLicense ?? input.store?.drugLicenseNo ?? input.store?.licenseNo),
+    storeGSTIN: normalizeEmpty(
+      input.store?.gstin ?? input.store?.gstIn ?? input.store?.gstNumber
+    ),
+    storeDrugLicense: normalizeEmpty(
+      input.store?.drugLicense ??
+        input.store?.drugLicenseNo ??
+        input.store?.licenseNo
+    ),
     pharmacistName: null,
     pharmacistLicense: null,
     customerId: String(order.userId),
     customerName: normalizeEmpty(input.customer?.name),
     customerPhone: normalizeEmpty(input.customer?.phone),
-    customerAddress: normalizeEmpty(order.deliveryAddress ?? input.customer?.userAddress),
+    customerAddress: normalizeEmpty(
+      order.deliveryAddress ?? input.customer?.userAddress
+    ),
     lineItems,
     subtotal: r2(toNumber(order.subtotal)),
     totalDiscount: 0,
@@ -313,7 +449,9 @@ export function buildOrderInvoiceSnapshotPayload(input: {
     gstTotal: totals.totalGst,
     grandTotal: r2(toNumber(order.total) || totals.netTotal),
     paymentReference: null,
-    prescriptionReference: order.prescriptionId ? { prescriptionId: order.prescriptionId } : null,
+    prescriptionReference: order.prescriptionId
+      ? { prescriptionId: order.prescriptionId }
+      : null,
     orderReference: { orderId: order.id, status: order.status },
     saleReference: null,
     generatedAt: generatedAt.toISOString(),
@@ -322,22 +460,56 @@ export function buildOrderInvoiceSnapshotPayload(input: {
   return payload;
 }
 
-export async function createOrderInvoiceSnapshot(db: any, orderId: number, opts: { generatedBy?: string | number | null; pdfFileKey?: string | null; pdfFileUrl?: string | null; failureReason?: string | null } = {}) {
-  const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+export async function createOrderInvoiceSnapshot(
+  db: any,
+  orderId: number,
+  opts: {
+    generatedBy?: string | number | null;
+    pdfFileKey?: string | null;
+    pdfFileUrl?: string | null;
+    failureReason?: string | null;
+  } = {}
+) {
+  const [order] = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
   if (!order) throw new Error("order_not_found");
-  const itemRows = await db.select({
-    productId: orderItems.productId,
-    quantity: orderItems.quantity,
-    unitPrice: orderItems.unitPrice,
-    lineTotal: orderItems.lineTotal,
-    name: products.name,
-    hsnCode: products.hsnCode,
-    gstRate: products.gstRate,
-  }).from(orderItems).leftJoin(products, eq(orderItems.productId as any, products.id as any)).where(eq(orderItems.orderId, orderId));
-  const [store] = await db.select().from(stores).where(eq(stores.id as any, Number(order.storeId) as any)).limit(1);
-  const [customer] = await db.select().from(users).where(eq(users.id, order.userId)).limit(1);
-  const snapshotJson = buildOrderInvoiceSnapshotPayload({ order, items: itemRows, store, customer });
-  const status: InvoiceSnapshotStatus = opts.failureReason ? "failed" : (opts.pdfFileKey && opts.pdfFileUrl ? "pdf_generated" : "generated");
+  const itemRows = await db
+    .select({
+      productId: orderItems.productId,
+      quantity: orderItems.quantity,
+      unitPrice: orderItems.unitPrice,
+      lineTotal: orderItems.lineTotal,
+      name: products.name,
+      hsnCode: products.hsnCode,
+      gstRate: products.gstRate,
+    })
+    .from(orderItems)
+    .leftJoin(products, eq(orderItems.productId as any, products.id as any))
+    .where(eq(orderItems.orderId, orderId));
+  const [store] = await db
+    .select()
+    .from(stores)
+    .where(eq(stores.id as any, Number(order.storeId) as any))
+    .limit(1);
+  const [customer] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, order.userId))
+    .limit(1);
+  const snapshotJson = buildOrderInvoiceSnapshotPayload({
+    order,
+    items: itemRows,
+    store,
+    customer,
+  });
+  const status: InvoiceSnapshotStatus = opts.failureReason
+    ? "failed"
+    : opts.pdfFileKey && opts.pdfFileUrl
+      ? "pdf_generated"
+      : "generated";
   const [inserted] = await db.insert(invoiceSnapshots).values({
     saleId: null,
     orderId,
@@ -350,11 +522,25 @@ export async function createOrderInvoiceSnapshot(db: any, orderId: number, opts:
     pdfFileUrl: opts.pdfFileUrl ?? null,
     status,
     failureReason: opts.failureReason ?? null,
-    generatedBy: opts.generatedBy === null || opts.generatedBy === undefined ? null : String(opts.generatedBy),
+    generatedBy:
+      opts.generatedBy === null || opts.generatedBy === undefined
+        ? null
+        : String(opts.generatedBy),
     generatedAt: new Date(),
   });
-  const insertId = (inserted as any)?.insertId;
-  if (!insertId) return { orderId, billNo: snapshotJson.billNo, snapshotJson, snapshotHash: computeSnapshotHash(snapshotJson), status };
-  const [row] = await db.select().from(invoiceSnapshots).where(eq(invoiceSnapshots.id, insertId)).limit(1);
+  const insertId = inserted?.insertId;
+  if (!insertId)
+    return {
+      orderId,
+      billNo: snapshotJson.billNo,
+      snapshotJson,
+      snapshotHash: computeSnapshotHash(snapshotJson),
+      status,
+    };
+  const [row] = await db
+    .select()
+    .from(invoiceSnapshots)
+    .where(eq(invoiceSnapshots.id, insertId))
+    .limit(1);
   return row;
 }

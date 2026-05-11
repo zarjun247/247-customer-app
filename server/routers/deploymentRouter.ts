@@ -36,7 +36,7 @@ export const deploymentRouter = router({
       z.object({
         env: z.enum(["staging", "production"]).optional(),
         limit: z.number().int().min(1).max(200).default(50),
-      }),
+      })
     )
     .query(async ({ input }) => {
       const records = await listReadinessRecords(input.limit);
@@ -47,7 +47,7 @@ export const deploymentRouter = router({
   recordValidation: adminProcedure
     .input(ReadinessRecordSchema)
     .mutation(async ({ input }) => {
-      await recordReadiness(input as ReadinessRecord);
+      await recordReadiness(input);
       return { success: true, id: input.id };
     }),
 });

@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { adminProcedure, managerProcedure, router, capabilityProcedure } from "../_core/trpc";
+import {
+  adminProcedure,
+  managerProcedure,
+  router,
+  capabilityProcedure,
+} from "../_core/trpc";
 import {
   getCommandLog,
   getCommandStats,
@@ -24,12 +29,12 @@ export const commandLogRouter = router({
         storeId: z.string().optional(),
         limit: z.number().min(1).max(200).default(50),
         offset: z.number().min(0).default(0),
-      }),
+      })
     )
     .query(async ({ input }) => {
       return listCommandLogs({
         commandName: input.commandName,
-        state: input.state as CommandState | undefined,
+        state: input.state,
         actorUserId: input.actorUserId,
         storeId: input.storeId,
         limit: input.limit,

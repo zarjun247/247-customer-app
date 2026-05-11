@@ -22,7 +22,7 @@ export function canonicalize(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map(canonicalize);
   const sorted: Record<string, unknown> = {};
-  for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+  for (const k of Object.keys(value).sort()) {
     sorted[k] = canonicalize((value as Record<string, unknown>)[k]);
   }
   return sorted;
@@ -36,7 +36,11 @@ function computeRowHash(prevHash: string, payload: unknown): string {
   return sha256(prevHash + JSON.stringify(canonicalize(payload)));
 }
 
-function buildHashPayload(input: SuggestionInput, sequenceNumber: number, generatedAt: Date) {
+function buildHashPayload(
+  input: SuggestionInput,
+  sequenceNumber: number,
+  generatedAt: Date
+) {
   return {
     sequenceNumber,
     suggestionKind: input.suggestionKind,
@@ -71,10 +75,14 @@ export async function appendSuggestion(input: SuggestionInput): Promise<{
         .orderBy(desc(aiEvalLedger.sequenceNumber))
         .limit(1);
 
-      const prevHash = latest?.rowHash ?? "0000000000000000000000000000000000000000000000000000000000000000";
+      const prevHash =
+        latest?.rowHash ??
+        "0000000000000000000000000000000000000000000000000000000000000000";
       const nextSeq = (latest?.sequenceNumber ?? -1) + 1;
       const generatedAt = new Date();
-      const inputHash = sha256(JSON.stringify(canonicalize(input.inputSnapshot)));
+      const inputHash = sha256(
+        JSON.stringify(canonicalize(input.inputSnapshot))
+      );
       const hashPayload = buildHashPayload(input, nextSeq, generatedAt);
       const rowHash = computeRowHash(prevHash, hashPayload);
 
@@ -86,15 +94,17 @@ export async function appendSuggestion(input: SuggestionInput): Promise<{
         scopeType: input.scopeType,
         scopeId: input.scopeId,
         inputHash,
-        inputSnapshot: input.inputSnapshot as Record<string, unknown>,
-        outputPayload: input.outputPayload as Record<string, unknown>,
+        inputSnapshot: input.inputSnapshot,
+        outputPayload: input.outputPayload,
         modelVersion: input.modelVersion,
         generatedAt,
         generatedByUserId: input.generatedByUserId ?? null,
         traceId: input.traceId ?? null,
       });
 
-      const ledgerId = Number((result as unknown as { insertId: number }).insertId ?? 0);
+      const ledgerId = Number(
+        (result as unknown as { insertId: number }).insertId ?? 0
+      );
       return { sequenceNumber: nextSeq, rowHash, ledgerId };
     } catch (err: unknown) {
       const isUniqueViolation =
@@ -115,7 +125,12 @@ export async function appendSuggestion(input: SuggestionInput): Promise<{
 
 export async function recordOutcome(input: {
   evalLedgerId: number;
-  outcomeKind: "accepted" | "rejected" | "ignored" | "modified" | "outcome_realized";
+  outcomeKind:
+    | "accepted"
+    | "rejected"
+    | "ignored"
+    | "modified"
+    | "outcome_realized";
   outcomePayload?: unknown;
   recordedByUserId?: string | null;
 }): Promise<void> {
@@ -124,7 +139,7 @@ export async function recordOutcome(input: {
   await db.insert(aiEvalOutcomes).values({
     evalLedgerId: input.evalLedgerId,
     outcomeKind: input.outcomeKind,
-    outcomePayload: (input.outcomePayload ?? null) as Record<string, unknown> | null,
+    outcomePayload: input.outcomePayload ?? null,
     recordedAt: new Date(),
     recordedByUserId: input.recordedByUserId ?? null,
   });
@@ -143,7 +158,13 @@ export async function verifyChain(options?: {
 }> {
   const db = await getDb();
   if (!db) {
-    return { verified: false, rowsChecked: 0, firstBreakAt: -1, firstBreakReason: "db unavailable", lastSequenceNumber: -1 };
+    return {
+      verified: false,
+      rowsChecked: 0,
+      firstBreakAt: -1,
+      firstBreakReason: "db unavailable",
+      lastSequenceNumber: -1,
+    };
   }
 
   const limit = options?.maxRows ?? 100_000;
@@ -153,9 +174,17 @@ export async function verifyChain(options?: {
     .orderBy(aiEvalLedger.sequenceNumber)
     .limit(limit);
 
-  const filtered = rows.filter((r) => {
-    if (options?.fromSequence !== undefined && r.sequenceNumber < options.fromSequence) return false;
-    if (options?.toSequence !== undefined && r.sequenceNumber > options.toSequence) return false;
+  const filtered = rows.filter(r => {
+    if (
+      options?.fromSequence !== undefined &&
+      r.sequenceNumber < options.fromSequence
+    )
+      return false;
+    if (
+      options?.toSequence !== undefined &&
+      r.sequenceNumber > options.toSequence
+    )
+      return false;
     return true;
   });
 
@@ -206,7 +235,7 @@ export async function verifyChain(options?: {
           traceId: row.traceId,
         },
         row.sequenceNumber,
-        row.generatedAt,
+        row.generatedAt
       );
       const recomputed = computeRowHash(row.prevHash, hashPayload);
       if (recomputed !== row.rowHash) {
@@ -233,19 +262,38 @@ export async function verifyChain(options?: {
 export async function getStats(): Promise<{
   totalSuggestions: number;
   totalOutcomes: number;
-  byKind: Array<{ kind: string; count: number; acceptedCount: number; rejectedCount: number; ignoredCount: number }>;
+  byKind: Array<{
+    kind: string;
+    count: number;
+    acceptedCount: number;
+    rejectedCount: number;
+    ignoredCount: number;
+  }>;
   acceptanceRate: number;
   oldestRow: Date | null;
   newestRow: Date | null;
 }> {
   const db = await getDb();
   if (!db) {
-    return { totalSuggestions: 0, totalOutcomes: 0, byKind: [], acceptanceRate: 0, oldestRow: null, newestRow: null };
+    return {
+      totalSuggestions: 0,
+      totalOutcomes: 0,
+      byKind: [],
+      acceptanceRate: 0,
+      oldestRow: null,
+      newestRow: null,
+    };
   }
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const [totalSuggestionsRow, totalOutcomesRow, byKindRows, recentOutcomes, allRows] = await Promise.all([
+  const [
+    totalSuggestionsRow,
+    totalOutcomesRow,
+    byKindRows,
+    recentOutcomes,
+    allRows,
+  ] = await Promise.all([
     db.select({ total: count() }).from(aiEvalLedger),
     db.select({ total: count() }).from(aiEvalOutcomes),
     db
@@ -263,13 +311,20 @@ export async function getStats(): Promise<{
       .from(aiEvalOutcomes)
       .where(gte(aiEvalOutcomes.recordedAt, thirtyDaysAgo))
       .groupBy(aiEvalOutcomes.outcomeKind),
-    db.select().from(aiEvalLedger).orderBy(aiEvalLedger.sequenceNumber).limit(2_000_000),
+    db
+      .select()
+      .from(aiEvalLedger)
+      .orderBy(aiEvalLedger.sequenceNumber)
+      .limit(2_000_000),
   ]);
 
-  const acceptedCount = recentOutcomes.find((r) => r.outcomeKind === "accepted")?.total ?? 0;
-  const rejectedCount = recentOutcomes.find((r) => r.outcomeKind === "rejected")?.total ?? 0;
+  const acceptedCount =
+    recentOutcomes.find(r => r.outcomeKind === "accepted")?.total ?? 0;
+  const rejectedCount =
+    recentOutcomes.find(r => r.outcomeKind === "rejected")?.total ?? 0;
   const denominator = Number(acceptedCount) + Number(rejectedCount);
-  const acceptanceRate = denominator > 0 ? Number(acceptedCount) / denominator : 0;
+  const acceptanceRate =
+    denominator > 0 ? Number(acceptedCount) / denominator : 0;
 
   const oldest = allRows[0] ?? null;
   const newest = allRows[allRows.length - 1] ?? null;
@@ -277,7 +332,7 @@ export async function getStats(): Promise<{
   return {
     totalSuggestions: Number(totalSuggestionsRow[0]?.total ?? 0),
     totalOutcomes: Number(totalOutcomesRow[0]?.total ?? 0),
-    byKind: byKindRows.map((r) => ({
+    byKind: byKindRows.map(r => ({
       kind: r.kind,
       count: Number(r.total),
       acceptedCount: Number(r.accepted),
@@ -296,14 +351,22 @@ export async function listSuggestions(options?: {
   scopeId?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ records: Array<AiEvalLedgerRecord & { latestOutcome: string | null }>; total: number }> {
+}): Promise<{
+  records: Array<AiEvalLedgerRecord & { latestOutcome: string | null }>;
+  total: number;
+}> {
   const db = await getDb();
   if (!db) return { records: [], total: 0 };
 
   const conditions = [];
-  if (options?.suggestionKind) conditions.push(sql`${aiEvalLedger.suggestionKind} = ${options.suggestionKind}`);
-  if (options?.scopeType) conditions.push(sql`${aiEvalLedger.scopeType} = ${options.scopeType}`);
-  if (options?.scopeId) conditions.push(sql`${aiEvalLedger.scopeId} = ${options.scopeId}`);
+  if (options?.suggestionKind)
+    conditions.push(
+      sql`${aiEvalLedger.suggestionKind} = ${options.suggestionKind}`
+    );
+  if (options?.scopeType)
+    conditions.push(sql`${aiEvalLedger.scopeType} = ${options.scopeType}`);
+  if (options?.scopeId)
+    conditions.push(sql`${aiEvalLedger.scopeId} = ${options.scopeId}`);
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const limit = options?.limit ?? 50;
@@ -321,8 +384,8 @@ export async function listSuggestions(options?: {
   ]);
 
   // Fetch latest outcome for each ledger row
-  const ledgerIds = rows.map((r) => r.id);
-  let latestOutcomeMap = new Map<number, string>();
+  const ledgerIds = rows.map(r => r.id);
+  const latestOutcomeMap = new Map<number, string>();
   if (ledgerIds.length > 0) {
     const outcomes = await db
       .select()
@@ -338,7 +401,10 @@ export async function listSuggestions(options?: {
   }
 
   return {
-    records: rows.map((r) => ({ ...r, latestOutcome: latestOutcomeMap.get(r.id) ?? null })),
+    records: rows.map(r => ({
+      ...r,
+      latestOutcome: latestOutcomeMap.get(r.id) ?? null,
+    })),
     total: Number(totalRows[0]?.total ?? 0),
   };
 }

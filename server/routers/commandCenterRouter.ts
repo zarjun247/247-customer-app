@@ -8,23 +8,68 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import {
-  orders, prescriptions, riders, deliveryTasks, slaEvents,
-  batches, storeSkus, products, ocrJobs, ingestionJobs,
-  refillPlans, refillEvents, auditLogs, routingDecisions,
-  buildings, stores, systemEvents, medivisionSyncLog,
-  sales, whatsappMessages, staffHandoffs, users,
+  orders,
+  prescriptions,
+  riders,
+  deliveryTasks,
+  slaEvents,
+  batches,
+  storeSkus,
+  products,
+  ocrJobs,
+  ingestionJobs,
+  refillPlans,
+  refillEvents,
+  auditLogs,
+  routingDecisions,
+  buildings,
+  stores,
+  systemEvents,
+  medivisionSyncLog,
+  sales,
+  whatsappMessages,
+  staffHandoffs,
+  users,
 } from "../../drizzle/schema";
-import { eq, and, lte, gte, sql, desc, asc, inArray, ne, isNull, isNotNull, between, lt, gt, or } from "drizzle-orm";
+import {
+  eq,
+  and,
+  lte,
+  gte,
+  sql,
+  desc,
+  asc,
+  inArray,
+  ne,
+  isNull,
+  isNotNull,
+  between,
+  lt,
+  gt,
+  or,
+} from "drizzle-orm";
 
-const ADMIN_ROLES = ["admin", "super_admin", "ops_admin", "store_manager"] as const;
+const ADMIN_ROLES = [
+  "admin",
+  "super_admin",
+  "ops_admin",
+  "store_manager",
+] as const;
 function assertAdmin(role: string) {
   if (!ADMIN_ROLES.includes(role as any)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Admin access required",
+    });
   }
 }
 
-function nowMinus(ms: number) { return new Date(Date.now() - ms); }
-function nowPlus(ms: number) { return new Date(Date.now() + ms); }
+function nowMinus(ms: number) {
+  return new Date(Date.now() - ms);
+}
+function nowPlus(ms: number) {
+  return new Date(Date.now() + ms);
+}
 const HOUR = 3600000;
 const DAY = 86400000;
 
@@ -36,19 +81,28 @@ const liveOrdersCard = protectedProcedure
     const db = await getDb();
     if (!db) return { byStatus: [], total: 0 };
     const activeStatuses = [
-      "awaiting_prescription", "awaiting_pharmacist_review", "clarification_needed",
-      "awaiting_allocation", "backorder_review", "reserved", "picking", "packed",
-      "assigned_to_rider", "out_for_delivery", "delivery_exception",
+      "awaiting_prescription",
+      "awaiting_pharmacist_review",
+      "clarification_needed",
+      "awaiting_allocation",
+      "backorder_review",
+      "reserved",
+      "picking",
+      "packed",
+      "assigned_to_rider",
+      "out_for_delivery",
+      "delivery_exception",
     ];
-    const rows = await db.select({
-      status: orders.status,
-      count: sql<number>`COUNT(*)`,
-    })
+    const rows = await db
+      .select({
+        status: orders.status,
+        count: sql<number>`COUNT(*)`,
+      })
       .from(orders)
       .where(
         and(
           inArray(orders.status, activeStatuses as any),
-          input.storeId ? eq(orders.storeId, input.storeId) : undefined,
+          input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )
       )
       .groupBy(orders.status);
@@ -65,17 +119,23 @@ const orderAgeingCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { buckets: [] };
-    const rows = await db.select({
-      orderId: orders.id,
-      status: orders.status,
-      placedAt: orders.placedAt,
-      promisedSlaMins: orders.promisedSlaMins,
-    })
+    const rows = await db
+      .select({
+        orderId: orders.id,
+        status: orders.status,
+        placedAt: orders.placedAt,
+        promisedSlaMins: orders.promisedSlaMins,
+      })
       .from(orders)
       .where(
         and(
-          inArray(orders.status, ["picking", "packed", "assigned_to_rider", "out_for_delivery"] as any),
-          input.storeId ? eq(orders.storeId, input.storeId) : undefined,
+          inArray(orders.status, [
+            "picking",
+            "packed",
+            "assigned_to_rider",
+            "out_for_delivery",
+          ] as any),
+          input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )
       )
       .orderBy(asc(orders.placedAt))
@@ -101,12 +161,13 @@ const slaBreachRiskCard = protectedProcedure
     if (!db) return { atRisk: [], breached: [] };
     const now = new Date();
     const in15Mins = nowPlus(15 * 60000);
-    const atRisk = await db.select({
-      id: slaEvents.id,
-      orderId: slaEvents.orderId,
-      slaDeadline: slaEvents.slaDeadline,
-      promisedSlaMins: slaEvents.promisedSlaMins,
-    })
+    const atRisk = await db
+      .select({
+        id: slaEvents.id,
+        orderId: slaEvents.orderId,
+        slaDeadline: slaEvents.slaDeadline,
+        promisedSlaMins: slaEvents.promisedSlaMins,
+      })
       .from(slaEvents)
       .where(
         and(
@@ -114,22 +175,23 @@ const slaBreachRiskCard = protectedProcedure
           eq(slaEvents.breached, false),
           lte(slaEvents.slaDeadline, in15Mins),
           gte(slaEvents.slaDeadline, now),
-          input.storeId ? eq(slaEvents.storeId, input.storeId) : undefined,
+          input.storeId ? eq(slaEvents.storeId, input.storeId) : undefined
         )
       )
       .orderBy(asc(slaEvents.slaDeadline))
       .limit(50);
-    const breached = await db.select({
-      id: slaEvents.id,
-      orderId: slaEvents.orderId,
-      slaDeadline: slaEvents.slaDeadline,
-    })
+    const breached = await db
+      .select({
+        id: slaEvents.id,
+        orderId: slaEvents.orderId,
+        slaDeadline: slaEvents.slaDeadline,
+      })
       .from(slaEvents)
       .where(
         and(
           isNull(slaEvents.deliveredAt),
           lt(slaEvents.slaDeadline, now),
-          input.storeId ? eq(slaEvents.storeId, input.storeId) : undefined,
+          input.storeId ? eq(slaEvents.storeId, input.storeId) : undefined
         )
       )
       .orderBy(asc(slaEvents.slaDeadline))
@@ -144,12 +206,15 @@ const pharmacistQueueCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { pending: 0, avgWaitMins: null };
-    const rows = await db.select({
-      pending: sql<number>`SUM(CASE WHEN status IN ('pending_pharmacist','quick_verify','additional_verification') THEN 1 ELSE 0 END)`,
-      avgWaitMins: sql<number>`AVG(CASE WHEN reviewedAt IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, createdAt, reviewedAt) ELSE NULL END)`,
-    })
+    const rows = await db
+      .select({
+        pending: sql<number>`SUM(CASE WHEN status IN ('pending_pharmacist','quick_verify','additional_verification') THEN 1 ELSE 0 END)`,
+        avgWaitMins: sql<number>`AVG(CASE WHEN reviewedAt IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, createdAt, reviewedAt) ELSE NULL END)`,
+      })
       .from(prescriptions)
-      .where(input.storeId ? eq(prescriptions.storeId, input.storeId) : undefined);
+      .where(
+        input.storeId ? eq(prescriptions.storeId, input.storeId) : undefined
+      );
     return rows[0] ?? { pending: 0, avgWaitMins: null };
   });
 
@@ -160,23 +225,24 @@ const riderBoardCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { available: 0, onDelivery: 0, offline: 0, riders: [] };
-    const riderRows = await db.select({
-      id: riders.id,
-      name: riders.name,
-      status: riders.status,
-      lastLocationAt: riders.lastLocationAt,
-    })
+    const riderRows = await db
+      .select({
+        id: riders.id,
+        name: riders.name,
+        status: riders.status,
+        lastLocationAt: riders.lastLocationAt,
+      })
       .from(riders)
       .where(
         and(
           eq(riders.isActive, true),
-          input.storeId ? eq(riders.storeId, input.storeId) : undefined,
+          input.storeId ? eq(riders.storeId, input.storeId) : undefined
         )
       )
       .orderBy(asc(riders.name))
       .limit(50);
     const counts = { available: 0, on_delivery: 0, offline: 0 };
-    for (const r of riderRows) counts[r.status as keyof typeof counts] = (counts[r.status as keyof typeof counts] ?? 0) + 1;
+    for (const r of riderRows) counts[r.status] = (counts[r.status] ?? 0) + 1;
     return {
       available: counts.available,
       onDelivery: counts.on_delivery,
@@ -192,26 +258,28 @@ const stockoutAlertsCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { stockouts: [], lowStock: [] };
-    const stockouts = await db.select({
-      skuId: storeSkus.id,
-      productName: products.name,
-      stockQty: storeSkus.stockQty,
-    })
+    const stockouts = await db
+      .select({
+        skuId: storeSkus.id,
+        productName: products.name,
+        stockQty: storeSkus.stockQty,
+      })
       .from(storeSkus)
       .innerJoin(products, eq(storeSkus.productId, products.id))
       .where(
         and(
           eq(storeSkus.isActive, true),
           lte(storeSkus.stockQty, 0),
-          input.storeId ? eq(storeSkus.storeId, input.storeId) : undefined,
+          input.storeId ? eq(storeSkus.storeId, input.storeId) : undefined
         )
       )
       .limit(50);
-    const lowStock = await db.select({
-      skuId: storeSkus.id,
-      productName: products.name,
-      stockQty: storeSkus.stockQty,
-    })
+    const lowStock = await db
+      .select({
+        skuId: storeSkus.id,
+        productName: products.name,
+        stockQty: storeSkus.stockQty,
+      })
       .from(storeSkus)
       .innerJoin(products, eq(storeSkus.productId, products.id))
       .where(
@@ -219,7 +287,7 @@ const stockoutAlertsCard = protectedProcedure
           eq(storeSkus.isActive, true),
           gt(storeSkus.stockQty, 0),
           lte(storeSkus.stockQty, 5),
-          input.storeId ? eq(storeSkus.storeId, input.storeId) : undefined,
+          input.storeId ? eq(storeSkus.storeId, input.storeId) : undefined
         )
       )
       .limit(50);
@@ -228,20 +296,26 @@ const stockoutAlertsCard = protectedProcedure
 
 // ─── Card 7: Near-Expiry Alerts ───────────────────────────────────────────────
 const nearExpiryAlertsCard = protectedProcedure
-  .input(z.object({ storeId: z.number().int().optional(), days: z.number().int().default(90) }))
+  .input(
+    z.object({
+      storeId: z.number().int().optional(),
+      days: z.number().int().default(90),
+    })
+  )
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { critical: [], warning: [] };
     const cutoff60 = nowPlus(60 * DAY);
     const cutoff90 = nowPlus(input.days * DAY);
-    const critical = await db.select({
-      batchId: batches.id,
-      productName: products.name,
-      batchNo: batches.batchNo,
-      expiryDate: batches.expiryDate,
-      qtyOnHand: batches.qtyOnHand,
-    })
+    const critical = await db
+      .select({
+        batchId: batches.id,
+        productName: products.name,
+        batchNo: batches.batchNo,
+        expiryDate: batches.expiryDate,
+        qtyOnHand: batches.qtyOnHand,
+      })
       .from(batches)
       .innerJoin(products, eq(batches.productId, products.id))
       .where(
@@ -250,18 +324,19 @@ const nearExpiryAlertsCard = protectedProcedure
           ne(batches.status, "expired"),
           lte(batches.expiryDate, cutoff60),
           gte(batches.expiryDate, new Date()),
-          input.storeId ? eq(batches.storeId, input.storeId) : undefined,
+          input.storeId ? eq(batches.storeId, input.storeId) : undefined
         )
       )
       .orderBy(asc(batches.expiryDate))
       .limit(50);
-    const warning = await db.select({
-      batchId: batches.id,
-      productName: products.name,
-      batchNo: batches.batchNo,
-      expiryDate: batches.expiryDate,
-      qtyOnHand: batches.qtyOnHand,
-    })
+    const warning = await db
+      .select({
+        batchId: batches.id,
+        productName: products.name,
+        batchNo: batches.batchNo,
+        expiryDate: batches.expiryDate,
+        qtyOnHand: batches.qtyOnHand,
+      })
       .from(batches)
       .innerJoin(products, eq(batches.productId, products.id))
       .where(
@@ -270,7 +345,7 @@ const nearExpiryAlertsCard = protectedProcedure
           ne(batches.status, "expired"),
           gt(batches.expiryDate, cutoff60),
           lte(batches.expiryDate, cutoff90),
-          input.storeId ? eq(batches.storeId, input.storeId) : undefined,
+          input.storeId ? eq(batches.storeId, input.storeId) : undefined
         )
       )
       .orderBy(asc(batches.expiryDate))
@@ -284,16 +359,18 @@ const whatsappQueueCard = protectedProcedure.query(async ({ ctx }) => {
   const db = await getDb();
   if (!db) return { pendingHandoffs: 0, unreadMessages: 0, recentMessages: [] };
   const [handoffRows, msgRows] = await Promise.all([
-    db.select({ count: sql<number>`COUNT(*)` })
+    db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(staffHandoffs)
       .where(inArray(staffHandoffs.status, ["open", "assigned"] as any)),
-    db.select({
-      id: whatsappMessages.id,
-      phone: whatsappMessages.phone,
-      direction: whatsappMessages.direction,
-      body: whatsappMessages.body,
-      createdAt: whatsappMessages.createdAt,
-    })
+    db
+      .select({
+        id: whatsappMessages.id,
+        phone: whatsappMessages.phone,
+        direction: whatsappMessages.direction,
+        body: whatsappMessages.body,
+        createdAt: whatsappMessages.createdAt,
+      })
       .from(whatsappMessages)
       .where(eq(whatsappMessages.direction, "inbound"))
       .orderBy(desc(whatsappMessages.createdAt))
@@ -312,27 +389,33 @@ const appQueueCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { pending: 0, recentOrders: [] };
-    const pending = await db.select({ count: sql<number>`COUNT(*)` })
+    const pending = await db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(orders)
       .where(
         and(
-          inArray(orders.status, ["awaiting_pharmacist_review", "awaiting_allocation", "reserved"] as any),
+          inArray(orders.status, [
+            "awaiting_pharmacist_review",
+            "awaiting_allocation",
+            "reserved",
+          ] as any),
           eq(orders.source, "app"),
-          input.storeId ? eq(orders.storeId, input.storeId) : undefined,
+          input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )
       );
-    const recentOrders = await db.select({
-      id: orders.id,
-      status: orders.status,
-      total: orders.total,
-      placedAt: orders.placedAt,
-    })
+    const recentOrders = await db
+      .select({
+        id: orders.id,
+        status: orders.status,
+        total: orders.total,
+        placedAt: orders.placedAt,
+      })
       .from(orders)
       .where(
         and(
           eq(orders.source, "app"),
           gte(orders.placedAt, nowMinus(4 * HOUR)),
-          input.storeId ? eq(orders.storeId, input.storeId) : undefined,
+          input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )
       )
       .orderBy(desc(orders.placedAt))
@@ -349,16 +432,17 @@ const counterSaleSyncCard = protectedProcedure
     if (!db) return { todayCount: 0, todayRevenue: 0, lastSaleAt: null };
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const rows = await db.select({
-      count: sql<number>`COUNT(*)`,
-      revenue: sql<number>`SUM(total)`,
-      lastAt: sql<number>`MAX(confirmed_at)`,
-    })
+    const rows = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+        revenue: sql<number>`SUM(total)`,
+        lastAt: sql<number>`MAX(confirmed_at)`,
+      })
       .from(sales)
       .where(
         and(
           eq(sales.status, "confirmed"),
-          gte(sales.createdAt, todayStart.getTime()),
+          gte(sales.createdAt, todayStart.getTime())
         )
       );
     return {
@@ -375,21 +459,22 @@ const manualOverrideLogCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { overrides: [] };
-    const overrides = await db.select({
-      id: auditLogs.id,
-      action: auditLogs.action,
-      entityType: auditLogs.entityType,
-      entityId: auditLogs.entityId,
-      actorId: auditLogs.actorId,
-      reason: auditLogs.reason,
-      createdAt: auditLogs.createdAt,
-    })
+    const overrides = await db
+      .select({
+        id: auditLogs.id,
+        action: auditLogs.action,
+        entityType: auditLogs.entityType,
+        entityId: auditLogs.entityId,
+        actorId: auditLogs.actorId,
+        reason: auditLogs.reason,
+        createdAt: auditLogs.createdAt,
+      })
       .from(auditLogs)
       .where(
         or(
           sql`action LIKE '%override%'`,
           sql`action LIKE '%manual%'`,
-          sql`action LIKE '%adjust%'`,
+          sql`action LIKE '%adjust%'`
         )
       )
       .orderBy(desc(auditLogs.createdAt))
@@ -405,19 +490,20 @@ const buildingDemandCard = protectedProcedure
     const db = await getDb();
     if (!db) return { heatmap: [] };
     const since = nowMinus(input.days * DAY);
-    const heatmap = await db.select({
-      buildingId: orders.buildingId,
-      buildingName: buildings.name,
-      orderCount: sql<number>`COUNT(*)`,
-      revenue: sql<number>`SUM(orders.total)`,
-    })
+    const heatmap = await db
+      .select({
+        buildingId: orders.buildingId,
+        buildingName: buildings.name,
+        orderCount: sql<number>`COUNT(*)`,
+        revenue: sql<number>`SUM(orders.total)`,
+      })
       .from(orders)
       .leftJoin(buildings, eq(orders.buildingId, buildings.id))
       .where(
         and(
           isNotNull(orders.buildingId),
           gte(orders.placedAt, since),
-          ne(orders.status, "cancelled"),
+          ne(orders.status, "cancelled")
         )
       )
       .groupBy(orders.buildingId, buildings.name)
@@ -431,14 +517,16 @@ const syncHealthCard = protectedProcedure.query(async ({ ctx }) => {
   assertAdmin(ctx.user.role);
   const db = await getDb();
   if (!db) return { lastSync: null, recentSyncs: [], staleFeeds: [] };
-  const recentSyncs = await db.select()
+  const recentSyncs = await db
+    .select()
     .from(medivisionSyncLog)
     .orderBy(desc(medivisionSyncLog.startedAt))
     .limit(5);
-  const staleFeeds = await db.select({
-    eventType: systemEvents.eventType,
-    lastOccurred: sql<Date>`MAX(occurredAt)`,
-  })
+  const staleFeeds = await db
+    .select({
+      eventType: systemEvents.eventType,
+      lastOccurred: sql<Date>`MAX(occurredAt)`,
+    })
     .from(systemEvents)
     .where(eq(systemEvents.eventType, "sync_stale"))
     .groupBy(systemEvents.eventType)
@@ -455,18 +543,20 @@ const ocrQueueCard = protectedProcedure.query(async ({ ctx }) => {
   assertAdmin(ctx.user.role);
   const db = await getDb();
   if (!db) return { queued: 0, processing: 0, failed: 0, recentJobs: [] };
-  const counts = await db.select({
-    status: ingestionJobs.status,
-    count: sql<number>`COUNT(*)`,
-  })
+  const counts = await db
+    .select({
+      status: ingestionJobs.status,
+      count: sql<number>`COUNT(*)`,
+    })
     .from(ingestionJobs)
     .groupBy(ingestionJobs.status);
-  const recentJobs = await db.select({
-    id: ingestionJobs.id,
-    status: ingestionJobs.status,
-    filename: ingestionJobs.filename,
-    createdAt: ingestionJobs.createdAt,
-  })
+  const recentJobs = await db
+    .select({
+      id: ingestionJobs.id,
+      status: ingestionJobs.status,
+      filename: ingestionJobs.filename,
+      createdAt: ingestionJobs.createdAt,
+    })
     .from(ingestionJobs)
     .orderBy(desc(ingestionJobs.createdAt))
     .limit(10);
@@ -488,22 +578,18 @@ const storePerformanceCard = protectedProcedure
     const db = await getDb();
     if (!db) return { stores: [] };
     const since = nowMinus(input.days * DAY);
-    const storeStats = await db.select({
-      storeId: orders.storeId,
-      storeName: stores.name,
-      orderCount: sql<number>`COUNT(*)`,
-      deliveredCount: sql<number>`SUM(CASE WHEN orders.status = 'delivered' THEN 1 ELSE 0 END)`,
-      revenue: sql<number>`SUM(CASE WHEN orders.status = 'delivered' THEN orders.total ELSE 0 END)`,
-      avgDeliveryMins: sql<number>`AVG(CASE WHEN orders.deliveredAt IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, orders.placedAt, orders.deliveredAt) ELSE NULL END)`,
-    })
+    const storeStats = await db
+      .select({
+        storeId: orders.storeId,
+        storeName: stores.name,
+        orderCount: sql<number>`COUNT(*)`,
+        deliveredCount: sql<number>`SUM(CASE WHEN orders.status = 'delivered' THEN 1 ELSE 0 END)`,
+        revenue: sql<number>`SUM(CASE WHEN orders.status = 'delivered' THEN orders.total ELSE 0 END)`,
+        avgDeliveryMins: sql<number>`AVG(CASE WHEN orders.deliveredAt IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, orders.placedAt, orders.deliveredAt) ELSE NULL END)`,
+      })
       .from(orders)
       .leftJoin(stores, eq(orders.storeId, stores.id))
-      .where(
-        and(
-          gte(orders.placedAt, since),
-          ne(orders.status, "draft"),
-        )
-      )
+      .where(and(gte(orders.placedAt, since), ne(orders.status, "draft")))
       .groupBy(orders.storeId, stores.name)
       .orderBy(desc(sql`COUNT(*)`));
     return { stores: storeStats };
@@ -514,13 +600,17 @@ const importHealthCard = protectedProcedure.query(async ({ ctx }) => {
   assertAdmin(ctx.user.role);
   const db = await getDb();
   if (!db) return { lastImport: null, pendingReview: 0 };
-  const lastImport = await db.select()
+  const lastImport = await db
+    .select()
     .from(medivisionSyncLog)
     .orderBy(desc(medivisionSyncLog.startedAt))
     .limit(1);
-  const pendingReview = await db.select({ count: sql<number>`COUNT(*)` })
+  const pendingReview = await db
+    .select({ count: sql<number>`COUNT(*)` })
     .from(ingestionJobs)
-    .where(inArray(ingestionJobs.status, ["ocr_complete", "under_review"] as any));
+    .where(
+      inArray(ingestionJobs.status, ["ocr_complete", "under_review"] as any)
+    );
   return {
     lastImport: lastImport[0] ?? null,
     pendingReview: Number(pendingReview[0]?.count ?? 0),
@@ -536,16 +626,41 @@ const refillPipelineCard = protectedProcedure.query(async ({ ctx }) => {
   today.setHours(0, 0, 0, 0);
   const in7Days = nowPlus(7 * DAY);
   const [active, dueThisWeek, missed, needsFreshRx] = await Promise.all([
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(eq(refillPlans.status, "active")),
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(
-      and(eq(refillPlans.status, "active"), gte(refillPlans.nextDueDate, today.toISOString().slice(0, 10) as any), lte(refillPlans.nextDueDate, in7Days.toISOString().slice(0, 10) as any))
-    ),
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(
-      and(eq(refillPlans.status, "active"), lt(refillPlans.nextDueDate, today.toISOString().slice(0, 10) as any))
-    ),
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(
-      and(eq(refillPlans.status, "active"), eq(refillPlans.needsFreshRx, true))
-    ),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(eq(refillPlans.status, "active")),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(
+        and(
+          eq(refillPlans.status, "active"),
+          gte(refillPlans.nextDueDate, today.toISOString().slice(0, 10) as any),
+          lte(
+            refillPlans.nextDueDate,
+            in7Days.toISOString().slice(0, 10) as any
+          )
+        )
+      ),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(
+        and(
+          eq(refillPlans.status, "active"),
+          lt(refillPlans.nextDueDate, today.toISOString().slice(0, 10) as any)
+        )
+      ),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(
+        and(
+          eq(refillPlans.status, "active"),
+          eq(refillPlans.needsFreshRx, true)
+        )
+      ),
   ]);
   return {
     active: Number(active[0]?.count ?? 0),
@@ -561,23 +676,60 @@ const expiryExposureCard = protectedProcedure
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) return { value90: 0, value60: 0, quarantinedValue: 0, disposalValue: 0 };
+    if (!db)
+      return { value90: 0, value60: 0, quarantinedValue: 0, disposalValue: 0 };
     const cut60 = nowPlus(60 * DAY);
     const cut90 = nowPlus(90 * DAY);
     const now = new Date();
     const [v90, v60, quarantined, expired] = await Promise.all([
-      db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))` })
+      db
+        .select({
+          val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))`,
+        })
         .from(batches)
-        .where(and(ne(batches.status, "depleted"), lte(batches.expiryDate, cut90), gte(batches.expiryDate, now), input.storeId ? eq(batches.storeId, input.storeId) : undefined)),
-      db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))` })
+        .where(
+          and(
+            ne(batches.status, "depleted"),
+            lte(batches.expiryDate, cut90),
+            gte(batches.expiryDate, now),
+            input.storeId ? eq(batches.storeId, input.storeId) : undefined
+          )
+        ),
+      db
+        .select({
+          val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))`,
+        })
         .from(batches)
-        .where(and(ne(batches.status, "depleted"), lte(batches.expiryDate, cut60), gte(batches.expiryDate, now), input.storeId ? eq(batches.storeId, input.storeId) : undefined)),
-      db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))` })
+        .where(
+          and(
+            ne(batches.status, "depleted"),
+            lte(batches.expiryDate, cut60),
+            gte(batches.expiryDate, now),
+            input.storeId ? eq(batches.storeId, input.storeId) : undefined
+          )
+        ),
+      db
+        .select({
+          val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))`,
+        })
         .from(batches)
-        .where(and(eq(batches.status, "quarantined"), input.storeId ? eq(batches.storeId, input.storeId) : undefined)),
-      db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))` })
+        .where(
+          and(
+            eq(batches.status, "quarantined"),
+            input.storeId ? eq(batches.storeId, input.storeId) : undefined
+          )
+        ),
+      db
+        .select({
+          val: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))`,
+        })
         .from(batches)
-        .where(and(eq(batches.status, "expired"), input.storeId ? eq(batches.storeId, input.storeId) : undefined)),
+        .where(
+          and(
+            eq(batches.status, "expired"),
+            input.storeId ? eq(batches.storeId, input.storeId) : undefined
+          )
+        ),
     ]);
     return {
       value90: Number(v90[0]?.val ?? 0),
@@ -592,12 +744,13 @@ const nodeCapacityCard = protectedProcedure.query(async ({ ctx }) => {
   assertAdmin(ctx.user.role);
   const db = await getDb();
   if (!db) return { nodes: [] };
-  const nodes = await db.select({
-    storeId: stores.id,
-    storeName: stores.name,
-    activeOrders: sql<number>`(SELECT COUNT(*) FROM orders o WHERE o.storeId = stores.id AND o.status IN ('picking','packed','assigned_to_rider','out_for_delivery'))`,
-    availableRiders: sql<number>`(SELECT COUNT(*) FROM riders r WHERE r.storeId = stores.id AND r.status = 'available' AND r.isActive = true)`,
-  })
+  const nodes = await db
+    .select({
+      storeId: stores.id,
+      storeName: stores.name,
+      activeOrders: sql<number>`(SELECT COUNT(*) FROM orders o WHERE o.storeId = stores.id AND o.status IN ('picking','packed','assigned_to_rider','out_for_delivery'))`,
+      availableRiders: sql<number>`(SELECT COUNT(*) FROM riders r WHERE r.storeId = stores.id AND r.status = 'available' AND r.isActive = true)`,
+    })
     .from(stores)
     .where(eq(stores.isActive, true))
     .limit(20);
@@ -612,15 +765,16 @@ const unauditedActionsCard = protectedProcedure
     const db = await getDb();
     if (!db) return { count: 0, recent: [] };
     const since = nowMinus(input.hours * HOUR);
-    const recent = await db.select({
-      id: auditLogs.id,
-      action: auditLogs.action,
-      entityType: auditLogs.entityType,
-      entityId: auditLogs.entityId,
-      actorId: auditLogs.actorId,
-      actorRole: auditLogs.actorRole,
-      createdAt: auditLogs.createdAt,
-    })
+    const recent = await db
+      .select({
+        id: auditLogs.id,
+        action: auditLogs.action,
+        entityType: auditLogs.entityType,
+        entityId: auditLogs.entityId,
+        actorId: auditLogs.actorId,
+        actorRole: auditLogs.actorRole,
+        createdAt: auditLogs.createdAt,
+      })
       .from(auditLogs)
       .where(gte(auditLogs.createdAt, since))
       .orderBy(desc(auditLogs.createdAt))
@@ -630,23 +784,34 @@ const unauditedActionsCard = protectedProcedure
 
 // ─── Card 21: Label/Scan Compliance ──────────────────────────────────────────
 const labelScanComplianceCard = protectedProcedure
-  .input(z.object({ storeId: z.number().int().optional(), days: z.number().int().default(7) }))
+  .input(
+    z.object({
+      storeId: z.number().int().optional(),
+      days: z.number().int().default(7),
+    })
+  )
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) return { batchesWithBarcode: 0, batchesWithoutBarcode: 0, compliancePct: 0 };
+    if (!db)
+      return {
+        batchesWithBarcode: 0,
+        batchesWithoutBarcode: 0,
+        compliancePct: 0,
+      };
     const since = nowMinus(input.days * DAY);
-    const rows = await db.select({
-      hasBarcode: sql<number>`SUM(CASE WHEN internalBarcode IS NOT NULL OR manufacturerBarcode IS NOT NULL THEN 1 ELSE 0 END)`,
-      noBarcode: sql<number>`SUM(CASE WHEN internalBarcode IS NULL AND manufacturerBarcode IS NULL THEN 1 ELSE 0 END)`,
-      total: sql<number>`COUNT(*)`,
-    })
+    const rows = await db
+      .select({
+        hasBarcode: sql<number>`SUM(CASE WHEN internalBarcode IS NOT NULL OR manufacturerBarcode IS NOT NULL THEN 1 ELSE 0 END)`,
+        noBarcode: sql<number>`SUM(CASE WHEN internalBarcode IS NULL AND manufacturerBarcode IS NULL THEN 1 ELSE 0 END)`,
+        total: sql<number>`COUNT(*)`,
+      })
       .from(batches)
       .where(
         and(
           ne(batches.status, "depleted"),
           gte(batches.createdAt, since),
-          input.storeId ? eq(batches.storeId, input.storeId) : undefined,
+          input.storeId ? eq(batches.storeId, input.storeId) : undefined
         )
       );
     const r = rows[0];
@@ -661,53 +826,69 @@ const labelScanComplianceCard = protectedProcedure
 
 // ─── Sub-dashboard 1: SLA Dashboard ──────────────────────────────────────────
 const slaDashboard = protectedProcedure
-  .input(z.object({ storeId: z.number().int().optional(), days: z.number().int().default(30) }))
+  .input(
+    z.object({
+      storeId: z.number().int().optional(),
+      days: z.number().int().default(30),
+    })
+  )
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) return { orderToAllocation: null, orderToDoor: null, withinPromisePct: 0, breachCount: 0, breachReasons: [], riderRatio: null };
+    if (!db)
+      return {
+        orderToAllocation: null,
+        orderToDoor: null,
+        withinPromisePct: 0,
+        breachCount: 0,
+        breachReasons: [],
+        riderRatio: null,
+      };
     const since = nowMinus(input.days * DAY);
     const [allOrders, breachRows, riderRows] = await Promise.all([
-      db.select({
-        orderId: orders.id,
-        placedAt: orders.placedAt,
-        deliveredAt: orders.deliveredAt,
-        promisedSlaMins: orders.promisedSlaMins,
-        reservedAt: sql<Date | null>`(SELECT occurredAt FROM order_timestamps WHERE orderId = orders.id AND eventType = 'reserved' LIMIT 1)`,
-      })
+      db
+        .select({
+          orderId: orders.id,
+          placedAt: orders.placedAt,
+          deliveredAt: orders.deliveredAt,
+          promisedSlaMins: orders.promisedSlaMins,
+          reservedAt: sql<Date | null>`(SELECT occurredAt FROM order_timestamps WHERE orderId = orders.id AND eventType = 'reserved' LIMIT 1)`,
+        })
         .from(orders)
         .where(
           and(
             gte(orders.placedAt, since),
             ne(orders.status, "cancelled"),
             ne(orders.status, "draft"),
-            input.storeId ? eq(orders.storeId, input.storeId) : undefined,
+            input.storeId ? eq(orders.storeId, input.storeId) : undefined
           )
         )
         .limit(2000),
-      db.select({
-        breachReason: slaEvents.breachDetectedAt,
-        count: sql<number>`COUNT(*)`,
-      })
+      db
+        .select({
+          breachReason: slaEvents.breachDetectedAt,
+          count: sql<number>`COUNT(*)`,
+        })
         .from(slaEvents)
         .where(
           and(
             eq(slaEvents.breached, true),
             gte(slaEvents.slaStartedAt, since),
-            input.storeId ? eq(slaEvents.storeId, input.storeId) : undefined,
+            input.storeId ? eq(slaEvents.storeId, input.storeId) : undefined
           )
         )
         .groupBy(slaEvents.breachDetectedAt)
         .limit(10),
-      db.select({
-        status: riders.status,
-        count: sql<number>`COUNT(*)`,
-      })
+      db
+        .select({
+          status: riders.status,
+          count: sql<number>`COUNT(*)`,
+        })
         .from(riders)
         .where(
           and(
             eq(riders.isActive, true),
-            input.storeId ? eq(riders.storeId, input.storeId) : undefined,
+            input.storeId ? eq(riders.storeId, input.storeId) : undefined
           )
         )
         .groupBy(riders.status),
@@ -717,15 +898,23 @@ const slaDashboard = protectedProcedure
       const mins = (o.deliveredAt!.getTime() - o.placedAt.getTime()) / 60000;
       return mins <= o.promisedSlaMins;
     });
-    const avgDoorMins = delivered.length > 0
-      ? delivered.reduce((s, o) => s + (o.deliveredAt!.getTime() - o.placedAt.getTime()) / 60000, 0) / delivered.length
-      : null;
+    const avgDoorMins =
+      delivered.length > 0
+        ? delivered.reduce(
+            (s, o) =>
+              s + (o.deliveredAt!.getTime() - o.placedAt.getTime()) / 60000,
+            0
+          ) / delivered.length
+        : null;
     const riderMap: Record<string, number> = {};
     for (const r of riderRows) riderMap[r.status] = Number(r.count);
     return {
       orderToAllocation: null, // would need orderTimestamps join
       orderToDoor: avgDoorMins ? Math.round(avgDoorMins) : null,
-      withinPromisePct: delivered.length > 0 ? Math.round((onTime.length / delivered.length) * 100) : 0,
+      withinPromisePct:
+        delivered.length > 0
+          ? Math.round((onTime.length / delivered.length) * 100)
+          : 0,
       breachCount: breachRows.reduce((s, r) => s + Number(r.count), 0),
       breachReasons: breachRows,
       riderRatio: {
@@ -742,34 +931,54 @@ const expiryDashboard = protectedProcedure
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) return { value90: 0, value60: 0, quarantinedValue: 0, disposalValue: 0, fefoCompliance: null, byBucket: [] };
+    if (!db)
+      return {
+        value90: 0,
+        value60: 0,
+        quarantinedValue: 0,
+        disposalValue: 0,
+        fefoCompliance: null,
+        byBucket: [],
+      };
     const cut60 = nowPlus(60 * DAY);
     const cut90 = nowPlus(90 * DAY);
     const now = new Date();
     const [byBucket, fefo] = await Promise.all([
-      db.select({
-        expiryBucket: batches.expiryBucket,
-        count: sql<number>`COUNT(*)`,
-        value: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))`,
-      })
+      db
+        .select({
+          expiryBucket: batches.expiryBucket,
+          count: sql<number>`COUNT(*)`,
+          value: sql<number>`SUM(COALESCE(qtyOnHand,quantity) * COALESCE(purchaseRate,0))`,
+        })
         .from(batches)
         .where(
           and(
             ne(batches.status, "depleted"),
-            input.storeId ? eq(batches.storeId, input.storeId) : undefined,
+            input.storeId ? eq(batches.storeId, input.storeId) : undefined
           )
         )
         .groupBy(batches.expiryBucket),
-      db.select({
-        total: sql<number>`COUNT(*)`,
-        fefoViolations: sql<number>`SUM(CASE WHEN status = 'active' AND expiryDate < DATE_ADD(NOW(), INTERVAL 30 DAY) AND COALESCE(qtyOnHand,quantity) > 0 THEN 1 ELSE 0 END)`,
-      })
+      db
+        .select({
+          total: sql<number>`COUNT(*)`,
+          fefoViolations: sql<number>`SUM(CASE WHEN status = 'active' AND expiryDate < DATE_ADD(NOW(), INTERVAL 30 DAY) AND COALESCE(qtyOnHand,quantity) > 0 THEN 1 ELSE 0 END)`,
+        })
         .from(batches)
         .where(input.storeId ? eq(batches.storeId, input.storeId) : undefined),
     ]);
-    const v90row = byBucket.filter(b => b.expiryBucket && ["warning", "critical", "quarantine_candidate"].includes(b.expiryBucket));
-    const v60row = byBucket.filter(b => b.expiryBucket && ["critical", "quarantine_candidate"].includes(b.expiryBucket));
-    const quarRow = byBucket.find(b => b.expiryBucket === "quarantine_candidate");
+    const v90row = byBucket.filter(
+      b =>
+        b.expiryBucket &&
+        ["warning", "critical", "quarantine_candidate"].includes(b.expiryBucket)
+    );
+    const v60row = byBucket.filter(
+      b =>
+        b.expiryBucket &&
+        ["critical", "quarantine_candidate"].includes(b.expiryBucket)
+    );
+    const quarRow = byBucket.find(
+      b => b.expiryBucket === "quarantine_candidate"
+    );
     const expiredRow = byBucket.find(b => b.expiryBucket === "expired");
     const fefoTotal = Number(fefo[0]?.total ?? 0);
     const fefoViol = Number(fefo[0]?.fefoViolations ?? 0);
@@ -778,7 +987,10 @@ const expiryDashboard = protectedProcedure
       value60: v60row.reduce((s, r) => s + Number(r.value ?? 0), 0),
       quarantinedValue: Number(quarRow?.value ?? 0),
       disposalValue: Number(expiredRow?.value ?? 0),
-      fefoCompliance: fefoTotal > 0 ? Math.round(((fefoTotal - fefoViol) / fefoTotal) * 100) : 100,
+      fefoCompliance:
+        fefoTotal > 0
+          ? Math.round(((fefoTotal - fefoViol) / fefoTotal) * 100)
+          : 100,
       byBucket,
     };
   });
@@ -789,30 +1001,65 @@ const refillDashboard = protectedProcedure
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) return { active: 0, dueNext7: 0, reminderSendRate: 0, reorderConversionPct: 0, missed: 0 };
+    if (!db)
+      return {
+        active: 0,
+        dueNext7: 0,
+        reminderSendRate: 0,
+        reorderConversionPct: 0,
+        missed: 0,
+      };
     const since = nowMinus(input.days * DAY);
     const today = new Date().toISOString().slice(0, 10);
-    const in7 = nowPlus(7 * DAY).toISOString().slice(0, 10);
+    const in7 = nowPlus(7 * DAY)
+      .toISOString()
+      .slice(0, 10);
     const [active, dueNext7, missed, reminders, reorders] = await Promise.all([
-      db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(eq(refillPlans.status, "active")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(
-        and(eq(refillPlans.status, "active"), gte(refillPlans.nextDueDate, today as any), lte(refillPlans.nextDueDate, in7 as any))
-      ),
-      db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(
-        and(eq(refillPlans.status, "active"), lt(refillPlans.nextDueDate, today as any))
-      ),
-      db.select({ count: sql<number>`COUNT(*)` }).from(refillEvents).where(
-        and(
-          inArray(refillEvents.eventType, ["reminder_sent_app", "reminder_sent_whatsapp", "reminder_sent_sms"] as any),
-          gte(refillEvents.createdAt, since),
-        )
-      ),
-      db.select({ count: sql<number>`COUNT(*)` }).from(refillEvents).where(
-        and(
-          eq(refillEvents.eventType, "refill_ordered"),
-          gte(refillEvents.createdAt, since),
-        )
-      ),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(refillPlans)
+        .where(eq(refillPlans.status, "active")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(refillPlans)
+        .where(
+          and(
+            eq(refillPlans.status, "active"),
+            gte(refillPlans.nextDueDate, today as any),
+            lte(refillPlans.nextDueDate, in7 as any)
+          )
+        ),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(refillPlans)
+        .where(
+          and(
+            eq(refillPlans.status, "active"),
+            lt(refillPlans.nextDueDate, today as any)
+          )
+        ),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(refillEvents)
+        .where(
+          and(
+            inArray(refillEvents.eventType, [
+              "reminder_sent_app",
+              "reminder_sent_whatsapp",
+              "reminder_sent_sms",
+            ] as any),
+            gte(refillEvents.createdAt, since)
+          )
+        ),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(refillEvents)
+        .where(
+          and(
+            eq(refillEvents.eventType, "refill_ordered"),
+            gte(refillEvents.createdAt, since)
+          )
+        ),
     ]);
     const reminderCount = Number(reminders[0]?.count ?? 0);
     const reorderCount = Number(reorders[0]?.count ?? 0);
@@ -820,7 +1067,10 @@ const refillDashboard = protectedProcedure
       active: Number(active[0]?.count ?? 0),
       dueNext7: Number(dueNext7[0]?.count ?? 0),
       reminderSendRate: reminderCount,
-      reorderConversionPct: reminderCount > 0 ? Math.round((reorderCount / reminderCount) * 100) : 0,
+      reorderConversionPct:
+        reminderCount > 0
+          ? Math.round((reorderCount / reminderCount) * 100)
+          : 0,
       missed: Number(missed[0]?.count ?? 0),
     };
   });
@@ -831,24 +1081,57 @@ const syncComplianceDashboard = protectedProcedure
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) return { syncFreshness: null, staleIncidents: 0, h1ReviewCompletion: 0, overrideCount: 0, unauditedActions: 0 };
+    if (!db)
+      return {
+        syncFreshness: null,
+        staleIncidents: 0,
+        h1ReviewCompletion: 0,
+        overrideCount: 0,
+        unauditedActions: 0,
+      };
     const since = nowMinus(input.days * DAY);
-    const [lastSync, staleEvents, h1, overrides, unaudited] = await Promise.all([
-      db.select({ completedAt: medivisionSyncLog.completedAt }).from(medivisionSyncLog).orderBy(desc(medivisionSyncLog.startedAt)).limit(1),
-      db.select({ count: sql<number>`COUNT(*)` }).from(systemEvents).where(and(eq(systemEvents.eventType, "sync_stale"), gte(systemEvents.occurredAt, since))),
-      db.select({
-        total: sql<number>`COUNT(*)`,
-        reviewed: sql<number>`SUM(CASE WHEN status IN ('committed','failed') THEN 1 ELSE 0 END)`,
-      }).from(ingestionJobs).where(gte(ingestionJobs.createdAt, since)),
-      db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(and(gte(auditLogs.createdAt, since), sql`action LIKE '%override%'`)),
-      db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(gte(auditLogs.createdAt, since)),
-    ]);
+    const [lastSync, staleEvents, h1, overrides, unaudited] = await Promise.all(
+      [
+        db
+          .select({ completedAt: medivisionSyncLog.completedAt })
+          .from(medivisionSyncLog)
+          .orderBy(desc(medivisionSyncLog.startedAt))
+          .limit(1),
+        db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(systemEvents)
+          .where(
+            and(
+              eq(systemEvents.eventType, "sync_stale"),
+              gte(systemEvents.occurredAt, since)
+            )
+          ),
+        db
+          .select({
+            total: sql<number>`COUNT(*)`,
+            reviewed: sql<number>`SUM(CASE WHEN status IN ('committed','failed') THEN 1 ELSE 0 END)`,
+          })
+          .from(ingestionJobs)
+          .where(gte(ingestionJobs.createdAt, since)),
+        db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(auditLogs)
+          .where(
+            and(gte(auditLogs.createdAt, since), sql`action LIKE '%override%'`)
+          ),
+        db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(auditLogs)
+          .where(gte(auditLogs.createdAt, since)),
+      ]
+    );
     const h1Total = Number(h1[0]?.total ?? 0);
     const h1Reviewed = Number(h1[0]?.reviewed ?? 0);
     return {
       syncFreshness: lastSync[0]?.completedAt ?? null,
       staleIncidents: Number(staleEvents[0]?.count ?? 0),
-      h1ReviewCompletion: h1Total > 0 ? Math.round((h1Reviewed / h1Total) * 100) : 100,
+      h1ReviewCompletion:
+        h1Total > 0 ? Math.round((h1Reviewed / h1Total) * 100) : 100,
       overrideCount: Number(overrides[0]?.count ?? 0),
       unauditedActions: Number(unaudited[0]?.count ?? 0),
     };
@@ -856,23 +1139,30 @@ const syncComplianceDashboard = protectedProcedure
 
 // ─── Event bus query ──────────────────────────────────────────────────────────
 const recentEvents = protectedProcedure
-  .input(z.object({
-    eventType: z.string().optional(),
-    severity: z.enum(["info", "warning", "critical"]).optional(),
-    storeId: z.number().int().optional(),
-    limit: z.number().int().default(50),
-  }))
+  .input(
+    z.object({
+      eventType: z.string().optional(),
+      severity: z.enum(["info", "warning", "critical"]).optional(),
+      storeId: z.number().int().optional(),
+      limit: z.number().int().default(50),
+    })
+  )
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { events: [] };
-    const events = await db.select()
+    const events = await db
+      .select()
       .from(systemEvents)
       .where(
         and(
-          input.eventType ? eq(systemEvents.eventType, input.eventType as any) : undefined,
-          input.severity ? eq(systemEvents.severity, input.severity) : undefined,
-          input.storeId ? eq(systemEvents.storeId, input.storeId) : undefined,
+          input.eventType
+            ? eq(systemEvents.eventType, input.eventType as any)
+            : undefined,
+          input.severity
+            ? eq(systemEvents.severity, input.severity)
+            : undefined,
+          input.storeId ? eq(systemEvents.storeId, input.storeId) : undefined
         )
       )
       .orderBy(desc(systemEvents.occurredAt))
@@ -882,109 +1172,383 @@ const recentEvents = protectedProcedure
 
 // ─── Full snapshot (all 21 cards in one call) ─────────────────────────────────
 // Runs all card queries in parallel using shared DB helpers directly
-async function runAllCards(db: Awaited<ReturnType<typeof getDb>>, storeId?: number) {
+async function runAllCards(
+  db: Awaited<ReturnType<typeof getDb>>,
+  storeId?: number
+) {
   const now = new Date();
   const in15Mins = nowPlus(15 * 60000);
   const since7d = nowMinus(7 * DAY);
   const since24h = nowMinus(24 * HOUR);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const cut60 = nowPlus(60 * DAY);
   const cut90 = nowPlus(90 * DAY);
   const todayStr = today.toISOString().slice(0, 10);
-  const in7Str = nowPlus(7 * DAY).toISOString().slice(0, 10);
+  const in7Str = nowPlus(7 * DAY)
+    .toISOString()
+    .slice(0, 10);
   if (!db) return null;
   const storeFilter = storeId ? eq(orders.storeId, storeId) : undefined;
   const riderStoreFilter = storeId ? eq(riders.storeId, storeId) : undefined;
   const batchStoreFilter = storeId ? eq(batches.storeId, storeId) : undefined;
   const skuStoreFilter = storeId ? eq(storeSkus.storeId, storeId) : undefined;
-  const [liveOrders, riderRows, stockoutRows, nearExpiryRows, pharmacistQ,
-    handoffRows, appPending, counterRows, overrideRows, buildingRows,
-    syncRows, ocrRows, storeRows, importRows, refillActive, refillDue7,
-    refillMissed, refillFreshRx, expiryV90, expiryV60, quarantinedV, expiredV,
-    nodeRows, unauditedRows, labelRows, slaAtRisk, slaBreached] = await Promise.all([
+  const [
+    liveOrders,
+    riderRows,
+    stockoutRows,
+    nearExpiryRows,
+    pharmacistQ,
+    handoffRows,
+    appPending,
+    counterRows,
+    overrideRows,
+    buildingRows,
+    syncRows,
+    ocrRows,
+    storeRows,
+    importRows,
+    refillActive,
+    refillDue7,
+    refillMissed,
+    refillFreshRx,
+    expiryV90,
+    expiryV60,
+    quarantinedV,
+    expiredV,
+    nodeRows,
+    unauditedRows,
+    labelRows,
+    slaAtRisk,
+    slaBreached,
+  ] = await Promise.all([
     // 1 live orders
-    db.select({ status: orders.status, count: sql<number>`COUNT(*)` }).from(orders)
-      .where(and(inArray(orders.status, ["awaiting_prescription","awaiting_pharmacist_review","clarification_needed","awaiting_allocation","backorder_review","reserved","picking","packed","assigned_to_rider","out_for_delivery","delivery_exception"] as any), storeFilter)).groupBy(orders.status),
+    db
+      .select({ status: orders.status, count: sql<number>`COUNT(*)` })
+      .from(orders)
+      .where(
+        and(
+          inArray(orders.status, [
+            "awaiting_prescription",
+            "awaiting_pharmacist_review",
+            "clarification_needed",
+            "awaiting_allocation",
+            "backorder_review",
+            "reserved",
+            "picking",
+            "packed",
+            "assigned_to_rider",
+            "out_for_delivery",
+            "delivery_exception",
+          ] as any),
+          storeFilter
+        )
+      )
+      .groupBy(orders.status),
     // 5 rider board
-    db.select({ status: riders.status, count: sql<number>`COUNT(*)` }).from(riders).where(and(eq(riders.isActive, true), riderStoreFilter)).groupBy(riders.status),
+    db
+      .select({ status: riders.status, count: sql<number>`COUNT(*)` })
+      .from(riders)
+      .where(and(eq(riders.isActive, true), riderStoreFilter))
+      .groupBy(riders.status),
     // 6 stockouts
-    db.select({ count: sql<number>`COUNT(*)` }).from(storeSkus).where(and(eq(storeSkus.isActive, true), lte(storeSkus.stockQty, 0), skuStoreFilter)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(storeSkus)
+      .where(
+        and(
+          eq(storeSkus.isActive, true),
+          lte(storeSkus.stockQty, 0),
+          skuStoreFilter
+        )
+      ),
     // 7 near expiry
-    db.select({ count: sql<number>`COUNT(*)` }).from(batches).where(and(ne(batches.status, "depleted"), ne(batches.status, "expired"), lte(batches.expiryDate, cut90), gte(batches.expiryDate, now), batchStoreFilter)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(batches)
+      .where(
+        and(
+          ne(batches.status, "depleted"),
+          ne(batches.status, "expired"),
+          lte(batches.expiryDate, cut90),
+          gte(batches.expiryDate, now),
+          batchStoreFilter
+        )
+      ),
     // 4 pharmacist queue
-    db.select({ count: sql<number>`COUNT(*)` }).from(prescriptions).where(inArray(prescriptions.status, ["pending_pharmacist","quick_verify","additional_verification"] as any)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(prescriptions)
+      .where(
+        inArray(prescriptions.status, [
+          "pending_pharmacist",
+          "quick_verify",
+          "additional_verification",
+        ] as any)
+      ),
     // 8 whatsapp handoffs
-    db.select({ count: sql<number>`COUNT(*)` }).from(staffHandoffs).where(inArray(staffHandoffs.status, ["open","assigned"] as any)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(staffHandoffs)
+      .where(inArray(staffHandoffs.status, ["open", "assigned"] as any)),
     // 9 app queue
-    db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(and(inArray(orders.status, ["awaiting_pharmacist_review","awaiting_allocation","reserved"] as any), eq(orders.source, "app"), storeFilter)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(orders)
+      .where(
+        and(
+          inArray(orders.status, [
+            "awaiting_pharmacist_review",
+            "awaiting_allocation",
+            "reserved",
+          ] as any),
+          eq(orders.source, "app"),
+          storeFilter
+        )
+      ),
     // 10 counter sales today
-    db.select({ count: sql<number>`COUNT(*)`, revenue: sql<number>`SUM(total)` }).from(sales).where(and(eq(sales.status, "confirmed"), gte(sales.createdAt, today.getTime()))),
+    db
+      .select({
+        count: sql<number>`COUNT(*)`,
+        revenue: sql<number>`SUM(total)`,
+      })
+      .from(sales)
+      .where(
+        and(
+          eq(sales.status, "confirmed"),
+          gte(sales.createdAt, today.getTime())
+        )
+      ),
     // 11 manual overrides
-    db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(and(gte(auditLogs.createdAt, since24h), sql`action LIKE '%override%'`)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(auditLogs)
+      .where(
+        and(gte(auditLogs.createdAt, since24h), sql`action LIKE '%override%'`)
+      ),
     // 12 building demand
-    db.select({ buildingId: orders.buildingId, count: sql<number>`COUNT(*)` }).from(orders).where(and(isNotNull(orders.buildingId), gte(orders.placedAt, since7d), ne(orders.status, "cancelled"))).groupBy(orders.buildingId).limit(10),
+    db
+      .select({ buildingId: orders.buildingId, count: sql<number>`COUNT(*)` })
+      .from(orders)
+      .where(
+        and(
+          isNotNull(orders.buildingId),
+          gte(orders.placedAt, since7d),
+          ne(orders.status, "cancelled")
+        )
+      )
+      .groupBy(orders.buildingId)
+      .limit(10),
     // 13 sync health
-    db.select({ completedAt: medivisionSyncLog.completedAt }).from(medivisionSyncLog).orderBy(desc(medivisionSyncLog.startedAt)).limit(1),
+    db
+      .select({ completedAt: medivisionSyncLog.completedAt })
+      .from(medivisionSyncLog)
+      .orderBy(desc(medivisionSyncLog.startedAt))
+      .limit(1),
     // 14 ocr queue
-    db.select({ status: ingestionJobs.status, count: sql<number>`COUNT(*)` }).from(ingestionJobs).groupBy(ingestionJobs.status),
+    db
+      .select({ status: ingestionJobs.status, count: sql<number>`COUNT(*)` })
+      .from(ingestionJobs)
+      .groupBy(ingestionJobs.status),
     // 15 store performance
-    db.select({ storeId: orders.storeId, count: sql<number>`COUNT(*)`, revenue: sql<number>`SUM(orders.total)` }).from(orders).where(and(gte(orders.placedAt, since7d), ne(orders.status, "draft"))).groupBy(orders.storeId).limit(10),
+    db
+      .select({
+        storeId: orders.storeId,
+        count: sql<number>`COUNT(*)`,
+        revenue: sql<number>`SUM(orders.total)`,
+      })
+      .from(orders)
+      .where(and(gte(orders.placedAt, since7d), ne(orders.status, "draft")))
+      .groupBy(orders.storeId)
+      .limit(10),
     // 16 import health
-    db.select({ count: sql<number>`COUNT(*)` }).from(ingestionJobs).where(inArray(ingestionJobs.status, ["ocr_complete","under_review"] as any)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(ingestionJobs)
+      .where(
+        inArray(ingestionJobs.status, ["ocr_complete", "under_review"] as any)
+      ),
     // 17 refill active
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(eq(refillPlans.status, "active")),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(eq(refillPlans.status, "active")),
     // 17 refill due7
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(and(eq(refillPlans.status, "active"), gte(refillPlans.nextDueDate, todayStr as any), lte(refillPlans.nextDueDate, in7Str as any))),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(
+        and(
+          eq(refillPlans.status, "active"),
+          gte(refillPlans.nextDueDate, todayStr as any),
+          lte(refillPlans.nextDueDate, in7Str as any)
+        )
+      ),
     // 17 refill missed
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(and(eq(refillPlans.status, "active"), lt(refillPlans.nextDueDate, todayStr as any))),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(
+        and(
+          eq(refillPlans.status, "active"),
+          lt(refillPlans.nextDueDate, todayStr as any)
+        )
+      ),
     // 17 needs fresh rx
-    db.select({ count: sql<number>`COUNT(*)` }).from(refillPlans).where(and(eq(refillPlans.status, "active"), eq(refillPlans.needsFreshRx, true))),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(refillPlans)
+      .where(
+        and(
+          eq(refillPlans.status, "active"),
+          eq(refillPlans.needsFreshRx, true)
+        )
+      ),
     // 18 expiry 90d value
-    db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))` }).from(batches).where(and(ne(batches.status,"depleted"),lte(batches.expiryDate,cut90),gte(batches.expiryDate,now),batchStoreFilter)),
+    db
+      .select({
+        val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))`,
+      })
+      .from(batches)
+      .where(
+        and(
+          ne(batches.status, "depleted"),
+          lte(batches.expiryDate, cut90),
+          gte(batches.expiryDate, now),
+          batchStoreFilter
+        )
+      ),
     // 18 expiry 60d value
-    db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))` }).from(batches).where(and(ne(batches.status,"depleted"),lte(batches.expiryDate,cut60),gte(batches.expiryDate,now),batchStoreFilter)),
+    db
+      .select({
+        val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))`,
+      })
+      .from(batches)
+      .where(
+        and(
+          ne(batches.status, "depleted"),
+          lte(batches.expiryDate, cut60),
+          gte(batches.expiryDate, now),
+          batchStoreFilter
+        )
+      ),
     // 18 quarantined value
-    db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))` }).from(batches).where(and(eq(batches.status,"quarantined"),batchStoreFilter)),
+    db
+      .select({
+        val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))`,
+      })
+      .from(batches)
+      .where(and(eq(batches.status, "quarantined"), batchStoreFilter)),
     // 18 expired value
-    db.select({ val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))` }).from(batches).where(and(eq(batches.status,"expired"),batchStoreFilter)),
+    db
+      .select({
+        val: sql<number>`SUM(COALESCE(qtyOnHand,quantity)*COALESCE(purchaseRate,0))`,
+      })
+      .from(batches)
+      .where(and(eq(batches.status, "expired"), batchStoreFilter)),
     // 19 node capacity
-    db.select({ storeId: stores.id, storeName: stores.name }).from(stores).where(eq(stores.isActive, true)).limit(10),
+    db
+      .select({ storeId: stores.id, storeName: stores.name })
+      .from(stores)
+      .where(eq(stores.isActive, true))
+      .limit(10),
     // 20 unaudited
-    db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(gte(auditLogs.createdAt, since24h)),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(auditLogs)
+      .where(gte(auditLogs.createdAt, since24h)),
     // 21 label scan
-    db.select({ hasBarcode: sql<number>`SUM(CASE WHEN internalBarcode IS NOT NULL OR manufacturerBarcode IS NOT NULL THEN 1 ELSE 0 END)`, total: sql<number>`COUNT(*)` }).from(batches).where(and(ne(batches.status,"depleted"),gte(batches.createdAt,since7d),batchStoreFilter)),
+    db
+      .select({
+        hasBarcode: sql<number>`SUM(CASE WHEN internalBarcode IS NOT NULL OR manufacturerBarcode IS NOT NULL THEN 1 ELSE 0 END)`,
+        total: sql<number>`COUNT(*)`,
+      })
+      .from(batches)
+      .where(
+        and(
+          ne(batches.status, "depleted"),
+          gte(batches.createdAt, since7d),
+          batchStoreFilter
+        )
+      ),
     // 3 sla at risk
-    db.select({ count: sql<number>`COUNT(*)` }).from(slaEvents).where(and(isNull(slaEvents.deliveredAt),eq(slaEvents.breached,false),lte(slaEvents.slaDeadline,in15Mins),gte(slaEvents.slaDeadline,now))),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(slaEvents)
+      .where(
+        and(
+          isNull(slaEvents.deliveredAt),
+          eq(slaEvents.breached, false),
+          lte(slaEvents.slaDeadline, in15Mins),
+          gte(slaEvents.slaDeadline, now)
+        )
+      ),
     // 3 sla breached
-    db.select({ count: sql<number>`COUNT(*)` }).from(slaEvents).where(and(isNull(slaEvents.deliveredAt),lt(slaEvents.slaDeadline,now))),
+    db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(slaEvents)
+      .where(
+        and(isNull(slaEvents.deliveredAt), lt(slaEvents.slaDeadline, now))
+      ),
   ]);
-  const riderMap: Record<string,number> = {};
+  const riderMap: Record<string, number> = {};
   for (const r of riderRows) riderMap[r.status] = Number(r.count);
-  const ocrMap: Record<string,number> = {};
+  const ocrMap: Record<string, number> = {};
   for (const r of ocrRows) ocrMap[r.status] = Number(r.count);
   const labelTotal = Number(labelRows[0]?.total ?? 0);
   const labelHas = Number(labelRows[0]?.hasBarcode ?? 0);
   return {
-    liveOrders: { byStatus: liveOrders, total: liveOrders.reduce((s,r) => s+Number(r.count),0) },
-    slaRisk: { atRiskCount: Number(slaAtRisk[0]?.count ?? 0), breachedCount: Number(slaBreached[0]?.count ?? 0) },
+    liveOrders: {
+      byStatus: liveOrders,
+      total: liveOrders.reduce((s, r) => s + Number(r.count), 0),
+    },
+    slaRisk: {
+      atRiskCount: Number(slaAtRisk[0]?.count ?? 0),
+      breachedCount: Number(slaBreached[0]?.count ?? 0),
+    },
     pharmacistQueue: { pending: Number(pharmacistQ[0]?.count ?? 0) },
-    riderBoard: { available: riderMap.available??0, onDelivery: riderMap.on_delivery??0, offline: riderMap.offline??0 },
+    riderBoard: {
+      available: riderMap.available ?? 0,
+      onDelivery: riderMap.on_delivery ?? 0,
+      offline: riderMap.offline ?? 0,
+    },
     stockouts: { count: Number(stockoutRows[0]?.count ?? 0) },
     nearExpiry: { count: Number(nearExpiryRows[0]?.count ?? 0) },
     whatsappQueue: { pendingHandoffs: Number(handoffRows[0]?.count ?? 0) },
     appQueue: { pending: Number(appPending[0]?.count ?? 0) },
-    counterSync: { todayCount: Number(counterRows[0]?.count ?? 0), todayRevenue: Number(counterRows[0]?.revenue ?? 0) },
+    counterSync: {
+      todayCount: Number(counterRows[0]?.count ?? 0),
+      todayRevenue: Number(counterRows[0]?.revenue ?? 0),
+    },
     manualOverrides: { count: Number(overrideRows[0]?.count ?? 0) },
     buildingDemand: { topBuildings: buildingRows },
     syncHealth: { lastSync: syncRows[0]?.completedAt ?? null },
-    ocrQueue: { queued: ocrMap.queued??0, processing: ocrMap.processing??0, failed: ocrMap.failed??0 },
+    ocrQueue: {
+      queued: ocrMap.queued ?? 0,
+      processing: ocrMap.processing ?? 0,
+      failed: ocrMap.failed ?? 0,
+    },
     storePerformance: { stores: storeRows },
     importHealth: { pendingReview: Number(importRows[0]?.count ?? 0) },
-    refillPipeline: { active: Number(refillActive[0]?.count??0), dueThisWeek: Number(refillDue7[0]?.count??0), missed: Number(refillMissed[0]?.count??0), needsFreshRx: Number(refillFreshRx[0]?.count??0) },
-    expiryExposure: { value90: Number(expiryV90[0]?.val??0), value60: Number(expiryV60[0]?.val??0), quarantinedValue: Number(quarantinedV[0]?.val??0), disposalValue: Number(expiredV[0]?.val??0) },
+    refillPipeline: {
+      active: Number(refillActive[0]?.count ?? 0),
+      dueThisWeek: Number(refillDue7[0]?.count ?? 0),
+      missed: Number(refillMissed[0]?.count ?? 0),
+      needsFreshRx: Number(refillFreshRx[0]?.count ?? 0),
+    },
+    expiryExposure: {
+      value90: Number(expiryV90[0]?.val ?? 0),
+      value60: Number(expiryV60[0]?.val ?? 0),
+      quarantinedValue: Number(quarantinedV[0]?.val ?? 0),
+      disposalValue: Number(expiredV[0]?.val ?? 0),
+    },
     nodeCapacity: { nodes: nodeRows },
     unauditedActions: { count: Number(unauditedRows[0]?.count ?? 0) },
-    labelScan: { compliancePct: labelTotal > 0 ? Math.round((labelHas/labelTotal)*100) : 100, total: labelTotal },
+    labelScan: {
+      compliancePct:
+        labelTotal > 0 ? Math.round((labelHas / labelTotal) * 100) : 100,
+      total: labelTotal,
+    },
     generatedAt: new Date(),
   };
 }
@@ -994,7 +1558,11 @@ const snapshot = protectedProcedure
   .query(async ({ ctx, input }) => {
     assertAdmin(ctx.user.role);
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "DB unavailable",
+      });
     return runAllCards(db, input.storeId);
   });
 

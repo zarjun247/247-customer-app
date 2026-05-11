@@ -245,3 +245,52 @@ jobs:
         run: pnpm run test:db:bootstrap
       - name: MySQL DB lifecycle smoke
         run: pnpm run test:db:smoke
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@10.4.1 --activate
+
+      - name: Verify pnpm
+        run: pnpm --version
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint (regression gate)
+        run: pnpm run lint:ci
+
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@10.4.1 --activate
+
+      - name: Verify pnpm
+        run: pnpm --version
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Audit (high severity advisory)
+        run: pnpm run audit:ci

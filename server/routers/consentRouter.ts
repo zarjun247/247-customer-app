@@ -38,7 +38,11 @@ export const consentRouter = router({
    */
   getStatus: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database unavailable",
+      });
 
     const allConsents = await db
       .select()
@@ -47,7 +51,7 @@ export const consentRouter = router({
       .orderBy(desc(userConsents.grantedAt));
 
     // Return latest record per consent type
-    const latestByType: Record<string, typeof allConsents[0]> = {};
+    const latestByType: Record<string, (typeof allConsents)[0]> = {};
     for (const consent of allConsents) {
       if (!latestByType[consent.consentType]) {
         latestByType[consent.consentType] = consent;
@@ -63,7 +67,7 @@ export const consentRouter = router({
       "location",
     ];
 
-    return consentTypes.map((type) => {
+    return consentTypes.map(type => {
       const record = latestByType[type];
       return {
         type,
@@ -84,27 +88,33 @@ export const consentRouter = router({
   grant: protectedProcedure
     .input(
       z.object({
-        types: z.array(
-          z.enum([
-            "terms_of_service",
-            "privacy_policy",
-            "rx_data_processing",
-            "marketing",
-            "location",
-          ])
-        ).min(1),
+        types: z
+          .array(
+            z.enum([
+              "terms_of_service",
+              "privacy_policy",
+              "rx_data_processing",
+              "marketing",
+              "location",
+            ])
+          )
+          .min(1),
         ipAddress: z.string().max(45).optional(),
         userAgent: z.string().max(500).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
-      const rows = input.types.map((type) => ({
+      const rows = input.types.map(type => ({
         userId: ctx.user.id,
         consentType: type,
-        version: CONSENT_VERSIONS[type as ConsentType],
+        version: CONSENT_VERSIONS[type],
         granted: true,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,
@@ -131,7 +141,11 @@ export const consentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       await db.insert(userConsents).values({
         userId: ctx.user.id,
@@ -157,7 +171,11 @@ export const consentRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const records = await db
         .select()

@@ -381,7 +381,7 @@ export async function createPurchaseDraftFromOcr(
   const [res] = await db
     .insert(purchaseInvoices)
     .values({ ...payload, sourceType: "ocr", status: "draft" });
-  const id = (res as any).insertId;
+  const id = res.insertId;
   await logAudit(
     {
       action: "ocr.purchase_draft_created",
