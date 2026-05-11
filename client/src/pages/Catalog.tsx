@@ -133,7 +133,7 @@ function ProductDetailModal({ item, cartQty, onAdd, onRemove, onClose }: {
           )}
           {isRx && (
             <div className="mt-2">
-              <Badge variant="rx" className="text-xs inline-flex items-center gap-2">
+              <Badge variant="regulated" className="text-xs inline-flex items-center gap-2">
                 <ShieldCheck size={12} strokeWidth={2} />
                 Prescription required
               </Badge>
@@ -150,7 +150,7 @@ function ProductDetailModal({ item, cartQty, onAdd, onRemove, onClose }: {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={
-              avail.label.includes('Available') && !isRx ? 'available' : (avail.label.includes('Prescription') ? 'rx' : (avail.label.includes('Currently') ? 'unavailable' : 'low'))
+              avail.label.includes('Available') && !isRx ? 'success' : (avail.label.includes('Prescription') ? 'regulated' : (avail.label.includes('Currently') ? 'destructive' : 'warning'))
             } className="text-xs">
               {avail.label}
             </Badge>

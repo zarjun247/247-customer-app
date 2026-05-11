@@ -47,8 +47,6 @@ import { customerMedicineRouter } from "./routers/customerMedicineRouter";
 import { assertWhatsappWebhookGuard, isRegulatedMedicineIntent, normalizeWhatsAppPhone, whatsappFullRouter } from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
 import { commandCenterRouter } from "./routers/commandCenterRouter";
-import { deploymentReadinessRouter } from "./routers/deploymentReadinessRouter";
-import { multiStoreRuntimeRouter } from "./routers/multiStoreRuntimeRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
