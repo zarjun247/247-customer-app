@@ -1,6 +1,7 @@
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
+import { context as otelContext, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { TrpcContext } from "./context";
 import { requireStaffStore } from './rbac';
 
@@ -9,8 +10,38 @@ const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
 });
 
+// ─── OTel span middleware ─────────────────────────────────────────────────────
+const trpcSpanMiddleware = t.middleware(async opts => {
+  const { ctx, type, path, next } = opts;
+  const tracer = trace.getTracer("trpc");
+  const span = tracer.startSpan(`trpc.${path}`, {
+    attributes: {
+      "trpc.path": path,
+      "trpc.type": type,
+      ...(ctx.user?.id != null ? { "user.id": ctx.user.id } : {}),
+    },
+  });
+  try {
+    const result = await otelContext.with(
+      trace.setSpan(otelContext.active(), span),
+      () => next(),
+    );
+    span.setStatus({ code: SpanStatusCode.OK });
+    return result;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    span.setStatus({ code: SpanStatusCode.ERROR, message: msg });
+    if (err instanceof Error) span.recordException(err);
+    throw err;
+  } finally {
+    span.end();
+  }
+});
+
+const baseProcedure = t.procedure.use(trpcSpanMiddleware);
+
 export const router = t.router;
-export const publicProcedure = t.procedure;
+export const publicProcedure = baseProcedure;
 
 // ─── Role definitions ─────────────────────────────────────────────────────────
 // Matches DB enum in drizzle/schema.ts exactly (15 values)
@@ -77,10 +108,10 @@ const requireUser = t.middleware(async opts => {
 // ─── Procedure factories ──────────────────────────────────────────────────────
 
 /** Any authenticated user */
-export const protectedProcedure = t.procedure.use(requireUser);
+export const protectedProcedure = baseProcedure.use(requireUser);
 
 /** Admin / super_admin / ops_admin only */
-export const adminProcedure = t.procedure.use(
+export const adminProcedure = baseProcedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     const role = ctx.user?.role as UserRole | undefined;
@@ -92,7 +123,7 @@ export const adminProcedure = t.procedure.use(
 );
 
 /** Any staff role */
-export const staffProcedure = t.procedure.use(
+export const staffProcedure = baseProcedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     const role = ctx.user?.role as UserRole | undefined;
@@ -104,7 +135,7 @@ export const staffProcedure = t.procedure.use(
 );
 
 /** Pharmacist-level access */
-export const pharmacistProcedure = t.procedure.use(
+export const pharmacistProcedure = baseProcedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     const role = ctx.user?.role as UserRole | undefined;
@@ -116,7 +147,7 @@ export const pharmacistProcedure = t.procedure.use(
 );
 
 /** Manager-level access */
-export const managerProcedure = t.procedure.use(
+export const managerProcedure = baseProcedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     const role = ctx.user?.role as UserRole | undefined;
@@ -128,7 +159,7 @@ export const managerProcedure = t.procedure.use(
 );
 
 /** Purchase manager access */
-export const purchaseProcedure = t.procedure.use(
+export const purchaseProcedure = baseProcedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     const role = ctx.user?.role as UserRole | undefined;
@@ -140,7 +171,7 @@ export const purchaseProcedure = t.procedure.use(
 );
 
 /** Rider / delivery access */
-export const riderProcedure = t.procedure.use(
+export const riderProcedure = baseProcedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
     const role = ctx.user?.role as UserRole | undefined;
@@ -166,7 +197,7 @@ export const storePharmacistProcedure = pharmacistProcedure.use(t.middleware(asy
 export const storePurchaseProcedure = purchaseProcedure.use(t.middleware(async ({ ctx, next }) => { requireStaffStore(ctx.user); return next(); }));
 export const storeRiderProcedure = riderProcedure.use(t.middleware(async ({ ctx, next }) => { requireStaffStore(ctx.user); return next(); }));
 
-export const superAdminProcedure = t.procedure.use(
+export const superAdminProcedure = baseProcedure.use(
   t.middleware(async ({ ctx, next }) => {
     if (!ctx.user || ctx.user.role !== 'super_admin') throw new TRPCError({ code: 'FORBIDDEN', message: 'Super admin access required' });
     return next();

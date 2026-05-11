@@ -97,3 +97,9 @@ The operationalization sprint reduces documentation/doctrine gaps but does not c
 | Accounting/compliance SOP evidence incomplete | Reconciliation/override governance now defines daily review, supplier dispute, dead-letter, refund, and rollback review cadence. | Named reconciliation/accounting owners and signed daily/monthly checklist evidence. |
 
 Current score update: **8.9 / 10 controlled-production readiness** for launch preparation. This score reflects improved human-governance doctrine only; it is not legal approval, provider verification, production deployment proof, or pharmacist signoff.
+
+## PR 4.1 follow-ups (logged 2026-05-11)
+
+**OTEL_* env var documentation (D8 follow-up):** Neither `.env.example` nor `docs/ENVIRONMENT.md` exists in this repo. The four new optional OTel env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`) are typed and defaulted in `server/_core/env.ts`. Create `.env.example` or `docs/ENVIRONMENT.md` and document these keys with examples when the project adds environment documentation.
+
+**OTel bootstrap ordering — separate entry file (PR 4.1 design note):** The current `server/_core/index.ts` calls `initializeTelemetry()` as the first line of `startServer()` before `express()` and `createServer()`. This is sufficient for HTTP + Express auto-instrumentation via shimmer prototype patching. If DB-level instrumentation (e.g., `mysql2` via `@opentelemetry/instrumentation-mysql2`) is added in a later MP1 or MP6 PR, a separate `server/bootstrap.ts` entry file using dynamic `import()` will be required so the OTel SDK starts before `mysql2` is required at all. Revisit before adding DB-level OTel instrumentation.

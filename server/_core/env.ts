@@ -60,6 +60,15 @@ export const ENV = {
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? "",
   workerCronSecret: process.env.WORKER_CRON_SECRET ?? "",
   workerAdminToken: process.env.WORKER_ADMIN_TOKEN ?? "",
+  // OTel — all four are optional. Never add these to assertProductionEnvSafe().
+  // otelEndpoint absent → ConsoleSpanExporter (local dev). Present → OTLP HTTP.
+  // otelTracesSampler and otelTracesSamplerArg are also read automatically by
+  // NodeSDK from the standard OTEL_TRACES_SAMPLER / OTEL_TRACES_SAMPLER_ARG
+  // env vars; the fields here are typed references for documentation only.
+  otelEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+  otelServiceName: process.env.OTEL_SERVICE_NAME ?? "247-customer-app",
+  otelTracesSampler: process.env.OTEL_TRACES_SAMPLER ?? "parentbased_traceidratio",
+  otelTracesSamplerArg: parseFloat(process.env.OTEL_TRACES_SAMPLER_ARG ?? "1"),
 };
 
 assertProductionEnvSafe();

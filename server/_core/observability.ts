@@ -1,11 +1,27 @@
 import pino from "pino";
 import { collectDefaultMetrics, Counter, Gauge, Histogram, Registry } from "prom-client";
 import type { Express, NextFunction, Request, Response } from "express";
+import { trace } from "@opentelemetry/api";
 import { requireStaff } from "../routers/healthRouter";
 import { createRequestId, redactString, safeError, safeMetadata } from "../services/observability";
 import { getProviderVisibilitySummary } from "../services/operationalVisibility";
 
-const logger = pino({ level: process.env.LOG_LEVEL || "info" });
+/** Returns the active OTel trace/span IDs, or null when no span is active. */
+export function getCurrentTraceContext(): { traceId: string; spanId: string } | null {
+  const span = trace.getActiveSpan();
+  if (!span) return null;
+  const ctx = span.spanContext();
+  if (!ctx.traceId || ctx.traceId === "00000000000000000000000000000000") return null;
+  return { traceId: ctx.traceId, spanId: ctx.spanId };
+}
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  mixin() {
+    const traceCtx = getCurrentTraceContext();
+    return traceCtx ?? {};
+  },
+});
 
 const register = new Registry();
 collectDefaultMetrics({ register });
