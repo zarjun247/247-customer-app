@@ -1196,88 +1196,7 @@ const stateRouter = router({
     }),
 });
 
-// ─── Printers ─────────────────────────────────────────────────────────────────
-const printerRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    requireStaff(ctx.user.role);
-    const db = await getDbSafe();
-    const { printers } = await import("../../drizzle/schema");
-    return db.select().from(printers).orderBy(printers.printerName);
-  }),
-
-  upsert: protectedProcedure
-    .input(
-      z.object({
-        id: z.number().optional(),
-        printerName: z.string().min(1),
-        printerType: z.enum(["bill", "barcode", "a4", "thermal"]),
-        assignedTerminal: z.string().optional(),
-        assignedStoreId: z.number().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      requireManager(ctx.user.role);
-      const db = await getDbSafe();
-      const { printers } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      if (input.id) {
-        await db.update(printers).set(input).where(eq(printers.id, input.id));
-        return { id: input.id };
-      }
-      const [result] = await db.insert(printers).values(input);
-      return { id: (result as { insertId: number }).insertId };
-    }),
-});
-
-// ─── Customer / User listing ─────────────────────────────────────────────────────
-const customerListRouter = router({
-  list: protectedProcedure
-    .input(
-      z.object({
-        search: z.string().optional(),
-        limit: z.number().int().min(1).max(200).default(100),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user.role);
-      const db = await getDbSafe();
-      const { users } = await import("../../drizzle/schema");
-      const { like, or, desc } = await import("drizzle-orm");
-      let where: any = undefined;
-      if (input.search) {
-        where = or(
-          like(users.name, `%${input.search}%`),
-          like(users.phone, `%${input.search}%`),
-          like(users.email, `%${input.search}%`)
-        );
-      }
-      return db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          phone: users.phone,
-          role: users.role,
-          createdAt: users.createdAt,
-          lastSignedIn: users.lastSignedIn,
-        })
-        .from(users)
-        .where(where)
-        .orderBy(desc(users.createdAt))
-        .limit(input.limit);
-    }),
-});
-
-// ─── Part 3 routers ─────────────────────────────────────────────────────────────
-import {
-  doctorMasterRouter,
-  patientCategoryRouter,
-  staffMasterRouter,
-  storeMasterRouter,
-  buildingMasterRouter,
-  printerMasterRouter,
-  productMasterRouter,
-} from "./masterDataPart3Router";
+import { masterDataRouterExtension } from "./masterDataRouterExtension";
 
 // ─── Compose masterDataRouter ─────────────────────────────────────────────────────
 export const masterDataRouter = router({
@@ -1291,14 +1210,5 @@ export const masterDataRouter = router({
   messageTemplates: messageTemplateRouter,
   financialYears: financialYearRouter,
   states: stateRouter,
-  printers: printerRouter,
-  customers: customerListRouter,
-  // Part 3
-  doctorMaster: doctorMasterRouter,
-  patientCategories: patientCategoryRouter,
-  staff: staffMasterRouter,
-  stores: storeMasterRouter,
-  buildings: buildingMasterRouter,
-  printerMaster: printerMasterRouter,
-  products: productMasterRouter,
+  ...masterDataRouterExtension,
 });

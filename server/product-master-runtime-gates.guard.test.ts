@@ -24,7 +24,10 @@ const completeRegulated = {
 
 describe("product master runtime gates", () => {
   it("blocks regulated product with missing schedule and never defaults unknown schedule to OTC", () => {
-    const result = validateProductForRegulatedSale({ ...completeRegulated, schedule: null });
+    const result = validateProductForRegulatedSale({
+      ...completeRegulated,
+      schedule: null,
+    });
 
     expect(result.errors).toContain("missing_schedule");
     expect(result.errors).toContain("regulated_unknown_schedule_fail_closed");
@@ -32,13 +35,20 @@ describe("product master runtime gates", () => {
   });
 
   it("requires Rx flag when a regulated schedule is present", () => {
-    const result = validateProductForRegulatedSale({ ...completeRegulated, requiresPrescription: false });
+    const result = validateProductForRegulatedSale({
+      ...completeRegulated,
+      requiresPrescription: false,
+    });
 
     expect(result.errors).toContain("regulated_schedule_requires_rx_flag");
   });
 
   it("blocks statutory sale path when HSN or GST are missing", () => {
-    const result = validateProductForRegulatedSale({ ...completeRegulated, hsnCode: "", gstRate: null });
+    const result = validateProductForRegulatedSale({
+      ...completeRegulated,
+      hsnCode: "",
+      gstRate: null,
+    });
 
     expect(result.errors).toContain("missing_hsn");
     expect(result.errors).toContain("missing_gst_rate");
@@ -58,15 +68,45 @@ describe("product master runtime gates", () => {
       gstRate: completeRegulated.gstRate,
     });
 
-    expect(result.errors).toEqual(expect.arrayContaining(["missing_batch", "missing_expiry", "missing_mrp", "missing_cost"]));
-    expect(validatePurchaseLineMaster({ product: null, productId: 404, batchNo: "B1", expiryDate: "2027-01-31", mrp: "10", purchaseRate: "7" }).errors).toContain("missing_product");
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        "missing_batch",
+        "missing_expiry",
+        "missing_mrp",
+        "missing_cost",
+      ])
+    );
+    expect(
+      validatePurchaseLineMaster({
+        product: null,
+        productId: 404,
+        batchNo: "B1",
+        expiryDate: "2027-01-31",
+        mrp: "10",
+        purchaseRate: "7",
+      }).errors
+    ).toContain("missing_product");
   });
 
   it("returns incomplete_master for barcode labels with incomplete core master or batch fields", () => {
-    const payload = getBarcodeLabelPayload({ productName: "", batchNo: "", expiryDate: null, mrp: "0", internalBarcode: "" });
+    const payload = getBarcodeLabelPayload({
+      productName: "",
+      batchNo: "",
+      expiryDate: null,
+      mrp: "0",
+      internalBarcode: "",
+    });
 
     expect(payload.status).toBe("incomplete_master");
-    expect(payload.masterValidation.errors).toEqual(expect.arrayContaining(["missing_product_identity", "missing_batch", "missing_expiry", "missing_mrp", "missing_barcode_mapping"]));
+    expect(payload.masterValidation.errors).toEqual(
+      expect.arrayContaining([
+        "missing_product_identity",
+        "missing_batch",
+        "missing_expiry",
+        "missing_mrp",
+        "missing_barcode_mapping",
+      ])
+    );
   });
 
   it("emits duplicate candidates as review-only metadata and never auto-merges", () => {
@@ -85,18 +125,26 @@ describe("product master runtime gates", () => {
   });
 
   it("wires OCR approval and commit paths to product validation", () => {
-    const source = readFileSync("server/routers/ocrIngestionRouter.ts", "utf8");
+    const source =
+      readFileSync("server/routers/ocrIngestionRouter.ts", "utf8") +
+      readFileSync("server/routers/ocrIngestionRouterExtension.ts", "utf8");
 
     expect(source).toContain("validatePurchaseLineMaster");
-    expect(source).toContain("OCR line has incomplete product master or purchase metadata");
-    expect(source).toContain("OCR approved draft has incomplete product master or purchase metadata");
+    expect(source).toContain(
+      "OCR line has incomplete product master or purchase metadata"
+    );
+    expect(source).toContain(
+      "OCR approved draft has incomplete product master or purchase metadata"
+    );
     expect(source).toContain("assertOcrDraftApprovedForHandoff");
   });
 
   it("keeps POS addLine and confirmSale gates on persisted metadata", () => {
     const source = readFileSync("server/routers/salesRouter.ts", "utf8");
 
-    expect(source).toContain("Persisted product metadata is required before adding to bill");
+    expect(source).toContain(
+      "Persisted product metadata is required before adding to bill"
+    );
     expect(source).toContain("Product master is incomplete for product");
     expect(source).toContain("createOrVerifyH1RegisterEntry");
     expect(source).not.toContain("scheduleCode ?? 'OTC'");

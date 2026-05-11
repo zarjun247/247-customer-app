@@ -3,7 +3,11 @@ import fs from "fs";
 
 describe("refund ledger implementation guards", () => {
   const service = fs.readFileSync("server/services/refundService.ts", "utf8");
-  const schema = fs.readFileSync("drizzle/schema.ts", "utf8");
+  const schema = fs
+    .readdirSync("drizzle/schema")
+    .filter(f => f.endsWith(".ts") && f !== "index.ts")
+    .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
+    .join("\n");
   const migration = fs.readFileSync("drizzle/0035_refund_ledger.sql", "utf8");
 
   it("uses the refunds ledger as refund truth instead of paymentRecords.failureReason", () => {
@@ -15,9 +19,13 @@ describe("refund ledger implementation guards", () => {
 
   it("persists failed provider refunds and does not fake provider success", () => {
     expect(service).toContain("paymentConnector.refund");
-    expect(service).toContain("markRefundFailedRecord({ refundId: created.refundId");
+    expect(service).toContain(
+      "markRefundFailedRecord({ refundId: created.refundId"
+    );
     expect(service).toContain('status: "failed" as const');
-    expect(service.indexOf("paymentConnector.refund")).toBeLessThan(service.indexOf('providerState: "succeeded" as RefundProviderState'));
+    expect(service.indexOf("paymentConnector.refund")).toBeLessThan(
+      service.indexOf('providerState: "succeeded" as RefundProviderState')
+    );
   });
 
   it("declares duplicate provider refund protection", () => {

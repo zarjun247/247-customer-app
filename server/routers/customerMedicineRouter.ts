@@ -1,12 +1,28 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { eq, and, desc, sql, like, or, asc, gte, lte, isNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  sql,
+  like,
+  or,
+  asc,
+  gte,
+  lte,
+  isNull,
+} from "drizzle-orm";
+import { customerMedicineRouterExtension } from "./customerMedicineRouterExtension";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
   const db = await getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  if (!db)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "DB unavailable",
+    });
   return db;
 }
 
@@ -37,7 +53,12 @@ const familyMemberRouter = router({
     const rows = await db
       .select()
       .from(familyMembers)
-      .where(and(eq(familyMembers.userId, ctx.user.id), eq(familyMembers.active, true)))
+      .where(
+        and(
+          eq(familyMembers.userId, ctx.user.id),
+          eq(familyMembers.active, true)
+        )
+      )
       .orderBy(asc(familyMembers.name));
     return { rows };
   }),
@@ -67,7 +88,9 @@ const familyMemberRouter = router({
         gender: input.gender ?? null,
         phone: input.phone ?? null,
         patientCategoryId: input.patientCategoryId ?? null,
-        chronicConditions: input.chronicConditions ? JSON.stringify(input.chronicConditions) : null,
+        chronicConditions: input.chronicConditions
+          ? JSON.stringify(input.chronicConditions)
+          : null,
         allergies: input.allergies ? JSON.stringify(input.allergies) : null,
         bloodGroup: input.bloodGroup ?? null,
       });
@@ -96,17 +119,24 @@ const familyMemberRouter = router({
       const updateData: Record<string, unknown> = {};
       if (fields.name !== undefined) updateData.name = fields.name;
       if (fields.relation !== undefined) updateData.relation = fields.relation;
-      if (fields.dateOfBirth !== undefined) updateData.dateOfBirth = new Date(fields.dateOfBirth);
+      if (fields.dateOfBirth !== undefined)
+        updateData.dateOfBirth = new Date(fields.dateOfBirth);
       if (fields.gender !== undefined) updateData.gender = fields.gender;
       if (fields.phone !== undefined) updateData.phone = fields.phone;
-      if (fields.patientCategoryId !== undefined) updateData.patientCategoryId = fields.patientCategoryId;
-      if (fields.chronicConditions !== undefined) updateData.chronicConditions = JSON.stringify(fields.chronicConditions);
-      if (fields.allergies !== undefined) updateData.allergies = JSON.stringify(fields.allergies);
-      if (fields.bloodGroup !== undefined) updateData.bloodGroup = fields.bloodGroup;
+      if (fields.patientCategoryId !== undefined)
+        updateData.patientCategoryId = fields.patientCategoryId;
+      if (fields.chronicConditions !== undefined)
+        updateData.chronicConditions = JSON.stringify(fields.chronicConditions);
+      if (fields.allergies !== undefined)
+        updateData.allergies = JSON.stringify(fields.allergies);
+      if (fields.bloodGroup !== undefined)
+        updateData.bloodGroup = fields.bloodGroup;
       await db
         .update(familyMembers)
         .set(updateData)
-        .where(and(eq(familyMembers.id, id), eq(familyMembers.userId, ctx.user.id)));
+        .where(
+          and(eq(familyMembers.id, id), eq(familyMembers.userId, ctx.user.id))
+        );
       return { ok: true };
     }),
 
@@ -118,7 +148,12 @@ const familyMemberRouter = router({
       await db
         .update(familyMembers)
         .set({ active: false })
-        .where(and(eq(familyMembers.id, input.id), eq(familyMembers.userId, ctx.user.id)));
+        .where(
+          and(
+            eq(familyMembers.id, input.id),
+            eq(familyMembers.userId, ctx.user.id)
+          )
+        );
       return { ok: true };
     }),
 });
@@ -130,7 +165,7 @@ const medicineRecordRouter = router({
   list: protectedProcedure
     .input(
       z.object({
-        targetUserId: z.number().optional(),  // admin: view another user; omit = self
+        targetUserId: z.number().optional(), // admin: view another user; omit = self
         familyMemberId: z.number().optional(),
         discontinued: z.boolean().optional(),
         isChronicFlag: z.boolean().optional(),
@@ -141,23 +176,36 @@ const medicineRecordRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const db = await getDbSafe();
-      const { customerMedicineRecords, products, medicineRecordAccessLog } = await import("../../drizzle/schema");
+      const { customerMedicineRecords, products, medicineRecordAccessLog } =
+        await import("../../drizzle/schema");
 
       const userId = input.targetUserId ?? ctx.user.id;
       // Admin access log
       if (input.targetUserId && input.targetUserId !== ctx.user.id) {
-        await logAccess(db, userId, ctx.user.id, "admin_view", "admin customer medicine history");
+        await logAccess(
+          db,
+          userId,
+          ctx.user.id,
+          "admin_view",
+          "admin customer medicine history"
+        );
       }
 
       const conditions = [eq(customerMedicineRecords.userId, userId)];
       if (input.familyMemberId !== undefined) {
-        conditions.push(eq(customerMedicineRecords.familyMemberId, input.familyMemberId));
+        conditions.push(
+          eq(customerMedicineRecords.familyMemberId, input.familyMemberId)
+        );
       }
       if (input.discontinued !== undefined) {
-        conditions.push(eq(customerMedicineRecords.discontinued, input.discontinued));
+        conditions.push(
+          eq(customerMedicineRecords.discontinued, input.discontinued)
+        );
       }
       if (input.isChronicFlag !== undefined) {
-        conditions.push(eq(customerMedicineRecords.isChronicFlag, input.isChronicFlag));
+        conditions.push(
+          eq(customerMedicineRecords.isChronicFlag, input.isChronicFlag)
+        );
       }
 
       const offset = (input.page - 1) * input.limit;
@@ -204,7 +252,9 @@ const medicineRecordRouter = router({
         orderId: z.number().optional(),
         saleId: z.number().optional(),
         prescriptionId: z.number().optional(),
-        purchaseType: z.enum(["prescribed", "otc", "chronic_refill", "counter", "whatsapp"]).default("otc"),
+        purchaseType: z
+          .enum(["prescribed", "otc", "chronic_refill", "counter", "whatsapp"])
+          .default("otc"),
         qty: z.number().min(1),
         purchaseDate: z.string(),
         doctorName: z.string().optional(),
@@ -270,7 +320,12 @@ const medicineRecordRouter = router({
       const [row] = await db
         .select({ id: customerMedicineRecords.id })
         .from(customerMedicineRecords)
-        .where(and(eq(customerMedicineRecords.userId, userId), eq(customerMedicineRecords.productId, input.productId)))
+        .where(
+          and(
+            eq(customerMedicineRecords.userId, userId),
+            eq(customerMedicineRecords.productId, input.productId)
+          )
+        )
         .limit(1);
       return { hasBought: !!row };
     }),
@@ -283,13 +338,17 @@ const refillPlanRouter = router({
     .input(
       z.object({
         userId: z.number().optional(),
-        status: z.enum(["active", "paused", "completed", "cancelled"]).optional(),
-        dueSoon: z.boolean().optional(),  // due within 7 days
+        status: z
+          .enum(["active", "paused", "completed", "cancelled"])
+          .optional(),
+        dueSoon: z.boolean().optional(), // due within 7 days
       })
     )
     .query(async ({ ctx, input }) => {
       const db = await getDbSafe();
-      const { refillPlans, products, familyMembers } = await import("../../drizzle/schema");
+      const { refillPlans, products, familyMembers } = await import(
+        "../../drizzle/schema"
+      );
 
       const userId = input.userId ?? ctx.user.id;
       const conditions = [eq(refillPlans.userId, userId)];
@@ -365,7 +424,9 @@ const refillPlanRouter = router({
         reminderDaysBefore: input.reminderDaysBefore,
         whatsappReminder: input.whatsappReminder,
         appReminder: input.appReminder,
-        prescriptionExpiryDate: input.prescriptionExpiryDate ? new Date(input.prescriptionExpiryDate) : null,
+        prescriptionExpiryDate: input.prescriptionExpiryDate
+          ? new Date(input.prescriptionExpiryDate)
+          : null,
         createdBy: ctx.user.id,
       });
       return { id: (result as any).insertId };
@@ -375,7 +436,9 @@ const refillPlanRouter = router({
     .input(
       z.object({
         id: z.number(),
-        status: z.enum(["active", "paused", "completed", "cancelled"]).optional(),
+        status: z
+          .enum(["active", "paused", "completed", "cancelled"])
+          .optional(),
         frequencyDays: z.number().optional(),
         qty: z.number().optional(),
         nextDueDate: z.string().optional(),
@@ -387,28 +450,46 @@ const refillPlanRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbSafe();
-      const { refillPlans, refillEvents } = await import("../../drizzle/schema");
+      const { refillPlans, refillEvents } = await import(
+        "../../drizzle/schema"
+      );
       const { id, ...fields } = input;
       const updateData: Record<string, unknown> = {};
       if (fields.status !== undefined) updateData.status = fields.status;
-      if (fields.frequencyDays !== undefined) updateData.frequencyDays = fields.frequencyDays;
+      if (fields.frequencyDays !== undefined)
+        updateData.frequencyDays = fields.frequencyDays;
       if (fields.qty !== undefined) updateData.qty = fields.qty;
-      if (fields.nextDueDate !== undefined) updateData.nextDueDate = new Date(fields.nextDueDate);
-      if (fields.needsFreshRx !== undefined) updateData.needsFreshRx = fields.needsFreshRx;
-      if (fields.prescriptionExpiryDate !== undefined) updateData.prescriptionExpiryDate = new Date(fields.prescriptionExpiryDate);
-      if (fields.whatsappReminder !== undefined) updateData.whatsappReminder = fields.whatsappReminder;
-      if (fields.appReminder !== undefined) updateData.appReminder = fields.appReminder;
+      if (fields.nextDueDate !== undefined)
+        updateData.nextDueDate = new Date(fields.nextDueDate);
+      if (fields.needsFreshRx !== undefined)
+        updateData.needsFreshRx = fields.needsFreshRx;
+      if (fields.prescriptionExpiryDate !== undefined)
+        updateData.prescriptionExpiryDate = new Date(
+          fields.prescriptionExpiryDate
+        );
+      if (fields.whatsappReminder !== undefined)
+        updateData.whatsappReminder = fields.whatsappReminder;
+      if (fields.appReminder !== undefined)
+        updateData.appReminder = fields.appReminder;
 
-      await db.update(refillPlans).set(updateData).where(eq(refillPlans.id, id));
+      await db
+        .update(refillPlans)
+        .set(updateData)
+        .where(eq(refillPlans.id, id));
 
       // Log plan_paused / plan_resumed events
       if (fields.status === "paused" || fields.status === "active") {
-        const [plan] = await db.select().from(refillPlans).where(eq(refillPlans.id, id)).limit(1);
+        const [plan] = await db
+          .select()
+          .from(refillPlans)
+          .where(eq(refillPlans.id, id))
+          .limit(1);
         if (plan) {
           await db.insert(refillEvents).values({
             refillPlanId: id,
             userId: plan.userId,
-            eventType: fields.status === "paused" ? "plan_paused" : "plan_resumed",
+            eventType:
+              fields.status === "paused" ? "plan_paused" : "plan_resumed",
             dueDate: plan.nextDueDate,
           });
         }
@@ -418,21 +499,40 @@ const refillPlanRouter = router({
 
   /** Mark a refill as fulfilled (called after order/sale commit) */
   markFulfilled: protectedProcedure
-    .input(z.object({ id: z.number(), orderId: z.number().optional(), saleId: z.number().optional() }))
+    .input(
+      z.object({
+        id: z.number(),
+        orderId: z.number().optional(),
+        saleId: z.number().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbSafe();
-      const { refillPlans, refillEvents } = await import("../../drizzle/schema");
-      const [plan] = await db.select().from(refillPlans).where(eq(refillPlans.id, input.id)).limit(1);
-      if (!plan) throw new TRPCError({ code: "NOT_FOUND", message: "Refill plan not found" });
+      const { refillPlans, refillEvents } = await import(
+        "../../drizzle/schema"
+      );
+      const [plan] = await db
+        .select()
+        .from(refillPlans)
+        .where(eq(refillPlans.id, input.id))
+        .limit(1);
+      if (!plan)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Refill plan not found",
+        });
 
       const today = new Date();
       const nextDue = new Date(today);
       nextDue.setDate(nextDue.getDate() + plan.frequencyDays);
 
-      await db.update(refillPlans).set({
-        lastFulfilledDate: today,
-        nextDueDate: nextDue,
-      }).where(eq(refillPlans.id, input.id));
+      await db
+        .update(refillPlans)
+        .set({
+          lastFulfilledDate: today,
+          nextDueDate: nextDue,
+        })
+        .where(eq(refillPlans.id, input.id));
 
       await db.insert(refillEvents).values({
         refillPlanId: input.id,
@@ -519,252 +619,11 @@ const refillPlanRouter = router({
     }),
 });
 
-// ─── Consents ─────────────────────────────────────────────────────────────────
-
-const consentRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDbSafe();
-    const { customerConsents } = await import("../../drizzle/schema");
-    const rows = await db
-      .select()
-      .from(customerConsents)
-      .where(eq(customerConsents.userId, ctx.user.id))
-      .orderBy(desc(customerConsents.grantedAt));
-    return { rows };
-  }),
-
-  upsert: protectedProcedure
-    .input(
-      z.object({
-        consentType: z.enum([
-          "medicine_record_storage", "family_profile", "refill_reminder_whatsapp",
-          "refill_reminder_app", "refill_reminder_sms", "prescription_data_processing",
-          "chronic_condition_tracking", "marketing_communications", "data_sharing_doctor",
-        ]),
-        granted: z.boolean(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { customerConsents } = await import("../../drizzle/schema");
-      // Check if exists
-      const [existing] = await db
-        .select()
-        .from(customerConsents)
-        .where(and(eq(customerConsents.userId, ctx.user.id), eq(customerConsents.consentType, input.consentType)))
-        .limit(1);
-
-      if (existing) {
-        await db.update(customerConsents).set({
-          granted: input.granted,
-          revokedAt: input.granted ? null : new Date(),
-        }).where(eq(customerConsents.id, existing.id));
-      } else {
-        await db.insert(customerConsents).values({
-          userId: ctx.user.id,
-          consentType: input.consentType,
-          granted: input.granted,
-        });
-      }
-      return { ok: true };
-    }),
-});
-
-// ─── Admin Customer List ──────────────────────────────────────────────────────
-
-const adminCustomerRouter = router({
-  list: protectedProcedure
-    .input(
-      z.object({
-        search: z.string().optional(),
-        patientCategoryId: z.number().optional(),
-        isChronicOnly: z.boolean().optional(),
-        page: z.number().default(1),
-        limit: z.number().default(20),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { users, customerMedicineRecords } = await import("../../drizzle/schema");
-
-      const conditions = [];
-      if (input.search) {
-        conditions.push(
-          or(
-            like(users.name, `%${input.search}%`),
-            like(users.phone, `%${input.search}%`)
-          )
-        );
-      }
-
-      const offset = (input.page - 1) * input.limit;
-      const rows = await db
-        .select({
-          id: users.id,
-          name: users.name,
-          phone: users.phone,
-          email: users.email,
-          createdAt: users.createdAt,
-        })
-        .from(users)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(users.createdAt))
-        .limit(input.limit)
-        .offset(offset);
-
-      const [{ total }] = await db
-        .select({ total: sql<number>`count(*)` })
-        .from(users)
-        .where(conditions.length > 0 ? and(...conditions) : undefined);
-
-      return { rows, total, page: input.page, limit: input.limit };
-    }),
-
-  /** Get full customer profile: medicine history + refill plans + consents */
-  getProfile: protectedProcedure
-    .input(z.object({ userId: z.number() }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { users, customerMedicineRecords, refillPlans, familyMembers, customerConsents, products } = await import("../../drizzle/schema");
-
-      // Log admin access
-      await logAccess(db, input.userId, ctx.user.id, "admin_view", "admin customer profile view");
-
-      const [user] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
-      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
-
-      const medicineHistory = await db
-        .select({
-          id: customerMedicineRecords.id,
-          productId: customerMedicineRecords.productId,
-          productName: products.name,
-          purchaseType: customerMedicineRecords.purchaseType,
-          qty: customerMedicineRecords.qty,
-          purchaseDate: customerMedicineRecords.purchaseDate,
-          isChronicFlag: customerMedicineRecords.isChronicFlag,
-          discontinued: customerMedicineRecords.discontinued,
-          familyMemberId: customerMedicineRecords.familyMemberId,
-        })
-        .from(customerMedicineRecords)
-        .leftJoin(products, eq(customerMedicineRecords.productId, products.id))
-        .where(eq(customerMedicineRecords.userId, input.userId))
-        .orderBy(desc(customerMedicineRecords.purchaseDate))
-        .limit(50);
-
-      const activePlans = await db
-        .select({
-          id: refillPlans.id,
-          productId: refillPlans.productId,
-          productName: products.name,
-          frequencyDays: refillPlans.frequencyDays,
-          nextDueDate: refillPlans.nextDueDate,
-          status: refillPlans.status,
-          needsFreshRx: refillPlans.needsFreshRx,
-          qty: refillPlans.qty,
-        })
-        .from(refillPlans)
-        .leftJoin(products, eq(refillPlans.productId, products.id))
-        .where(and(eq(refillPlans.userId, input.userId), eq(refillPlans.status, "active")))
-        .orderBy(asc(refillPlans.nextDueDate));
-
-      const family = await db
-        .select()
-        .from(familyMembers)
-        .where(and(eq(familyMembers.userId, input.userId), eq(familyMembers.active, true)));
-
-      const consents = await db
-        .select()
-        .from(customerConsents)
-        .where(eq(customerConsents.userId, input.userId));
-
-      return { user, medicineHistory, activePlans, family, consents };
-    }),
-
-  /** Access log for a customer's medicine records */
-  accessLog: protectedProcedure
-    .input(z.object({ targetUserId: z.number(), page: z.number().default(1), limit: z.number().default(20) }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { medicineRecordAccessLog, users } = await import("../../drizzle/schema");
-      const offset = (input.page - 1) * input.limit;
-      const rows = await db
-        .select({
-          id: medicineRecordAccessLog.id,
-          accessedBy: medicineRecordAccessLog.accessedBy,
-          accessorName: users.name,
-          accessType: medicineRecordAccessLog.accessType,
-          purpose: medicineRecordAccessLog.purpose,
-          createdAt: medicineRecordAccessLog.createdAt,
-        })
-        .from(medicineRecordAccessLog)
-        .leftJoin(users, eq(medicineRecordAccessLog.accessedBy, users.id))
-        .where(eq(medicineRecordAccessLog.targetUserId, input.targetUserId))
-        .orderBy(desc(medicineRecordAccessLog.createdAt))
-        .limit(input.limit)
-        .offset(offset);
-      return { rows };
-    }),
-
-  /** Refill dashboard: all customers with refills due or missed */
-  refillDashboard: protectedProcedure
-    .input(z.object({ view: z.enum(["due_this_week", "missed", "needs_fresh_rx"]).default("due_this_week") }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDbSafe();
-      const { refillPlans, products, users } = await import("../../drizzle/schema");
-
-      const today = new Date();
-      const sevenDaysFromNow = new Date(today);
-      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-
-      let conditions;
-      if (input.view === "due_this_week") {
-        conditions = and(
-          eq(refillPlans.status, "active"),
-          lte(refillPlans.nextDueDate, sevenDaysFromNow),
-          gte(refillPlans.nextDueDate, today)
-        );
-      } else if (input.view === "missed") {
-        conditions = and(
-          eq(refillPlans.status, "active"),
-          lte(refillPlans.nextDueDate, today)
-        );
-      } else {
-        conditions = and(
-          eq(refillPlans.status, "active"),
-          eq(refillPlans.needsFreshRx, true)
-        );
-      }
-
-      const rows = await db
-        .select({
-          planId: refillPlans.id,
-          userId: refillPlans.userId,
-          customerName: users.name,
-          customerPhone: users.phone,
-          productId: refillPlans.productId,
-          productName: products.name,
-          nextDueDate: refillPlans.nextDueDate,
-          qty: refillPlans.qty,
-          needsFreshRx: refillPlans.needsFreshRx,
-          prescriptionExpiryDate: refillPlans.prescriptionExpiryDate,
-        })
-        .from(refillPlans)
-        .leftJoin(products, eq(refillPlans.productId, products.id))
-        .leftJoin(users, eq(refillPlans.userId, users.id))
-        .where(conditions)
-        .orderBy(asc(refillPlans.nextDueDate))
-        .limit(100);
-
-      return { rows };
-    }),
-});
-
 // ─── Compose Router ───────────────────────────────────────────────────────────
 
 export const customerMedicineRouter = router({
   family: familyMemberRouter,
   medicineRecord: medicineRecordRouter,
   refillPlan: refillPlanRouter,
-  consent: consentRouter,
-  admin: adminCustomerRouter,
+  ...customerMedicineRouterExtension,
 });
