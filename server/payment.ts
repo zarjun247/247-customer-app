@@ -8,7 +8,7 @@ import { getDb } from "./db";
 import { paymentRecords, slaEvents, orders } from "../drizzle/schema";
 import { eq, and, lte, isNull, gt } from "drizzle-orm";
 import { sendOpsAlert } from "./notifications";
-import { appendCommercialEventBestEffort } from "./services/commercialLifecycle";
+import { appendCommercialEventBestEffort, appendCommercialEventWithDb } from "./services/commercialLifecycle";
 
 // ─── Payment Record Helpers ───────────────────────────────────────────────────
 
@@ -40,27 +40,39 @@ export async function confirmPaymentRecord(params: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  await db
-    .update(paymentRecords)
-    .set({
-      gatewayPaymentId: params.gatewayPaymentId,
-      gatewaySignature: params.gatewaySignature,
-      method: params.method,
-      status: "paid",
-      paidAt: new Date(),
-    })
-    .where(eq(paymentRecords.gatewayOrderId, params.gatewayOrderId));
-  const payment = await getPaymentByGatewayOrderId(params.gatewayOrderId);
-  await appendCommercialEventBestEffort({
-    aggregateType: "payment",
-    aggregateId: payment?.id ?? params.gatewayOrderId,
-    eventType: "payment_verified",
-    actorType: "provider",
-    orderId: payment?.orderId ?? null,
-    paymentId: payment?.id ?? null,
-    eventPayload: { gatewayOrderId: params.gatewayOrderId, gatewayPaymentId: params.gatewayPaymentId, method: params.method, amountPaise: payment?.amount ?? null },
-    idempotencyKey: `payment_verified:${params.gatewayPaymentId}`,
-    correlationId: params.gatewayOrderId,
+  // Ensure update and canonical commercial event write happen in same transactional boundary
+  await db.transaction(async (tx: any) => {
+    await tx
+      .update(paymentRecords)
+      .set({
+        gatewayPaymentId: params.gatewayPaymentId,
+        gatewaySignature: params.gatewaySignature,
+        method: params.method,
+        status: "paid",
+        paidAt: new Date(),
+      })
+      .where(eq(paymentRecords.gatewayOrderId, params.gatewayOrderId));
+
+    // Read the updated payment record using transaction-scoped queries
+    const rows = await tx
+      .select()
+      .from(paymentRecords)
+      .where(eq(paymentRecords.gatewayOrderId, params.gatewayOrderId))
+      .limit(1);
+    const payment = rows[0] ?? null;
+
+    // Persist canonical commercial event within same tx
+    await appendCommercialEventWithDb(tx, {
+      aggregateType: "payment",
+      aggregateId: payment?.id ?? params.gatewayOrderId,
+      eventType: "payment_verified",
+      actorType: "provider",
+      orderId: payment?.orderId ?? null,
+      paymentId: payment?.id ?? null,
+      eventPayload: { gatewayOrderId: params.gatewayOrderId, gatewayPaymentId: params.gatewayPaymentId, method: params.method, amountPaise: payment?.amount ?? null },
+      idempotencyKey: `payment_verified:${params.gatewayPaymentId}`,
+      correlationId: params.gatewayOrderId,
+    });
   });
 }
 
