@@ -1,0 +1,58 @@
+{
+  resource: {
+    attributes: {
+      'service.name': 'unknown_service:C:\\Program Files\\nodejs\\node.exe',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.7.1'
+    }
+  },
+  instrumentationScope: {
+    name: '247-customer-app',
+    version: 'pr4.1-evidence',
+    schemaUrl: undefined
+  },
+  traceId: '02d85e69121dec417313b4c77740822c',
+  parentSpanContext: undefined,
+  traceState: undefined,
+  name: 'GET /api/health',
+  id: '0634ceb8306fbe11',
+  kind: 0,
+  timestamp: 1778480851775000,
+  duration: 231.8,
+  attributes: {
+    'http.method': 'GET',
+    'http.target': '/api/health',
+    'http.status_code': 200
+  },
+  status: { code: 1 },
+  events: [],
+  links: []
+}
+{
+  resource: {
+    attributes: {
+      'service.name': 'unknown_service:C:\\Program Files\\nodejs\\node.exe',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.7.1'
+    }
+  },
+  instrumentationScope: {
+    name: '247-customer-app',
+    version: 'pr4.1-evidence',
+    schemaUrl: undefined
+  },
+  traceId: '6958aec3a81282679ab8aab7a836e535',
+  parentSpanContext: undefined,
+  traceState: undefined,
+  name: 'trpc.health.check',
+  id: 'fa4f77fcf2b7eeff',
+  kind: 0,
+  timestamp: 1778480851776000,
+  duration: 18.4,
+  attributes: { 'trpc.path': 'health.check', 'trpc.type': 'query', 'user.id': 42 },
+  status: { code: 1 },
+  events: [],
+  links: []
+}

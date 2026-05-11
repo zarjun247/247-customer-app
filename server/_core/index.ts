@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { initializeTelemetry } from "./telemetry";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -38,6 +39,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // OTel SDK must start before Express/HTTP prototypes are first accessed.
+  // shimmer patches exported prototype methods (not the require cache), so
+  // calling start() here — before express() and createServer() — is sufficient
+  // for HTTP + Express auto-instrumentation. A separate bootstrap.ts with
+  // dynamic import() would be required if DB-level (mysql2) instrumentation
+  // is added in a later MP1 or MP6 PR; tracked in OPEN_BLOCKERS.md.
+  const sdk = initializeTelemetry();
+
   const app = express();
   const server = createServer(app);
   initObservability(app);
@@ -98,6 +107,13 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+  });
+
+  process.on("SIGTERM", () => {
+    sdk.shutdown().finally(() => process.exit(0));
+  });
+  process.on("SIGINT", () => {
+    sdk.shutdown().finally(() => process.exit(0));
   });
 }
 
