@@ -106,4 +106,11 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 
 ## MP1-rest PR-A follow-ups (logged 2026-05-11)
 
-SLO event emission is wired but no emitter is currently calling sloService.emitSloEvent(). PR-B will wire emission into the dead-letter router and provider health service. MP5/MP6 will wire emission around their critical paths.
+**SLO emission is wired but no emitter is currently calling sloService.emitSloEvent().** Future PRs will wire emission into critical paths:
+  - PR-B (MP1-rest dead-letter router + provider health): emit around dead-letter retry and provider health rollups
+  - MP5 (executeCommand wrapper): emit around sale/purchase/payment/refund command latency
+  - MP6 (stockReplayEngine): emit around replay lag
+
+**METRICS_SCRAPE_TOKEN is optional.** When unset, the /metrics endpoint continues to require staff cookie auth via the existing requireStaff middleware. When set, Prometheus scrapers can use `Authorization: Bearer <token>` as an alternative auth path. Both work simultaneously.
+
+**slo_events table is migration 0050.** Reserved migration numbers continuing: 0051 (MP5 outbox dispatch tracking), 0052/0053 (MP6 reservation ledger + stock movement locks), 0054/0055/0056 (MP7 audit hash chain + PII keys + capability grants), 0057 (MP8 AI eval ledger).
