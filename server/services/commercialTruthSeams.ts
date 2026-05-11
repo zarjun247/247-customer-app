@@ -6,7 +6,7 @@ import { getDb } from "../db";
 import { reserveInvoiceNumber } from "./invoiceNumbering";
 import { createMutationFingerprint, withIdempotency } from "./idempotencyService";
 import { createBatchWithOpeningStock, decreaseStockForSaleConfirmation, increaseStockForPurchaseCommit } from "./stockInvariant";
-import { appendCommercialEventBestEffort } from "./commercialLifecycle";
+import { appendCommercialEventBestEffort, appendCommercialEventWithDb } from "./commercialLifecycle";
 import { syncStoreSkuAggregate } from "./reservationService";
 import { recordSupplierPayable } from "./supplierLedger";
 import { createRefundJournalBatch, postBalancedJournalBatch } from "./accountingLedger";
@@ -160,7 +160,7 @@ export async function settleProviderRefundExactlyOnce(input: { gatewayOrderId: s
       },
       narration: `Provider refund reversal ${input.providerRefundId}`,
     });
-    await appendCommercialEventBestEffort({ aggregateType: "refund", aggregateId: refundId, eventType: "refund_completed", actorType: "provider", orderId: payment.orderId, paymentId: payment.id, refundId, eventPayload: { amountPaise: input.amountPaise, providerRefundId: input.providerRefundId, accountingJournalBatchId: journal.id }, idempotencyKey: input.idempotencyKey, correlationId: input.gatewayOrderId });
+    await appendCommercialEventWithDb(tx, { aggregateType: "refund", aggregateId: refundId, eventType: "refund_completed", actorType: "provider", orderId: payment.orderId, paymentId: payment.id, refundId, eventPayload: { amountPaise: input.amountPaise, providerRefundId: input.providerRefundId, accountingJournalBatchId: journal.id }, idempotencyKey: input.idempotencyKey, correlationId: input.gatewayOrderId });
     return { success: true, refundId, refunded: true, accountingJournalBatchId: journal.id, status: "processed" as const };
   }));
 }
