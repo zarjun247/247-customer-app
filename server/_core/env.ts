@@ -83,6 +83,11 @@ export const ENV = {
   outboxPollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? "5000"),
   outboxBatchSize: Number(process.env.OUTBOX_BATCH_SIZE ?? "20"),
   outboxMaxAttempts: Number(process.env.OUTBOX_MAX_ATTEMPTS ?? "5"),
+  // MP6: reservation ledger optional vars. Never add to assertProductionEnvSafe().
+  reservationTtlSeconds: Number(process.env.RESERVATION_TTL_SECONDS ?? "900"),
+  reservationExpirySweepIntervalMs: Number(process.env.RESERVATION_EXPIRY_SWEEP_INTERVAL_MS ?? "30000"),
+  reservationExpiryBatchSize: Number(process.env.RESERVATION_EXPIRY_BATCH_SIZE ?? "100"),
+  stockLockTimeoutMs: Number(process.env.STOCK_LOCK_TIMEOUT_MS ?? "5000"),
 };
 
 assertProductionEnvSafe();

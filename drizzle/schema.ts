@@ -3038,3 +3038,58 @@ export const commandOutbox = mysqlTable("command_outbox", {
 
 export type CommandOutboxRecord = typeof commandOutbox.$inferSelect;
 export type NewCommandOutboxRecord = typeof commandOutbox.$inferInsert;
+
+// ─── Reservations (MP6: reservation ledger) ───────────────────────────────────
+export const reservations = mysqlTable("reservations", {
+  id: varchar("id", { length: 36 }).notNull().primaryKey(),
+  storeId: int("store_id").notNull(),
+  customerId: int("customer_id"),
+  cartId: int("cart_id"),
+  saleId: varchar("sale_id", { length: 36 }),
+  state: varchar("state", { length: 32 }).notNull(),
+  ttlSeconds: int("ttl_seconds").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  confirmedAt: timestamp("confirmed_at"),
+  releasedAt: timestamp("released_at"),
+  expiredAt: timestamp("expired_at"),
+  commandLogId: varchar("command_log_id", { length: 36 }),
+  idempotencyKey: varchar("idempotency_key", { length: 128 }),
+}, (t) => ({
+  idxReservationsStateExpires: index("idx_reservations_state_expires").on(t.state, t.expiresAt),
+  idxReservationsStoreState: index("idx_reservations_store_state").on(t.storeId, t.state),
+  idxReservationsCustomerState: index("idx_reservations_customer_state").on(t.customerId, t.state),
+  idxReservationsCart: index("idx_reservations_cart").on(t.cartId),
+  idxReservationsSale: index("idx_reservations_sale").on(t.saleId),
+  idxReservationsIdempotency: index("idx_reservations_idempotency").on(t.idempotencyKey),
+}));
+
+export const reservationLines = mysqlTable("reservation_lines", {
+  id: varchar("id", { length: 36 }).notNull().primaryKey(),
+  reservationId: varchar("reservation_id", { length: 36 }).notNull(),
+  productId: int("product_id").notNull(),
+  batchId: int("batch_id").notNull(),
+  variantId: int("variant_id"),
+  quantity: int("quantity").notNull(),
+  expiryDate: date("expiry_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  idxReservationLinesProductBatch: index("idx_reservation_lines_product_batch").on(t.productId, t.batchId),
+  idxReservationLinesReservation: index("idx_reservation_lines_reservation").on(t.reservationId),
+  idxReservationLinesBatch: index("idx_reservation_lines_batch").on(t.batchId),
+}));
+
+export const stockLockKeys = mysqlTable("stock_lock_keys", {
+  lockKey: varchar("lock_key", { length: 128 }).notNull().primaryKey(),
+  acquiredBy: varchar("acquired_by", { length: 36 }).notNull(),
+  acquiredAt: timestamp("acquired_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (t) => ({
+  idxStockLockKeysExpires: index("idx_stock_lock_keys_expires").on(t.expiresAt),
+}));
+
+export type ReservationRecord = typeof reservations.$inferSelect;
+export type NewReservationRecord = typeof reservations.$inferInsert;
+export type ReservationLineRecord = typeof reservationLines.$inferSelect;
+export type NewReservationLineRecord = typeof reservationLines.$inferInsert;
+export type StockLockKeyRecord = typeof stockLockKeys.$inferSelect;
