@@ -2986,3 +2986,55 @@ export const sloEvents = mysqlTable("slo_events", {
 
 export type SloEventRecord = typeof sloEvents.$inferSelect;
 export type NewSloEventRecord = typeof sloEvents.$inferInsert;
+
+// ─── Command Log (MP5: executeCommand audit trail) ────────────────────────────
+export const commandLog = mysqlTable("command_log", {
+  id: varchar("id", { length: 36 }).notNull().primaryKey(),
+  idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
+  commandName: varchar("command_name", { length: 128 }).notNull(),
+  commandVersion: int("command_version").notNull().default(1),
+  actorUserId: varchar("actor_user_id", { length: 36 }),
+  actorRole: varchar("actor_role", { length: 64 }),
+  storeId: varchar("store_id", { length: 36 }),
+  inputHash: varchar("input_hash", { length: 64 }).notNull(),
+  inputPayload: json("input_payload").notNull(),
+  outputPayload: json("output_payload"),
+  state: varchar("state", { length: 32 }).notNull(),
+  errorClass: varchar("error_class", { length: 128 }),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  durationMs: int("duration_ms"),
+  traceId: varchar("trace_id", { length: 64 }),
+}, (t) => ({
+  uqCommandLogIdempotency: uniqueIndex("uq_command_log_idempotency").on(t.idempotencyKey, t.commandName),
+  idxCommandLogStateStarted: index("idx_command_log_state_started").on(t.state, t.startedAt),
+  idxCommandLogActorStarted: index("idx_command_log_actor_started").on(t.actorUserId, t.startedAt),
+  idxCommandLogStoreStarted: index("idx_command_log_store_started").on(t.storeId, t.startedAt),
+  idxCommandLogCommandStarted: index("idx_command_log_command_started").on(t.commandName, t.startedAt),
+}));
+
+export type CommandLogRecord = typeof commandLog.$inferSelect;
+export type NewCommandLogRecord = typeof commandLog.$inferInsert;
+
+// ─── Command Outbox (MP5: transactional outbox for side effects) ──────────────
+export const commandOutbox = mysqlTable("command_outbox", {
+  id: varchar("id", { length: 36 }).notNull().primaryKey(),
+  commandLogId: varchar("command_log_id", { length: 36 }).notNull(),
+  sideEffectKind: varchar("side_effect_kind", { length: 64 }).notNull(),
+  sideEffectPayload: json("side_effect_payload").notNull(),
+  state: varchar("state", { length: 32 }).notNull().default("pending"),
+  attempts: int("attempts").notNull().default(0),
+  maxAttempts: int("max_attempts").notNull().default(5),
+  nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+  lastErrorMessage: text("last_error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  dispatchedAt: timestamp("dispatched_at"),
+  failedAt: timestamp("failed_at"),
+}, (t) => ({
+  idxCommandOutboxStateNext: index("idx_command_outbox_state_next").on(t.state, t.nextAttemptAt),
+  idxCommandOutboxKindState: index("idx_command_outbox_kind_state").on(t.sideEffectKind, t.state),
+}));
+
+export type CommandOutboxRecord = typeof commandOutbox.$inferSelect;
+export type NewCommandOutboxRecord = typeof commandOutbox.$inferInsert;

@@ -15,6 +15,7 @@ import { recordSupplierPayable, recordSupplierPayment, getSupplierOutstanding, a
 import { createLabelPrintJob, generateInternalBarcode, getBarcodeLabelPayload, registerBarcodeAlias } from "../services/barcodeService";
 import { buildIdempotencyKey, createMutationFingerprint, getRequestIdFromContext, withIdempotency } from "../services/idempotencyService";
 import { assertRuntimeGate, productToMasterLike, validatePurchaseLineMaster } from "../services/productMasterValidation";
+import { executeCommand } from "../services/executeCommand";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -258,23 +259,41 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user!.role);
-      // syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null }) is reconciled after canonical seam stock movements.
-      const result = await commitPurchaseInvoiceExactlyOnce({
-        invoiceId: input.id,
-        idempotencyKey: buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]),
-        actorId: ctx.user!.id,
-        actorRole: ctx.user!.role,
+      return executeCommand({
+        name: "purchase.commitInvoice",
+        version: 1,
+        idempotencyKey: `purchase:commit:${input.id}`,
+        input,
+        context: {
+          actorUserId: String(ctx.user!.id),
+          actorRole: ctx.user!.role,
+          storeId: null,
+          traceId: null,
+        },
+        handler: async (_inp, _tx, _commandCtx) => {
+          // syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null }) is reconciled after canonical seam stock movements.
+          const result = await commitPurchaseInvoiceExactlyOnce({
+            invoiceId: input.id,
+            idempotencyKey: buildIdempotencyKey(["purchase", "commit", input.id, getRequestIdFromContext(ctx) ?? "no-request-id"]),
+            actorId: ctx.user!.id,
+            actorRole: ctx.user!.role,
+          });
+          const db = await getDbSafe();
+          const { purchaseInvoices } = await import("../../drizzle/schema");
+          const [invoice] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id)).limit(1);
+          return {
+            output: {
+              success: result.success,
+              gstSummary: invoice?.gstSummary ?? (result as any).gstSummary ?? null,
+              idempotent: (result as any).idempotent,
+              duplicate: (result as any).duplicate,
+              status: (result as any).status,
+            },
+            sideEffects: [{ kind: "inventory.snapshot-refresh", payload: { invoiceId: input.id } }],
+          };
+        },
+        sloName: "trpc.purchase.commit.p99",
       });
-      const db = await getDbSafe();
-      const { purchaseInvoices } = await import("../../drizzle/schema");
-      const [invoice] = await db.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.id)).limit(1);
-      return {
-        success: result.success,
-        gstSummary: invoice?.gstSummary ?? (result as any).gstSummary ?? null,
-        idempotent: (result as any).idempotent,
-        duplicate: (result as any).duplicate,
-        status: (result as any).status,
-      };
     }),
 
   stockMovements: protectedProcedure

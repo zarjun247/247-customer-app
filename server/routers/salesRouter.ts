@@ -20,6 +20,7 @@ import { reserveInvoiceNumber, generateReturnNoteNumber, buildDraftBillNumber } 
 import { createSaleInvoiceSnapshot, getInvoiceSnapshotPackageForSale } from "../services/invoiceSnapshotService";
 import { assertRuntimeGate, normalizeScheduleCode, productToMasterLike, validateProductForRegulatedSale } from "../services/productMasterValidation";
 import { appendCommercialEventBestEffort } from "../services/commercialLifecycle";
+import { executeCommand } from "../services/executeCommand";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -350,47 +351,65 @@ export const salesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
-      const db = await getDbSafe();
-      const { sales, saleLines, products } = await import("../../drizzle/schema");
-      const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
-      if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
-      if (sale.status !== "confirmed") {
-        const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, input.saleId));
-        if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines on sale" });
-        for (const line of lines) {
-          const [product] = await db.select().from(products).where(eq(products.id, parseInt(line.productId) || 0)).limit(1);
-          if (!product) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Persisted product metadata is required for product ${line.productId}` });
-          assertRuntimeGate(validateProductForRegulatedSale(productToMasterLike(product), undefined, { saleType: sale.saleType }), `Product master is incomplete for product ${line.productId}`);
-          const availability = await getCanonicalAvailability(Number(sale.storeId), Number(line.productId), null);
-          if (availability.availableQty < line.qty) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Insufficient canonical availability for product ${line.productId}` });
-        }
-        await assertCanConfirmSale(input.saleId, ctx);
-        if (input.discountCode) {
-          const applied = await applyDiscountCode(input.saleId, input.discountCode, ctx);
-          await assertDiscountWithinCaps(applied.discountAmount, Number(sale.subtotal ?? 0));
-        }
-        await assertNoLossWithoutApproval(input.saleId, ctx.user?.role, ctx);
-      }
-      // reserveInvoiceNumber(db, sale.storeId, "sale_invoice") is performed by the canonical sale seam.
-      const result = await commercialTruthSeams.confirmSaleExactlyOnce({
-        saleId: input.saleId,
-        idempotencyKey: buildIdempotencyKey(["sale", "confirm", input.saleId, getRequestIdFromContext(ctx) ?? "no-request-id"]),
-        actorId: ctx.user!.id,
-        actorRole: ctx.user!.role,
-        paymentMode: input.paymentMode,
-        paymentRef: input.paymentRef ?? null,
+      return executeCommand({
+        name: "sale.confirm",
+        version: 1,
+        idempotencyKey: `sale:confirm:${input.saleId}`,
+        input,
+        context: {
+          actorUserId: ctx.user ? String(ctx.user.id) : null,
+          actorRole: ctx.user?.role ?? null,
+          storeId: null,
+          traceId: null,
+        },
+        handler: async (_inp, _tx, _commandCtx) => {
+          const db = await getDbSafe();
+          const { sales, saleLines, products } = await import("../../drizzle/schema");
+          const [sale] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
+          if (!sale) throw new TRPCError({ code: "NOT_FOUND" });
+          if (sale.status !== "confirmed") {
+            const lines = await db.select().from(saleLines).where(eq(saleLines.saleId, input.saleId));
+            if (lines.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines on sale" });
+            for (const line of lines) {
+              const [product] = await db.select().from(products).where(eq(products.id, parseInt(line.productId) || 0)).limit(1);
+              if (!product) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Persisted product metadata is required for product ${line.productId}` });
+              assertRuntimeGate(validateProductForRegulatedSale(productToMasterLike(product), undefined, { saleType: sale.saleType }), `Product master is incomplete for product ${line.productId}`);
+              const availability = await getCanonicalAvailability(Number(sale.storeId), Number(line.productId), null);
+              if (availability.availableQty < line.qty) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Insufficient canonical availability for product ${line.productId}` });
+            }
+            await assertCanConfirmSale(input.saleId, ctx);
+            if (input.discountCode) {
+              const applied = await applyDiscountCode(input.saleId, input.discountCode, ctx);
+              await assertDiscountWithinCaps(applied.discountAmount, Number(sale.subtotal ?? 0));
+            }
+            await assertNoLossWithoutApproval(input.saleId, ctx.user?.role, ctx);
+          }
+          // reserveInvoiceNumber(db, sale.storeId, "sale_invoice") is performed by the canonical sale seam.
+          const result = await commercialTruthSeams.confirmSaleExactlyOnce({
+            saleId: input.saleId,
+            idempotencyKey: buildIdempotencyKey(["sale", "confirm", input.saleId, getRequestIdFromContext(ctx) ?? "no-request-id"]),
+            actorId: ctx.user!.id,
+            actorRole: ctx.user!.role,
+            paymentMode: input.paymentMode,
+            paymentRef: input.paymentRef ?? null,
+          });
+          const [current] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
+          if (result.confirmed) {
+            await createSaleInvoiceSnapshot(db, input.saleId, { generatedBy: ctx.user?.id });
+            if (input.discountCode) {
+              const applied = await applyDiscountCode(input.saleId, input.discountCode, ctx);
+              await recordDiscountCodeUsage(applied.codeId, input.saleId, ctx);
+            }
+            await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
+            await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
+          }
+          return {
+            output: { ok: true, billNo: current?.billNo ?? result.billNo, total: current?.total ?? sale.total, idempotent: (result as any).idempotent, duplicate: (result as any).duplicate, status: (result as any).status },
+            sideEffects: [{ kind: "whatsapp.sale-confirmation", payload: { saleId: input.saleId, actorId: ctx.user?.id } }],
+          };
+        },
+        sloName: "trpc.sale.confirm.p99",
       });
-      const [current] = await db.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
-      if (result.confirmed) {
-        await createSaleInvoiceSnapshot(db, input.saleId, { generatedBy: ctx.user?.id });
-        if (input.discountCode) {
-          const applied = await applyDiscountCode(input.saleId, input.discountCode, ctx);
-          await recordDiscountCodeUsage(applied.codeId, input.saleId, ctx);
-        }
-        await createOrVerifyH1RegisterEntry(input.saleId, Number(ctx.user?.id ?? 0), ctx);
-        await logAudit({ action: "sale.confirmed", entityType: "sale", entityId: null, entityRef: input.saleId, beforeJson: { status: "draft" }, afterJson: { status: "confirmed", paymentMode: input.paymentMode } }, ctx);
-      }
-      return { ok: true, billNo: current?.billNo ?? result.billNo, total: current?.total ?? sale.total, idempotent: (result as any).idempotent, duplicate: (result as any).duplicate, status: (result as any).status };
     }),
 
   // ─── Immutable invoice snapshot package ─────────────────────────────────────
