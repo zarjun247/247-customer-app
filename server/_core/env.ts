@@ -71,6 +71,9 @@ export const ENV = {
   otelTracesSamplerArg: parseFloat(process.env.OTEL_TRACES_SAMPLER_ARG ?? "1"),
   // MP1-rest: METRICS_SCRAPE_TOKEN is optional. When set, /metrics accepts Bearer auth in addition to staff cookie auth.
   metricsScrapeToken: process.env.METRICS_SCRAPE_TOKEN ?? "",
+  // MP1-rest PR-B: on-call optional vars. Never add to assertProductionEnvSafe().
+  onCallPagerDutyIntegrationKey: process.env.ONCALL_PAGERDUTY_INTEGRATION_KEY ?? "",
+  onCallAlertEmail: process.env.ONCALL_ALERT_EMAIL ?? "",
 };
 
 assertProductionEnvSafe();

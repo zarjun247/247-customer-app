@@ -47,6 +47,9 @@ import { customerMedicineRouter } from "./routers/customerMedicineRouter";
 import { assertWhatsappWebhookGuard, isRegulatedMedicineIntent, normalizeWhatsAppPhone, whatsappFullRouter } from "./routers/whatsappRouter";
 import { deliveryRouter } from "./routers/deliveryRouter";
 import { commandCenterRouter } from "./routers/commandCenterRouter";
+import { deadLetterRouter } from "./routers/deadLetterRouter";
+import { providerHealthRouter } from "./routers/providerHealthRouter";
+import { onCallRouter } from "./routers/onCallRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
@@ -950,6 +953,9 @@ export const appRouter = router({
   commandCenter: commandCenterRouter,
   deploymentReadiness: deploymentReadinessRouter,
   multiStoreRuntime: multiStoreRuntimeRouter,
+  deadLetters: deadLetterRouter,
+  providerHealth: providerHealthRouter,
+  onCall: onCallRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -114,3 +114,15 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **METRICS_SCRAPE_TOKEN is optional.** When unset, the /metrics endpoint continues to require staff cookie auth via the existing requireStaff middleware. When set, Prometheus scrapers can use `Authorization: Bearer <token>` as an alternative auth path. Both work simultaneously.
 
 **slo_events table is migration 0050.** Reserved migration numbers continuing: 0051 (MP5 outbox dispatch tracking), 0052/0053 (MP6 reservation ledger + stock movement locks), 0054/0055/0056 (MP7 audit hash chain + PII keys + capability grants), 0057 (MP8 AI eval ledger).
+
+## MP1-rest PR-B follow-ups (logged 2026-05-11)
+
+**On-call rota is JSON-backed (interim).** `server/services/onCallRota.ts` reads/writes `server/data/oncall-rota.json`. This is intentional for MVP — no migration, no DB dependency. Future migration to a `on_call_shifts` DB table is required before multi-store or multi-node deployment where concurrent writes from different nodes could produce data loss. Tracked as P2 scale blocker.
+
+**PagerDuty integration is best-effort only.** `escalate()` in `onCallRota.ts` fires-and-forgets a PagerDuty Events v2 POST with a 5 s timeout. If `ONCALL_PAGERDUTY_INTEGRATION_KEY` is unset, it logs to pino and returns without throwing. No retry, no DLQ, no acknowledgement. Before launch, either: (a) verify the PD key is present in staging and wire a smoke test, or (b) document the manual escalation path as the sole mechanism.
+
+**Dead-letter retry is mark-only (no worker replay).** `deadLetterRouter.retry` marks `reviewStatus = "replayed"` and writes an audit log, but does not re-enqueue the original event payload. Actual replay requires a worker that reads the `rawPayload` and re-submits to the provider. This is required before the dead-letter remediation surface can be called operationally complete. Wire into the MP5 outbox/dispatch layer.
+
+**Provider health drilldown queries last 50 events/dead-letters.** The `getProviderHealthDrilldown` function returns the 50 most recent rows for each category. If a provider accumulates high event volume, older failures will not appear in the drilldown UI. Adjust the limit or add cursor pagination when provider throughput exceeds ~500 events/day.
+
+**`ONCALL_ALERT_EMAIL` is captured in ENV but not yet used.** The field is reserved for a future email fallback when PagerDuty is not configured. Wire it to an SMTP/SES call before relying on email escalation in any SOP.
