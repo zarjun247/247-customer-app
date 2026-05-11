@@ -2966,3 +2966,23 @@ export const workerJobs = mysqlTable("worker_jobs", {
 
 export type WorkerJobRecord = typeof workerJobs.$inferSelect;
 export type NewWorkerJobRecord = typeof workerJobs.$inferInsert;
+
+// ─── SLO Events ───────────────────────────────────────────────────────────────
+export const sloEvents = mysqlTable("slo_events", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  sloName: varchar("sloName", { length: 80 }).notNull(),
+  target: decimal("target", { precision: 8, scale: 4 }).notNull(),
+  measuredValue: decimal("measuredValue", { precision: 10, scale: 4 }).notNull(),
+  withinBudget: boolean("withinBudget").notNull(),
+  sampleCount: int("sampleCount").notNull().default(1),
+  windowSeconds: int("windowSeconds").notNull().default(60),
+  context: json("context"),
+  measuredAt: timestamp("measuredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxSloEventsNameMeasured: index("idx_slo_events_name_measured").on(t.sloName, t.measuredAt),
+  idxSloEventsWithinBudget: index("idx_slo_events_within_budget").on(t.withinBudget, t.measuredAt),
+}));
+
+export type SloEventRecord = typeof sloEvents.$inferSelect;
+export type NewSloEventRecord = typeof sloEvents.$inferInsert;

@@ -69,6 +69,8 @@ export const ENV = {
   otelServiceName: process.env.OTEL_SERVICE_NAME ?? "247-customer-app",
   otelTracesSampler: process.env.OTEL_TRACES_SAMPLER ?? "parentbased_traceidratio",
   otelTracesSamplerArg: parseFloat(process.env.OTEL_TRACES_SAMPLER_ARG ?? "1"),
+  // MP1-rest: METRICS_SCRAPE_TOKEN is optional. When set, /metrics accepts Bearer auth in addition to staff cookie auth.
+  metricsScrapeToken: process.env.METRICS_SCRAPE_TOKEN ?? "",
 };
 
 assertProductionEnvSafe();

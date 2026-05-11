@@ -3,6 +3,7 @@ import { collectDefaultMetrics, Counter, Gauge, Histogram, Registry } from "prom
 import type { Express, NextFunction, Request, Response } from "express";
 import { trace } from "@opentelemetry/api";
 import { requireStaff } from "../routers/healthRouter";
+import { metricsTokenAuth } from "../middleware/metricsAuth";
 import { createRequestId, redactString, safeError, safeMetadata } from "../services/observability";
 import { getProviderVisibilitySummary } from "../services/operationalVisibility";
 
@@ -80,7 +81,7 @@ export function initObservability(app: Express) {
     next();
   });
 
-  app.get("/metrics", requireStaff, async (_req, res) => {
+  app.get("/metrics", metricsTokenAuth(), requireStaff, async (_req, res) => {
     try {
       await refreshOperationalMetrics();
       res.setHeader("Content-Type", register.contentType);
