@@ -1,5 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { execSync } from 'child_process';
 
 const routersWithNoLocalAuditHelpers = [
   'server/routers/inventoryRouter.ts',
@@ -9,46 +10,31 @@ const routersWithNoLocalAuditHelpers = [
   'server/routers/masterDataPart3Router.ts',
 ];
 
+function read(p){ if (!fs.existsSync(p)) throw new Error(`Watched file missing: ${p}`); return fs.readFileSync(p,'utf8'); }
+
 describe('audit unification static guard', () => {
   it('blocks direct db.insert(auditLogs) outside central audit service/db adapters', () => {
-    let out = '';
-    try {
-      out = execSync(
-        "rg -n \"db\\.insert\\(auditLogs\" server --glob '!server/services/audit.ts' --glob '!server/db.ts' --glob '!server/audit-unification.guard.test.ts'",
-        { encoding: 'utf8' },
-      ).trim();
-    } catch (e: any) {
-      out = e?.stdout?.toString?.().trim?.() ?? '';
-    }
-    expect(out).toBe('');
+    const baseDir = 'server';
+    const files = fs.readdirSync(baseDir, { withFileTypes: true }).flatMap(d => {
+      const p = `${baseDir}/${d.name}`;
+      if (d.isFile() && p.endsWith('.ts')) return [p];
+      if (d.isDirectory()) return fs.readdirSync(p).filter(f=>f.endsWith('.ts')).map(f=>`${p}/${f}`);
+      return [];
+    });
+    const found = files.some(f => !['server/services/audit.ts','server/db.ts','server/audit-unification.guard.test.ts'].includes(f) && /db\.insert\(auditLogs/.test(read(f)));
+    expect(found).toBe(false);
   });
 
   it('blocks router-local audit helper wrappers for completed routers only', () => {
-    const helperPattern =
-      'async function writeAudit|async function writeAuditLog|async function recordAuditEvent|async function createAuditLog|async function logAudit';
-
-    let out = '';
-    try {
-      out = execSync(`rg -n "${helperPattern}" ${routersWithNoLocalAuditHelpers.join(' ')}`, {
-        encoding: 'utf8',
-      }).trim();
-    } catch (e: any) {
-      out = e?.stdout?.toString?.().trim?.() ?? '';
-    }
-
-    expect(out).toBe('');
+    const helperPattern = /async function writeAudit|async function writeAuditLog|async function recordAuditEvent|async function createAuditLog|async function logAudit/;
+    const found = routersWithNoLocalAuditHelpers.some(f=> helperPattern.test(read(f)));
+    expect(found).toBe(false);
   });
 
   it('blocks entityId: 0 in production router audit contexts', () => {
-    let out = '';
-    try {
-      out = execSync(
-        "rg -n \"entityId:\\s*0\" server/routers --glob '!**/*.test.ts'",
-        { encoding: 'utf8' },
-      ).trim();
-    } catch (e: any) {
-      out = e?.stdout?.toString?.().trim?.() ?? '';
-    }
-    expect(out).toBe('');
+    const routerDir = 'server/routers';
+    const files = fs.readdirSync(routerDir).filter(f=>f.endsWith('.ts')).map(f=>`${routerDir}/${f}`);
+    const found = files.some(f=> /entityId:\s*0/.test(read(f)));
+    expect(found).toBe(false);
   });
 });

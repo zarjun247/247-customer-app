@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import fs from 'node:fs';
 import { describe, expect, it } from "vitest";
 import { TRPCError } from "@trpc/server";
 import {
@@ -70,7 +70,13 @@ describe("OCR invoice exception workflow", () => {
   });
 
   it("OCR flow does not directly call stock mutation/invariant except through approved purchase handoff", () => {
-    const out = execSync("rg -n \"increaseStockForPurchaseCommit|applyStockMovement|insert\\(stockMovements\\)|update\\(batchLedger\\)|syncStoreSkuAggregate\" server/routers/ocrIngestionRouter.ts server/services/ocrPurchaseInwarding.ts || true", { encoding: "utf8" }).trim();
+    const files = ['server/routers/ocrIngestionRouter.ts','server/services/ocrPurchaseInwarding.ts'];
+    const pattern = /increaseStockForPurchaseCommit|applyStockMovement|insert\(stockMovements\)|update\(batchLedger\)|syncStoreSkuAggregate/;
+    const found = files.some(f => {
+      if (!fs.existsSync(f)) throw new Error(`Watched file missing: ${f}`);
+      return fs.readFileSync(f,'utf8').match(pattern);
+    });
+    const out = found ? 'matches' : '';
     expect(out).toBe("");
   });
 
