@@ -97,6 +97,11 @@ export const ENV = {
   cspReportUri: process.env.CSP_REPORT_URI ?? "",
   auditChainVerifyOnStartup: (process.env.AUDIT_CHAIN_VERIFY_ON_STARTUP ?? "").toLowerCase() === "true",
   apiRateLimitBackend: process.env.API_RATE_LIMIT_BACKEND ?? "memory",
+  // MP8: intelligence + eval ledger optional vars. Never add to assertProductionEnvSafe().
+  refillRiskLookbackDays: Number(process.env.REFILL_RISK_LOOKBACK_DAYS ?? "180"),
+  stockoutLookaheadDays: Number(process.env.STOCKOUT_LOOKAHEAD_DAYS ?? "30"),
+  continuityGraphMaxNodes: Number(process.env.CONTINUITY_GRAPH_MAX_NODES ?? "500"),
+  aiEvalLedgerEnabled: ((process.env.AI_EVAL_LEDGER_ENABLED ?? "true").toLowerCase()) === "true",
 };
 
 assertProductionEnvSafe();

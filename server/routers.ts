@@ -59,6 +59,8 @@ import { outboxRouter } from "./routers/outboxRouter";
 import { reservationRouter } from "./routers/reservationRouter";
 import { availabilityRouter } from "./routers/availabilityRouter";
 import { securityRouter } from "./routers/securityRouter";
+import { intelligenceRouter } from "./routers/intelligenceRouter";
+import { aiEvalRouter } from "./routers/aiEvalRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import { createNotification, getCustomerNotifications, getNotificationPreferences, updateNotificationPreferences } from "./services/notificationService";
@@ -976,6 +978,8 @@ export const appRouter = router({
   reservation: reservationRouter,
   availability: availabilityRouter,
   security: securityRouter,
+  intelligence: intelligenceRouter,
+  aiEval: aiEvalRouter,
 });
 
 export type AppRouter = typeof appRouter;

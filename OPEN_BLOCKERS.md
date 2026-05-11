@@ -188,3 +188,20 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **`helpdeskRouter.resolve` uses `audit.view` capability.** Ticket resolution is not an audit action. A dedicated `helpdesk.resolve` capability is preferable. Tracked as P3 polish follow-up.
 
 **Audit chain `appendChainedAudit` is best-effort.** Failures are swallowed and return `{sequenceNumber: -1, rowHash: ""}`. Downstream callers (grantCapability, revokeCapability, piiRotateKey) cannot distinguish a successful audit-chain append from a silent failure. Add a monitoring alert on `auditHashChain: append failed after retries` log lines to detect chain gaps in production.
+## MP8 follow-ups (logged 2026-05-11)
+
+**Intelligence outputs are advisory-only — no auto-dispatch wired.** `intelligenceRouter` procedures return heuristic scores and forecasts. No workflow currently auto-creates purchase orders, sends refill reminders, or modifies stock from these outputs. Connecting intelligence outputs to actionable workflows (e.g., triggering a purchase order suggestion in the PO workflow) must go through explicit human approval steps, consistent with the AGENTS.MD boundary.
+
+**Continuity graph and refill risk use sales history only.** The `buildCustomerContinuityGraph`, `buildProductContinuityGraph`, and `getCustomerRefillRisks` functions query `sales`/`sale_lines` with `status='confirmed'`. App-channel orders (`orders` table) and WhatsApp orders are excluded unless they generate a confirmed sale. Wire in `orders` → `saleLines` contribution in a follow-up if chronic-medication order data is needed for refill cadence.
+
+**Stockout forecast requires `numericStoreId` for live stock data.** `getStockoutForecast` accepts a `numericStoreId` option to query `storeSkus`. If omitted, `currentSellable` defaults to 0 for all products and all demand-positive SKUs appear critical. The `intelligenceRouter.stockoutForecast` procedure exposes `numericStoreId` as an optional input. UI callers should resolve the numeric store ID from the store master and pass it for accurate forecasts.
+
+**`saleLines.productId` (varchar) and `storeSkus.productId` (int) are different type systems.** The stockout service matches them via `String(storeSkus.productId) === saleLines.productId`. This works only if `saleLines.productId` stores the string representation of the int `products.id`. Verify this invariant holds in production data; if not, add a lookup join through `products` in a follow-up migration.
+
+**AI eval ledger genesis row is seeded by migration 0057.** Migration 0057 (`drizzle/0057_ai_eval_ledger.sql`) seeds the genesis row at sequence 0 using MySQL `SHA2()`. The `verifyChain()` function skips hash recomputation for sequence 0. All subsequent rows are fully verified. Run `pnpm verify:ai-eval-chain` to check integrity after large backfill operations.
+
+**`appendSuggestion` is best-effort.** Failures return `{sequenceNumber: -1, rowHash: "", ledgerId: -1}` and never throw. Monitor `aiEvalLedger: append failed after retries` log lines. Persistent failures indicate a sequence uniqueness collision under high concurrency — investigate DB write contention.
+
+**Acceptance rate in `getStats()` uses a 30-day outcome window.** Older outcomes (> 30 days) are excluded from the acceptance rate calculation. This window is appropriate for trending but may misrepresent rates for low-volume suggestion kinds. Consider exposing the window as a parameter in a follow-up.
+
+**Migration number 0057 is reserved for `ai_eval_ledger`.** Do not use migration 0057 for any other purpose. Next available migration number for follow-up work is 0058.
