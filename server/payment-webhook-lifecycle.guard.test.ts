@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 import crypto from "crypto";
 import fs from "fs";
+
+const normalizeCode = (s: string): string =>
+  s
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .replace(/\( /g, "(")
+    .replace(/\[ /g, "[")
+    .replace(/ \)/g, ")")
+    .replace(/, \]/g, "]")
+    .replace(/ \]/g, "]");
 import {
   verifyGatewayPaymentSignature,
   verifyGatewayWebhookSignature,
@@ -12,9 +23,8 @@ import {
   verificationStatusIsCommerciallySafe,
 } from "./services/paymentWebhookLifecycle";
 
-const service = fs.readFileSync(
-  "server/services/paymentWebhookLifecycle.ts",
-  "utf8"
+const service = normalizeCode(
+  fs.readFileSync("server/services/paymentWebhookLifecycle.ts", "utf8")
 );
 const route = fs.readFileSync("server/paymentWebhookRoutes.ts", "utf8");
 const schema = fs

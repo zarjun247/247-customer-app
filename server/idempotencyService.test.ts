@@ -2,6 +2,17 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import { createMutationFingerprint } from "./services/idempotencyService";
 
+const normalizeCode = (s: string): string =>
+  s
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .replace(/\( /g, "(")
+    .replace(/\[ /g, "[")
+    .replace(/ \)/g, ")")
+    .replace(/, \]/g, "]")
+    .replace(/ \]/g, "]");
+
 describe("idempotency service", () => {
   it("exports required helpers and uses duplicate-key safe insert path", () => {
     const src = fs.readFileSync(
@@ -22,11 +33,13 @@ describe("idempotency service", () => {
   });
 
   it("requires schema uniqueness on scope and key", () => {
-    const schema = fs
-      .readdirSync("drizzle/schema")
-      .filter(f => f.endsWith(".ts") && f !== "index.ts")
-      .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
-      .join("\n");
+    const schema = normalizeCode(
+      fs
+        .readdirSync("drizzle/schema")
+        .filter(f => f.endsWith(".ts") && f !== "index.ts")
+        .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
+        .join("\n")
+    );
     const migration = fs.readFileSync(
       "drizzle/0026_idempotency_reservations.sql",
       "utf8"

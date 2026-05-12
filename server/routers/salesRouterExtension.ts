@@ -12,6 +12,7 @@ import { randomUUID } from "crypto";
 import { logAudit } from "../services/audit";
 import { reverseStockForSaleReturn } from "../services/stockInvariant";
 import { generateReturnNoteNumber } from "../services/invoiceNumbering";
+import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -139,8 +140,11 @@ export const salesRouterExtension = {
     .input(z.object({ saleId: z.string(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "sale",
+        input.saleId as unknown as number,
+        ctx
+      );
       const db = await getDbSafe();
       const { sales } = await import("../../drizzle/schema");
       const [sale] = await db
@@ -183,8 +187,11 @@ export const salesRouterExtension = {
     )
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "sale",
+        input.saleId as unknown as number,
+        ctx
+      );
       const db = await getDbSafe();
       const { sales, counterPayments } = await import("../../drizzle/schema");
       const { recordCancellationTruth } = await import(
@@ -304,8 +311,11 @@ export const salesRouterExtension = {
     )
     .mutation(async ({ ctx, input }) => {
       requireSales(ctx.user?.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "sale",
+        input.saleId as unknown as number,
+        ctx
+      );
       const db = await getDbSafe();
       const {
         sales,

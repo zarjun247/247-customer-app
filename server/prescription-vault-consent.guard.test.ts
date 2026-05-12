@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+
+const normalizeCode = (s: string): string =>
+  s
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .replace(/\( /g, "(")
+    .replace(/\[ /g, "[")
+    .replace(/ \)/g, ")")
+    .replace(/, \]/g, "]")
+    .replace(/ \]/g, "]");
 import {
   assertPrescriptionUsableForCustomer,
   canUsePrescriptionOnFile,
@@ -14,7 +25,7 @@ const schema = readdirSync("drizzle/schema")
   .filter(f => f.endsWith(".ts") && f !== "index.ts")
   .map(f => readFileSync(`drizzle/schema/${f}`, "utf8"))
   .join("\n");
-const router = readFileSync("server/routers.ts", "utf8");
+const router = normalizeCode(readFileSync("server/routers.ts", "utf8"));
 const govRouter =
   readFileSync("server/routers/prescriptionGovRouter.ts", "utf8") +
   readFileSync("server/routers/prescriptionGovRouterExtension.ts", "utf8");

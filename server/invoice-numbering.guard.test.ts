@@ -7,6 +7,17 @@ import {
   reserveInvoiceNumber,
 } from "./services/invoiceNumbering";
 
+const normalizeCode = (s: string): string =>
+  s
+    .replace(/\r\n/g, "\n")
+    .replace(/\n\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .replace(/\( /g, "(")
+    .replace(/\[ /g, "[")
+    .replace(/ \)/g, ")")
+    .replace(/, \]/g, "]")
+    .replace(/ \]/g, "]");
+
 describe("invoice numbering foundation", () => {
   it("formats sequence deterministically", () => {
     expect(formatInvoiceNumber({ prefix: "INV-S1-2026-27", sequence: 1 })).toBe(
@@ -127,11 +138,13 @@ describe("invoice numbering foundation", () => {
   });
 
   it("keeps DB unique constraints for statutory numbers and sequence identity", () => {
-    const schema = fs
-      .readdirSync("drizzle/schema")
-      .filter(f => f.endsWith(".ts") && f !== "index.ts")
-      .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
-      .join("\n");
+    const schema = normalizeCode(
+      fs
+        .readdirSync("drizzle/schema")
+        .filter(f => f.endsWith(".ts") && f !== "index.ts")
+        .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
+        .join("\n")
+    );
     const migration = fs.readFileSync(
       "drizzle/0027_invoice_sequences.sql",
       "utf8"

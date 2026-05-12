@@ -32,6 +32,7 @@ import {
   createBatchWithOpeningStock,
 } from "../services/stockInvariant";
 import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
+import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 
@@ -285,8 +286,7 @@ const batchRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity("batch", input.id, ctx);
       const db = await getDb();
       const { batchLedger } = await schema();
       const [before] = await db
@@ -330,8 +330,7 @@ const batchRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity("batch", input.batchId, ctx);
       const db = await getDb();
       const { batchLedger, batchQuarantineLogs } = await schema();
       const [batch] = await db
@@ -402,6 +401,7 @@ const batchRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
+      await requireStoreAccessForEntity("batch", input.batchId, ctx);
       const db = await getDb();
       const { batchLedger } = await schema();
       const [batch] = await db
@@ -451,6 +451,7 @@ const batchRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertManagerRole(ctx.user.role);
+      await requireStoreAccessForEntity("batch", input.batchId, ctx);
       const db = await getDb();
       const { batchLedger } = await schema();
       const [batch] = await db
@@ -819,8 +820,7 @@ const adjustmentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity("batch", input.batchId, ctx);
       const db = await getDb();
       const { stockAdjustments, batchLedger } = await schema();
       const [batch] = await db
@@ -872,6 +872,7 @@ const adjustmentRouter = router({
         .from(stockAdjustments)
         .where(eq(stockAdjustments.id, input.id));
       if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
+      await requireStoreAccessForEntity("batch", adj.batchId, ctx);
       if (adj.status !== "pending_approval")
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -933,6 +934,7 @@ const adjustmentRouter = router({
         .from(stockAdjustments)
         .where(eq(stockAdjustments.id, input.id));
       if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
+      await requireStoreAccessForEntity("batch", adj.batchId, ctx);
       if (adj.status !== "pending_approval")
         throw new TRPCError({
           code: "BAD_REQUEST",

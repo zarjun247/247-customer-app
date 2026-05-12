@@ -18,6 +18,7 @@ import {
   increaseStockForPurchaseCommit,
 } from "../services/stockInvariant";
 import { syncStoreSkuAggregate } from "../services/reservationService";
+import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 import {
   recordSupplierPayable,
   recordSupplierPayment,
@@ -120,8 +121,11 @@ export const purchaseRouterExtension = {
     )
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity(
+        "purchase_invoice",
+        input.purchaseInvoiceId,
+        ctx
+      );
       const db = await getDbSafe();
       const { purchaseReturns } = await import("../../drizzle/schema");
       const [result] = await db.insert(purchaseReturns).values({

@@ -21,6 +21,7 @@ import {
 } from "../services/stockInvariant";
 import { resolveBarcodeForStockAudit } from "../services/barcodeService";
 import { reserveBatchAtomic } from "../services/reservationService";
+import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 import { eq, and, or, gt, desc, asc } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
@@ -408,8 +409,6 @@ const auditSessionRouter = router({
     .input(z.object({ lineId: z.number(), countedQty: z.number().min(0) }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDb();
       const { stockAuditLines } = await schema();
       const [line] = await db
@@ -417,6 +416,7 @@ const auditSessionRouter = router({
         .from(stockAuditLines)
         .where(eq(stockAuditLines.id, input.lineId));
       if (!line) throw new TRPCError({ code: "NOT_FOUND" });
+      await requireStoreAccessForEntity("stock_audit", line.auditId, ctx);
       const variance = input.countedQty - line.systemQty;
       await db
         .update(stockAuditLines)
@@ -631,8 +631,7 @@ const expiryActionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      await requireStoreAccessForEntity("batch", input.batchId, ctx);
       const db = await getDb();
       const { expiryActions } = await schema();
       const [result] = await db.insert(expiryActions).values({
