@@ -1,6 +1,14 @@
 import "dotenv/config";
 import { initializeTelemetry } from "./telemetry";
 import { assertIndiaRegionStorage } from "../services/regionAssertion";
+import {
+  startRetentionWorker,
+  stopRetentionWorker,
+} from "../services/retentionWorker";
+import {
+  startDsrSlaMonitor,
+  stopDsrSlaMonitor,
+} from "../services/dsrSlaMonitor";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -120,12 +128,19 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // Start background workers after server is listening
+    startRetentionWorker();
+    startDsrSlaMonitor();
   });
 
   process.on("SIGTERM", () => {
+    stopRetentionWorker();
+    stopDsrSlaMonitor();
     sdk.shutdown().finally(() => process.exit(0));
   });
   process.on("SIGINT", () => {
+    stopRetentionWorker();
+    stopDsrSlaMonitor();
     sdk.shutdown().finally(() => process.exit(0));
   });
 }

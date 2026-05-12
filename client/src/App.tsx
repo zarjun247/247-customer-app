@@ -42,6 +42,7 @@ import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 import { AdminRoutes } from "./routes/adminRoutes";
 import { ADMIN_ROLES, STAFF_ROLES } from "./routes/roleGuards";
+import { PhaseProvider } from "./lib/featureFlags";
 
 // ── Show splash only once per session ────────────────────────────────────────
 const SPLASH_KEY = "247_splash_shown";
@@ -392,12 +393,14 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster />
-          {/* Splash renders on top of everything, dismissed after sequence */}
-          {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
-          <Router />
-        </TooltipProvider>
+        <PhaseProvider>
+          <TooltipProvider>
+            <Toaster />
+            {/* Splash renders on top of everything, dismissed after sequence */}
+            {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+            <Router />
+          </TooltipProvider>
+        </PhaseProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

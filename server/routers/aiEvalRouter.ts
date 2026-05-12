@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
+import { assertPhaseAtLeast } from "../services/featureFlags";
 import {
   appendSuggestion,
   recordOutcome,
@@ -13,16 +14,19 @@ export const aiEvalRouter = router({
   // ─── Append suggestion (advisory output from intelligence services) ───────────
 
   append: adminProcedure
-    .input(z.object({
-      suggestionKind: z.string().min(1).max(100),
-      scopeType: z.enum(["customer", "product", "store", "global"]),
-      scopeId: z.string().nullable().optional(),
-      inputSnapshot: z.unknown(),
-      outputPayload: z.unknown(),
-      modelVersion: z.string().min(1).max(100),
-      traceId: z.string().nullable().optional(),
-    }))
+    .input(
+      z.object({
+        suggestionKind: z.string().min(1).max(100),
+        scopeType: z.enum(["customer", "product", "store", "global"]),
+        scopeId: z.string().nullable().optional(),
+        inputSnapshot: z.unknown(),
+        outputPayload: z.unknown(),
+        modelVersion: z.string().min(1).max(100),
+        traceId: z.string().nullable().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
+      assertPhaseAtLeast("scaled", "AI Eval Ledger: append");
       if (!ENV.aiEvalLedgerEnabled) {
         return { sequenceNumber: -1, rowHash: "", ledgerId: -1, skipped: true };
       }
@@ -41,12 +45,21 @@ export const aiEvalRouter = router({
   // ─── Record human outcome on a suggestion ────────────────────────────────────
 
   recordOutcome: adminProcedure
-    .input(z.object({
-      evalLedgerId: z.number().int().min(1),
-      outcomeKind: z.enum(["accepted", "rejected", "ignored", "modified", "outcome_realized"]),
-      outcomePayload: z.unknown().optional(),
-    }))
+    .input(
+      z.object({
+        evalLedgerId: z.number().int().min(1),
+        outcomeKind: z.enum([
+          "accepted",
+          "rejected",
+          "ignored",
+          "modified",
+          "outcome_realized",
+        ]),
+        outcomePayload: z.unknown().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
+      assertPhaseAtLeast("scaled", "AI Eval Ledger: recordOutcome");
       await recordOutcome({
         evalLedgerId: input.evalLedgerId,
         outcomeKind: input.outcomeKind,
@@ -59,28 +72,39 @@ export const aiEvalRouter = router({
   // ─── Ledger management (admin-only) ──────────────────────────────────────────
 
   stats: adminProcedure.query(async () => {
+    assertPhaseAtLeast("scaled", "AI Eval Ledger: stats");
     return getStats();
   }),
 
   verify: adminProcedure
-    .input(z.object({
-      fromSequence: z.number().int().min(0).optional(),
-      toSequence: z.number().int().min(0).optional(),
-      maxRows: z.number().int().min(1).max(100_000).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          fromSequence: z.number().int().min(0).optional(),
+          toSequence: z.number().int().min(0).optional(),
+          maxRows: z.number().int().min(1).max(100_000).optional(),
+        })
+        .optional()
+    )
     .query(async ({ input }) => {
+      assertPhaseAtLeast("scaled", "AI Eval Ledger: verify");
       return verifyChain(input ?? {});
     }),
 
   list: adminProcedure
-    .input(z.object({
-      suggestionKind: z.string().optional(),
-      scopeType: z.string().optional(),
-      scopeId: z.string().optional(),
-      limit: z.number().int().min(1).max(200).optional(),
-      offset: z.number().int().min(0).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          suggestionKind: z.string().optional(),
+          scopeType: z.string().optional(),
+          scopeId: z.string().optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+          offset: z.number().int().min(0).optional(),
+        })
+        .optional()
+    )
     .query(async ({ input }) => {
+      assertPhaseAtLeast("scaled", "AI Eval Ledger: list");
       return listSuggestions(input ?? {});
     }),
 });

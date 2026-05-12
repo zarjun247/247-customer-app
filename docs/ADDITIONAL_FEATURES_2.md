@@ -696,7 +696,7 @@ This file is mandatory context for future production-roadmap work.
 Agents must:
 
 - read this file before production-roadmap tasks
-- obey `AGENTS.MD`
+- obey `AGENT_INSTRUCTIONS.md`
 - obey `docs/PRODUCT_NORTH_STAR.md`
 - obey `docs/PHARMACY_OS_BLUEPRINT.md`
 - obey `docs/ADDITIONAL_FEATURES.md`

@@ -102,15 +102,31 @@ async function tryWriteToDb(active, reason) {
     );
     return false;
   }
-  // TBD: wire real DB write when DATABASE_URL is available.
-  // The system_settings table stores key/value pairs.
-  // INSERT INTO system_settings (key, value, updated_at) VALUES ('app_emergency_stop', JSON, NOW())
-  // ON DUPLICATE KEY UPDATE value=JSON, updated_at=NOW()
-  console.log(
-    "[emergency-stop] DATABASE_URL is set but DB write is TBD (see docs/RUNBOOK_INCIDENTS.md §Emergency stop)."
-  );
-  console.log("[emergency-stop] Writing to local flag file as fallback.");
-  return false;
+
+  const { createPool } = await import("mysql2/promise");
+  const pool = createPool(dbUrl);
+  try {
+    const value = JSON.stringify({
+      active,
+      reason,
+      setAt: new Date().toISOString(),
+      setBy: ACTOR,
+    });
+    await pool.execute(
+      `INSERT INTO system_settings (\`key\`, value, updated_at)
+       VALUES ('app_emergency_stop', ?, NOW())
+       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()`,
+      [value]
+    );
+    console.log("[emergency-stop] DB flag written to system_settings.");
+    return true;
+  } catch (err) {
+    console.error(`[emergency-stop] DB write failed: ${err.message}`);
+    console.log("[emergency-stop] Falling back to local flag file.");
+    return false;
+  } finally {
+    await pool.end();
+  }
 }
 
 async function main() {

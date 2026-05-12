@@ -1,8 +1,13 @@
 import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
+import { getCurrentPhase } from "../services/featureFlags";
 
 export const systemRouter = router({
+  appPhase: publicProcedure.query(() => ({
+    phase: getCurrentPhase(),
+  })),
+
   health: publicProcedure
     .input(
       z.object({

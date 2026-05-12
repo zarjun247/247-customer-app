@@ -8,6 +8,7 @@ import {
   decimal,
   boolean,
   smallint,
+  date,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -16,6 +17,7 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  dateOfBirth: date("date_of_birth"),
   phone: varchar("phone", { length: 20 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", [

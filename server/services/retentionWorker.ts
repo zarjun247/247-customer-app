@@ -146,7 +146,7 @@ async function processErasureRequest(
           .update(orders)
           .set({
             deliveryAddress: null,
-          } as any)
+          })
           .where(eq((orders as any).id, (order as any).id));
       }
 
@@ -193,4 +193,35 @@ async function processErasureRequest(
       metadata: { requestId: req.id, scope },
     });
   });
+}
+
+// ─── Scheduler ───────────────────────────────────────────────────────────────
+
+let retentionTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startRetentionWorker(): ReturnType<typeof setInterval> | null {
+  if (!ENV.retentionWorkerEnabled) {
+    logger.info(
+      "retentionWorker: disabled by env (RETENTION_WORKER_ENABLED=false)"
+    );
+    return null;
+  }
+  const intervalMs = 60 * 60 * 1000; // hourly
+  logger.info({ intervalMs }, "retentionWorker: scheduled");
+  runRetentionTick().catch(err =>
+    logger.error({ err: String(err) }, "retentionWorker: initial tick failed")
+  );
+  retentionTimer = setInterval(() => {
+    runRetentionTick().catch(err =>
+      logger.error({ err: String(err) }, "retentionWorker: tick failed")
+    );
+  }, intervalMs);
+  return retentionTimer;
+}
+
+export function stopRetentionWorker(): void {
+  if (retentionTimer) {
+    clearInterval(retentionTimer);
+    retentionTimer = null;
+  }
 }

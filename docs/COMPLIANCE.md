@@ -4,7 +4,7 @@ This document is the legal-frame document for 24/7 Pharmacy OS. It covers the re
 
 **Counsel review required** before relying on this document for statutory compliance claims.
 
-See also: [OPERATIONS.md](./OPERATIONS.md) §Pharmacist operations, [AGENTS.MD](../AGENTS.MD).
+See also: [OPERATIONS.md](./OPERATIONS.md) §Pharmacist operations, [AGENT_INSTRUCTIONS.md](../AGENT_INSTRUCTIONS.md).
 
 ---
 

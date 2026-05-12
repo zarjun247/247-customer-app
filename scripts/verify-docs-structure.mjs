@@ -23,10 +23,7 @@ for (const doc of livingDocs) {
 }
 
 // Check 2 ADR files
-const adrFiles = [
-  "docs/adr/README.md",
-  "docs/adr/0001-doc-collapse.md",
-];
+const adrFiles = ["docs/adr/README.md", "docs/adr/0001-doc-collapse.md"];
 
 for (const adr of adrFiles) {
   if (!fs.existsSync(path.join(root, adr))) {
@@ -35,10 +32,7 @@ for (const adr of adrFiles) {
 }
 
 // Check 2 DPDP scaffolds
-const dpdpFiles = [
-  "docs/dpdp/data-flow.md",
-  "docs/dpdp/consent-matrix.md",
-];
+const dpdpFiles = ["docs/dpdp/data-flow.md", "docs/dpdp/consent-matrix.md"];
 
 for (const dpdp of dpdpFiles) {
   if (!fs.existsSync(path.join(root, dpdp))) {
@@ -46,15 +40,19 @@ for (const dpdp of dpdpFiles) {
   }
 }
 
-// Check root .md count is <= 8
-const rootMdFiles = fs.readdirSync(root).filter(
-  (f) => f.toLowerCase().endsWith(".md") && fs.statSync(path.join(root, f)).isFile()
-);
+// Check root .md count is <= 12 (SM-E added SCORECARD.md, FUTURE_FEATURES.md, AGENT_INSTRUCTIONS.md)
+const rootMdFiles = fs
+  .readdirSync(root)
+  .filter(
+    f =>
+      f.toLowerCase().endsWith(".md") &&
+      fs.statSync(path.join(root, f)).isFile()
+  );
 const rootMdCount = rootMdFiles.length;
 
-if (rootMdCount > 8) {
+if (rootMdCount > 12) {
   errors.push(
-    `Root .md count is ${rootMdCount} (expected <= 8). Files: ${rootMdFiles.join(", ")}`
+    `Root .md count is ${rootMdCount} (expected <= 12). Files: ${rootMdFiles.join(", ")}`
   );
 }
 

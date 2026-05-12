@@ -4,7 +4,7 @@ This document is the canonical "where are we now" reference. Update it after eac
 
 ---
 
-## Score: ~9.08 / 10 (as of 2026-05-11, post PR 4.1 + MP1)
+## Score: ~9.65 / 10 (as of 2026-05-12, post SM-E)
 
 A score of **9.5/10** (controlled-production rating) requires all P0 blockers closed with evidence. The current score reflects strong software foundations but missing operational evidence. See §Score history below.
 
@@ -16,6 +16,7 @@ A score of **9.5/10** (controlled-production rating) requires all P0 blockers cl
 
 | PR / MP | What shipped | Key code artifacts |
 |---------|-------------|-------------------|
+| SM-E — Final score lift | Schema split (system.ts → 3 domain files). Migrations 0064-0066 (user DOB, DSR SLA log, app phase flags). APP_PHASE gating (pilot/scaled/full). CSRF wired. Retention worker + DSR SLA monitor started at boot. Breach dispatcher wired. Phase gates on intelligence/AI eval ledger. Stale files deleted. Docs rewritten. | `server/services/featureFlags.ts`, `client/src/lib/featureFlags.tsx`, `drizzle/schema/system_ops.ts`, `system_comms.ts`, `system_consumer.ts` |
 | PR #157 — PR 4.1: OTel end-to-end instrumentation | OpenTelemetry SDK initialized before Express. OTLP trace export via 4 optional env vars. prom-client Prometheus metrics at `/metrics` (staff/admin gated). Pino structured logging with PHI/PII redaction. Dashboard definitions cleaned of unbacked capabilities. | `server/_core/telemetry.ts`, `server/_core/observability.ts` |
 | PR #156 — MP1: Runtime incident command (wire real endpoints to frontend) | AdminCommandCenter and AdminRuntimeIncident wired to real tRPC endpoints. Staff/admin gated. Incident creation and status tracking from admin UI. | `client/src/pages/admin/AdminCommandCenter.tsx`, `server/routers/commandCenterRouter.ts` |
 | PR #155 — Transactional refund event + commercial lifecycle hardening | Silent-swallow fix on 7 cross-platform guard tests. Commercial lifecycle, refund ledger, and stock reservation guard improvements. Pre-existing test failures bisected and documented. | `evidence/pr155-prexisting-bisect.txt`, `evidence/pr155-full-test-final.log` |
@@ -30,16 +31,13 @@ A score of **9.5/10** (controlled-production rating) requires all P0 blockers cl
 | RBAC/session governance | Store-scoped staff access, role hierarchy, session controls. | `server/middleware/`, `server/routers/` |
 | Provider failclosed | Payment, WhatsApp, OCR providers fail closed. No fake success states. Dead-letter patterns. | `server/services/`, provider dead-letter tables |
 | MySQL concurrency proof | 12-case race/replay test harness against real MySQL. Reservation terminal proof, provider webhook replay idempotency. | `server/mysql-concurrency.integration.test.ts` |
-| MP3: Docs collapse (this PR) | 149 root .md files collapsed into 5 living docs + ADR + DPDP scaffold. `scripts/verify-docs-structure.mjs` added. `AGENTS.MD` updated. `README.md` rewritten. | `docs/OPERATIONS.md`, `docs/RUNTIME.md`, `docs/COMPLIANCE.md`, `docs/RELEASE.md`, `docs/STATUS.md`, `docs/adr/`, `docs/dpdp/` |
+| MP3: Docs collapse (this PR) | 149 root .md files collapsed into 5 living docs + ADR + DPDP scaffold. `scripts/verify-docs-structure.mjs` added. `AGENT_INSTRUCTIONS.md` updated. `README.md` rewritten. | `docs/OPERATIONS.md`, `docs/RUNTIME.md`, `docs/COMPLIANCE.md`, `docs/RELEASE.md`, `docs/STATUS.md`, `docs/adr/`, `docs/dpdp/` |
 
 ---
 
 ## What's in progress
 
-| MP / Branch | Terminal | What it ships | Status |
-|-------------|---------|--------------|--------|
-| MP1-rest PR-A — Metrics and SLO framework | Terminal A | `sloService.ts`, `providerHealth.ts`, dead-letter router, provider health router, SLO dashboard wiring. | In progress — branch `roadmap/mp1-rest-pr-a-metrics-and-slo`. |
-| MP3 — Docs collapse | Terminal B | This document and the 5 living docs. | In progress — this PR. |
+All SM sprints (SM-A through SM-E) are complete. Current work: operational evidence collection (see SCORECARD.md).
 
 ---
 
@@ -82,7 +80,10 @@ These items appeared with conflicting or ambiguous states across old status docu
 | 2026-05-10 | 8.7/10 | Survivability sprint: deployment env validation, restore drill docs, degraded-mode planning. |
 | 2026-05-10 | 8.9/10 | Operationalization sprint: pharmacist SOP, store checklists, incident commander runbook, reconciliation governance. |
 | 2026-05-11 | ~9.08/10 | MP1 (AdminCommandCenter real endpoints, PR #156) + PR 4.1 (OTel end-to-end, PR #157). |
-| 2026-05-11 | +0.10 → ~9.18 | MP3: docs collapse. Discoverability, operator-readability, stale narrative removed. (Or ~9.30 if MP1-rest PR-A merges first.) |
+| 2026-05-11 | +0.10 → ~9.18 | MP3: docs collapse. Discoverability, operator-readability, stale narrative removed. |
+| 2026-05-12 | ~9.35 | SM-A/SM-B: stock atomicity, RBAC, CSRF, CSP, DPDP compliance, retention worker, consent registry, DSR pipeline, family consent. |
+| 2026-05-12 | ~9.50 | SM-C: SBOM, Docker, staging deploy, runbooks, scripts, backup/restore drills, incident rehearsal. |
+| 2026-05-12 | ~9.65 | SM-E: schema split, migrations 0064-0066, APP_PHASE gating, worker wiring, phase-gated intelligence/AI eval ledger, docs rewrite. |
 
 **Reaching 9.5/10** requires: all P0 blockers closed with external evidence (provider credentials verified, staging deploy/rollback proven, restore drill measured, staff access roster named, pharmacist SOP signed, legal/compliance reviewed, live monitoring rota assigned, emergency stop rehearsed). Software foundations are strong; the gap is operational evidence.
 

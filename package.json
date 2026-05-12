@@ -36,6 +36,8 @@
     "contract:verify": "node scripts/provider-contract-verify.mjs",
     "rota:validate": "node scripts/on-call-rota-validate.mjs",
     "seed:realistic": "node scripts/seed-realistic-data.mjs",
+    "regenerate:domains": "node scripts/regenerate-domains-md.mjs",
+    "verify:wiring": "node scripts/verify-wiring.mjs",
     "lint": "eslint server/ shared/",
     "lint:fix": "eslint server/ shared/ --fix",
     "lint:ci": "node scripts/lint-gate.mjs",

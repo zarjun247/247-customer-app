@@ -94,7 +94,7 @@ export async function getActiveFamilyConsent(input: {
     )
     .limit(1);
 
-  return (rows[0] as FamilyConsentRecord) ?? null;
+  return rows[0] ?? null;
 }
 
 export async function revokeFamilyConsent(input: {
@@ -155,8 +155,14 @@ export async function assertConsentForScheduleSale(input: {
 
   if (!customer) return;
 
-  // dateOfBirth is not in the current users schema; treat absent DOB as adult.
-  const dob = (customer as any).dateOfBirth ?? null;
+  const dob = customer.dateOfBirth ?? null;
+  if (!dob) {
+    logger.warn(
+      { customerId: input.customerId },
+      "familyConsent: customer has no DOB; treating as adult (backfill required — see SCORECARD item 9)"
+    );
+    return;
+  }
   if (!isUnder18(dob)) return;
 
   // Customer is under 18 — require active family consent for this schedule
