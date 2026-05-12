@@ -5,6 +5,7 @@
  * These are spread into whatsappFullRouter in whatsappRouter.ts.
  */
 
+import crypto from "node:crypto";
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -78,10 +79,7 @@ function assertWhatsappWebhookGuard(
   ctx: { req?: { header?: (name: string) => string | undefined } },
   payload?: string
 ) {
-  // Delegate to the original export — import synchronously not possible here so re-implement
   if (process.env.NODE_ENV !== "production") return;
-  const { TRPCError: TRPC } = require("@trpc/server");
-  const crypto = require("crypto");
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN ?? "";
   const secret = process.env.WHATSAPP_WEBHOOK_SECRET ?? "";
   if (!verifyToken && !secret) {

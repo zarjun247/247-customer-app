@@ -91,7 +91,14 @@ export function normalizeOcrLine(line: OcrLineInput): OcrLineInput {
 }
 
 function present(value: unknown): boolean {
-  return value !== null && value !== undefined && String(value).trim() !== "";
+  return (
+    value !== null &&
+    value !== undefined &&
+    (typeof value === "object"
+      ? JSON.stringify(value)
+      : String(value)
+    ).trim() !== ""
+  );
 }
 
 function positive(value: unknown): boolean {

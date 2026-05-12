@@ -187,7 +187,9 @@ function convertToCSVBundle(payload: Record<string, unknown>): string {
     if (typeof value === "object" && value !== null) {
       lines.push(`${section},_object,${JSON.stringify(value)}`);
     } else {
-      lines.push(`${section},,${String(value ?? "")}`);
+      lines.push(
+        `${section},,${typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "")}`
+      );
     }
   }
   return Buffer.from(lines.join("\n")).toString("base64");

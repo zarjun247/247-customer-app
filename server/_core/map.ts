@@ -1,9 +1,9 @@
 /**
  * Google Maps API Integration for Manus WebDev Templates
- * 
+ *
  * Main function: makeRequest<T>(endpoint, params) - Makes authenticated requests to Google Maps APIs
  * All credentials are automatically injected. Array parameters use | as separator.
- * 
+ *
  * See API examples below the type definitions for usage patterns.
  */
 
@@ -45,7 +45,7 @@ interface RequestOptions {
 
 /**
  * Make authenticated requests to Google Maps APIs
- * 
+ *
  * @param endpoint - The API endpoint (e.g., "/maps/api/geocode/json")
  * @param params - Query parameters for the request
  * @param options - Additional request options
@@ -67,7 +67,12 @@ export async function makeRequest<T = unknown>(
   // Add other query parameters
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      url.searchParams.append(key, String(value));
+      url.searchParams.append(
+        key,
+        typeof value === "object" && value !== null
+          ? JSON.stringify(value)
+          : String(value)
+      );
     }
   });
 
@@ -313,7 +318,3 @@ export type RoadsResult = {
  * Output: Image URL (not JSON) - use directly in <img src={url} />
  * Note: Construct URL manually with getMapsConfig() for auth
  */
-
-
-
-

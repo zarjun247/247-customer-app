@@ -41,13 +41,19 @@ function toIso(value: unknown): string | null {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value as any);
   return Number.isNaN(d.getTime())
-    ? String(value)
+    ? typeof value === "object" && value !== null
+      ? JSON.stringify(value)
+      : String(value as string | number | boolean)
     : d.toISOString().slice(0, 10);
 }
 
 function normalizeEmpty(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  const s = String(value).trim();
+  const s = (
+    typeof value === "object" && value !== null
+      ? JSON.stringify(value)
+      : String(value)
+  ).trim();
   return s.length > 0 ? s : null;
 }
 
