@@ -163,6 +163,23 @@ export const ENV = {
     (process.env.RETENTION_WORKER_ENABLED ?? "false").toLowerCase() === "true",
   // DPO_EMAIL: Data Protection Officer contact for grievance template (default "dpo@example.com")
   dpoEmail: process.env.DPO_EMAIL ?? "dpo@example.com",
+  // SM-C: CI hardening + operational tooling optional vars. Never add to assertProductionEnvSafe().
+  // DOCKER_REGISTRY: registry prefix for docker push (e.g. "ghcr.io/org"). Empty = no push.
+  dockerRegistry: process.env.DOCKER_REGISTRY ?? "",
+  // SBOM_FORMAT: "cyclonedx" | "spdx" — format for SBOM generation (default "cyclonedx")
+  sbomFormat: (process.env.SBOM_FORMAT ?? "cyclonedx") as "cyclonedx" | "spdx",
+  // STAGING_DEPLOY_DRY_RUN: "true" | "false" — default true (no actual deploy)
+  stagingDeployDryRun:
+    (process.env.STAGING_DEPLOY_DRY_RUN ?? "true").toLowerCase() !== "false",
+  // BACKUP_DRILL_ENABLED: "true" | "false" — opt-in real backup drill (default false)
+  backupDrillEnabled:
+    (process.env.BACKUP_DRILL_ENABLED ?? "false").toLowerCase() === "true",
+  // INCIDENT_DRILL_CRON: cron expression for scheduled incident drills (default empty = no schedule)
+  incidentDrillCron: process.env.INCIDENT_DRILL_CRON ?? "",
+  // RELEASE_CHANNEL: "staging" | "production" — target release channel (default "staging")
+  releaseChannel: (process.env.RELEASE_CHANNEL ?? "staging") as
+    | "staging"
+    | "production",
 };
 
 assertProductionEnvSafe();

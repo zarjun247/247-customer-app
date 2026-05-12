@@ -27,6 +27,15 @@
     "chaos:drill": "node scripts/chaos-drill.mjs",
     "restore:drill": "node scripts/restore-drill-runner.mjs",
     "verify:ai-eval-chain": "node scripts/verify-ai-eval-chain.mjs",
+    "sbom:generate": "node scripts/sbom-generate.mjs",
+    "backup-drill": "node scripts/backup-drill-runner.mjs",
+    "incident-rehearsal": "node scripts/incident-rehearsal.mjs",
+    "emergency-stop": "node scripts/emergency-stop.mjs",
+    "capacity:snapshot": "node scripts/capacity-snapshot.mjs",
+    "slo:coverage": "node scripts/slo-coverage-verify.mjs",
+    "contract:verify": "node scripts/provider-contract-verify.mjs",
+    "rota:validate": "node scripts/on-call-rota-validate.mjs",
+    "seed:realistic": "node scripts/seed-realistic-data.mjs",
     "lint": "eslint server/ shared/",
     "lint:fix": "eslint server/ shared/ --fix",
     "lint:ci": "node scripts/lint-gate.mjs",
@@ -142,7 +151,8 @@
     "typescript-eslint": "^8",
     "vite": "^7.1.7",
     "vite-plugin-manus-runtime": "^0.0.57",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "@cyclonedx/cyclonedx-npm": "^1.16.0"
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
   "pnpm": {

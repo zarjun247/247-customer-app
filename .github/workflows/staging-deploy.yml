@@ -1,0 +1,74 @@
+name: Staging Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual deploy). Always defaults to true — set false for real deploy.'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@10.4.1 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Determine dry-run mode
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'true' }}"
+          echo "DRY_RUN=$DRY_RUN" >> $GITHUB_ENV
+          echo "Deploy mode: DRY_RUN=$DRY_RUN for commit ${{ github.sha }}"
+
+      - name: Validate environment (dry-run and real)
+        run: node scripts/validate-deployment-env.mjs --env staging
+
+      - name: Run migration verification
+        run: pnpm run migrations:verify
+
+      - name: Deployment readiness check
+        run: node scripts/deployment-readiness-check.mjs
+
+      - name: Dry-run deploy preview
+        if: env.DRY_RUN == 'true'
+        run: |
+          echo "DRY RUN: would deploy commit ${{ github.sha }} to staging environment"
+          echo "DRY RUN: would run: pnpm run build && docker push && apply migrations"
+          echo "DRY RUN: to perform a real deploy, trigger workflow_dispatch with dry_run=false"
+          echo "DRY RUN: real deploys require manual approval in the 'staging' GitHub Environment"
+
+      - name: Real deploy
+        if: env.DRY_RUN == 'false'
+        run: |
+          echo "Real deploy of ${{ github.sha }} to staging"
+          # TBD: wire real deploy commands here (see docs/RUNBOOK_DEPLOY.md)
+          # Steps would include:
+          #   pnpm run build
+          #   docker build -t $DOCKER_REGISTRY/247-customer-app:${{ github.sha }} .
+          #   docker push $DOCKER_REGISTRY/247-customer-app:${{ github.sha }}
+          #   pnpm run migrations:apply (against staging DB)
+          #   Verify /health/live and /health/ready return 200
+          echo "TBD — fill in per docs/RUNBOOK_DEPLOY.md §Staging deploy steps"
+        env:
+          DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}

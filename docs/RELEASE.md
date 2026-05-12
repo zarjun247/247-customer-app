@@ -2,7 +2,15 @@
 
 This document covers branch protection, PR governance, CI gates, migration safety, deployment procedure, rollback, launch go/no-go criteria, and controlled rollout rules.
 
-See also: [OPERATIONS.md](./OPERATIONS.md) §Backup and recovery, [STATUS.md](./STATUS.md).
+See also: [OPERATIONS.md](./OPERATIONS.md) §Backup and recovery, [STATUS.md](./STATUS.md), [RUNBOOK_DEPLOY.md](./RUNBOOK_DEPLOY.md).
+
+**SM-C release automation (added 2026-05-12):**
+- `.github/workflows/release.yml` — uses `googleapis/release-please-action@v4` to auto-generate changelogs and version bumps from conventional commits on `main`.
+- `.github/workflows/sbom.yml` — generates `sbom.cyclonedx.json` on every push/PR to `main`. Artifact retained 90 days.
+- `.github/workflows/docker-build.yml` — builds Docker image and runs Trivy scan (HIGH/CRITICAL exit-code 1). Rootless multi-stage image (`node:20.18.0-alpine`).
+- `.github/workflows/staging-deploy.yml` — dry-run by default; real deploy requires GitHub `staging` Environment approval. See [RUNBOOK_DEPLOY.md](./RUNBOOK_DEPLOY.md).
+- `.github/workflows/backup-drill.yml` — weekly Sunday 03:00 UTC. Mock mode unless `BACKUP_DRILL_ENABLED=true` secret is set.
+- `.github/workflows/restore-drill.yml` — monthly first-of-month 04:00 UTC. Uses `scripts/restore-drill-runner.mjs`.
 
 ---
 
