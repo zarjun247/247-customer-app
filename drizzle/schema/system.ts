@@ -1029,6 +1029,63 @@ export const labelPrintJobs = mysqlTable("label_print_jobs", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// ─── SM-C: Ops tables — backup drill results + incident rehearsal log ─────────
+export const backupDrillResults = mysqlTable(
+  "backup_drill_results",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    drillKind: varchar("drill_kind", { length: 32 }).notNull(),
+    drillStatus: varchar("drill_status", { length: 32 }).notNull(),
+    startedAt: timestamp("started_at").notNull(),
+    completedAt: timestamp("completed_at"),
+    durationSeconds: int("duration_seconds"),
+    rowsVerified: bigint("rows_verified", { mode: "number" }),
+    bytesTransferred: bigint("bytes_transferred", { mode: "number" }),
+    restoreTargetDb: varchar("restore_target_db", { length: 64 }),
+    failureReason: text("failure_reason"),
+    triggeredBy: varchar("triggered_by", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  t => ({
+    idxBackupDrillStatus: index("idx_backup_drill_status").on(
+      t.drillStatus,
+      t.startedAt
+    ),
+    idxBackupDrillKind: index("idx_backup_drill_kind").on(
+      t.drillKind,
+      t.startedAt
+    ),
+  })
+);
+
+export const incidentRehearsalLog = mysqlTable(
+  "incident_rehearsal_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    scenarioName: varchar("scenario_name", { length: 128 }).notNull(),
+    scenarioKind: varchar("scenario_kind", { length: 32 }).notNull(),
+    startedAt: timestamp("started_at").notNull(),
+    resolvedAt: timestamp("resolved_at"),
+    durationSeconds: int("duration_seconds"),
+    participantsJson: json("participants_json").notNull(),
+    outcome: varchar("outcome", { length: 32 }),
+    lessonsLearned: text("lessons_learned"),
+    followUpItems: json("follow_up_items"),
+    triggeredByUserId: int("triggered_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  t => ({
+    idxIncidentRehearsalScenario: index("idx_incident_rehearsal_scenario").on(
+      t.scenarioName,
+      t.startedAt
+    ),
+    idxIncidentRehearsalOutcome: index("idx_incident_rehearsal_outcome").on(
+      t.outcome,
+      t.startedAt
+    ),
+  })
+);
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
 export type SystemEvent = typeof systemEvents.$inferSelect;
 export type InsertSystemEvent = typeof systemEvents.$inferInsert;
@@ -1067,3 +1124,7 @@ export type CustomerConsent = typeof customerConsents.$inferSelect;
 export type NewCustomerConsent = typeof customerConsents.$inferInsert;
 export type MedicineRecordAccessLog =
   typeof medicineRecordAccessLog.$inferSelect;
+export type BackupDrillResult = typeof backupDrillResults.$inferSelect;
+export type NewBackupDrillResult = typeof backupDrillResults.$inferInsert;
+export type IncidentRehearsalLog = typeof incidentRehearsalLog.$inferSelect;
+export type NewIncidentRehearsalLog = typeof incidentRehearsalLog.$inferInsert;

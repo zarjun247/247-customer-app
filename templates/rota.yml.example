@@ -1,0 +1,52 @@
+# On-call rota — copy to rota.yml (NOT committed to git) and fill in real names.
+# rota.yml must be added to .gitignore before committing.
+# Schema validated by: pnpm run rota:validate
+
+weeks:
+  - week_starting: "2026-01-06"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-01-13"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-01-20"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-01-27"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-02-03"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-02-10"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-02-17"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+  - week_starting: "2026-02-24"
+    primary: "TBD"
+    secondary: "TBD"
+    weekend_primary: "TBD"
+
+holidays_covered:
+  - date: "2026-01-26"  # Republic Day
+    coverage: "TBD"
+  - date: "2026-03-25"  # Holi
+    coverage: "TBD"
+  - date: "2026-04-14"  # Ambedkar Jayanti / Dr. B.R. Ambedkar Birthday
+    coverage: "TBD"
+
+# Rules enforced by pnpm run rota:validate:
+#   - Every week must have a non-TBD primary
+#   - Primary and secondary must be different people
+#   - weekend_primary must be specified
+#   - No single person on primary for more than 14 consecutive days
+#   - Holiday dates must have explicit coverage (not TBD)

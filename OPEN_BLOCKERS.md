@@ -12,6 +12,8 @@ evidence/pr155-introduced-recheck.json for full analysis.
 - server/accounting-compliance.guard.test.ts — cause: ReferenceError: describe is not defined; file uses describe/test without importing them from vitest
 - server/ci-governance-guards.guard.test.ts — cause: SyntaxError: cannot statically import .mjs (scripts/ci-governance-guards.mjs) from a TypeScript vitest test file
 - server/ocr-production-safety.test.ts — cause: SyntaxError: same .mjs static import issue
+- server/admin-route-cockpit.guard.test.ts — cause: route shape assertion mismatch; guard tests source-scan App.tsx and assert specific route patterns that drift as routes are added. Not touched by SM-C. Logged during SM-C validation (2026-05-12).
+- server/rbac-session-governance.test.ts — cause: frontend route static guard scans App.tsx for `<RestrictedRoute allow={ADMIN_ROLES}>` wrapper; assertion at line 102 references a route path pattern that diverged from current App.tsx during SM-A/SM-B. Not touched by SM-C. Logged during SM-C validation (2026-05-12).
 - server/auth.logout.test.ts — cause: bisect artifact; fails only under NODE_ENV=production (assertProductionEnvSafe at module load); passes cleanly in standard test environment
 - server/auth.phone.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
 - server/connectors.failclosed.test.ts — cause: bisect artifact; same NODE_ENV=production env-gate; passes cleanly in standard test environment
@@ -205,6 +207,51 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 **Acceptance rate in `getStats()` uses a 30-day outcome window.** Older outcomes (> 30 days) are excluded from the acceptance rate calculation. This window is appropriate for trending but may misrepresent rates for low-volume suggestion kinds. Consider exposing the window as a parameter in a follow-up.
 
 **Migration number 0057 is reserved for `ai_eval_ledger`.** Do not use migration 0057 for any other purpose. Next available migration numbers for SM-B are 0058–0061 (consent_notice_versions, dsr_requests, family_consent, vault_encryption_columns).
+
+## SM-C deliverables (logged 2026-05-12, branch roadmap/sm-c-ci-ops)
+
+The following items are DONE as of SM-C merge:
+
+- **SBOM generation (CycloneDX):** `pnpm run sbom:generate` → `sbom.cyclonedx.json`. Workflow: `.github/workflows/sbom.yml`.
+- **Multi-stage Dockerfile (rootless):** `Dockerfile` — node:20.18.0-alpine, non-root `app` user. `.dockerignore` included.
+- **Trivy scan in CI:** `.github/workflows/docker-build.yml` — fails build on HIGH/CRITICAL CVEs. SARIF artifact uploaded.
+- **Staging deploy workflow (dry-run default):** `.github/workflows/staging-deploy.yml` — requires GitHub `staging` environment approval for real deploys.
+- **Release-please for changelog/versioning:** `.github/workflows/release.yml`.
+- **Backup drill workflow + script:** `.github/workflows/backup-drill.yml` + `scripts/backup-drill-runner.mjs` — mock mode by default.
+- **Restore drill workflow (wired existing service):** `.github/workflows/restore-drill.yml` + existing `scripts/restore-drill-runner.mjs`.
+- **Incident rehearsal scripts (5 scenarios):** `scripts/incident-rehearsal.mjs` — provider_down, db_failover, stock_corruption, payment_reconciliation_mismatch, ocr_pipeline_stuck.
+- **Emergency stop script:** `scripts/emergency-stop.mjs` — flag-based, dev-safe, DB-aware.
+- **Capacity snapshot tooling:** `scripts/capacity-snapshot.mjs` → `evidence/capacity-snapshots/<date>.md`.
+- **SLO coverage verifier:** `scripts/slo-coverage-verify.mjs` — reads `docs/SLO_COVERAGE.md`, checks slo_events table.
+- **Provider contract verifier:** `scripts/provider-contract-verify.mjs` — mock-first, --live flag for sandbox.
+- **On-call rota validator:** `scripts/on-call-rota-validate.mjs` — validates rota.yml coverage rules.
+- **Pharmacist SOP template:** `templates/pharmacist_sop.md`.
+- **Staff access roster template:** `templates/staff_access_roster.md`.
+- **Realistic-data seed:** `scripts/seed-realistic-data.mjs` — 50 customers, 200 products, 500 orders, 100 Rx, 20 staff, 5 stores, 10 suppliers.
+- **Incident runbooks (5 playbooks):** `docs/RUNBOOK_INCIDENTS.md`.
+- **Deploy runbook:** `docs/RUNBOOK_DEPLOY.md`.
+- **Backup runbook:** `docs/RUNBOOK_BACKUPS.md`.
+- **On-call runbook:** `docs/RUNBOOK_ON_CALL.md`.
+- **SLO coverage doc:** `docs/SLO_COVERAGE.md`.
+- **DB migrations 0062-0063:** `backup_drill_results`, `incident_rehearsal_log`.
+
+## SM-C follow-ups — humans must do (logged 2026-05-12)
+
+These items cannot be completed by code. They require human action before production launch:
+
+| Item | Who | Priority |
+|------|-----|----------|
+| Provision real S3 bucket in ap-south-1 (set `DPDP_REGION_REQUIRED` + AWS secrets) | Platform owner | P0 before production |
+| Get real provider sandbox credentials (Razorpay, Twilio, WhatsApp) — run `pnpm run contract:verify --live` | Provider owner | P0 before production |
+| Fill in `rota.yml` with real human names — run `pnpm run rota:validate` | Incident commander | P0 before production |
+| Run first incident rehearsal end-to-end (`pnpm run incident-rehearsal --all`) and capture lessons | Incident commander | P1 before production |
+| Run first real backup drill (`BACKUP_DRILL_ENABLED=true pnpm run backup-drill`) and capture evidence | Platform owner | P0 before production |
+| Sign Docker images with cosign (requires keypair management and GitHub secret setup) | Platform owner | P1 before production |
+| Set up GitHub Environment "staging" with required reviewers (Settings → Environments → staging) | Platform owner | P0 before staging deploy |
+| Set up GitHub Environment "production" with required reviewers | Platform owner | P0 before production deploy |
+| Wire real staging deploy command in `.github/workflows/staging-deploy.yml` (TBD section) | Platform owner | P0 before staging deploy |
+| Seed dev DB with realistic data: `pnpm run seed:realistic` (wire DB inserts in follow-up PR) | Engineering | P2 |
+| Wire `sloService.emitSloEvent()` into critical paths (see `docs/SLO_COVERAGE.md`) | Engineering | P1 before production |
 
 ## SM-B follow-ups (logged 2026-05-12)
 

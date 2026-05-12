@@ -4,6 +4,22 @@ This handbook defines the operational procedures for 24/7 Pharmacy OS stores. It
 
 See also: [COMPLIANCE.md](./COMPLIANCE.md), [RUNTIME.md](./RUNTIME.md), [AGENTS.MD](../AGENTS.MD).
 
+**SM-C runbook index (operational tooling — added 2026-05-12):**
+- [RUNBOOK_INCIDENTS.md](./RUNBOOK_INCIDENTS.md) — 5 incident playbooks (provider_down, db_failover, stock_corruption, payment_reconciliation_mismatch, ocr_pipeline_stuck)
+- [RUNBOOK_DEPLOY.md](./RUNBOOK_DEPLOY.md) — staging-to-production deploy SOP with smoke tests and rollback
+- [RUNBOOK_BACKUPS.md](./RUNBOOK_BACKUPS.md) — backup schedule, restore drill procedure, RPO/RTO targets
+- [RUNBOOK_ON_CALL.md](./RUNBOOK_ON_CALL.md) — on-call escalation matrix, rotation rules, handoff SOP
+- [SLO_COVERAGE.md](./SLO_COVERAGE.md) — critical paths × SLO event coverage table
+
+**SM-C operational scripts:**
+- `pnpm run incident-rehearsal --all` — run all 5 incident scenarios in mock mode
+- `pnpm run emergency-stop -- --status` — check emergency stop flag
+- `pnpm run backup-drill` — run backup drill (MOCK MODE unless `BACKUP_DRILL_ENABLED=true`)
+- `pnpm run capacity:snapshot` — monthly capacity review report
+- `pnpm run slo:coverage` — verify SLO event coverage for all critical paths
+- `pnpm run rota:validate` — validate on-call rota.yml
+- `pnpm run contract:verify` — verify provider API response shapes
+
 ---
 
 ## Daily operations
