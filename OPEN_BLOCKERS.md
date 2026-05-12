@@ -92,6 +92,25 @@ ER_DUP_KEYNAME, ER_CANT_DROP_FIELD_OR_KEY) and stripping invalid
 SM-L Phase 4 (architecture cleanup) should audit drizzle/0050-0067
 for invalid AFTER clauses and produce corrected migration files.
 
+**Legacy partN_*.sql files skipped by the runner.** apply-migrations.mjs
+and bootstrap-migrations-table.mjs skip files matching `part\d+_*.sql`
+(part10_whatsapp.sql, part11_routing_rider.sql, part12_system_events.sql).
+These contain only `CREATE TABLE IF NOT EXISTS` for tables that
+drizzle-generated migrations 0019, 0020, and 0021 already create. The
+part-files also use `CREATE INDEX IF NOT EXISTS` (Postgres syntax)
+that MySQL rejects. Every other tool in the codebase
+(`verify-migrations.mjs`, the original SM-E2-ci inline loop) similarly
+filters by `NNNN_` pattern.
+
+**Dead one-shot migration scripts to remove.**
+scripts/migrate-part10.mjs, scripts/migrate-part11.mjs,
+scripts/migrate-part12.mjs, and scripts/migrate-v10.mjs are dead
+one-shot apply tools. Their content is fully covered by numbered
+migrations (0019/0020/0021 for the part-files, 0010 for migrate-v10).
+They are not invoked by CI, package.json scripts, or any runtime
+code. SM-L Phase 4 should delete them along with the partN_*.sql
+files in drizzle/.
+
 ### Closed by SM-E (this PR)
 
 - Family consent DOB gate passive — FIXED: migration 0064 adds `users.date_of_birth`; `assertConsentForScheduleSale()` will enforce once DOB is collected

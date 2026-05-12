@@ -28,10 +28,22 @@ function hashContent(content) {
 }
 
 function getMigrationFiles() {
-  return fs
+  const files = fs
     .readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith(".sql"))
+    .filter(f => {
+      if (!f.endsWith(".sql")) return false;
+      // Skip legacy partN_*.sql files. Their tables are already created
+      // by drizzle-generated migrations 0019/0020/0021. They use Postgres
+      // CREATE INDEX IF NOT EXISTS syntax that MySQL rejects. The
+      // SM-E2-ci inline loop also skipped them (regex NNNN_ where NNNN
+      // >= 50). verify-migrations.mjs similarly filters by NNNN_ pattern.
+      // TODO(SM-L Phase 4): delete the partN_*.sql files and the
+      // sibling scripts/migrate-partN.mjs and scripts/migrate-v10.mjs.
+      if (/^part\d+_/.test(f)) return false;
+      return true;
+    })
     .sort();
+  return files;
 }
 
 /**

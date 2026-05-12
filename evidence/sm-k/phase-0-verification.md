@@ -94,3 +94,19 @@ had been silently working around for months. Two compatibility shims
 added to apply-migrations.mjs (SKIP_ERRORS set, AFTER-clause retry)
 preserve the existing production schema state. SM-L Phase 4 takes the
 schema archaeology TODO.
+
+## Phase 0 CI failure round 2 + fix (2026-05-12)
+
+Second CI run failed mysql-db-lifecycle on part12_system_events.sql:
+  CREATE INDEX IF NOT EXISTS ...
+  Error: SQL syntax near 'IF NOT EXISTS' (MySQL does not support this)
+
+Codebase review confirmed part10/11/12 are 100% redundant - every
+table they create is already in drizzle/0019/0020/0021. The original
+SM-E2-ci inline loop, verify-migrations.mjs, and the actual production
+schema all treat partN_*.sql as not-real-migrations.
+
+Fix: apply-migrations.mjs and bootstrap-migrations-table.mjs now skip
+files matching part\d+_*.sql. Matches actual behavior of every other
+tool. SM-L Phase 4 to delete these files and their associated
+one-shot migrate-*.mjs scripts.
