@@ -111,6 +111,12 @@ They are not invoked by CI, package.json scripts, or any runtime
 code. SM-L Phase 4 should delete them along with the partN_*.sql
 files in drizzle/.
 
+**dbTestLifecycle.ts retired from drizzle-kit migrate (round 3).**
+applyTestMigrations() now invokes scripts/apply-migrations.mjs.
+drizzle-kit is no longer invoked anywhere in the codebase for
+migration apply — only retained for schema TS type generation via
+the drizzle:types script.
+
 ### Closed by SM-E (this PR)
 
 - Family consent DOB gate passive — FIXED: migration 0064 adds `users.date_of_birth`; `assertConsentForScheduleSale()` will enforce once DOB is collected

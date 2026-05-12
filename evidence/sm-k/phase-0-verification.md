@@ -110,3 +110,24 @@ Fix: apply-migrations.mjs and bootstrap-migrations-table.mjs now skip
 files matching part\d+_*.sql. Matches actual behavior of every other
 tool. SM-L Phase 4 to delete these files and their associated
 one-shot migrate-*.mjs scripts.
+
+## Phase 0 CI failure round 3 + fix (2026-05-12)
+
+Third CI run failed mysql-db-lifecycle with:
+  Error: pnpm exec drizzle-kit migrate failed with exit code 1
+  Caused by: ER_TABLE_EXISTS_ERROR on CREATE TABLE users
+  Location: server/testUtils/dbTestLifecycle.ts:85
+
+Root cause: dbTestLifecycle.ts applyTestMigrations() still shelled
+out to drizzle-kit migrate, which tracks via __drizzle_migrations
+(separate from our _app_migrations). Two parallel migration systems
+raced; drizzle-kit attempted to apply 0000 against tables our runner
+had already created.
+
+This was the unfinished part of SM-K Phase 0 Step 0.4 — only
+bootstrap-test-db.ts got updated, applyTestMigrations was left
+pointing at drizzle-kit.
+
+Fix: applyTestMigrations now invokes scripts/apply-migrations.mjs
+via the same spawn pattern, matching the path CI bootstrap uses.
+Verification query updated from __drizzle_migrations to _app_migrations.
