@@ -350,7 +350,64 @@ export const commandOutbox = mysqlTable(
   })
 );
 
+// ─── SM-B: Consent Notice Versions (migration 0058) ──────────────────────────
+export const consentNoticeVersions = mysqlTable(
+  "consent_notice_versions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    noticeKind: varchar("notice_kind", { length: 64 }).notNull(),
+    version: varchar("version", { length: 32 }).notNull(),
+    effectiveFrom: timestamp("effective_from").notNull(),
+    effectiveUntil: timestamp("effective_until"),
+    contentHash: varchar("content_hash", { length: 64 }).notNull(),
+    contentText: text("content_text").notNull(),
+    language: varchar("language", { length: 8 }).notNull().default("en"),
+    publishedByUserId: int("published_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  t => ({
+    uqConsentNoticeKindVersionLang: uniqueIndex(
+      "uq_consent_notice_kind_version_lang"
+    ).on(t.noticeKind, t.version, t.language),
+    idxConsentNoticeActive: index("idx_consent_notice_active").on(
+      t.noticeKind,
+      t.effectiveUntil,
+      t.effectiveFrom
+    ),
+  })
+);
+
+// ─── SM-B: DSR Requests (migration 0059) ─────────────────────────────────────
+export const dsrRequests = mysqlTable(
+  "dsr_requests",
+  {
+    id: varchar("id", { length: 36 }).notNull().primaryKey(),
+    customerId: int("customer_id").notNull(),
+    requestKind: varchar("request_kind", { length: 32 }).notNull(),
+    requestStatus: varchar("request_status", { length: 32 }).notNull(),
+    requestPayload: json("request_payload"),
+    responsePayload: json("response_payload"),
+    confirmationToken: varchar("confirmation_token", { length: 64 }),
+    confirmationExpiresAt: timestamp("confirmation_expires_at"),
+    confirmedAt: timestamp("confirmed_at"),
+    processedByUserId: int("processed_by_user_id"),
+    rejectionReason: text("rejection_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    completedAt: timestamp("completed_at"),
+  },
+  t => ({
+    idxDsrCustomer: index("idx_dsr_customer").on(t.customerId, t.createdAt),
+    idxDsrStatus: index("idx_dsr_status").on(t.requestStatus, t.createdAt),
+    idxDsrKind: index("idx_dsr_kind").on(t.requestKind, t.requestStatus),
+  })
+);
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
+export type ConsentNoticeVersion = typeof consentNoticeVersions.$inferSelect;
+export type NewConsentNoticeVersion = typeof consentNoticeVersions.$inferInsert;
+export type DsrRequest = typeof dsrRequests.$inferSelect;
+export type NewDsrRequest = typeof dsrRequests.$inferInsert;
+
 export type PrivacyConsent = typeof privacyConsents.$inferSelect;
 export type NewPrivacyConsent = typeof privacyConsents.$inferInsert;
 export type StaffAcknowledgement = typeof staffAcknowledgements.$inferSelect;

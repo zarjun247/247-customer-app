@@ -123,6 +123,8 @@ import { availabilityRouter } from "./routers/availabilityRouter";
 import { securityRouter } from "./routers/securityRouter";
 import { intelligenceRouter } from "./routers/intelligenceRouter";
 import { aiEvalRouter } from "./routers/aiEvalRouter";
+import { dsrRouter } from "./routers/dsrRouter";
+import { dsrAdminRouter } from "./routers/dsrAdminRouter";
 import { tplOrderReceived, alertNewOrder } from "./notifications";
 
 import {
@@ -1585,6 +1587,8 @@ export const appRouter = router({
   security: securityRouter,
   intelligence: intelligenceRouter,
   aiEval: aiEvalRouter,
+  dsr: dsrRouter,
+  dsrAdmin: dsrAdminRouter,
 });
 
 export type AppRouter = typeof appRouter;

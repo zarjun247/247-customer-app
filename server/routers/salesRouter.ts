@@ -28,6 +28,7 @@ import {
   resolveBarcodeForSale,
   resolveBarcodeForReturn,
 } from "../services/barcodeService";
+import { assertConsentForScheduleSale } from "../services/familyConsentService";
 import {
   buildIdempotencyKey,
   createMutationFingerprint,
@@ -383,6 +384,22 @@ export const salesRouter = router({
           code: "PRECONDITION_FAILED",
           message: `Schedule ${scheduleCode} requires pharmacist clearance before adding to bill`,
         });
+      }
+
+      // Family consent gate: under-18 customers require guardian consent for H/H1/X.
+      if (
+        (scheduleCode === "H" ||
+          scheduleCode === "H1" ||
+          scheduleCode === "X") &&
+        sale.customerId
+      ) {
+        const customerId = parseInt(sale.customerId, 10);
+        if (!isNaN(customerId)) {
+          await assertConsentForScheduleSale({
+            customerId,
+            scheduleClass: scheduleCode as "H" | "H1" | "X",
+          });
+        }
       }
 
       const discountAmount = +(

@@ -37,6 +37,7 @@ import ShiftClosing from "./pages/ShiftClosing";
 import FamilyProfiles from "./pages/FamilyProfiles";
 import RefillCalendar from "./pages/RefillCalendar";
 import MyMedicines from "./pages/MyMedicines";
+import PrivacySettings from "./pages/PrivacySettings";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "./lib/trpc";
 import { AdminRoutes } from "./routes/adminRoutes";
@@ -71,10 +72,8 @@ const PUBLIC_ROUTES = ["/login", "/onboarding"];
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const { data: profile, isLoading: profileLoading } = trpc.user.profile.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  const { data: profile, isLoading: profileLoading } =
+    trpc.user.profile.useQuery(undefined, { enabled: isAuthenticated });
 
   useEffect(() => {
     if (authLoading) return;
@@ -88,14 +87,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (profile && (!profile.onboardingComplete || !profile.assignedStoreId)) {
       navigate("/onboarding");
     }
-  }, [authLoading, profileLoading, isAuthenticated, profile, location, navigate]);
+  }, [
+    authLoading,
+    profileLoading,
+    isAuthenticated,
+    profile,
+    location,
+    navigate,
+  ]);
 
   // Show nothing while resolving — individual pages show their own skeletons via useOnboardingGuard
   if (authLoading || (!isAuthenticated && !authLoading)) return null;
   return <>{children}</>;
 }
 
-function RestrictedRoute({ children, allow }: { children: React.ReactNode; allow: Set<string> }) {
+function RestrictedRoute({
+  children,
+  allow,
+}: {
+  children: React.ReactNode;
+  allow: Set<string>;
+}) {
   const [location, navigate] = useLocation();
   const { isAuthenticated, user, loading: authLoading } = useAuth();
 
@@ -110,7 +122,8 @@ function RestrictedRoute({ children, allow }: { children: React.ReactNode; allow
     }
   }, [allow, authLoading, isAuthenticated, location, navigate, user]);
 
-  if (authLoading || !isAuthenticated || !user || !allow.has(user.role)) return null;
+  if (authLoading || !isAuthenticated || !user || !allow.has(user.role))
+    return null;
   return <>{children}</>;
 }
 
@@ -122,10 +135,10 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const isPublicRoute = PUBLIC_ROUTES.some(r => location.startsWith(r));
-  const { data: profile, isLoading: profileLoading } = trpc.user.profile.useQuery(
-    undefined,
-    { enabled: isAuthenticated && !isPublicRoute }
-  );
+  const { data: profile, isLoading: profileLoading } =
+    trpc.user.profile.useQuery(undefined, {
+      enabled: isAuthenticated && !isPublicRoute,
+    });
   useEffect(() => {
     if (authLoading || profileLoading) return;
     if (!isAuthenticated || !user) return;
@@ -133,7 +146,15 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
     if (profile && (!profile.onboardingComplete || !profile.assignedStoreId)) {
       navigate("/onboarding");
     }
-  }, [authLoading, profileLoading, isAuthenticated, user, profile, isPublicRoute, navigate]);
+  }, [
+    authLoading,
+    profileLoading,
+    isAuthenticated,
+    user,
+    profile,
+    isPublicRoute,
+    navigate,
+  ]);
   return <>{children}</>;
 }
 
@@ -144,34 +165,209 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/login" component={Login} />
         <Route path="/onboarding" component={Onboarding} />
-        <Route path="/catalog">{() => <ProtectedRoute><Catalog /></ProtectedRoute>}</Route>
-        <Route path="/cart">{() => <ProtectedRoute><Cart /></ProtectedRoute>}</Route>
-        <Route path="/orders">{() => <ProtectedRoute><Orders /></ProtectedRoute>}</Route>
-        <Route path="/orders/:id">{() => <ProtectedRoute><OrderDetail /></ProtectedRoute>}</Route>
-        <Route path="/rx-upload">{() => <ProtectedRoute><RxUpload /></ProtectedRoute>}</Route>
-        <Route path="/profile">{() => <ProtectedRoute><Profile /></ProtectedRoute>}</Route>
-        <Route path="/invoices">{() => <ProtectedRoute><Invoices /></ProtectedRoute>}</Route>
-        <Route path="/refills">{() => <ProtectedRoute><RefillReminders /></ProtectedRoute>}</Route>
-        <Route path="/family">{() => <ProtectedRoute><FamilyProfiles /></ProtectedRoute>}</Route>
-        <Route path="/refill-calendar">{() => <ProtectedRoute><RefillCalendar /></ProtectedRoute>}</Route>
-        <Route path="/my-medicines">{() => <ProtectedRoute><MyMedicines /></ProtectedRoute>}</Route>
-        <Route path="/workbench">{() => <RestrictedRoute allow={STAFF_ROLES}><PharmacistWorkbench /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy-os">{() => <RestrictedRoute allow={STAFF_ROLES}><PharmacyOS /></RestrictedRoute>}</Route>
-        <Route path="/dashboard">{() => <RestrictedRoute allow={ADMIN_ROLES}><FounderDashboard /></RestrictedRoute>}</Route>
-        <Route path="/ingestion">{() => <ProtectedRoute><InvoiceIngestion /></ProtectedRoute>}</Route>
-        <Route path="/helpdesk">{() => <ProtectedRoute><Helpdesk /></ProtectedRoute>}</Route>
-        <Route path="/consent">{() => <ProtectedRoute><Consent /></ProtectedRoute>}</Route>
-        <Route path="/doctor-consult">{() => <ProtectedRoute><DoctorConsult /></ProtectedRoute>}</Route>
-        <Route path="/pharmacy/expiry">{() => <RestrictedRoute allow={STAFF_ROLES}><ExpiryDashboard /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/barcodes">{() => <RestrictedRoute allow={STAFF_ROLES}><BarcodePrint /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/gst-export">{() => <RestrictedRoute allow={STAFF_ROLES}><GstExport /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/sla">{() => <RestrictedRoute allow={STAFF_ROLES}><SlaBoard /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/medivision">{() => <RestrictedRoute allow={STAFF_ROLES}><MedivisionSync /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/purchase">{() => <RestrictedRoute allow={STAFF_ROLES}><PurchaseEntry /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/ocr">{() => <RestrictedRoute allow={STAFF_ROLES}><OcrIngestion /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/reports">{() => <RestrictedRoute allow={STAFF_ROLES}><Reports /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/master-data">{() => <RestrictedRoute allow={STAFF_ROLES}><MasterData /></RestrictedRoute>}</Route>
-        <Route path="/pharmacy/shift">{() => <RestrictedRoute allow={STAFF_ROLES}><ShiftClosing /></RestrictedRoute>}</Route>
+        <Route path="/catalog">
+          {() => (
+            <ProtectedRoute>
+              <Catalog />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/cart">
+          {() => (
+            <ProtectedRoute>
+              <Cart />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/orders">
+          {() => (
+            <ProtectedRoute>
+              <Orders />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/orders/:id">
+          {() => (
+            <ProtectedRoute>
+              <OrderDetail />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/rx-upload">
+          {() => (
+            <ProtectedRoute>
+              <RxUpload />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/profile">
+          {() => (
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/invoices">
+          {() => (
+            <ProtectedRoute>
+              <Invoices />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/refills">
+          {() => (
+            <ProtectedRoute>
+              <RefillReminders />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/family">
+          {() => (
+            <ProtectedRoute>
+              <FamilyProfiles />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/refill-calendar">
+          {() => (
+            <ProtectedRoute>
+              <RefillCalendar />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/my-medicines">
+          {() => (
+            <ProtectedRoute>
+              <MyMedicines />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/privacy">
+          {() => (
+            <ProtectedRoute>
+              <PrivacySettings />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/workbench">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <PharmacistWorkbench />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy-os">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <PharmacyOS />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/dashboard">
+          {() => (
+            <RestrictedRoute allow={ADMIN_ROLES}>
+              <FounderDashboard />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/ingestion">
+          {() => (
+            <ProtectedRoute>
+              <InvoiceIngestion />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/helpdesk">
+          {() => (
+            <ProtectedRoute>
+              <Helpdesk />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/consent">
+          {() => (
+            <ProtectedRoute>
+              <Consent />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/doctor-consult">
+          {() => (
+            <ProtectedRoute>
+              <DoctorConsult />
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/expiry">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <ExpiryDashboard />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/barcodes">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <BarcodePrint />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/gst-export">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <GstExport />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/sla">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <SlaBoard />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/medivision">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <MedivisionSync />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/purchase">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <PurchaseEntry />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/ocr">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <OcrIngestion />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/reports">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <Reports />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/master-data">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <MasterData />
+            </RestrictedRoute>
+          )}
+        </Route>
+        <Route path="/pharmacy/shift">
+          {() => (
+            <RestrictedRoute allow={STAFF_ROLES}>
+              <ShiftClosing />
+            </RestrictedRoute>
+          )}
+        </Route>
         {/* Admin area */}
         <AdminRoutes RestrictedRoute={RestrictedRoute} />
         <Route path="/404" component={NotFound} />
@@ -185,7 +381,11 @@ function App() {
   const [showSplash, setShowSplash] = useState(() => shouldShowSplash());
 
   const handleSplashComplete = useCallback(() => {
-    try { sessionStorage.setItem(SPLASH_KEY, "1"); } catch { /* ignore */ }
+    try {
+      sessionStorage.setItem(SPLASH_KEY, "1");
+    } catch {
+      /* ignore */
+    }
     setShowSplash(false);
   }, []);
 
@@ -195,9 +395,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           {/* Splash renders on top of everything, dismissed after sequence */}
-          {showSplash && (
-            <SplashScreen onComplete={handleSplashComplete} />
-          )}
+          {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
           <Router />
         </TooltipProvider>
       </ThemeProvider>

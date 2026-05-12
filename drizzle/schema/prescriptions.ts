@@ -7,6 +7,9 @@ import {
   varchar,
   boolean,
   bigint,
+  json,
+  smallint,
+  index,
 } from "drizzle-orm/mysql-core";
 
 // ─── Prescriptions ────────────────────────────────────────────────────────────
@@ -93,6 +96,8 @@ export const prescriptions = mysqlTable("prescriptions", {
   // Links to sale/order
   linkedSaleId: int("linkedSaleId"),
   linkedOrderId: int("linkedOrderId"),
+  // SM-B migration 0061: key version for field-level PII encryption
+  encryptionKeyVersion: smallint("encryption_key_version").notNull().default(1),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -189,7 +194,40 @@ export const prescriptionAccessLog = mysqlTable("prescription_access_log", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// ─── SM-B: Family Consent (migration 0060) ────────────────────────────────────
+export const familyConsent = mysqlTable(
+  "family_consent",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    minorCustomerId: int("minor_customer_id").notNull(),
+    guardianCustomerId: int("guardian_customer_id"),
+    guardianName: varchar("guardian_name", { length: 255 }).notNull(),
+    guardianRelationship: varchar("guardian_relationship", {
+      length: 64,
+    }).notNull(),
+    guardianIdProofKind: varchar("guardian_id_proof_kind", { length: 32 }),
+    guardianIdProofLast4: varchar("guardian_id_proof_last4", { length: 8 }),
+    consentScopeJson: json("consent_scope_json").notNull(),
+    consentSignedAt: timestamp("consent_signed_at").notNull(),
+    consentRevokedAt: timestamp("consent_revoked_at"),
+    consentDocStoragePath: varchar("consent_doc_storage_path", { length: 500 }),
+    recordedByUserId: int("recorded_by_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  t => ({
+    idxFamilyConsentMinor: index("idx_family_consent_minor").on(
+      t.minorCustomerId
+    ),
+    idxFamilyConsentGuardian: index("idx_family_consent_guardian").on(
+      t.guardianCustomerId
+    ),
+  })
+);
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
+export type FamilyConsentRecord = typeof familyConsent.$inferSelect;
+export type NewFamilyConsent = typeof familyConsent.$inferInsert;
+
 export type Prescription = typeof prescriptions.$inferSelect;
 export type RxPriorApproval = typeof rxPriorApprovals.$inferSelect;
 export type PrescriptionLine = typeof prescriptionLines.$inferSelect;

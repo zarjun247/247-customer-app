@@ -22,7 +22,7 @@ const CSP_DIRECTIVES: Record<string, string> = {
 
 export function buildCspHeader(reportUri?: string | null): string {
   const parts = Object.entries(CSP_DIRECTIVES).map(([directive, value]) =>
-    value ? `${directive} ${value}` : directive,
+    value ? `${directive} ${value}` : directive
   );
   if (reportUri) parts.push(`report-uri ${reportUri}`);
   return parts.join("; ");
@@ -30,12 +30,13 @@ export function buildCspHeader(reportUri?: string | null): string {
 
 export function parseCspMode(raw: string | undefined): CspMode {
   if (raw === "enforce" || raw === "report_only" || raw === "off") return raw;
-  return "off";
+  // SM-B: default changed from "off" to "enforce". Set CSP_MODE=report_only for staged rollout.
+  return "enforce";
 }
 
 export function buildCspMiddleware(
   mode: CspMode,
-  reportUri?: string | null,
+  reportUri?: string | null
 ): RequestHandler {
   if (mode === "off") {
     return (_req, _res, next) => next();

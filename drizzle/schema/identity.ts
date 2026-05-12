@@ -7,6 +7,7 @@ import {
   varchar,
   decimal,
   boolean,
+  smallint,
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -47,6 +48,8 @@ export const users = mysqlTable("users", {
   userLng: decimal("userLng", { precision: 11, scale: 8 }),
   // Staff assignment
   staffStoreId: int("staffStoreId"), // which store this staff member operates at
+  // SM-B migration 0061: key version for field-level PII encryption
+  encryptionKeyVersion: smallint("encryption_key_version").notNull().default(1),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
