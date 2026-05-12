@@ -9,6 +9,3 @@ export * from "./delivery";
 export * from "./compliance";
 export * from "./intelligence";
 export * from "./system";
-export * from "./system_ops";
-export * from "./system_comms";
-export * from "./system_consumer";

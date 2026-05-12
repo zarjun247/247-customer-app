@@ -187,7 +187,14 @@ function convertToCSVBundle(payload: Record<string, unknown>): string {
     if (typeof value === "object" && value !== null) {
       lines.push(`${section},_object,${JSON.stringify(value)}`);
     } else {
-      lines.push(`${section},,${String(value ?? "")}`);
+      const prim = value as
+        | string
+        | number
+        | boolean
+        | bigint
+        | null
+        | undefined;
+      lines.push(`${section},,${String(prim ?? "")}`);
     }
   }
   return Buffer.from(lines.join("\n")).toString("base64");

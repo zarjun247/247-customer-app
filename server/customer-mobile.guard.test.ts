@@ -1,16 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { buildSafeNotificationPayload } from "./services/notificationService";
-import { createRefillReminder, createReorderPrompt } from "./services/refillReminderService";
+import {
+  createRefillReminder,
+  createReorderPrompt,
+} from "./services/refillReminderService";
 import fs from "node:fs";
 
 describe("customer-mobile guardrails", () => {
   it("redacts sensitive payload for unsafe channels by default", () => {
-    const p = buildSafeNotificationPayload({ channel: "sms", title: "Amlodipine reminder", body: "Take Amlodipine", sensitive: true });
+    const p = buildSafeNotificationPayload({
+      channel: "sms",
+      title: "Amlodipine reminder",
+      body: "Take Amlodipine",
+      sensitive: true,
+    });
     expect(p.body).not.toContain("Amlodipine");
   });
 
   it("creates reorder prompt only (no auto confirmed sale)", () => {
-    const rr = createRefillReminder({ customerId: 1, productId: 2, nextRefillDate: "2026-05-03", regulated: true });
+    const rr = createRefillReminder({
+      customerId: 1,
+      productId: 2,
+      nextRefillDate: "2026-05-03",
+      regulated: true,
+    });
     const prompt = createReorderPrompt(rr.id)!;
     expect(prompt.status).toBe("draft_prompt");
     expect(prompt.requiresComplianceReview).toBe(true);
@@ -28,7 +41,7 @@ describe("customer-mobile guardrails", () => {
   });
 
   it("release docs include notification env sections", () => {
-    const txt = fs.readFileSync("config/secrets.json.example", "utf8");
-    expect(txt).toContain("NOTIFICATION");
+    const txt = fs.readFileSync(".env.example", "utf8");
+    expect(txt).toContain("PUSH_PROVIDER");
   });
 });

@@ -2,46 +2,46 @@
 
 ## Executive summary
 
-24/7 should not be built as “another pharmacy app.” It should be built as a three-layer operating system for dense residential medication continuity: a native **24/7 Pharmacy OS** for store operations, a **24/7 customer app** for residents, and a **24/7 bridge/orchestrator** that owns order truth, routing, SLA control, WhatsApp, rider movement, sync, and eventing across all channels. That architecture matches the business thesis in your uploaded documents: in-building licensed pharmacies, micro-radius fulfilment, SLA-governed service, closed-loop therapy continuity, and compliance-grade auditability in high-density residential clusters. fileciteturn0file1 fileciteturn0file2
+24/7 should not be built as “another pharmacy app.” It should be built as a three-layer operating system for dense residential medication continuity: a native **24/7 Pharmacy OS** for store operations, a **24/7 customer app** for residents, and a **24/7 bridge/orchestrator** that owns order truth, routing, SLA control, WhatsApp, rider movement, sync, and eventing across all channels. That architecture matches the business thesis in your uploaded documents: in-building licensed pharmacies, micro-radius fulfilment, SLA-governed service, closed-loop therapy continuity, and compliance-grade auditability in high-density residential clusters. 
 
-The competitive review supports building your own stack rather than living permanently inside Medivision. Samarth’s public material shows a solid local ERP-style base for billing, inventory, GST, expiry, and barcode handling; Medivision’s official material shows strong retail/wholesale batch, reporting, H1 alerting, barcode, scanned-prescription storage, and retailer-wholesaler “data exchange”; Marg’s official material is strongest on purchase import ergonomics, including Excel/CSV/PDF and bill-photo import plus WhatsApp workflows; eVitalRx’s public material is the most advanced among the reviewed pharmacy products on cloud CRM, refill reminders, patient app flows, and delivery tracking via VitRun. But none of the reviewed public materials centres your specific model: **building-bound node allocation, hard pharmacist gates, a command-center SLA engine, FEFO-first batch orchestration, inwarding from scanned bills into a master product registry, and a closed-loop refill/continuity engine as the primary architecture**. citeturn20search0turn19search0turn19search1turn18search2turn18search3turn18search6turn16search0turn16search1turn16search4
+The competitive review supports building your own stack rather than living permanently inside Medivision. Samarth’s public material shows a solid local ERP-style base for billing, inventory, GST, expiry, and barcode handling; Medivision’s official material shows strong retail/wholesale batch, reporting, H1 alerting, barcode, scanned-prescription storage, and retailer-wholesaler “data exchange”; Marg’s official material is strongest on purchase import ergonomics, including Excel/CSV/PDF and bill-photo import plus WhatsApp workflows; eVitalRx’s public material is the most advanced among the reviewed pharmacy products on cloud CRM, refill reminders, patient app flows, and delivery tracking via VitRun. But none of the reviewed public materials centres your specific model: **building-bound node allocation, hard pharmacist gates, a command-center SLA engine, FEFO-first batch orchestration, inwarding from scanned bills into a master product registry, and a closed-loop refill/continuity engine as the primary architecture**. 
 
-The legal boundary is equally clear and should shape the product from day one. Under India’s retail-pharmacy framework, dispensing on prescription is reserved to registered pharmacists, the prescription may not be substituted by the pharmacist, Schedule H/H1/X flows have additional controls, and H1 sales require specific records to be preserved for three years. At the same time, current NMC rules recognise a duly signed scanned or digital prescription delivered through email or a messaging platform, which makes app and WhatsApp prescription ingestion workable if the dispensing decision still sits with a pharmacist. citeturn31search3turn32search0turn32search5turn15search1turn30search1turn29search0turn23search0turn23search1
+The legal boundary is equally clear and should shape the product from day one. Under India’s retail-pharmacy framework, dispensing on prescription is reserved to registered pharmacists, the prescription may not be substituted by the pharmacist, Schedule H/H1/X flows have additional controls, and H1 sales require specific records to be preserved for three years. At the same time, current NMC rules recognise a duly signed scanned or digital prescription delivered through email or a messaging platform, which makes app and WhatsApp prescription ingestion workable if the dispensing decision still sits with a pharmacist. 
 
-That means the right product strategy is **AI for operational intelligence, never AI for medicine selection or autonomous prescription fulfilment**. OCR, normalisation, forecasting, expiry-risk scoring, routing suggestions, and anomaly detection are safe and valuable. Automatic medicine selection, substitution, dose interpretation, prescription approval, or treatment advice are not. This also aligns with your chat-derived brief, which explicitly fixed AI boundaries, pincode/building routing, rider tracking, WhatsApp ordering, bill ingestion, barcode generation, and the 90-day/60-day expiry rules as non-negotiables. fileciteturn0file0 citeturn31search3turn32search0turn32search5turn8search1
+That means the right product strategy is **AI for operational intelligence, never AI for medicine selection or autonomous prescription fulfilment**. OCR, normalisation, forecasting, expiry-risk scoring, routing suggestions, and anomaly detection are safe and valuable. Automatic medicine selection, substitution, dose interpretation, prescription approval, or treatment advice are not. This also aligns with your chat-derived brief, which explicitly fixed AI boundaries, pincode/building routing, rider tracking, WhatsApp ordering, bill ingestion, barcode generation, and the 90-day/60-day expiry rules as non-negotiables. 
 
-No specific constraint has been supplied for stack, team size, or budget. This dossier therefore assumes greenfield technical freedom, but with a conservative Indian regulatory posture, a Mumbai-first density rollout, and a phased replacement of Medivision rather than a big-bang cutover. fileciteturn0file1
+No specific constraint has been supplied for stack, team size, or budget. This dossier therefore assumes greenfield technical freedom, but with a conservative Indian regulatory posture, a Mumbai-first density rollout, and a phased replacement of Medivision rather than a big-bang cutover. 
 
 ## Strategic fit and competitive baseline
 
-Your uploaded business thesis is unusually specific and that is good: the moat is not “pharmacy software,” it is **residential medication infrastructure**. The documents frame the opportunity as a controlled 1–2 km radius, in-building or tightly embedded store presence, guaranteed fulfilment, repeat chronic demand, adherence continuity, and measurable SLA control. That means the system has to optimise for deterministic local execution, not marketplace breadth or pooled logistics. fileciteturn0file1
+Your uploaded business thesis is unusually specific and that is good: the moat is not “pharmacy software,” it is **residential medication infrastructure**. The documents frame the opportunity as a controlled 1–2 km radius, in-building or tightly embedded store presence, guaranteed fulfilment, repeat chronic demand, adherence continuity, and measurable SLA control. That means the system has to optimise for deterministic local execution, not marketplace breadth or pooled logistics. 
 
-The reviewed Indian products validate different slices of the market, but not the full 24/7 model. Samarth validates that local Indian operators still buy practical ERP for billing/inventory/expiry basics. Medivision validates the importance of batch handling, H1 awareness, reports, barcodes, and retailer-wholesaler data exchange. Marg validates the exact pain you raised around line-by-line SKU creation by pushing PDF/CSV/photo-based inward import. eVitalRx validates cloud, CRM, refill, and rider-operation demand. The product decision for 24/7 is therefore not to reinvent basic pharmacy software from scratch conceptually; it is to **compose the strongest proven features into a denser, legally safer, SLA-native system whose centre of gravity is orchestration rather than accounting screens**. citeturn20search0turn19search0turn19search1turn18search1turn18search2turn18search3turn18search6turn16search0turn16search1turn16search4
+The reviewed Indian products validate different slices of the market, but not the full 24/7 model. Samarth validates that local Indian operators still buy practical ERP for billing/inventory/expiry basics. Medivision validates the importance of batch handling, H1 awareness, reports, barcodes, and retailer-wholesaler data exchange. Marg validates the exact pain you raised around line-by-line SKU creation by pushing PDF/CSV/photo-based inward import. eVitalRx validates cloud, CRM, refill, and rider-operation demand. The product decision for 24/7 is therefore not to reinvent basic pharmacy software from scratch conceptually; it is to **compose the strongest proven features into a denser, legally safer, SLA-native system whose centre of gravity is orchestration rather than accounting screens**. 
 
 ### Competitive feature matrix
 
 | Product | Batch / expiry | Purchase import automation | Barcode handling | CRM / WhatsApp | Delivery / rider ops | Patient / resident ordering | Main gap versus 24/7 model | Evidence |
 |---|---|---|---|---|---|---|---|---|
-| Samarth | Public material shows inventory, stock tracking and expiry management | Not evident in reviewed public material | Public material shows barcode-based stock handling | Not evident in reviewed public material | Not evident in reviewed public material | Not evident in reviewed public material | Good local ERP core, but publicly documented scope is much narrower than a dense-node orchestrator | citeturn20search0 |
-| Medivision | Public material shows expiry handling, non-moving/slow-moving, H1/narcotic alerts | Public material shows retailer-wholesaler data exchange and automatic purchase feeding, but not bill-photo inward OCR on the reviewed retail pages | Public material shows barcode scanning and barcode generation | Public material shows Bulk SMS and order/data exchange | Advanced delivery tracking is visible in wholesale material; rider ops are not a clear retail-centre theme in reviewed public material | “Mobile applications” are shown for retailers/wholesalers, not a resident-first closed-loop consumer app | Strong for legacy pharmacy operations; weak as a resident-facing SLA and continuity platform | citeturn19search0turn19search1turn19search2turn19search3 |
-| Marg | Public material strongly shows Excel/CSV/PDF import and bill-photo import | Strongest among reviewed products on inward-entry automation | Public material shows e-store and billing ecosystem expectations; barcode support is part of broader ERP/public pages | Public material shows WhatsApp invoices/reminders and prescription reminders | Not a rider-command-center product in reviewed public material | Public material shows e-store / customer-ordering patterns, but not building-aware node orchestration | Best benchmark for bill-import ergonomics, but not for dense-SLA control | citeturn18search1turn18search2turn18search3turn18search5turn18search6turn18search8turn0search8 |
-| eVitalRx | Public material shows real-time inventory, expiry, reorder and warehouse/multi-store handling | Public material shows data porting and CSV-based speed, though not reviewed as bill-photo-first as Marg | Public material shows product catalogue and barcodes | Strong CRM: WhatsApp, refill reminders, offers, loyalty, invoices | Strongest among reviewed products on delivery tracking and route optimisation via VitRun | Public material explicitly includes patient ordering app | Closest current benchmark to your app + ops direction, but still not positioned around building-bound orchestration, conservative compliance gates, or Medivision replacement sequencing | citeturn16search0turn16search1turn16search3turn16search4 |
+| Samarth | Public material shows inventory, stock tracking and expiry management | Not evident in reviewed public material | Public material shows barcode-based stock handling | Not evident in reviewed public material | Not evident in reviewed public material | Not evident in reviewed public material | Good local ERP core, but publicly documented scope is much narrower than a dense-node orchestrator | 
+| Medivision | Public material shows expiry handling, non-moving/slow-moving, H1/narcotic alerts | Public material shows retailer-wholesaler data exchange and automatic purchase feeding, but not bill-photo inward OCR on the reviewed retail pages | Public material shows barcode scanning and barcode generation | Public material shows Bulk SMS and order/data exchange | Advanced delivery tracking is visible in wholesale material; rider ops are not a clear retail-centre theme in reviewed public material | “Mobile applications” are shown for retailers/wholesalers, not a resident-first closed-loop consumer app | Strong for legacy pharmacy operations; weak as a resident-facing SLA and continuity platform | 
+| Marg | Public material strongly shows Excel/CSV/PDF import and bill-photo import | Strongest among reviewed products on inward-entry automation | Public material shows e-store and billing ecosystem expectations; barcode support is part of broader ERP/public pages | Public material shows WhatsApp invoices/reminders and prescription reminders | Not a rider-command-center product in reviewed public material | Public material shows e-store / customer-ordering patterns, but not building-aware node orchestration | Best benchmark for bill-import ergonomics, but not for dense-SLA control | 
+| eVitalRx | Public material shows real-time inventory, expiry, reorder and warehouse/multi-store handling | Public material shows data porting and CSV-based speed, though not reviewed as bill-photo-first as Marg | Public material shows product catalogue and barcodes | Strong CRM: WhatsApp, refill reminders, offers, loyalty, invoices | Strongest among reviewed products on delivery tracking and route optimisation via VitRun | Public material explicitly includes patient ordering app | Closest current benchmark to your app + ops direction, but still not positioned around building-bound orchestration, conservative compliance gates, or Medivision replacement sequencing | 
 
-A useful market signal beyond the requested four is SWIL: its public material also emphasises expiry, restricted-drug management, mobile-app integration, barcode, and near-expiry reporting. That reinforces the conclusion that Indian pharmacy software is steadily moving outward from billing into operations, but still usually from the store outward, not from the neighbourhood inward. 24/7 should take the latter path. citeturn17search0turn17search5turn17search6
+A useful market signal beyond the requested four is SWIL: its public material also emphasises expiry, restricted-drug management, mobile-app integration, barcode, and near-expiry reporting. That reinforces the conclusion that Indian pharmacy software is steadily moving outward from billing into operations, but still usually from the store outward, not from the neighbourhood inward. 24/7 should take the latter path. 
 
 ## Legal and AI governance
 
-Under the Indian retail-pharmacy stack, the first non-negotiable is human control of dispensing. The entity["organization","Pharmacy Council of India","india"] reiterates that, under section 42 of the Pharmacy Act, no person other than a registered pharmacist may compound, prepare, mix or dispense medicines on prescription. The Pharmacy Practice Regulations also state that every registered pharmacist shall dispense only those medicines as prescribed by the registered medical practitioner and shall not substitute the prescription. This single principle should shape the software architecture more than any feature wish-list. citeturn31search3turn31search0turn32search0turn32search5
+Under the Indian retail-pharmacy stack, the first non-negotiable is human control of dispensing. The 
 
-The second non-negotiable is prescription control. The Drugs Rules require that prescriptions containing Schedule H, Schedule H1 and Schedule X items are not to be dispensed more than once unless the prescriber says so. For H1 drugs, supply must be recorded with the prescriber’s name and address, the patient’s name, the drug name, and quantity supplied, and those records must be maintained for three years. H1 labels also carry the warning that they are not to be sold by retail without the prescription of a registered medical practitioner. citeturn15search1turn30search1turn14search14turn13search1
+The second non-negotiable is prescription control. The Drugs Rules require that prescriptions containing Schedule H, Schedule H1 and Schedule X items are not to be dispensed more than once unless the prescriber says so. For H1 drugs, supply must be recorded with the prescriber’s name and address, the patient’s name, the drug name, and quantity supplied, and those records must be maintained for three years. H1 labels also carry the warning that they are not to be sold by retail without the prescription of a registered medical practitioner. 
 
-The third non-negotiable is how digital prescriptions are handled. The entity["organization","National Medical Commission","india"] 2023 professional-conduct regulations state that RMPs shall provide a clear photograph, scanned or digital copy of a duly signed prescription to the patient via email or a messaging platform. Telemedicine guidance remains list-based and keeps prohibited medicines and Schedule X / narcotic / psychotropic substances outside normal tele-prescribing flows. That means digital ingestion is operationally valid, but the platform must still treat every prescription as a regulated artefact requiring pharmacist review, schedule-aware controls, and auditable fulfilment. citeturn29search0turn23search0turn23search1
+The third non-negotiable is how digital prescriptions are handled. The 
 
-The fourth non-negotiable is expiry and disposal discipline. The entity["organization","Central Drugs Standard Control Organisation","india regulator"] guidance on expired/unused drugs refers back to separate storage under Rule 65(17), and WHO good storage/distribution guidance reinforces FEFO-style stock discipline and visible batch/expiry handling. Your proposed 90-day warning threshold and 60-day hard-control threshold are therefore stricter than the floor and are strategically sound. citeturn8search0turn7search3turn7search4
+The fourth non-negotiable is expiry and disposal discipline. The 
 
 ### What the AI mind may do
 
-The right AI policy is to let AI accelerate **data movement and operational decisions**, while denying it any autonomous **clinical or dispensing authority**. The table below is the recommended operating doctrine for 24/7, and it is the only way to keep the product aligned both with your own compliance stance and with the pharmacist-only dispensing framework. fileciteturn0file0 citeturn31search3turn32search0turn32search5
+The right AI policy is to let AI accelerate **data movement and operational decisions**, while denying it any autonomous **clinical or dispensing authority**. The table below is the recommended operating doctrine for 24/7, and it is the only way to keep the product aligned both with your own compliance stance and with the pharmacist-only dispensing framework. 
 
 | AI function | Status | Why |
 |---|---|---|
@@ -77,7 +77,7 @@ A 24/7-grade system should be built as if every regulated event may one day need
 
 ## Product blueprint
 
-The uploads already describe the core shape: resident app, admin dashboard, inventory, payments, delivery tracking, refill reminders, then a later AI layer. The chat-derived brief then extends that into a much more specific operating model: Medivision replacement over time, scanned-bill inwarding, barcodes, FEFO, expiry buckets, WhatsApp bot, pincode/building routing, rider tracking, SLA dashboard, command center, and an AI mind bounded to lawful operational work. fileciteturn0file2 fileciteturn0file0
+The uploads already describe the core shape: resident app, admin dashboard, inventory, payments, delivery tracking, refill reminders, then a later AI layer. The chat-derived brief then extends that into a much more specific operating model: Medivision replacement over time, scanned-bill inwarding, barcodes, FEFO, expiry buckets, WhatsApp bot, pincode/building routing, rider tracking, SLA dashboard, command center, and an AI mind bounded to lawful operational work. 
 
 The recommended blueprint is below.
 
@@ -91,7 +91,7 @@ The recommended blueprint is below.
 
 ### System architecture
 
-The diagram below turns your business thesis into a production topology: app and WhatsApp flow into a single orchestrator; the orchestrator resolves node, SLA and state; Medivision is bridged during migration; and the native OS becomes the long-term operational core. fileciteturn0file1 fileciteturn0file2 fileciteturn0file0
+The diagram below turns your business thesis into a production topology: app and WhatsApp flow into a single orchestrator; the orchestrator resolves node, SLA and state; Medivision is bridged during migration; and the native OS becomes the long-term operational core. 
 
 ```mermaid
 flowchart LR
@@ -132,13 +132,13 @@ flowchart LR
 
 ### The modules that matter most
 
-The **master product registry** is the heart of the whole replacement strategy. It must sit above Medivision, Marg-style imports, app search, and store billing. It should canonicalise product names, generics, strength, form, manufacturer, pack, schedule flags, prescription requirement, HSN/GST, and barcode references, while still preserving the raw strings from legacy systems and invoices. Without this layer, you will keep inheriting the mess of supplier naming forever. Your current Medivision export is already enough to seed the first version because it provides product names, units, companies, quantities and values, while some prescription flags are embedded in names. fileciteturn0file0
+The **master product registry** is the heart of the whole replacement strategy. It must sit above Medivision, Marg-style imports, app search, and store billing. It should canonicalise product names, generics, strength, form, manufacturer, pack, schedule flags, prescription requirement, HSN/GST, and barcode references, while still preserving the raw strings from legacy systems and invoices. Without this layer, you will keep inheriting the mess of supplier naming forever. Your current Medivision export is already enough to seed the first version because it provides product names, units, companies, quantities and values, while some prescription flags are embedded in names. 
 
-The **inwarding engine** should solve the exact pain you identified: no more one-by-one SKU creation as the normal path. Instead, purchase bills should enter as photo/PDF/CSV/data-exchange feeds, produce a draft inward, match against the registry, create unknown-item review tasks where necessary, and then generate internal batch barcodes for the items that need them. The fact that Marg now publicly markets PDF and bill-photo import is a strong signal that this pain is real and commercially important. citeturn18search1turn18search3turn18search6turn18search20
+The **inwarding engine** should solve the exact pain you identified: no more one-by-one SKU creation as the normal path. Instead, purchase bills should enter as photo/PDF/CSV/data-exchange feeds, produce a draft inward, match against the registry, create unknown-item review tasks where necessary, and then generate internal batch barcodes for the items that need them. The fact that Marg now publicly markets PDF and bill-photo import is a strong signal that this pain is real and commercially important. 
 
-The **node resolver** must be designed for your density thesis, not generic e-commerce logistics. The right routing logic is: **building mapping first, pincode fallback second, operational score last**. If a society or tower is explicitly bound to a node, that node should be primary unless it is closed, licence-disabled, lacks pharmacist coverage, or fails other hard compliance gates. Only then should pincode or nearest-eligible logic apply. This is more faithful to your model than “nearest pincode wins.” fileciteturn0file1 fileciteturn0file0
+The **node resolver** must be designed for your density thesis, not generic e-commerce logistics. The right routing logic is: **building mapping first, pincode fallback second, operational score last**. If a society or tower is explicitly bound to a node, that node should be primary unless it is closed, licence-disabled, lacks pharmacist coverage, or fails other hard compliance gates. Only then should pincode or nearest-eligible logic apply. This is more faithful to your model than “nearest pincode wins.” 
 
-The **bridge/orchestrator** is the irreversible differentiator. Existing Indian systems tend to be store-centric. 24/7 must be event-centric: one order ID, one state machine, one notification spine, one SLA clock, one rider ledger, one manual-override log, and one command center across all channels. This bridge is what will make Medivision redundant over time rather than merely “integrated.” fileciteturn0file0
+The **bridge/orchestrator** is the irreversible differentiator. Existing Indian systems tend to be store-centric. 24/7 must be event-centric: one order ID, one state machine, one notification spine, one SLA clock, one rider ledger, one manual-override log, and one command center across all channels. This bridge is what will make Medivision redundant over time rather than merely “integrated.” 
 
 ## Data model, workflows and APIs
 
@@ -165,7 +165,7 @@ Recommended confidence policy:
 
 ### Barcode strategy
 
-Use manufacturer barcodes where they already exist. Where they do not, use internal identifiers without pretending they are global trade barcodes. entity["organization","GS1 India","india standards body"] says it is the only authorised seller of barcodes in India, that Indian GS1 barcodes begin with 890, and that such barcodes are needed for broader retail/e-commerce interoperability. 24/7 should therefore **reuse valid GTIN/EAN manufacturer codes**, but for internal store control it should use **Code 128** or QR labels for batch, shelf/bin, and order-packet operations. citeturn5search7turn5search16turn5search3
+Use manufacturer barcodes where they already exist. Where they do not, use internal identifiers without pretending they are global trade barcodes. 
 
 | Use case | Recommended code | Why |
 |---|---|---|
@@ -177,7 +177,7 @@ Use manufacturer barcodes where they already exist. Where they do not, use inter
 
 ### Expiry rules and FEFO policy
 
-The platform should implement FEFO by default and make the expiry windows first-class objects, not passive reports. WHO guidance supports FEFO/FIFO stock discipline, and CDSCO guidance requires proper separate handling of expired/unused stock. Your requested thresholds should be productised exactly as operating rules. citeturn7search3turn7search4turn8search0
+The platform should implement FEFO by default and make the expiry windows first-class objects, not passive reports. WHO guidance supports FEFO/FIFO stock discipline, and CDSCO guidance requires proper separate handling of expired/unused stock. Your requested thresholds should be productised exactly as operating rules. 
 
 | Zone | Rule | System action |
 |---|---|---|
@@ -187,7 +187,7 @@ The platform should implement FEFO by default and make the expiry windows first-
 | 30 days or below | Quarantine candidate | Require explicit pharmacist/manager release policy by category |
 | Expired | Hard block | Remove from sale, quarantine, disposal workflow only |
 
-The **60-day hard limit** should not mean “always unsaleable regardless of category”; it should mean “cannot remain invisible or unmanaged.” For many fast-moving safe OTC items, commercial action may still be lawful before expiry. For prescription or slow-moving items, 60 days should usually trigger transfer, hold, or controlled clearance planning. The important thing is that nothing inside the 60-day bucket stays on ordinary autopilot. fileciteturn0file0
+The **60-day hard limit** should not mean “always unsaleable regardless of category”; it should mean “cannot remain invisible or unmanaged.” For many fast-moving safe OTC items, commercial action may still be lawful before expiry. For prescription or slow-moving items, 60 days should usually trigger transfer, hold, or controlled clearance planning. The important thing is that nothing inside the 60-day bucket stays on ordinary autopilot. 
 
 ### Core data model
 
@@ -224,7 +224,7 @@ The following tables are the minimum useful schema for a 24/7-grade system.
 
 ### Current Medivision export field mapping
 
-Your current project artefacts indicate that the Medivision export already gives enough to seed Phase 1 mapping even though it is not a full ideal master. fileciteturn0file0
+Your current project artefacts indicate that the Medivision export already gives enough to seed Phase 1 mapping even though it is not a full ideal master. 
 
 | Current source field | Likely meaning | 24/7 target field | Notes |
 |---|---|---|---|
@@ -258,7 +258,7 @@ A practical v1/v1.5 API surface can stay small but must be coherent.
 
 ### Order state machine
 
-The state machine should be explicit, not inferred from UI labels. This is what prevents compliance leakage, phantom stock promises, and rider confusion. The uploaded scope already defined resident-visible progression from placed to preparing to out-for-delivery to delivered; the 24/7 version needs to expand that into a regulated state machine. fileciteturn0file2 fileciteturn0file0
+The state machine should be explicit, not inferred from UI labels. This is what prevents compliance leakage, phantom stock promises, and rider confusion. The uploaded scope already defined resident-visible progression from placed to preparing to out-for-delivery to delivered; the 24/7 version needs to expand that into a regulated state machine. 
 
 ```mermaid
 stateDiagram-v2
@@ -309,7 +309,7 @@ The `compliance_block` should disqualify a node if:
 - a pharmacist is not on duty for a prescription order,
 - the required batch is expired or quarantined,
 - cold-chain or controlled-drug capability is absent,
-- the sync freshness is below threshold for low-stock/high-risk fulfilment. fileciteturn0file0
+- the sync freshness is below threshold for low-stock/high-risk fulfilment. 
 
 Recommended SLA formulas:
 
@@ -322,7 +322,7 @@ Important design choice: **the customer-facing SLA clock should start only after
 
 ### WhatsApp order bot flows
 
-Build the bot on the entity["company","Meta","whatsapp platform"] WhatsApp Cloud API. Meta’s official docs position Cloud API on Graph API with webhooks for inbound messages and status callbacks, and template messages for reminders, updates, shipping/payment-style notifications and similar event communication. That makes it the right production route for order intake, status messaging, refill reminders and human escalation. citeturn6search3turn6search2turn6search8turn6search15
+Build the bot on the 
 
 | Flow | Customer action | System behaviour | Human gate |
 |---|---|---|---|
@@ -340,7 +340,7 @@ Every WhatsApp interaction should create or update the same order objects used b
 
 ### Phase roadmap
 
-Your uploaded proposal correctly sequences the build as core platform first, then operational intelligence, then deeper clinical/predictive layers. For 24/7, that should be adapted into four practical phases that respect Medivision coexistence and your compliance guardrails. fileciteturn0file2 fileciteturn0file0
+Your uploaded proposal correctly sequences the build as core platform first, then operational intelligence, then deeper clinical/predictive layers. For 24/7, that should be adapted into four practical phases that respect Medivision coexistence and your compliance guardrails. 
 
 | Phase | What goes live | What remains outside scope |
 |---|---|---|
@@ -349,11 +349,11 @@ Your uploaded proposal correctly sequences the build as core platform first, the
 | Phase 2 | Native inventory truth, native purchase workflow, FEFO picking, inter-store transfer, routing/SLA engine, refill engine, store-to-store network ops | Full financial close/general ledger replacement if not needed yet |
 | Phase 3 | Medivision retirement, native reporting/GST/Tally export maturity, advanced forecasting, continuity intelligence, later doctor/insurer integrations if still desired after legal review | Any autonomous clinical AI |
 
-The most important strategic choice is this: **do not try to replace every accounting feature in v1**. Indian pharmacy operators expect GST and accounting outputs, but early replacement should focus on operational truth. In practice, 24/7 should first replace **catalogue, batches, order flow, prescription governance, routing, rider ops, inwarding and expiry control**, while exporting finance-friendly outputs into the accounting workflow your team prefers. This is also how market incumbents position themselves: pharmacy ERP buyers expect accounting compatibility, not necessarily a totally novel ledger from day one. citeturn19search0turn19search1turn16search4turn18search8
+The most important strategic choice is this: **do not try to replace every accounting feature in v1**. Indian pharmacy operators expect GST and accounting outputs, but early replacement should focus on operational truth. In practice, 24/7 should first replace **catalogue, batches, order flow, prescription governance, routing, rider ops, inwarding and expiry control**, while exporting finance-friendly outputs into the accounting workflow your team prefers. This is also how market incumbents position themselves: pharmacy ERP buyers expect accounting compatibility, not necessarily a totally novel ledger from day one. 
 
 ### Medivision migration design
 
-Public Medivision materials show data exchange, MV Web Server, online ordering and rich reporting, but no public developer API documentation was evident in the reviewed materials. The safe conclusion is that **file export, watched-folder import, scheduled reports, or read-only DB sync are the realistic Phase 1 bridge patterns**, not a clean supported API-first integration. citeturn19search0turn19search1
+Public Medivision materials show data exchange, MV Web Server, online ordering and rich reporting, but no public developer API documentation was evident in the reviewed materials. The safe conclusion is that **file export, watched-folder import, scheduled reports, or read-only DB sync are the realistic Phase 1 bridge patterns**, not a clean supported API-first integration. 
 
 | Stage | Source of truth | Integration mode | Recommended frequency |
 |---|---|---|---|
@@ -440,7 +440,7 @@ Exit gates should be numerical:
 | Rider app | Assigned tasks, pickup scan, navigation, arrival, proof-of-delivery, COD entry, non-delivery reason, heartbeat tracking |
 | Command center | SLA board, breach alerts, near-expiry exposure, refill pipeline, sync staleness, node capacity, manual override monitor |
 
-The customer experience should feel trust-heavy, not gimmick-heavy. Prescription medicines should never look like casual impulse-add products. The UI should keep reminding the user that review and fulfilment happen under pharmacist supervision where required. That is not just compliance; it is brand positioning. citeturn31search3turn32search0turn29search0
+The customer experience should feel trust-heavy, not gimmick-heavy. Prescription medicines should never look like casual impulse-add products. The UI should keep reminding the user that review and fulfilment happen under pharmacist supervision where required. That is not just compliance; it is brand positioning. 
 
 ### Metrics and dashboards
 
@@ -462,7 +462,7 @@ Recommended formulas:
 
 ### Security, privacy and retention
 
-On privacy and cyber, design to the entity["organization","Ministry of Electronics and Information Technology","india"] DPDP framework and the entity["organization","CERT-In","india cyber emergency"] directions from day one, not as a later patch. The DPDP Act requires notice, purpose-bound and necessary processing, consent that is free/specific/informed, and the ability to withdraw consent with comparable ease. The 2025 DPDP rules and commencement notifications are staged, but they are now concrete enough that building ahead of the clock is the safer choice. CERT-In meanwhile requires reportable cyber incidents within six hours and ICT logs retained for 180 days, maintained within Indian jurisdiction. citeturn28search3turn28search2turn28search6turn21search2turn5search2
+On privacy and cyber, design to the 
 
 Recommended security controls:
 - India-hosted primary environment.
@@ -488,13 +488,13 @@ Recommended retention policy:
 | Rider GPS breadcrumbs | No special statutory long floor reviewed, but operational and dispute value exists | 180 days detailed, aggregated summaries thereafter |
 | Inactive customer account data | DPDP notice / purpose / deletion discipline | Delete or anonymise when no legal basis remains; implement inactivity notices and deletion workflow as DPDP controls mature |
 
-Tax law also permits electronic records, which supports a digital-first architecture, but the retention model must still respect purpose limitation and deletion once legal bases expire. citeturn25search3turn26search0turn28search3
+Tax law also permits electronic records, which supports a digital-first architecture, but the retention model must still respect purpose limitation and deletion once legal bases expire. 
 
 ## Immediate actions and Manus-ready build brief
 
 ### Recommended immediate action items
 
-1. Freeze the legal operating doctrine: **pharmacist-gated dispensing, no substitution engine, AI only for operational tasks**. citeturn31search3turn32search0turn32search5  
+1. Freeze the legal operating doctrine: **pharmacist-gated dispensing, no substitution engine, AI only for operational tasks**. 
 2. Request the next Medivision exports immediately, especially item code, batch, expiry, MRP, sale rate, purchase rate, GST and transaction ledgers.  
 3. Start the **Master Product Registry** before the app build is complete; it is the foundation for search, inwarding, refills and migration.  
 4. Build the **invoice/PDF/photo ingestion queue** as a first-order workflow, not a later “nice to have.”  
@@ -503,7 +503,7 @@ Tax law also permits electronic records, which supports a digital-first architec
 7. Implement **90-day warning / 60-day critical** expiry rules in the data model itself, not just in dashboards.  
 8. Start with **one order state machine** across app, WhatsApp and dashboard.  
 9. Keep accounting replacement limited in v1; support export/report compatibility first, full ledger later.  
-10. Treat the command center as a launch feature, not a later analytics add-on. fileciteturn0file0 fileciteturn0file2
+10. Treat the command center as a launch feature, not a later analytics add-on. 
 
 ### Prioritised feature backlog
 
@@ -557,4 +557,4 @@ Non-negotiables:
 - manufacturer barcode reuse plus internal batch labels where needed,
 - building-first serviceability, pincode fallback, then operational scoring,
 - one source of order truth across app, WhatsApp and dashboard,
-- full audit trail for prescriptions, overrides, batch mutations, rider events and AI suggestions. fileciteturn0file0 fileciteturn0file1 file
+- full audit trail for prescriptions, overrides, batch mutations, rider events and AI suggestions. 

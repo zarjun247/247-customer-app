@@ -40,15 +40,23 @@ function toNumber(value: unknown): number {
 function toIso(value: unknown): string | null {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value as any);
-  return Number.isNaN(d.getTime())
-    ? String(value)
-    : d.toISOString().slice(0, 10);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  if (typeof value === "object") return JSON.stringify(value);
+  const prim = value as string | number | boolean | bigint;
+  return String(prim);
 }
 
 function normalizeEmpty(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  return s.length > 0 ? s : null;
+  let s: string;
+  if (typeof value === "object") {
+    s = JSON.stringify(value);
+  } else {
+    const prim = value as string | number | boolean | bigint;
+    s = String(prim);
+  }
+  const trimmed = s.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function stableSerialize(value: unknown): string {

@@ -21,7 +21,9 @@ const testDatabaseUrl = getTestDatabaseUrl();
 const describeWithDb = testDatabaseUrl ? describe : describe.skip;
 
 if (!testDatabaseUrl) {
-  console.warn(`Skipping MySQL DB lifecycle integration smoke test because ${TEST_DB_ENV_VAR} is not set.`);
+  console.warn(
+    `Skipping MySQL DB lifecycle integration smoke test because ${TEST_DB_ENV_VAR} is not set.`
+  );
 }
 
 describeWithDb("MySQL-backed test database lifecycle", () => {
@@ -40,19 +42,65 @@ describeWithDb("MySQL-backed test database lifecycle", () => {
   });
 
   it("connects, verifies migrations, seeds rows, reads rows, and cleans up deterministically", async () => {
-    const [migrationRows] = await ctx.connection.query("SELECT COUNT(*) AS migrationCount FROM __drizzle_migrations");
-    expect(Number((migrationRows as Array<{ migrationCount: number }>)[0]?.migrationCount ?? 0)).toBeGreaterThan(0);
+    const [migrationRows] = await ctx.connection.query(
+      "SELECT COUNT(*) AS migrationCount FROM _app_migrations"
+    );
+    expect(
+      Number(
+        (migrationRows as Array<{ migrationCount: number }>)[0]
+          ?.migrationCount ?? 0
+      )
+    ).toBeGreaterThan(0);
 
     const store = await createDeterministicTestStore(ctx);
     const customer = await createDeterministicTestCustomer(ctx);
     const staff = await createDeterministicTestStaff(ctx, store.id);
-    const productSet = await createDeterministicTestProductSkuBatch(ctx, store.id);
+    const productSet = await createDeterministicTestProductSkuBatch(
+      ctx,
+      store.id
+    );
 
-    expect((await ctx.db.select().from(stores).where(eq(stores.id, store.id)).limit(1))[0]?.name).toBe(store.name);
-    expect((await ctx.db.select().from(users).where(eq(users.id, customer.id)).limit(1))[0]?.role).toBe("customer");
-    expect((await ctx.db.select().from(users).where(eq(users.id, staff.id)).limit(1))[0]?.role).toBe("pharmacist");
-    expect((await ctx.db.select().from(products).where(eq(products.id, productSet.product.id)).limit(1))[0]?.name).toBe(productSet.product.name);
-    expect((await ctx.db.select().from(batches).where(eq(batches.id, productSet.batch.id)).limit(1))[0]?.quantity).toBe(5);
+    expect(
+      (
+        await ctx.db
+          .select()
+          .from(stores)
+          .where(eq(stores.id, store.id))
+          .limit(1)
+      )[0]?.name
+    ).toBe(store.name);
+    expect(
+      (
+        await ctx.db
+          .select()
+          .from(users)
+          .where(eq(users.id, customer.id))
+          .limit(1)
+      )[0]?.role
+    ).toBe("customer");
+    expect(
+      (
+        await ctx.db.select().from(users).where(eq(users.id, staff.id)).limit(1)
+      )[0]?.role
+    ).toBe("pharmacist");
+    expect(
+      (
+        await ctx.db
+          .select()
+          .from(products)
+          .where(eq(products.id, productSet.product.id))
+          .limit(1)
+      )[0]?.name
+    ).toBe(productSet.product.name);
+    expect(
+      (
+        await ctx.db
+          .select()
+          .from(batches)
+          .where(eq(batches.id, productSet.batch.id))
+          .limit(1)
+      )[0]?.quantity
+    ).toBe(5);
 
     const createdIds = {
       batchIds: [...ctx.created.batchIds],
@@ -64,16 +112,24 @@ describeWithDb("MySQL-backed test database lifecycle", () => {
     await cleanupDbTestContext(ctx);
 
     for (const id of createdIds.batchIds) {
-      expect((await ctx.db.select().from(batches).where(eq(batches.id, id)).limit(1))).toHaveLength(0);
+      expect(
+        await ctx.db.select().from(batches).where(eq(batches.id, id)).limit(1)
+      ).toHaveLength(0);
     }
     for (const id of createdIds.productIds) {
-      expect((await ctx.db.select().from(products).where(eq(products.id, id)).limit(1))).toHaveLength(0);
+      expect(
+        await ctx.db.select().from(products).where(eq(products.id, id)).limit(1)
+      ).toHaveLength(0);
     }
     for (const id of createdIds.userIds) {
-      expect((await ctx.db.select().from(users).where(eq(users.id, id)).limit(1))).toHaveLength(0);
+      expect(
+        await ctx.db.select().from(users).where(eq(users.id, id)).limit(1)
+      ).toHaveLength(0);
     }
     for (const id of createdIds.storeIds) {
-      expect((await ctx.db.select().from(stores).where(eq(stores.id, id)).limit(1))).toHaveLength(0);
+      expect(
+        await ctx.db.select().from(stores).where(eq(stores.id, id)).limit(1)
+      ).toHaveLength(0);
     }
   });
 });

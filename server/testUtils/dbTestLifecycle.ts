@@ -5,7 +5,14 @@ import { drizzle } from "drizzle-orm/mysql2";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { eq } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
-import { batches, productVariants, products, stores, storeSkus, users } from "../../drizzle/schema";
+import {
+  batches,
+  productVariants,
+  products,
+  stores,
+  storeSkus,
+  users,
+} from "../../drizzle/schema";
 
 export const TEST_DB_ENV_VAR = "TEST_DATABASE_URL";
 export const TEST_DB_NAME = "247_customer_app_test";
@@ -31,20 +38,28 @@ export function getTestDatabaseUrl(): string | undefined {
   return process.env[TEST_DB_ENV_VAR];
 }
 
-export function requireSafeTestDatabaseUrl(rawUrl = getTestDatabaseUrl()): string {
+export function requireSafeTestDatabaseUrl(
+  rawUrl = getTestDatabaseUrl()
+): string {
   if (process.env.NODE_ENV === "production") {
-    throw new Error(`${TEST_DB_ENV_VAR} DB-backed tests refuse to run when NODE_ENV=production.`);
+    throw new Error(
+      `${TEST_DB_ENV_VAR} DB-backed tests refuse to run when NODE_ENV=production.`
+    );
   }
 
   if (!rawUrl) {
-    throw new Error(`${TEST_DB_ENV_VAR} is required for DB-backed tests. Use docker-compose.test.yml or the CI MySQL service.`);
+    throw new Error(
+      `${TEST_DB_ENV_VAR} is required for DB-backed tests. Use docker-compose.test.yml or the CI MySQL service.`
+    );
   }
 
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new Error(`${TEST_DB_ENV_VAR} must be a valid mysql:// connection URL.`);
+    throw new Error(
+      `${TEST_DB_ENV_VAR} must be a valid mysql:// connection URL.`
+    );
   }
 
   if (!parsed.protocol.startsWith("mysql")) {
@@ -53,23 +68,33 @@ export function requireSafeTestDatabaseUrl(rawUrl = getTestDatabaseUrl()): strin
 
   const databaseName = parsed.pathname.replace(/^\//, "");
   if (!databaseName.toLowerCase().includes("test")) {
-    throw new Error(`${TEST_DB_ENV_VAR} database name must include "test"; refusing to touch ${databaseName || "<empty>"}.`);
+    throw new Error(
+      `${TEST_DB_ENV_VAR} database name must include "test"; refusing to touch ${databaseName || "<empty>"}.`
+    );
   }
 
   if (process.env.DATABASE_URL && process.env.DATABASE_URL === rawUrl) {
-    throw new Error(`${TEST_DB_ENV_VAR} must be separate from DATABASE_URL; refusing to run against the production/runtime URL.`);
+    throw new Error(
+      `${TEST_DB_ENV_VAR} must be separate from DATABASE_URL; refusing to run against the production/runtime URL.`
+    );
   }
 
   return rawUrl;
 }
 
-export async function openTestConnection(rawUrl = requireSafeTestDatabaseUrl()): Promise<mysql.Connection> {
+export async function openTestConnection(
+  rawUrl = requireSafeTestDatabaseUrl()
+): Promise<mysql.Connection> {
   const connection = await mysql.createConnection(rawUrl);
   await connection.ping();
   return connection;
 }
 
-async function runCommand(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<void> {
+async function runCommand(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv
+): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
       env,
@@ -78,39 +103,53 @@ async function runCommand(command: string, args: string[], env: NodeJS.ProcessEn
     });
 
     child.on("error", reject);
-    child.on("exit", (code) => {
+    child.on("exit", code => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`${command} ${args.join(" ")} failed with exit code ${code ?? "unknown"}`));
+        reject(
+          new Error(
+            `${command} ${args.join(" ")} failed with exit code ${code ?? "unknown"}`
+          )
+        );
       }
     });
   });
 }
 
-export async function applyTestMigrations(rawUrl = requireSafeTestDatabaseUrl()): Promise<void> {
-  const connection = await openTestConnection(rawUrl).catch((error) => {
-    throw new Error(`Unable to connect to ${TEST_DB_ENV_VAR}. Start the MySQL ${TEST_MYSQL_VERSION} test container/service first. ${error}`);
+export async function applyTestMigrations(
+  rawUrl = requireSafeTestDatabaseUrl()
+): Promise<void> {
+  const connection = await openTestConnection(rawUrl).catch(error => {
+    throw new Error(
+      `Unable to connect to ${TEST_DB_ENV_VAR}. Start the MySQL ${TEST_MYSQL_VERSION} test container/service first. ${error}`
+    );
   });
 
   try {
-    await runCommand("pnpm", ["exec", "drizzle-kit", "migrate", "--config=drizzle.config.ts"], {
+    await runCommand("pnpm", ["exec", "node", "scripts/apply-migrations.mjs"], {
       ...process.env,
       DATABASE_URL: rawUrl,
       TEST_DATABASE_URL: rawUrl,
     });
 
-    const [migrationRows] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS migrationCount FROM __drizzle_migrations");
+    const [migrationRows] = await connection.query<mysql.RowDataPacket[]>(
+      "SELECT COUNT(*) AS migrationCount FROM _app_migrations"
+    );
     const migrationCount = Number(migrationRows[0]?.migrationCount ?? 0);
     if (migrationCount <= 0) {
-      throw new Error("Drizzle migration verification failed: __drizzle_migrations is empty.");
+      throw new Error(
+        "Migration verification failed: _app_migrations is empty."
+      );
     }
   } finally {
     await connection.end();
   }
 }
 
-export async function createDbTestContext(runId = `mysql_lifecycle_${Date.now()}_${process.pid}`): Promise<DbTestContext> {
+export async function createDbTestContext(
+  runId = `mysql_lifecycle_${Date.now()}_${process.pid}`
+): Promise<DbTestContext> {
   const rawUrl = requireSafeTestDatabaseUrl();
   const connection = await openTestConnection(rawUrl);
   const db = drizzle(connection, { schema, mode: "default" });
@@ -160,7 +199,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     .then(() => {
       console.log(`Applied and verified migrations for ${TEST_DB_ENV_VAR}.`);
     })
-    .catch((error) => {
+    .catch(error => {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;
     });

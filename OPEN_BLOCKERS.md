@@ -76,6 +76,52 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 
 ## Closed by SM-*
 
+### Closed by SM-K (Phase 0)
+
+- Drizzle journal drift recovery: `_journal.json` tracked only 47 of 68 SQL files. Custom runner (`scripts/apply-migrations.mjs`) replaces drizzle-kit migrate and handles all 68 files idempotently via SHA-256 hash tracking in `_app_migrations`.
+- SM-E2-ci inline mysql2 loops removed from `ci.yml` and `concurrency-proof.yml`; both now use `pnpm run test:db:bootstrap` (single step, all 68 migrations).
+- Production deploy via `pnpm run db:push` no longer broken.
+
+**Compatibility shim retained from SM-E2-ci.** The apply-migrations.mjs
+runner inherits two behaviors from the SM-E2-ci inline mysql2 loop:
+skipping idempotency errors (ER_TABLE_EXISTS_ERROR, ER_DUP_FIELDNAME,
+ER_DUP_KEYNAME, ER_CANT_DROP_FIELD_OR_KEY) and stripping invalid
+`AFTER` clauses on `ER_BAD_FIELD_ERROR`. Specifically,
+`0061_vault_encryption_columns.sql` references
+`prescriptions.pharmacist_note` which does not exist when 0061 runs.
+SM-L Phase 4 (architecture cleanup) should audit drizzle/0050-0067
+for invalid AFTER clauses and produce corrected migration files.
+
+**Legacy partN_*.sql files skipped by the runner.** apply-migrations.mjs
+and bootstrap-migrations-table.mjs skip files matching `part\d+_*.sql`
+(part10_whatsapp.sql, part11_routing_rider.sql, part12_system_events.sql).
+These contain only `CREATE TABLE IF NOT EXISTS` for tables that
+drizzle-generated migrations 0019, 0020, and 0021 already create. The
+part-files also use `CREATE INDEX IF NOT EXISTS` (Postgres syntax)
+that MySQL rejects. Every other tool in the codebase
+(`verify-migrations.mjs`, the original SM-E2-ci inline loop) similarly
+filters by `NNNN_` pattern.
+
+**Dead one-shot migration scripts to remove.**
+scripts/migrate-part10.mjs, scripts/migrate-part11.mjs,
+scripts/migrate-part12.mjs, and scripts/migrate-v10.mjs are dead
+one-shot apply tools. Their content is fully covered by numbered
+migrations (0019/0020/0021 for the part-files, 0010 for migrate-v10).
+They are not invoked by CI, package.json scripts, or any runtime
+code. SM-L Phase 4 should delete them along with the partN_*.sql
+files in drizzle/.
+
+**dbTestLifecycle.ts retired from drizzle-kit migrate (round 3).**
+applyTestMigrations() now invokes scripts/apply-migrations.mjs.
+drizzle-kit is no longer invoked anywhere in the codebase for
+migration apply — only retained for schema TS type generation via
+the drizzle:types script.
+
+**mysql-db-lifecycle test assertion retired from Drizzle journal (round 4).**
+server/mysql-db-lifecycle.integration.test.ts now verifies
+_app_migrations rather than __drizzle_migrations. All active migration
+apply and verification paths now consistently use the SM-K runner ledger.
+
 ### Closed by SM-E (this PR)
 
 - Family consent DOB gate passive — FIXED: migration 0064 adds `users.date_of_birth`; `assertConsentForScheduleSale()` will enforce once DOB is collected

@@ -42,8 +42,15 @@ export class MemoryRateLimitStore implements RateLimitStore {
     this.prune(now);
     const existing = this.buckets.get(key);
     const active = existing && existing.resetAt > now ? existing : undefined;
-    const blockedUntil = active?.blockedUntil && active.blockedUntil > now ? active.blockedUntil : undefined;
-    const next: Bucket = active ?? { count: 0, resetAt: now + policy.windowMs, lastSeen: now };
+    const blockedUntil =
+      active?.blockedUntil && active.blockedUntil > now
+        ? active.blockedUntil
+        : undefined;
+    const next: Bucket = active ?? {
+      count: 0,
+      resetAt: now + policy.windowMs,
+      lastSeen: now,
+    };
     next.count += 1;
     next.lastSeen = now;
 
@@ -54,7 +61,10 @@ export class MemoryRateLimitStore implements RateLimitStore {
     this.buckets.set(key, next);
     this.evictIfNeeded();
 
-    const retryUntil = next.blockedUntil && next.blockedUntil > now ? next.blockedUntil : next.resetAt;
+    const retryUntil =
+      next.blockedUntil && next.blockedUntil > now
+        ? next.blockedUntil
+        : next.resetAt;
     return {
       allowed: !overLimit,
       limited: overLimit,
@@ -96,30 +106,47 @@ export class MemoryRateLimitStore implements RateLimitStore {
 
 export function normalizeKeyPart(value: unknown): string {
   if (value === undefined || value === null || value === "") return "anon";
-  return String(value).trim().toLowerCase().replace(/\s+/g, "_").slice(0, 160);
+  let s: string;
+  if (typeof value === "object" && value !== null) {
+    s = JSON.stringify(value);
+  } else {
+    const prim = value as string | number | boolean | bigint;
+    s = String(prim);
+  }
+  return s.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 160);
 }
 
 export function buildRateLimitKey(parts: Record<string, unknown>): string {
   return Object.entries(parts)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${normalizeKeyPart(key)}=${normalizeKeyPart(value)}`)
+    .map(
+      ([key, value]) => `${normalizeKeyPart(key)}=${normalizeKeyPart(value)}`
+    )
     .join("|");
 }
 
 export const defaultRateLimitStore = new MemoryRateLimitStore();
 
-export function getProductionRateLimitPosture(env: NodeJS.ProcessEnv = process.env) {
+export function getProductionRateLimitPosture(
+  env: NodeJS.ProcessEnv = process.env
+) {
   const nodeEnv = env.NODE_ENV ?? "development";
-  const backend = (env.API_RATE_LIMIT_BACKEND ?? env.OTP_RATE_LIMIT_BACKEND ?? "").trim();
+  const backend = (
+    env.API_RATE_LIMIT_BACKEND ??
+    env.OTP_RATE_LIMIT_BACKEND ??
+    ""
+  ).trim();
   const durable = backend === "database" || backend === "redis";
   const singleInstanceMemory = backend === "memory_allowed_for_single_instance";
   return {
     nodeEnv,
     backend: backend || "memory",
-    productionReady: nodeEnv !== "production" || durable || singleInstanceMemory,
+    productionReady:
+      nodeEnv !== "production" || durable || singleInstanceMemory,
     durable,
-    limitation: nodeEnv === "production" && !durable
-      ? "Production abuse protection is not horizontally durable without API_RATE_LIMIT_BACKEND=redis/database or explicit memory_allowed_for_single_instance acceptance."
-      : null,
+    limitation:
+      nodeEnv === "production" && !durable
+        ? "Production abuse protection is not horizontally durable without API_RATE_LIMIT_BACKEND=redis/database or explicit memory_allowed_for_single_instance acceptance."
+        : null,
   } as const;
 }

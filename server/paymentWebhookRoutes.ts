@@ -20,16 +20,34 @@ function statusForError(error: unknown) {
 }
 
 export function registerPaymentWebhookRoutes(app: Express) {
-  app.post("/api/webhooks/razorpay", async (req: Request, res: Response) => {
-    try {
-      const result = await handleRazorpayWebhook({
-        rawBody: rawBodyFromRequest(req),
-        signature: req.header("x-razorpay-signature") ?? req.header("x-webhook-signature") ?? null,
-      });
-      res.status(200).json({ ok: result.ok, status: result.status, idempotent: result.idempotent === true });
-    } catch (error) {
-      console.warn("payment_webhook_rejected", redactSensitive(error instanceof Error ? error.message : String(error)));
-      res.status(statusForError(error)).json({ ok: false, error: "payment_webhook_rejected" });
-    }
+  app.post("/api/webhooks/razorpay", (req: Request, res: Response) => {
+    void (async () => {
+      try {
+        const result = await handleRazorpayWebhook({
+          rawBody: rawBodyFromRequest(req),
+          signature:
+            req.header("x-razorpay-signature") ??
+            req.header("x-webhook-signature") ??
+            null,
+        });
+        res
+          .status(200)
+          .json({
+            ok: result.ok,
+            status: result.status,
+            idempotent: result.idempotent === true,
+          });
+      } catch (error) {
+        console.warn(
+          "payment_webhook_rejected",
+          redactSensitive(
+            error instanceof Error ? error.message : String(error)
+          )
+        );
+        res
+          .status(statusForError(error))
+          .json({ ok: false, error: "payment_webhook_rejected" });
+      }
+    })();
   });
 }

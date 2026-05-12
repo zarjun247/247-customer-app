@@ -5,7 +5,11 @@ import {
   type ProviderSuccessState,
 } from "../config/providerContracts";
 
-export type ProviderRuntimeMode = "production" | "demo" | "test" | "development";
+export type ProviderRuntimeMode =
+  | "production"
+  | "demo"
+  | "test"
+  | "development";
 
 export type ProviderStatus =
   | "configured"
@@ -47,7 +51,7 @@ export type ProviderResultLike = {
 };
 
 const providerContractMap = new Map<ProviderContractName, ProviderContract>(
-  providerContracts.map(contract => [contract.providerName, contract]),
+  providerContracts.map(contract => [contract.providerName, contract])
 );
 
 const providerFlagByName: Partial<Record<ProviderContractName, string>> = {
@@ -65,16 +69,21 @@ const providerFlagByName: Partial<Record<ProviderContractName, string>> = {
 };
 
 function normalizeMode(mode?: string): ProviderRuntimeMode {
-  const normalized = String(mode ?? process.env.NODE_ENV ?? "development").toLowerCase();
+  const normalized = String(
+    mode ?? process.env.NODE_ENV ?? "development"
+  ).toLowerCase();
   if (normalized === "production") return "production";
   if (["demo", "local"].includes(normalized)) return "demo";
   if (normalized === "test") return "test";
   return "development";
 }
 
-function isExplicitDemo(env: NodeJS.ProcessEnv, mode: ProviderRuntimeMode): boolean {
+function isExplicitDemo(
+  env: NodeJS.ProcessEnv,
+  mode: ProviderRuntimeMode
+): boolean {
   const explicit = String(
-    env.PROVIDER_DEMO_MODE ?? env.DEMO_MODE ?? env.LOCAL_DEMO_MODE ?? "",
+    env.PROVIDER_DEMO_MODE ?? env.DEMO_MODE ?? env.LOCAL_DEMO_MODE ?? ""
   ).toLowerCase();
 
   return (
@@ -90,11 +99,16 @@ function isFlagDisabled(env: NodeJS.ProcessEnv, flagName?: string): boolean {
   return ["0", "false", "no", "off", "disabled"].includes(raw.toLowerCase());
 }
 
-function getMissingEnvVars(contract: ProviderContract, env: NodeJS.ProcessEnv): string[] {
+function getMissingEnvVars(
+  contract: ProviderContract,
+  env: NodeJS.ProcessEnv
+): string[] {
   return contract.requiredEnvVars.filter(name => !(env[name] ?? "").trim());
 }
 
-export function getProviderContract(name: ProviderContractName): ProviderContract {
+export function getProviderContract(
+  name: ProviderContractName
+): ProviderContract {
   const contract = providerContractMap.get(name);
   if (!contract) throw new Error(`Unknown provider contract: ${name}`);
   return contract;
@@ -115,17 +129,26 @@ export function getAllProviderContracts(): ProviderContract[] {
 function evaluateContractStatus(
   contract: ProviderContract,
   env: NodeJS.ProcessEnv,
-  mode: ProviderRuntimeMode,
+  mode: ProviderRuntimeMode
 ): ProviderStatusReport {
   const missingEnvVars = getMissingEnvVars(contract, env);
   const configured = missingEnvVars.length === 0;
-  const enabled = !isFlagDisabled(env, providerFlagByName[contract.providerName]);
+  const enabled = !isFlagDisabled(
+    env,
+    providerFlagByName[contract.providerName]
+  );
   const demo = isExplicitDemo(env, mode);
   let status: ProviderStatus;
 
   if (!enabled) status = "disabled";
-  else if (!configured && demo && contract.demoAllowed) status = contract.failureMode === "preview_only" ? "preview_only" : "demo_skipped";
-  else if (!configured) status = contract.failureMode === "preview_only" ? "preview_only" : "provider_unconfigured";
+  else if (!configured && demo && contract.demoAllowed)
+    status =
+      contract.failureMode === "preview_only" ? "preview_only" : "demo_skipped";
+  else if (!configured)
+    status =
+      contract.failureMode === "preview_only"
+        ? "preview_only"
+        : "provider_unconfigured";
   else status = "configured";
 
   return {
@@ -152,13 +175,17 @@ function evaluateContractStatus(
 
 export function evaluateProviderStatus(
   env: NodeJS.ProcessEnv = process.env,
-  mode?: ProviderRuntimeMode | string,
+  mode?: string
 ): ProviderStatusReport[] {
   const runtimeMode = normalizeMode(mode);
-  return providerContracts.map(contract => evaluateContractStatus(contract, env, runtimeMode));
+  return providerContracts.map(contract =>
+    evaluateContractStatus(contract, env, runtimeMode)
+  );
 }
 
-export function assertProviderNotFakeSuccessful(providerResult: ProviderResultLike): void {
+export function assertProviderNotFakeSuccessful(
+  providerResult: ProviderResultLike
+): void {
   const status = providerResult.status ?? "unknown";
   const successStates: ProviderSuccessState[] = [
     "verified",
@@ -172,10 +199,23 @@ export function assertProviderNotFakeSuccessful(providerResult: ProviderResultLi
     "printed",
     "preview_generated",
   ];
-  const realSuccessStates = successStates.filter(statusName => !["export_generated", "preview_generated", "ocr_complete_pending_review"].includes(statusName));
-  const successLike = realSuccessStates.includes(status as ProviderSuccessState) || providerResult.ok === true;
-  const unconfigured = providerResult.configured === false || Boolean(providerResult.missingEnvVars?.length);
-  const demo = providerResult.demo === true || ["demo_skipped", "skipped_demo"].includes(status);
+  const realSuccessStates = successStates.filter(
+    statusName =>
+      ![
+        "export_generated",
+        "preview_generated",
+        "ocr_complete_pending_review",
+      ].includes(statusName)
+  );
+  const successLike =
+    realSuccessStates.includes(status as ProviderSuccessState) ||
+    providerResult.ok === true;
+  const unconfigured =
+    providerResult.configured === false ||
+    Boolean(providerResult.missingEnvVars?.length);
+  const demo =
+    providerResult.demo === true ||
+    ["demo_skipped", "skipped_demo"].includes(status);
   const unavailable = [
     "provider_unconfigured",
     "disabled",
@@ -191,7 +231,7 @@ export function assertProviderNotFakeSuccessful(providerResult: ProviderResultLi
 
   if (successLike && (unconfigured || demo || unavailable)) {
     throw new Error(
-      `Provider result cannot claim real success while unavailable/demo/unconfigured: ${status}`,
+      `Provider result cannot claim real success while unavailable/demo/unconfigured: ${status}`
     );
   }
 }

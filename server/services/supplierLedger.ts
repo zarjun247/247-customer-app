@@ -130,7 +130,15 @@ function ageingBucketFor(
 }
 
 function csvEscape(value: unknown): string {
-  const raw = value == null ? "" : String(value);
+  let raw: string;
+  if (value == null) {
+    raw = "";
+  } else if (typeof value === "object") {
+    raw = JSON.stringify(value);
+  } else {
+    const prim = value as string | number | boolean | bigint;
+    raw = String(prim);
+  }
   return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
 
@@ -364,18 +372,16 @@ export async function recordSupplierPayable(
     )
     .limit(1);
   if (existing) return { idempotent: true, paymentId: existing.id };
-  const [res] = await db
-    .insert(supplierPayments)
-    .values({
-      supplierId: input.supplierId,
-      purchaseInvoiceId: input.purchaseInvoiceId,
-      storeId: input.storeId,
-      amount: String(input.amount),
-      paymentMode: "credit",
-      paymentDate: new Date(),
-      notes: "Auto payable entry",
-      createdBy: input.actorId,
-    });
+  const [res] = await db.insert(supplierPayments).values({
+    supplierId: input.supplierId,
+    purchaseInvoiceId: input.purchaseInvoiceId,
+    storeId: input.storeId,
+    amount: String(input.amount),
+    paymentMode: "credit",
+    paymentDate: new Date(),
+    notes: "Auto payable entry",
+    createdBy: input.actorId,
+  });
   const id = res.insertId;
   await logAudit(
     {

@@ -21,10 +21,9 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
+  app.use("*", (req, res, next) => {
     const url = req.originalUrl;
-
-    try {
+    (async () => {
       const clientTemplate = path.resolve(
         import.meta.dirname,
         "../..",
@@ -40,10 +39,10 @@ export async function setupVite(app: Express, server: Server) {
       );
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
-    } catch (e) {
+    })().catch(e => {
       vite.ssrFixStacktrace(e as Error);
       next(e);
-    }
+    });
   });
 }
 

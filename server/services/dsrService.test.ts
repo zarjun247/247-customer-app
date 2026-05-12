@@ -56,12 +56,14 @@ function makeFullDb(rows: unknown[] = [], insertId: string = "uuid-1") {
     ...makeInsertChain(insertId),
     ...makeUpdateChain(),
     ...makeSelectChain(rows),
-    transaction: vi.fn().mockImplementation((fn: Function) =>
-      fn({
-        ...makeSelectChain(rows),
-        ...makeUpdateChain(),
-      })
-    ),
+    transaction: vi
+      .fn()
+      .mockImplementation((fn: (...args: unknown[]) => unknown) =>
+        fn({
+          ...makeSelectChain(rows),
+          ...makeUpdateChain(),
+        })
+      ),
   };
 }
 
@@ -190,7 +192,7 @@ describe("confirmErasureRequest", () => {
     const db = {
       transaction: vi
         .fn()
-        .mockImplementation((fn: Function) =>
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
           fn({ select: txSelect, update: txUpdate })
         ),
     };
@@ -206,18 +208,20 @@ describe("confirmErasureRequest", () => {
 
   it("throws NOT_FOUND when request does not exist", async () => {
     const db = {
-      transaction: vi.fn().mockImplementation((fn: Function) =>
-        fn({
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([]),
+      transaction: vi
+        .fn()
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
+          fn({
+            select: vi.fn().mockReturnValue({
+              from: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue([]),
+                }),
               }),
             }),
-          }),
-          update: vi.fn(),
-        })
-      ),
+            update: vi.fn(),
+          })
+        ),
     };
     (getDb as any).mockResolvedValue(db);
 
@@ -235,18 +239,20 @@ describe("confirmErasureRequest", () => {
       confirmationExpiresAt: new Date(Date.now() + 1000),
     };
     const db = {
-      transaction: vi.fn().mockImplementation((fn: Function) =>
-        fn({
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([req]),
+      transaction: vi
+        .fn()
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
+          fn({
+            select: vi.fn().mockReturnValue({
+              from: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue([req]),
+                }),
               }),
             }),
-          }),
-          update: vi.fn(),
-        })
-      ),
+            update: vi.fn(),
+          })
+        ),
     };
     (getDb as any).mockResolvedValue(db);
 
@@ -264,18 +270,20 @@ describe("confirmErasureRequest", () => {
       confirmationExpiresAt: new Date(Date.now() + 1000),
     };
     const db = {
-      transaction: vi.fn().mockImplementation((fn: Function) =>
-        fn({
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([req]),
+      transaction: vi
+        .fn()
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
+          fn({
+            select: vi.fn().mockReturnValue({
+              from: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue([req]),
+                }),
               }),
             }),
-          }),
-          update: vi.fn(),
-        })
-      ),
+            update: vi.fn(),
+          })
+        ),
     };
     (getDb as any).mockResolvedValue(db);
 
@@ -297,18 +305,20 @@ describe("confirmErasureRequest", () => {
     const txSet = vi.fn().mockReturnValue({ where: txWhere });
     const txUpdate = vi.fn().mockReturnValue({ set: txSet });
     const db = {
-      transaction: vi.fn().mockImplementation((fn: Function) =>
-        fn({
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([req]),
+      transaction: vi
+        .fn()
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
+          fn({
+            select: vi.fn().mockReturnValue({
+              from: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue([req]),
+                }),
               }),
             }),
-          }),
-          update: txUpdate,
-        })
-      ),
+            update: txUpdate,
+          })
+        ),
     };
     (getDb as any).mockResolvedValue(db);
 

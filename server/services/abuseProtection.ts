@@ -1,7 +1,19 @@
 import crypto from "crypto";
-import { buildRateLimitKey, defaultRateLimitStore, getProductionRateLimitPosture, type RateLimitHit, type RateLimitPolicy, type RateLimitStore } from "./rateLimitService";
+import {
+  buildRateLimitKey,
+  defaultRateLimitStore,
+  getProductionRateLimitPosture,
+  type RateLimitHit,
+  type RateLimitPolicy,
+  type RateLimitStore,
+} from "./rateLimitService";
 
-export type AbuseDecision = "allow" | "throttle" | "block" | "suspicious" | "captcha_required";
+export type AbuseDecision =
+  | "allow"
+  | "throttle"
+  | "block"
+  | "suspicious"
+  | "captcha_required";
 export type AbuseReason =
   | "otp_spam"
   | "login_bruteforce"
@@ -31,7 +43,7 @@ export interface AbuseActor {
   deviceId?: string | null;
   sessionId?: string | null;
   route?: string | null;
-  action: AbuseAction | string;
+  action: string;
 }
 
 export interface AbuseCheckInput {
@@ -74,17 +86,33 @@ export const ABUSE_POLICIES: Record<string, RateLimitPolicy> = {
   cartUpsert: { windowMs: 10 * 60_000, max: 120, blockMs: 10 * 60_000 },
   checkout: { windowMs: 15 * 60_000, max: 12, blockMs: 15 * 60_000 },
   adminAuth: { windowMs: 15 * 60_000, max: 6, blockMs: 30 * 60_000 },
-  webhookSignatureFailure: { windowMs: 10 * 60_000, max: 25, blockMs: 10 * 60_000 },
-  webhookReplay: { windowMs: 24 * 60 * 60_000, max: 1, blockMs: 24 * 60 * 60_000 },
+  webhookSignatureFailure: {
+    windowMs: 10 * 60_000,
+    max: 25,
+    blockMs: 10 * 60_000,
+  },
+  webhookReplay: {
+    windowMs: 24 * 60 * 60_000,
+    max: 1,
+    blockMs: 24 * 60 * 60_000,
+  },
 };
 
-const SENSITIVE_DETAIL_KEYS = /otp|code|password|token|cookie|authorization|signature|secret|image|base64|prescription|medical|payload/i;
+const SENSITIVE_DETAIL_KEYS =
+  /otp|code|password|token|cookie|authorization|signature|secret|image|base64|prescription|medical|payload/i;
 const recentWebhookEvents = new Map<string, number>();
 const WEBHOOK_REPLAY_TTL_MS = 24 * 60 * 60_000;
 
 function hashValue(value: string): string {
-  const salt = process.env.ABUSE_LOG_HASH_SALT || process.env.JWT_SECRET || "local-abuse-log-salt";
-  return crypto.createHmac("sha256", salt).update(value).digest("hex").slice(0, 24);
+  const salt =
+    process.env.ABUSE_LOG_HASH_SALT ||
+    process.env.JWT_SECRET ||
+    "local-abuse-log-salt";
+  return crypto
+    .createHmac("sha256", salt)
+    .update(value)
+    .digest("hex")
+    .slice(0, 24);
 }
 
 export function maskPhone(phone?: string | null): string | null {
@@ -99,12 +127,19 @@ export function sanitizeIp(ip?: string | null): string | null {
   return hashValue(ip);
 }
 
-export function sanitizeAbuseDetails(details: Record<string, unknown> = {}): Record<string, unknown> {
+export function sanitizeAbuseDetails(
+  details: Record<string, unknown> = {}
+): Record<string, unknown> {
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(details)) {
     if (SENSITIVE_DETAIL_KEYS.test(key)) {
       safe[key] = "[REDACTED]";
-    } else if (typeof value === "string" && /data:(image|application\/pdf)|bearer\s+|cookie:|signature=|otp=|password=/i.test(value)) {
+    } else if (
+      typeof value === "string" &&
+      /data:(image|application\/pdf)|bearer\s+|cookie:|signature=|otp=|password=/i.test(
+        value
+      )
+    ) {
       safe[key] = "[REDACTED]";
     } else if (typeof value === "object" && value !== null) {
       safe[key] = sanitizeAbuseDetails(value as Record<string, unknown>);
@@ -131,9 +166,15 @@ export function buildActorKey(actor: AbuseActor, reason: AbuseReason): string {
 export function checkAbuse(input: AbuseCheckInput): AbuseCheckResult {
   const store = input.store ?? defaultRateLimitStore;
   const key = buildActorKey(input.actor, input.reason);
-  const policy = input.policy ?? ABUSE_POLICIES.suspiciousVelocity ?? { windowMs: 60_000, max: 60 };
+  const policy = input.policy ??
+    ABUSE_POLICIES.suspiciousVelocity ?? { windowMs: 60_000, max: 60 };
   const rateLimit = store.hit(key, policy, input.now);
-  const decision: AbuseDecision = rateLimit.allowed ? "allow" : (input.reason === "provider_signature_failure" || input.reason === "webhook_replay" ? "suspicious" : "throttle");
+  const decision: AbuseDecision = rateLimit.allowed
+    ? "allow"
+    : input.reason === "provider_signature_failure" ||
+        input.reason === "webhook_replay"
+      ? "suspicious"
+      : "throttle";
   return {
     decision,
     reason: input.reason,
@@ -144,45 +185,131 @@ export function checkAbuse(input: AbuseCheckInput): AbuseCheckResult {
   };
 }
 
-export function checkOtpSend(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "otp.send" }, reason: "otp_spam", policy: ABUSE_POLICIES.otpSend, store, now });
+export function checkOtpSend(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "otp.send" },
+    reason: "otp_spam",
+    policy: ABUSE_POLICIES.otpSend,
+    store,
+    now,
+  });
 }
 
-export function checkOtpVerifyFailure(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "otp.verify" }, reason: "login_bruteforce", policy: ABUSE_POLICIES.otpVerify, store, now });
+export function checkOtpVerifyFailure(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "otp.verify" },
+    reason: "login_bruteforce",
+    policy: ABUSE_POLICIES.otpVerify,
+    store,
+    now,
+  });
 }
 
-export function checkUploadAttempt(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "prescription.upload" }, reason: "upload_abuse", policy: ABUSE_POLICIES.upload, store, now });
+export function checkUploadAttempt(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "prescription.upload" },
+    reason: "upload_abuse",
+    policy: ABUSE_POLICIES.upload,
+    store,
+    now,
+  });
 }
 
-export function checkCartUpsert(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "cart.upsert" }, reason: "cart_spam", policy: ABUSE_POLICIES.cartUpsert, store, now });
+export function checkCartUpsert(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "cart.upsert" },
+    reason: "cart_spam",
+    policy: ABUSE_POLICIES.cartUpsert,
+    store,
+    now,
+  });
 }
 
-export function checkCheckoutAttempt(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "checkout.create" }, reason: "checkout_spam", policy: ABUSE_POLICIES.checkout, store, now });
+export function checkCheckoutAttempt(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "checkout.create" },
+    reason: "checkout_spam",
+    policy: ABUSE_POLICIES.checkout,
+    store,
+    now,
+  });
 }
 
-export function checkAdminBruteforce(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "admin.auth" }, reason: "admin_bruteforce", policy: ABUSE_POLICIES.adminAuth, store, now });
+export function checkAdminBruteforce(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "admin.auth" },
+    reason: "admin_bruteforce",
+    policy: ABUSE_POLICIES.adminAuth,
+    store,
+    now,
+  });
 }
 
-export function checkWebhookSignatureFailure(actor: Omit<AbuseActor, "action">, store?: RateLimitStore, now?: number) {
-  return checkAbuse({ actor: { ...actor, action: "webhook.provider" }, reason: "provider_signature_failure", policy: ABUSE_POLICIES.webhookSignatureFailure, store, now });
+export function checkWebhookSignatureFailure(
+  actor: Omit<AbuseActor, "action">,
+  store?: RateLimitStore,
+  now?: number
+) {
+  return checkAbuse({
+    actor: { ...actor, action: "webhook.provider" },
+    reason: "provider_signature_failure",
+    policy: ABUSE_POLICIES.webhookSignatureFailure,
+    store,
+    now,
+  });
 }
 
-export function checkWebhookReplay(provider: string, eventId: string, now = Date.now()): AbuseCheckResult {
+export function checkWebhookReplay(
+  provider: string,
+  eventId: string,
+  now = Date.now()
+): AbuseCheckResult {
   for (const [key, seenAt] of Array.from(recentWebhookEvents.entries())) {
     if (now - seenAt > WEBHOOK_REPLAY_TTL_MS) recentWebhookEvents.delete(key);
   }
-  const actor = { action: "webhook.provider", route: provider, deviceId: eventId };
+  const actor = {
+    action: "webhook.provider",
+    route: provider,
+    deviceId: eventId,
+  };
   const firstSeenKey = `${provider}:${eventId}`;
   const replay = recentWebhookEvents.has(firstSeenKey);
   recentWebhookEvents.set(firstSeenKey, now);
   const store = defaultRateLimitStore;
-  const result = checkAbuse({ actor, reason: "webhook_replay", policy: ABUSE_POLICIES.webhookReplay, store, now });
-  return replay ? { ...result, decision: "suspicious" } : { ...result, decision: "allow" };
+  const result = checkAbuse({
+    actor,
+    reason: "webhook_replay",
+    policy: ABUSE_POLICIES.webhookReplay,
+    store,
+    now,
+  });
+  return replay
+    ? { ...result, decision: "suspicious" }
+    : { ...result, decision: "allow" };
 }
 
 export function createSuspiciousActivityEvent(input: {
@@ -196,7 +323,9 @@ export function createSuspiciousActivityEvent(input: {
     requestId: input.requestId ?? null,
     actorId: input.actor?.userId ?? null,
     ipHash: sanitizeIp(input.actor?.ip),
-    phoneHash: input.actor?.phone ? hashValue(input.actor.phone.replace(/\D/g, "")) : null,
+    phoneHash: input.actor?.phone
+      ? hashValue(input.actor.phone.replace(/\D/g, ""))
+      : null,
     phoneMasked: maskPhone(input.actor?.phone),
     route: input.actor?.route ?? null,
     action: String(input.actor?.action ?? "unknown"),
@@ -207,7 +336,10 @@ export function createSuspiciousActivityEvent(input: {
   };
 }
 
-export function logSuspiciousActivity(event: SuspiciousActivityEvent, logger: Pick<Console, "warn"> = console): void {
+export function logSuspiciousActivity(
+  event: SuspiciousActivityEvent,
+  logger: Pick<Console, "warn"> = console
+): void {
   logger.warn("security.suspicious_activity", event);
 }
 

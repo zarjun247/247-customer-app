@@ -91,7 +91,15 @@ export function normalizeOcrLine(line: OcrLineInput): OcrLineInput {
 }
 
 function present(value: unknown): boolean {
-  return value !== null && value !== undefined && String(value).trim() !== "";
+  if (value === null || value === undefined) return false;
+  let s: string;
+  if (typeof value === "object") {
+    s = JSON.stringify(value);
+  } else {
+    const prim = value as string | number | boolean | bigint;
+    s = String(prim);
+  }
+  return s.trim() !== "";
 }
 
 function positive(value: unknown): boolean {
