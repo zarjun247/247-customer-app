@@ -5,13 +5,14 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+COPY patches/ ./patches/
+RUN npm install -g pnpm@10.4.1
 RUN pnpm install --frozen-lockfile --prod=false
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+RUN npm install -g pnpm@10.4.1
 RUN pnpm run build
 
 FROM base AS runner
