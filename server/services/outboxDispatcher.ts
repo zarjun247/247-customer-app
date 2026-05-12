@@ -66,6 +66,10 @@ export function stopOutboxDispatcher(): void {
   }
 }
 
+export function isOutboxDispatcherRunning(): boolean {
+  return pollingTimer !== null;
+}
+
 export async function pollOnce(): Promise<{
   processed: number;
   succeeded: number;

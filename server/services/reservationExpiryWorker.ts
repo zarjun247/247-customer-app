@@ -35,6 +35,10 @@ export function stopReservationExpiryWorker(): void {
   }
 }
 
+export function isReservationExpiryWorkerRunning(): boolean {
+  return pollingTimer !== null;
+}
+
 export async function sweepOnce(): Promise<{
   swept: number;
   succeeded: number;

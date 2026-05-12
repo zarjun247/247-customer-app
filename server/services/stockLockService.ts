@@ -147,6 +147,10 @@ export function stopStockLockCleanup(): void {
   }
 }
 
+export function isStockLockCleanupRunning(): boolean {
+  return stockLockTimer !== null;
+}
+
 export function makeLockKey(
   storeId: number,
   productId: number,

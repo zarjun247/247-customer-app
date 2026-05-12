@@ -235,3 +235,7 @@ export function stopRetentionWorker(): void {
     retentionTimer = null;
   }
 }
+
+export function isRetentionWorkerRunning(): boolean {
+  return retentionTimer !== null;
+}

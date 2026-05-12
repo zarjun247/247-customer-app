@@ -97,3 +97,7 @@ export function stopDsrSlaMonitor(): void {
     dsrSlaTimer = null;
   }
 }
+
+export function isDsrSlaMonitorRunning(): boolean {
+  return dsrSlaTimer !== null;
+}
