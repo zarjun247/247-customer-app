@@ -2,12 +2,13 @@ import pino from "pino";
 import { and, eq, lt, lte } from "drizzle-orm";
 import { getDb } from "../db";
 import { commandOutbox } from "../../drizzle/schema";
+import { readFlag } from "./emergencyStopService";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
 export type SideEffectHandler = (
   payload: unknown,
-  meta: { commandLogId: string; attempts: number },
+  meta: { commandLogId: string; attempts: number }
 ) => Promise<void>;
 
 // ─── Handler registry ──────────────────────────────────────────────────────────
@@ -16,7 +17,7 @@ const handlers: Map<string, SideEffectHandler> = new Map();
 
 export function registerOutboxHandler(
   kind: string,
-  handler: SideEffectHandler,
+  handler: SideEffectHandler
 ): void {
   if (handlers.has(kind)) {
     throw new Error(`Outbox handler for kind "${kind}" already registered`);
@@ -41,7 +42,9 @@ export function startOutboxDispatcher(): void {
   const enabled =
     (process.env.OUTBOX_DISPATCH_ENABLED ?? "").toLowerCase() === "true";
   if (!enabled) {
-    logger.info("Outbox dispatcher disabled by OUTBOX_DISPATCH_ENABLED env flag");
+    logger.info(
+      "Outbox dispatcher disabled by OUTBOX_DISPATCH_ENABLED env flag"
+    );
     return;
   }
   if (pollingTimer) {
@@ -71,6 +74,14 @@ export async function pollOnce(): Promise<{
   if (isPolling) {
     return { processed: 0, succeeded: 0, failed: 0 };
   }
+  const stopFlag = await readFlag();
+  if (stopFlag.active) {
+    logger.warn(
+      { reason: stopFlag.reason },
+      "outboxDispatcher: skipping tick — emergency stop active"
+    );
+    return { processed: 0, succeeded: 0, failed: 0 };
+  }
   isPolling = true;
   try {
     const db = await getDb();
@@ -88,8 +99,8 @@ export async function pollOnce(): Promise<{
         and(
           eq(commandOutbox.state, "pending"),
           lte(commandOutbox.nextAttemptAt, now),
-          lt(commandOutbox.attempts, commandOutbox.maxAttempts),
-        ),
+          lt(commandOutbox.attempts, commandOutbox.maxAttempts)
+        )
       )
       .limit(batchSize);
 
@@ -101,7 +112,7 @@ export async function pollOnce(): Promise<{
       if (!handler) {
         logger.warn(
           { kind: row.sideEffectKind, id: row.id },
-          "No handler registered for side effect kind; skipping",
+          "No handler registered for side effect kind; skipping"
         );
         continue;
       }
@@ -122,8 +133,7 @@ export async function pollOnce(): Promise<{
           .where(eq(commandOutbox.id, row.id));
         succeeded++;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : String(err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
         const backoffMs = Math.min(60_000, 1_000 * Math.pow(2, attemptNum));
         const nextAttempt = new Date(Date.now() + backoffMs);
 

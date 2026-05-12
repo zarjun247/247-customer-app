@@ -6,6 +6,7 @@ import { prescriptions } from "../../drizzle/schema";
 import { orders } from "../../drizzle/schema";
 import { logAudit } from "./audit";
 import { ENV } from "../_core/env";
+import { readFlag } from "./emergencyStopService";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -15,12 +16,20 @@ export interface RetentionTickResult {
 }
 
 // Regex: H/H1/X schedule code to determine if a Rx must be kept (5-year retention).
-const REGULATED_SCHEDULE_PATTERN = /^(H|H1|X)$/i;
+const _REGULATED_SCHEDULE_PATTERN = /^(H|H1|X)$/i; // defined for reference; enforcement is in pharmacy rules layer
 
 export async function runRetentionTick(): Promise<RetentionTickResult> {
   if (!ENV.retentionWorkerEnabled) {
     logger.debug(
       "retentionWorker: RETENTION_WORKER_ENABLED=false; skipping tick"
+    );
+    return { processed: 0, errors: 0 };
+  }
+  const stopFlag = await readFlag();
+  if (stopFlag.active) {
+    logger.warn(
+      { reason: stopFlag.reason },
+      "retentionWorker: skipping tick — emergency stop active"
     );
     return { processed: 0, errors: 0 };
   }
@@ -69,7 +78,8 @@ async function processErasureRequest(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   req: typeof dsrRequests.$inferSelect
 ): Promise<void> {
-  const scope = (req.requestPayload as any)?.scope ?? "all";
+  const scope =
+    (req.requestPayload as { scope?: string } | null)?.scope ?? "all";
   const customerId = req.customerId;
 
   await db.transaction(async tx => {
@@ -138,7 +148,7 @@ async function processErasureRequest(
       const orderRows = await tx
         .select()
         .from(orders)
-        .where(eq((orders as any).userId, customerId))
+        .where(eq(orders.userId, customerId))
         .limit(2000);
 
       for (const order of orderRows) {
@@ -147,7 +157,7 @@ async function processErasureRequest(
           .set({
             deliveryAddress: null,
           })
-          .where(eq((orders as any).id, (order as any).id));
+          .where(eq(orders.id, order.id));
       }
 
       if (orderRows.length > 0) {

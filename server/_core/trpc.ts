@@ -1,5 +1,6 @@
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from "@shared/const";
 import { initTRPC, TRPCError } from "@trpc/server";
+import { readFlag } from "../services/emergencyStopService";
 import superjson from "superjson";
 import {
   context as otelContext,
@@ -136,6 +137,22 @@ const requireUser = t.middleware(async opts => {
 
 /** Any authenticated user */
 export const protectedProcedure = baseProcedure.use(requireUser);
+
+/** Customer-facing mutations — blocked when emergency stop is active */
+export const customerMutationProcedure = protectedProcedure.use(
+  t.middleware(async opts => {
+    const flag = await readFlag();
+    if (flag.active) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message:
+          flag.reason ??
+          "Service temporarily unavailable for maintenance. Please try again later.",
+      });
+    }
+    return opts.next();
+  })
+);
 
 /** Admin / super_admin / ops_admin only */
 export const adminProcedure = baseProcedure.use(

@@ -3,6 +3,7 @@ import { and, eq, lte, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { dsrRequests, dsrSlaMonitorLog } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
+import { readFlag } from "./emergencyStopService";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -12,6 +13,14 @@ const APPROACHING_THRESHOLD_DAYS = 7;
 let dsrSlaTimer: ReturnType<typeof setInterval> | null = null;
 
 export async function runDsrSlaMonitorTick(): Promise<{ alerts: number }> {
+  const stopFlag = await readFlag();
+  if (stopFlag.active) {
+    logger.warn(
+      { reason: stopFlag.reason },
+      "dsrSlaMonitor: skipping tick — emergency stop active"
+    );
+    return { alerts: 0 };
+  }
   const db = await getDb();
   if (!db) return { alerts: 0 };
 

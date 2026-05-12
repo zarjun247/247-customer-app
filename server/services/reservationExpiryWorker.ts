@@ -5,6 +5,7 @@ import { reservations } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { expire } from "./reservationLedger";
 import type { CommandContext } from "./executeCommand";
+import { readFlag } from "./emergencyStopService";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
@@ -40,6 +41,14 @@ export async function sweepOnce(): Promise<{
   failed: number;
 }> {
   if (isPolling) return { swept: 0, succeeded: 0, failed: 0 };
+  const stopFlag = await readFlag();
+  if (stopFlag.active) {
+    logger.warn(
+      { reason: stopFlag.reason },
+      "reservationExpiryWorker: skipping tick — emergency stop active"
+    );
+    return { swept: 0, succeeded: 0, failed: 0 };
+  }
   isPolling = true;
   try {
     const db = await getDb();
@@ -52,10 +61,7 @@ export async function sweepOnce(): Promise<{
       .select()
       .from(reservations)
       .where(
-        and(
-          eq(reservations.state, "active"),
-          lte(reservations.expiresAt, now),
-        ),
+        and(eq(reservations.state, "active"), lte(reservations.expiresAt, now))
       )
       .limit(batchSize);
 
@@ -69,13 +75,13 @@ export async function sweepOnce(): Promise<{
             reservationId: r.id,
             idempotencyKey: `expire:${r.id}:${r.expiresAt.toISOString()}`,
           },
-          { ...SYSTEM_CONTEXT, storeId: String(r.storeId) },
+          { ...SYSTEM_CONTEXT, storeId: String(r.storeId) }
         );
         succeeded++;
       } catch (err) {
         logger.warn(
           { err, reservationId: r.id },
-          "Failed to expire reservation in sweep",
+          "Failed to expire reservation in sweep"
         );
         failed++;
       }
@@ -84,7 +90,7 @@ export async function sweepOnce(): Promise<{
     if (expired.length > 0) {
       logger.info(
         { swept: expired.length, succeeded, failed },
-        "Reservation expiry sweep complete",
+        "Reservation expiry sweep complete"
       );
     }
 

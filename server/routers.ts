@@ -4,14 +4,11 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
   protectedProcedure,
+  customerMutationProcedure,
   publicProcedure,
   router,
   requireOrderOwnershipOrStaff,
-  requireAnyRole,
   isStaffRole,
-  PHARMACIST_ROLES,
-  RIDER_ROLES,
-  STAFF_ROLES,
 } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
@@ -31,7 +28,6 @@ import {
   getOrderById,
   getOrderItems,
   updateOrderStatus,
-  updateOrderInvoice,
   createPrescription,
   getPrescriptionsByUser,
   getPrescriptionById,
@@ -133,7 +129,6 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "./services/notificationService";
-import { createReorderPrompt } from "./services/refillReminderService";
 import {
   createDosageSchedule,
   getTodayDosePlan,
@@ -234,9 +229,7 @@ const authRouter = router({
       console.info("auth.otp_verified");
 
       // Upsert the user record keyed by phone
-      const { id: userId } = await upsertUserByPhone(input.phone, {
-        loginMethod: "phone",
-      });
+      await upsertUserByPhone(input.phone, { loginMethod: "phone" });
       const user = await getUserByPhone(input.phone);
       if (!user)
         throw new TRPCError({
@@ -485,7 +478,7 @@ const routingRouter = router({
 // ─── Cart Router ──────────────────────────────────────────────────────────────
 const cartRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => getCart(ctx.user.id)),
-  upsert: protectedProcedure
+  upsert: customerMutationProcedure
     .input(
       z.object({
         skuId: z.number(),
@@ -541,7 +534,7 @@ const cartRouter = router({
       );
       return { success: true };
     }),
-  clear: protectedProcedure.mutation(async ({ ctx }) => {
+  clear: customerMutationProcedure.mutation(async ({ ctx }) => {
     await clearCart(ctx.user.id);
     return { success: true };
   }),
@@ -549,7 +542,7 @@ const cartRouter = router({
 
 // ─── Order Router (shared engine for app + WhatsApp) ─────────────────────────
 const orderRouter = router({
-  checkout: protectedProcedure
+  checkout: customerMutationProcedure
     .input(z.object({ prescriptionId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
@@ -797,7 +790,6 @@ const orderRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
       const userRole = ctx.user.role;
       // Customers cannot advance operational statuses
-      const customerOnlyStatuses = ["cancelled"];
       const staffOnlyStatuses = [
         "awaiting_pharmacist_review",
         "clarification_needed",
@@ -873,7 +865,7 @@ const orderRouter = router({
 
 // ─── Prescription Router ──────────────────────────────────────────────────────
 const prescriptionRouter = router({
-  upload: protectedProcedure
+  upload: customerMutationProcedure
     .input(
       z.object({
         imageBase64: z.string(),
@@ -997,11 +989,11 @@ const prescriptionRouter = router({
     const db = await getDb();
     if (db) {
       await Promise.all(
-        rows.map((rx: any) =>
+        rows.map(rx =>
           logPrescriptionVaultAccess(db, {
             actorId: ctx.user.id,
             actorRole: ctx.user.role ?? "customer",
-            prescriptionId: rx.id,
+            prescriptionId: (rx as { id: number }).id,
             purpose: "customer_vault_list",
             channel: "app",
             accessType: "view",
@@ -1009,6 +1001,8 @@ const prescriptionRouter = router({
         )
       );
     }
+    // getPrescriptionVault returns any[] because of a pre-existing any cast in db.ts
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return rows;
   }),
   /** Mark an approved prescription as permanently on-file */
@@ -1103,13 +1097,6 @@ const refillRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const pseudo = {
-        id: String(input.reminderId),
-        customerId: ctx.user.id,
-        productId: input.productId,
-        nextRefillDate: new Date().toISOString().slice(0, 10),
-        regulated: input.regulated,
-      };
       if (input.regulated) {
         await writeAuditLog(
           ctx.user.id,
@@ -1160,7 +1147,10 @@ const notificationRouter = router({
     )
     .mutation(
       async ({ ctx, input }) =>
-        await updateNotificationPreferences(ctx.user.id, input as any)
+        await updateNotificationPreferences(ctx.user.id, {
+          allowSensitiveInUnsafeChannels: input.allowSensitiveInUnsafeChannels,
+          channels: input.channels,
+        })
     ),
   createTest: protectedProcedure
     .input(
@@ -1321,12 +1311,19 @@ const whatsappRouter = router({
       }
       const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
-      const state = session?.flowState ? JSON.parse(session.flowState) : {};
+      type FlowState = {
+        searching?: boolean;
+        awaitingOrderId?: boolean;
+        awaitingImage?: boolean;
+      };
+      const state: FlowState = session?.flowState
+        ? (JSON.parse(session.flowState) as FlowState)
+        : {};
 
       // Simple state machine for WhatsApp flows
       let response = "";
       let nextFlow = flow;
-      let nextState = state;
+      let nextState: FlowState = state;
 
       if (
         input.message.toLowerCase() === "hi" ||

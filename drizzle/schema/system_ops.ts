@@ -323,18 +323,29 @@ export const reportExports = mysqlTable("report_exports", {
 });
 
 // ─── System Settings ──────────────────────────────────────────────────────────
-export const systemSettings = mysqlTable("system_settings", {
-  id: int("id").autoincrement().primaryKey(),
-  settingKey: varchar("settingKey", { length: 200 }).notNull(),
-  settingValue: text("settingValue"),
-  settingType: mysqlEnum("settingType", ["string", "number", "boolean", "json"])
-    .default("string")
-    .notNull(),
-  description: text("description"),
-  isLocked: boolean("isLocked").default(false).notNull(),
-  updatedBy: int("updatedBy"),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const systemSettings = mysqlTable(
+  "system_settings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    settingKey: varchar("settingKey", { length: 200 }).notNull(),
+    settingValue: text("settingValue"),
+    settingType: mysqlEnum("settingType", [
+      "string",
+      "number",
+      "boolean",
+      "json",
+    ])
+      .default("string")
+      .notNull(),
+    description: text("description"),
+    isLocked: boolean("isLocked").default(false).notNull(),
+    updatedBy: int("updatedBy"),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  t => ({
+    uqSystemSettingsKey: uniqueIndex("uq_system_settings_key").on(t.settingKey),
+  })
+);
 
 // ─── Phase 6: Workflow Events (State Machine Audit Trail) ─────────────────────
 export const workflowEvents = mysqlTable("workflow_events", {
