@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { makeCircuitBreaker } from "./circuitBreaker";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -19,7 +20,12 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
+    mime_type?:
+      | "audio/mpeg"
+      | "audio/wav"
+      | "application/pdf"
+      | "audio/mp4"
+      | "video/mp4";
   };
 };
 
@@ -265,6 +271,34 @@ const normalizeResponseFormat = ({
   };
 };
 
+const _llmFetch = makeCircuitBreaker(
+  "llm",
+  async (
+    signal: AbortSignal,
+    url: string,
+    apiKey: string,
+    payload: Record<string, unknown>
+  ): Promise<InvokeResult> => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      );
+    }
+    return (await response.json()) as InvokeResult;
+  },
+  { timeoutMs: 60_000, errorThresholdPercentage: 30, volumeThreshold: 5 }
+);
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 
@@ -296,10 +330,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  payload.max_tokens = 32768;
+  payload.thinking = { budget_tokens: 128 };
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -312,21 +344,5 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
-  }
-
-  return (await response.json()) as InvokeResult;
+  return _llmFetch(resolveApiUrl(), ENV.forgeApiKey, payload);
 }

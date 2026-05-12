@@ -189,6 +189,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      opossum:
+        specifier: ^9.0.0
+        version: 9.0.0
       pino:
         specifier: ^8.14.1
         version: 8.21.0
@@ -265,6 +268,9 @@ importers:
       '@types/node':
         specifier: ^24.7.0
         version: 24.7.0
+      '@types/opossum':
+        specifier: ^8.1.9
+        version: 8.1.9
       '@types/react':
         specifier: ^19.2.1
         version: 19.2.1
@@ -2932,6 +2938,9 @@ packages:
   '@types/node@24.7.0':
     resolution: {integrity: sha512-IbKooQVqUBrlzWTi79E8Fw78l8k1RNtlDDNWsFZs7XonuQSJ8oNYfEeclhprUldXISRMLzBpILuKgPlIxm+/Yw==}
 
+  '@types/opossum@8.1.9':
+    resolution: {integrity: sha512-Jm/tYxuJFefiwRYs+/EOsUP3ktk0c8siMgAHPLnA4PXF4wKghzcjqf88dY+Xii5jId5Txw4JV0FMKTpjbd7KJA==}
+
   '@types/oracledb@6.5.2':
     resolution: {integrity: sha512-kK1eBS/Adeyis+3OlBDMeQQuasIDLUYXsi2T15ccNJ0iyUpQ4xDF7svFu3+bGVrI0CMBUclPciz+lsQR3JX3TQ==}
 
@@ -5009,6 +5018,10 @@ packages:
 
   oniguruma-to-es@4.3.3:
     resolution: {integrity: sha512-rPiZhzC3wXwE59YQMRDodUwwT9FZ9nNBwQQfsd1wfdtlKEyCdRV0avrTcSZ5xlIvGRVPd/cx6ZN45ECmS39xvg==}
+
+  opossum@9.0.0:
+    resolution: {integrity: sha512-K76U0QkxOfUZamneQuzz+AP0fyfTJcCplZ2oZL93nxeupuJbN4s6uFNbmVCt4eWqqGqRnnowdFuBicJ1fLMVxw==}
+    engines: {node: ^24 || ^22 || ^20}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -9294,6 +9307,10 @@ snapshots:
     dependencies:
       undici-types: 7.14.0
 
+  '@types/opossum@8.1.9':
+    dependencies:
+      '@types/node': 24.7.0
+
   '@types/oracledb@6.5.2':
     dependencies:
       '@types/node': 24.7.0
@@ -11755,6 +11772,8 @@ snapshots:
       oniguruma-parser: 0.12.1
       regex: 6.0.1
       regex-recursion: 6.0.2
+
+  opossum@9.0.0: {}
 
   optionator@0.9.4:
     dependencies:

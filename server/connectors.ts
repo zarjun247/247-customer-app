@@ -16,6 +16,7 @@
 import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
+import { makeCircuitBreaker } from "./_core/circuitBreaker";
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
@@ -113,6 +114,75 @@ export interface SmsConnector {
   }): Promise<MessageProviderResult>;
 }
 
+const _smsFetch = makeCircuitBreaker(
+  "sms",
+  async (
+    signal: AbortSignal,
+    mobileWithCountry: string,
+    apiKey: string,
+    senderId: string,
+    message: string
+  ): Promise<MessageProviderResult> => {
+    const payload = {
+      sender: senderId,
+      route: "4",
+      country: "91",
+      sms: [{ message, to: [mobileWithCountry] }],
+    };
+    const res = await fetch("https://api.msg91.com/api/v5/flow/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", authkey: apiKey },
+      body: JSON.stringify(payload),
+      signal,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
+      return {
+        status: "failed",
+        ok: false,
+        reason: `MSG91 error: ${res.status}`,
+      };
+    }
+    return { status: "sent", ok: true };
+  },
+  { timeoutMs: 8_000 }
+);
+
+const _whatsappFetch = makeCircuitBreaker(
+  "whatsapp",
+  async (
+    signal: AbortSignal,
+    phoneNumberId: string,
+    token: string,
+    body: Record<string, unknown>
+  ): Promise<MessageProviderResult> => {
+    const res = await fetch(
+      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
+      return {
+        status: "failed",
+        ok: false,
+        reason: `WhatsApp Cloud API error: ${res.status}`,
+      };
+    }
+    return { status: "sent", ok: true };
+  },
+  { timeoutMs: 8_000 }
+);
+
 /**
  * MSG91 SMS connector.
  * Required env vars:
@@ -148,43 +218,10 @@ export const smsConnector: SmsConnector = {
       const mobileWithCountry = normalizedPhone.startsWith("91")
         ? normalizedPhone
         : `91${normalizedPhone}`;
-
-      const payload = {
-        sender: senderId,
-        route: "4",
-        country: "91",
-        sms: [{ message, to: [mobileWithCountry] }],
-      };
-
-      const res = await fetch("https://api.msg91.com/api/v5/flow/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          authkey: apiKey,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        console.error(`[SMS] MSG91 error: ${res.status} ${text}`);
-
-        return {
-          status: "failed",
-          ok: false,
-          reason: `MSG91 error: ${res.status}`,
-        };
-      }
-
-      return { status: "sent", ok: true };
+      return await _smsFetch(mobileWithCountry, apiKey, senderId, message);
     } catch (err) {
       console.error("[SMS] Failed to send via MSG91:", err);
-
-      return {
-        status: "failed",
-        ok: false,
-        reason: "MSG91 request failed",
-      };
+      return { status: "failed", ok: false, reason: "MSG91 request failed" };
     }
   },
 
@@ -222,7 +259,7 @@ export const smsConnector: SmsConnector = {
         ? normalizedPhone
         : `91${normalizedPhone}`;
 
-      const body = {
+      const body: Record<string, unknown> = {
         messaging_product: "whatsapp",
         to,
         type: "template",
@@ -234,43 +271,16 @@ export const smsConnector: SmsConnector = {
               ? [
                   {
                     type: "body",
-                    parameters: variables.map(v => ({
-                      type: "text",
-                      text: v,
-                    })),
+                    parameters: variables.map(v => ({ type: "text", text: v })),
                   },
                 ]
               : [],
         },
       };
 
-      const res = await fetch(
-        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        }
-      );
-
-      if (!res.ok) {
-        const text = await res.text();
-        console.error(`[WhatsApp] Cloud API error: ${res.status} ${text}`);
-
-        return {
-          status: "failed",
-          ok: false,
-          reason: `WhatsApp Cloud API error: ${res.status}`,
-        };
-      }
-
-      return { status: "sent", ok: true };
+      return await _whatsappFetch(phoneNumberId!, token!, body);
     } catch (err) {
       console.error("[WhatsApp] Failed to send:", err);
-
       return {
         status: "failed",
         ok: false,
@@ -381,14 +391,18 @@ export const paymentConnector: PaymentGatewayConnector = {
     }
   },
 
-  async verifyPayment({ gatewayOrderId, gatewayPaymentId, signature }) {
+  verifyPayment({
+    gatewayOrderId,
+    gatewayPaymentId,
+    signature,
+  }): Promise<boolean> {
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keySecret) {
-      if (isExplicitPaymentDemoMode()) return false;
+      if (isExplicitPaymentDemoMode()) return Promise.resolve(false);
 
-      throw new Error(
-        "Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing"
+      return Promise.reject(
+        new Error("Payment provider_unconfigured: RAZORPAY_KEY_SECRET missing")
       );
     }
 
@@ -397,7 +411,7 @@ export const paymentConnector: PaymentGatewayConnector = {
       .update(`${gatewayOrderId}|${gatewayPaymentId}`)
       .digest("hex");
 
-    return expectedSignature === signature;
+    return Promise.resolve(expectedSignature === signature);
   },
 
   async refund({ gatewayPaymentId, amount, reason }) {
