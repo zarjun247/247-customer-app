@@ -77,7 +77,7 @@ jobs:
               .sort();
             for (const file of files) {
               const sql = fs.readFileSync(path.join('drizzle', file), 'utf8');
-              const stmts = sql.split(/;[ \t]*(?:\r?\n|$)/)
+              const stmts = sql.split(/-->[ \t]*statement-breakpoint[ \t]*\r?\n|;[ \t]*(?:\r?\n|$)/)
                 .map(s => s.replace(/--[^\n]*/g, '').trim())
                 .filter(Boolean);
               for (const stmt of stmts) {
