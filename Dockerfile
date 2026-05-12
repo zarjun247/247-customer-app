@@ -5,6 +5,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
+COPY patches/ ./patches/
 RUN npm install -g pnpm@10.4.1
 RUN pnpm install --frozen-lockfile --prod=false
 
