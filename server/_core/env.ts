@@ -171,8 +171,8 @@ export const ENV = {
     (process.env.DSR_SLA_MONITOR_ENABLED ?? "false").toLowerCase() === "true",
   // BREACH_NOTIFY_RECIPIENT_EMAIL: email to notify on breach dispatch (default empty = log only)
   breachNotifyRecipientEmail: process.env.BREACH_NOTIFY_RECIPIENT_EMAIL ?? "",
-  // CSRF_ENFORCEMENT: "off" | "log_only" | "enforce" (default "enforce")
-  csrfEnforcement: (process.env.CSRF_ENFORCEMENT ?? "enforce") as
+  // CSRF_ENFORCEMENT: "off" | "log_only" | "enforce" (default "log_only" until client wiring is complete)
+  csrfEnforcement: (process.env.CSRF_ENFORCEMENT ?? "log_only") as
     | "off"
     | "log_only"
     | "enforce",
