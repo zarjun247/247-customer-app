@@ -273,7 +273,6 @@ jobs:
   audit:
     name: audit
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -293,4 +292,4 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Audit (high severity advisory)
-        run: pnpm audit --audit-level=moderate --prod
+        run: pnpm audit --audit-level=high --prod
