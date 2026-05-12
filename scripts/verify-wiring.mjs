@@ -53,13 +53,43 @@ const checks = [
     ],
   },
   {
-    name: "server/_core/index.ts calls all 4 worker start functions",
+    name: "server/_core/index.ts calls all 7 worker start/stop functions",
     file: "server/_core/index.ts",
     patterns: [
       "startRetentionWorker",
       "stopRetentionWorker",
       "startDsrSlaMonitor",
       "stopDsrSlaMonitor",
+      "startOutboxDispatcher",
+      "stopOutboxDispatcher",
+      "startReservationExpiryWorker",
+      "stopReservationExpiryWorker",
+      "startStockLockCleanup",
+      "stopStockLockCleanup",
+    ],
+  },
+  {
+    name: "outboxDispatcher exports startOutboxDispatcher and stopOutboxDispatcher",
+    file: "server/services/outboxDispatcher.ts",
+    patterns: [
+      "export function startOutboxDispatcher",
+      "export function stopOutboxDispatcher",
+    ],
+  },
+  {
+    name: "reservationExpiryWorker exports start and stop",
+    file: "server/services/reservationExpiryWorker.ts",
+    patterns: [
+      "export function startReservationExpiryWorker",
+      "export function stopReservationExpiryWorker",
+    ],
+  },
+  {
+    name: "stockLockService exports startStockLockCleanup and stopStockLockCleanup",
+    file: "server/services/stockLockService.ts",
+    patterns: [
+      "export function startStockLockCleanup",
+      "export function stopStockLockCleanup",
     ],
   },
   {

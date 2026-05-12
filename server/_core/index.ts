@@ -9,6 +9,18 @@ import {
   startDsrSlaMonitor,
   stopDsrSlaMonitor,
 } from "../services/dsrSlaMonitor";
+import {
+  startOutboxDispatcher,
+  stopOutboxDispatcher,
+} from "../services/outboxDispatcher";
+import {
+  startReservationExpiryWorker,
+  stopReservationExpiryWorker,
+} from "../services/reservationExpiryWorker";
+import {
+  startStockLockCleanup,
+  stopStockLockCleanup,
+} from "../services/stockLockService";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -18,7 +30,6 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { getDb } from "../db";
 import { processQueue } from "../worker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
@@ -50,8 +61,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   // DPDP region assertion: opt-in via DPDP_REGION_REQUIRED env var.
   // Throws at boot if DPDP_REGION_REQUIRED is set and storage is not in the required region.
-  await assertIndiaRegionStorage().catch(err => {
-    console.error("FATAL: India region assertion failed:", err.message);
+  await assertIndiaRegionStorage().catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("FATAL: India region assertion failed:", msg);
     if (process.env.DPDP_REGION_REQUIRED) process.exit(1);
   });
 
@@ -133,18 +145,21 @@ async function startServer() {
     // Start background workers after server is listening
     startRetentionWorker();
     startDsrSlaMonitor();
+    if (ENV.outboxDispatchEnabled) startOutboxDispatcher();
+    if (ENV.reservationExpiryWorkerEnabled) startReservationExpiryWorker();
+    if (ENV.stockLockCleanupEnabled) startStockLockCleanup();
   });
 
-  process.on("SIGTERM", () => {
+  function shutdown() {
     stopRetentionWorker();
     stopDsrSlaMonitor();
+    stopOutboxDispatcher();
+    stopReservationExpiryWorker();
+    stopStockLockCleanup();
     void sdk.shutdown().finally(() => process.exit(0));
-  });
-  process.on("SIGINT", () => {
-    stopRetentionWorker();
-    stopDsrSlaMonitor();
-    void sdk.shutdown().finally(() => process.exit(0));
-  });
+  }
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 }
 
 startServer().catch(console.error);
