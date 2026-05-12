@@ -92,7 +92,7 @@ export async function getActiveNotice(input: {
 
   // Pick the most recently effective version
   rows.sort((a, b) => b.effectiveFrom.getTime() - a.effectiveFrom.getTime());
-  return rows[0] as NoticeRecord;
+  return rows[0];
 }
 
 export async function listNoticesForKind(input: {
@@ -120,7 +120,7 @@ export async function listNoticesForKind(input: {
     .where(and(...conditions))
     .limit(200);
 
-  return rows as NoticeRecord[];
+  return rows;
 }
 
 export async function recordUserAcceptance(input: {

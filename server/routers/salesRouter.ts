@@ -397,7 +397,7 @@ export const salesRouter = router({
         if (!isNaN(customerId)) {
           await assertConsentForScheduleSale({
             customerId,
-            scheduleClass: scheduleCode as "H" | "H1" | "X",
+            scheduleClass: scheduleCode,
           });
         }
       }

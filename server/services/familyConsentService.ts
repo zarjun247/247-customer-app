@@ -94,7 +94,7 @@ export async function getActiveFamilyConsent(input: {
     )
     .limit(1);
 
-  return (rows[0] as FamilyConsentRecord) ?? null;
+  return rows[0] ?? null;
 }
 
 export async function revokeFamilyConsent(input: {

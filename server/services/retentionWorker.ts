@@ -146,7 +146,7 @@ async function processErasureRequest(
           .update(orders)
           .set({
             deliveryAddress: null,
-          } as any)
+          })
           .where(eq((orders as any).id, (order as any).id));
       }
 
