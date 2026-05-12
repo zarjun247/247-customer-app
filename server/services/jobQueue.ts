@@ -634,10 +634,19 @@ export async function getQueueStats(
 export function isUnsafeProviderSuccess(result: unknown): boolean {
   if (!result || typeof result !== "object") return false;
   const statusRaw = (result as { status?: unknown }).status;
-  const status =
-    typeof statusRaw === "object" && statusRaw !== null
-      ? JSON.stringify(statusRaw)
-      : String(statusRaw ?? "");
+  let status: string;
+  if (typeof statusRaw === "object" && statusRaw !== null) {
+    status = JSON.stringify(statusRaw);
+  } else {
+    const prim = statusRaw as
+      | string
+      | number
+      | boolean
+      | bigint
+      | null
+      | undefined;
+    status = String(prim ?? "");
+  }
   return ["provider_unconfigured", "skipped_demo", "demo_skipped"].includes(
     status
   );

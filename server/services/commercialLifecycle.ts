@@ -54,24 +54,9 @@ export type CommercialLifecycleConcept =
   (typeof COMMERCIAL_LIFECYCLE_CONCEPTS)[number];
 export type CommercialLifecycleState =
   (typeof COMMERCIAL_LIFECYCLE_STATES)[number];
-export type CommercialEventType =
-  | (typeof COMMERCIAL_EVENT_TYPES)[number]
-  | string;
-export type CommercialAggregateType =
-  | CommercialLifecycleConcept
-  | "order"
-  | "sale"
-  | "commercial"
-  | string;
-
-export type CommercialEventActorType =
-  | "system"
-  | "customer"
-  | "staff"
-  | "provider"
-  | "admin"
-  | "job"
-  | string;
+export type CommercialEventType = string;
+export type CommercialAggregateType = string;
+export type CommercialEventActorType = string;
 
 export interface CommercialEventInput {
   eventId?: string;
@@ -158,9 +143,9 @@ const REF_FIELDS = [
 
 function asRef(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  return typeof value === "object"
-    ? JSON.stringify(value)
-    : String(value as string | number | boolean | bigint);
+  if (typeof value === "object") return JSON.stringify(value);
+  const prim = value as string | number | boolean | bigint;
+  return String(prim);
 }
 
 function normalizeOccurredAt(value?: Date | string | number): Date {
@@ -635,10 +620,13 @@ export function detectCommercialImpossibleStates(
     for (const event of events) {
       const value = event.eventPayload[field];
       if (value == null) continue;
-      const ref =
-        typeof value === "object" && value !== null
-          ? JSON.stringify(value)
-          : String(value ?? "");
+      let ref: string;
+      if (typeof value === "object") {
+        ref = JSON.stringify(value);
+      } else {
+        const prim = value as string | number | boolean | bigint;
+        ref = String(prim);
+      }
       seen.set(ref, (seen.get(ref) ?? 0) + 1);
     }
     for (const [ref, count] of Array.from(seen.entries())) {

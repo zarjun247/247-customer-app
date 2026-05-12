@@ -236,36 +236,32 @@ export async function reserveBatchAtomic(input: any) {
         code: "CONFLICT",
         message: "Reservation race lost",
       });
-    const [row] = await tx
-      .insert(stockReservations)
-      .values({
-        batchId: input.batchId,
-        orderId: input.orderId ?? null,
-        cartId: input.cartId ?? null,
-        productId: input.productId ?? batch.productId,
-        variantId: input.variantId ?? batch.variantId ?? null,
-        skuId: input.skuId ?? null,
-        storeId: input.storeId ?? batch.storeId,
-        qty,
-        qtyReserved: qty,
-        status: ACTIVE_RESERVATION_STATUS,
-        expiresAt,
-      });
+    const [row] = await tx.insert(stockReservations).values({
+      batchId: input.batchId,
+      orderId: input.orderId ?? null,
+      cartId: input.cartId ?? null,
+      productId: input.productId ?? batch.productId,
+      variantId: input.variantId ?? batch.variantId ?? null,
+      skuId: input.skuId ?? null,
+      storeId: input.storeId ?? batch.storeId,
+      qty,
+      qtyReserved: qty,
+      status: ACTIVE_RESERVATION_STATUS,
+      expiresAt,
+    });
     const reservationId = row?.insertId;
-    await tx
-      .insert(stockMovements)
-      .values({
-        batchId: input.batchId,
-        storeId: input.storeId ?? batch.storeId,
-        movementType: "sale_reserve",
-        qty,
-        qtyBefore: beforeReserved,
-        qtyAfter: afterReserved,
-        referenceType: "stock_reservation",
-        referenceId: reservationId ?? null,
-        reason: input.releaseReason ?? "reservation_created",
-        performedBy: input.ctx?.user?.id ?? input.actorId ?? 0,
-      });
+    await tx.insert(stockMovements).values({
+      batchId: input.batchId,
+      storeId: input.storeId ?? batch.storeId,
+      movementType: "sale_reserve",
+      qty,
+      qtyBefore: beforeReserved,
+      qtyAfter: afterReserved,
+      referenceType: "stock_reservation",
+      referenceId: reservationId ?? null,
+      reason: input.releaseReason ?? "reservation_created",
+      performedBy: input.ctx?.user?.id ?? input.actorId ?? 0,
+    });
     return { reservationId, batch, beforeReserved, afterReserved, expiresAt };
   });
   await logAudit(
@@ -320,21 +316,19 @@ export async function reserveStockForOrder(input: any) {
   const { stockReservations } = await import("../../drizzle/schema");
   await assertAvailableForReservation(input);
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000);
-  const [row] = await db
-    .insert(stockReservations)
-    .values({
-      batchId: null,
-      orderId: input.orderId ?? null,
-      cartId: input.cartId ?? null,
-      productId: input.productId,
-      variantId: input.variantId ?? null,
-      skuId: input.skuId ?? null,
-      storeId: input.storeId,
-      qty: input.qty,
-      qtyReserved: input.qty,
-      status: ACTIVE_RESERVATION_STATUS,
-      expiresAt,
-    });
+  const [row] = await db.insert(stockReservations).values({
+    batchId: null,
+    orderId: input.orderId ?? null,
+    cartId: input.cartId ?? null,
+    productId: input.productId,
+    variantId: input.variantId ?? null,
+    skuId: input.skuId ?? null,
+    storeId: input.storeId,
+    qty: input.qty,
+    qtyReserved: input.qty,
+    status: ACTIVE_RESERVATION_STATUS,
+    expiresAt,
+  });
   const reservationId = (row as any)?.insertId;
   await logAudit(
     {
@@ -421,21 +415,19 @@ async function applyReservationTerminalAtomic(
               sql`${batchLedger.qtyReserved} >= ${qty}`
             )
           );
-        await tx
-          .insert(stockMovements)
-          .values({
-            batchId: reservation.batchId,
-            storeId: reservation.storeId,
-            movementType:
-              status === "consumed" ? "sale_fulfil" : "cancellation_release",
-            qty: status === "consumed" ? -qty : qty,
-            qtyBefore: status === "consumed" ? onHandBefore : reservedBefore,
-            qtyAfter: status === "consumed" ? nextOnHand : nextReserved,
-            referenceType: "stock_reservation",
-            referenceId: reservation.id,
-            reason: releaseReason,
-            performedBy: input.ctx?.user?.id ?? input.actorId ?? 0,
-          });
+        await tx.insert(stockMovements).values({
+          batchId: reservation.batchId,
+          storeId: reservation.storeId,
+          movementType:
+            status === "consumed" ? "sale_fulfil" : "cancellation_release",
+          qty: status === "consumed" ? -qty : qty,
+          qtyBefore: status === "consumed" ? onHandBefore : reservedBefore,
+          qtyAfter: status === "consumed" ? nextOnHand : nextReserved,
+          referenceType: "stock_reservation",
+          referenceId: reservation.id,
+          reason: releaseReason,
+          performedBy: input.ctx?.user?.id ?? input.actorId ?? 0,
+        });
       }
       await tx
         .update(stockReservations)
@@ -514,12 +506,10 @@ async function updateReservationStatus(
   return applyReservationTerminalAtomic(input, status, defaultReason);
 }
 
-export async function claimReservationTerminalState(
-  input: any & {
-    terminalStatus: ReservationReleaseStatus;
-    releaseReason?: string;
-  }
-) {
+export async function claimReservationTerminalState(input: {
+  terminalStatus: ReservationReleaseStatus;
+  releaseReason?: string;
+}) {
   return updateReservationStatus(
     input,
     input.terminalStatus,

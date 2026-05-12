@@ -28,11 +28,13 @@ async function getDb() {
 }
 
 function parseLegacyIntegerRef(value: unknown, label: string): number {
-  const ref = (
-    typeof value === "object" && value !== null
-      ? JSON.stringify(value)
-      : String(value ?? "")
-  ).trim();
+  if (typeof value === "object" && value !== null)
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `${label} must be a numeric legacy reference for this lookup`,
+    });
+  const prim = value as string | number | boolean | bigint | null | undefined;
+  const ref = String(prim ?? "").trim();
   if (!/^\d+$/.test(ref))
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
@@ -42,20 +44,17 @@ function parseLegacyIntegerRef(value: unknown, label: string): number {
 }
 
 function parseOptionalLegacyIntegerRef(value: unknown): number | null {
-  const ref = (
-    typeof value === "object" && value !== null
-      ? JSON.stringify(value)
-      : String(value ?? "")
-  ).trim();
+  if (typeof value === "object" && value !== null) return null;
+  const prim = value as string | number | boolean | bigint | null | undefined;
+  const ref = String(prim ?? "").trim();
   return /^\d+$/.test(ref) ? parseInt(ref, 10) : null;
 }
 
 function requireText(value: unknown, message: string): string {
-  const text = (
-    typeof value === "object" && value !== null
-      ? JSON.stringify(value)
-      : String(value ?? "")
-  ).trim();
+  if (typeof value === "object" && value !== null)
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message });
+  const prim = value as string | number | boolean | bigint | null | undefined;
+  const text = String(prim ?? "").trim();
   if (!text) throw new TRPCError({ code: "PRECONDITION_FAILED", message });
   return text;
 }
@@ -283,32 +282,30 @@ export async function createOrVerifyH1RegisterEntry(
       statutoryContextStatus: "complete",
     };
     if (!existing) {
-      await db
-        .insert(h1Register)
-        .values({
-          storeId: legacyStoreId,
-          storeRef,
-          patientName,
-          patientPhone: sale.customerMobile ?? null,
-          prescribingDoctor: doctorName,
-          doctorName,
-          doctorRegNo: rx.doctorRegNo,
-          drugName,
-          productId: productRef,
-          batchNo: line.batchNo ?? null,
-          batchLedgerId,
-          batchId: batchLedgerId,
-          qty: line.qty,
-          pharmacistId,
-          billNo: saleBillNo,
-          saleBillNo,
-          saleId: legacySaleId,
-          prescriptionId: rx.prescriptionId,
-          prescriptionRef,
-          saleRef,
-          saleLineRef,
-          statutoryContextStatus: "complete",
-        });
+      await db.insert(h1Register).values({
+        storeId: legacyStoreId,
+        storeRef,
+        patientName,
+        patientPhone: sale.customerMobile ?? null,
+        prescribingDoctor: doctorName,
+        doctorName,
+        doctorRegNo: rx.doctorRegNo,
+        drugName,
+        productId: productRef,
+        batchNo: line.batchNo ?? null,
+        batchLedgerId,
+        batchId: batchLedgerId,
+        qty: line.qty,
+        pharmacistId,
+        billNo: saleBillNo,
+        saleBillNo,
+        saleId: legacySaleId,
+        prescriptionId: rx.prescriptionId,
+        prescriptionRef,
+        saleRef,
+        saleLineRef,
+        statutoryContextStatus: "complete",
+      });
       await logAudit(
         {
           action: "h1.register.created",

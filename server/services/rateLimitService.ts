@@ -106,15 +106,14 @@ export class MemoryRateLimitStore implements RateLimitStore {
 
 export function normalizeKeyPart(value: unknown): string {
   if (value === undefined || value === null || value === "") return "anon";
-  return (
-    typeof value === "object" && value !== null
-      ? JSON.stringify(value)
-      : String(value)
-  )
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .slice(0, 160);
+  let s: string;
+  if (typeof value === "object" && value !== null) {
+    s = JSON.stringify(value);
+  } else {
+    const prim = value as string | number | boolean | bigint;
+    s = String(prim);
+  }
+  return s.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 160);
 }
 
 export function buildRateLimitKey(parts: Record<string, unknown>): string {

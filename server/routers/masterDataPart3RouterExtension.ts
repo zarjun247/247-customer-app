@@ -59,13 +59,16 @@ async function getDb() {
 function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
   const headers = Object.keys(rows[0]);
-  const esc = (v: unknown) => {
-    const s =
-      v === null || v === undefined
-        ? ""
-        : typeof v === "object"
-          ? JSON.stringify(v)
-          : String(v);
+  const esc = (v: unknown): string => {
+    let s: string;
+    if (v === null || v === undefined) {
+      s = "";
+    } else if (typeof v === "object") {
+      s = JSON.stringify(v);
+    } else {
+      const prim = v as string | number | boolean | bigint;
+      s = String(prim);
+    }
     return s.includes(",") || s.includes('"') || s.includes("\n")
       ? `"${s.replace(/"/g, '""')}"`
       : s;

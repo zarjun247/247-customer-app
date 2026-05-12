@@ -73,7 +73,7 @@ describe("runRetentionTick", () => {
       ...makeSelectChain([req]),
       transaction: vi
         .fn()
-        .mockImplementation((fn: Function) =>
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
           fn({ update: txUpdate, select: txSelect })
         ),
     };
@@ -129,7 +129,7 @@ describe("runRetentionTick", () => {
       ...makeSelectChain([req]),
       transaction: vi
         .fn()
-        .mockImplementation((fn: Function) =>
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
           fn({ update: txUpdate, select: txSelect })
         ),
     };
@@ -173,7 +173,7 @@ describe("runRetentionTick", () => {
       ...makeSelectChain(requests),
       transaction: vi
         .fn()
-        .mockImplementation((fn: Function) =>
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
           fn({ update: txUpdate, select: txSelect })
         ),
     };
@@ -209,7 +209,7 @@ describe("runRetentionTick", () => {
       ...makeSelectChain([req]),
       transaction: vi
         .fn()
-        .mockImplementation((fn: Function) =>
+        .mockImplementation((fn: (...args: unknown[]) => unknown) =>
           fn({ update: txUpdate, select: txSelect })
         ),
     };

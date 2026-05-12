@@ -67,12 +67,14 @@ export async function makeRequest<T = unknown>(
   // Add other query parameters
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
-      url.searchParams.append(
-        key,
-        typeof value === "object" && value !== null
-          ? JSON.stringify(value)
-          : String(value)
-      );
+      let paramStr: string;
+      if (typeof value === "object") {
+        paramStr = JSON.stringify(value);
+      } else {
+        const prim = value as string | number | boolean | bigint;
+        paramStr = String(prim);
+      }
+      url.searchParams.append(key, paramStr);
     }
   });
 
