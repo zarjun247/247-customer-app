@@ -1,5 +1,5 @@
 import pino from "pino";
-import { and, avg, count, eq, gte, max, sql } from "drizzle-orm";
+import { and, count, eq, gte, max, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { sloEvents } from "../../drizzle/schema";
 
@@ -13,12 +13,97 @@ export type SloDefinition = {
 };
 
 export const SLO_DEFINITIONS: readonly SloDefinition[] = [
-  { name: "trpc.sale.confirm.p99", target: 0.99, windowSeconds: 60, description: "Sale confirmation tRPC handler p99 success rate" },
-  { name: "trpc.purchase.commit.p99", target: 0.99, windowSeconds: 60, description: "Purchase commit tRPC handler p99 success rate" },
-  { name: "trpc.payment.verify.p99", target: 0.99, windowSeconds: 60, description: "Payment verify tRPC handler p99 success rate" },
-  { name: "http.api.latency.p95", target: 0.95, windowSeconds: 60, description: "HTTP API latency p95 within-budget rate" },
-  { name: "provider.razorpay.success.rate", target: 0.995, windowSeconds: 300, description: "Razorpay provider call success rate" },
-  { name: "provider.whatsapp.success.rate", target: 0.99, windowSeconds: 300, description: "WhatsApp provider call success rate" },
+  {
+    name: "trpc.sale.confirm.p99",
+    target: 0.99,
+    windowSeconds: 60,
+    description: "Sale confirmation tRPC handler p99 success rate",
+  },
+  {
+    name: "trpc.purchase.commit.p99",
+    target: 0.99,
+    windowSeconds: 60,
+    description: "Purchase commit tRPC handler p99 success rate",
+  },
+  {
+    name: "trpc.payment.verify.p99",
+    target: 0.99,
+    windowSeconds: 60,
+    description: "Payment verify tRPC handler p99 success rate",
+  },
+  {
+    name: "http.api.latency.p95",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "HTTP API latency p95 within-budget rate",
+  },
+  {
+    name: "provider.razorpay.success.rate",
+    target: 0.995,
+    windowSeconds: 300,
+    description: "Razorpay provider call success rate",
+  },
+  {
+    name: "provider.whatsapp.success.rate",
+    target: 0.99,
+    windowSeconds: 300,
+    description: "WhatsApp provider call success rate",
+  },
+  // SM-LM Phase 2: 9 critical path latency SLOs
+  {
+    name: "sale.confirmSale.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "Sale confirmation end-to-end latency p95 ≤ 300ms",
+  },
+  {
+    name: "purchase.commitPurchaseInvoice.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "Purchase invoice commit latency p95 ≤ 500ms",
+  },
+  {
+    name: "payment.captureWebhook.latency",
+    target: 0.99,
+    windowSeconds: 60,
+    description: "Razorpay webhook capture latency p99 ≤ 30s",
+  },
+  {
+    name: "prescription.upload.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "Prescription upload latency p95 ≤ 2s",
+  },
+  {
+    name: "ocr.process.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "OCR pipeline latency p95 ≤ 5s",
+  },
+  {
+    name: "inventory.adjust.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "Inventory adjustment approval latency p95 ≤ 200ms",
+  },
+  {
+    name: "dsr.access.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "DSR access request latency p95 ≤ 500ms",
+  },
+  {
+    name: "dsr.erasure.latency",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "DSR erasure request latency p95 ≤ 5s",
+  },
+  {
+    name: "retention.tick.duration",
+    target: 0.95,
+    windowSeconds: 60,
+    description: "Retention worker tick duration p95 ≤ 30s",
+  },
 ] as const;
 
 export type SloEventInput = {
@@ -41,14 +126,21 @@ export type SloBudgetSnapshot = {
 };
 
 function findDefinition(sloName: string): SloDefinition | undefined {
-  return SLO_DEFINITIONS.find((d) => d.name === sloName);
+  return SLO_DEFINITIONS.find(d => d.name === sloName);
 }
 
 export async function emitSloEvent(input: SloEventInput): Promise<void> {
   try {
     const db = await getDb();
     if (!db) {
-      logger.warn({ event: "slo_event_skipped", sloName: input.sloName, reason: "db_unavailable" }, "slo_event_skipped");
+      logger.warn(
+        {
+          event: "slo_event_skipped",
+          sloName: input.sloName,
+          reason: "db_unavailable",
+        },
+        "slo_event_skipped"
+      );
       return;
     }
     await db.insert(sloEvents).values({
@@ -63,7 +155,11 @@ export async function emitSloEvent(input: SloEventInput): Promise<void> {
     });
   } catch (error) {
     logger.warn(
-      { event: "slo_event_write_failed", sloName: input.sloName, reason: (error as Error)?.message ?? String(error) },
+      {
+        event: "slo_event_write_failed",
+        sloName: input.sloName,
+        reason: (error as Error)?.message ?? String(error),
+      },
       "slo_event_write_failed"
     );
   }
@@ -100,7 +196,13 @@ export async function getSloBudgetSummary(
   const def = findDefinition(sloName);
   const effectiveTarget = def?.target ?? 0;
   const effectiveWindow = windowSeconds ?? def?.windowSeconds ?? 60;
-  const zero: SloBudgetSnapshot = { name: sloName, target: effectiveTarget, actualRate: 0, eventCount: 0, lastBreachAt: null };
+  const zero: SloBudgetSnapshot = {
+    name: sloName,
+    target: effectiveTarget,
+    actualRate: 0,
+    eventCount: 0,
+    lastBreachAt: null,
+  };
 
   try {
     const db = await getDb();
@@ -114,7 +216,9 @@ export async function getSloBudgetSummary(
         withinCount: sql<number>`SUM(CASE WHEN ${sloEvents.withinBudget} = 1 THEN 1 ELSE 0 END)`,
       })
       .from(sloEvents)
-      .where(and(eq(sloEvents.sloName, sloName), gte(sloEvents.measuredAt, since)));
+      .where(
+        and(eq(sloEvents.sloName, sloName), gte(sloEvents.measuredAt, since))
+      );
 
     const row = rows[0];
     const total = Number(row?.eventCount ?? 0);
@@ -142,11 +246,20 @@ export async function getSloBudgetSummary(
       target: effectiveTarget,
       actualRate,
       eventCount: total,
-      lastBreachAt: lastBreachAt instanceof Date ? lastBreachAt : lastBreachAt ? new Date(lastBreachAt) : null,
+      lastBreachAt:
+        lastBreachAt instanceof Date
+          ? lastBreachAt
+          : lastBreachAt
+            ? new Date(lastBreachAt)
+            : null,
     };
   } catch (error) {
     logger.warn(
-      { event: "slo_budget_summary_failed", sloName, reason: (error as Error)?.message ?? String(error) },
+      {
+        event: "slo_budget_summary_failed",
+        sloName,
+        reason: (error as Error)?.message ?? String(error),
+      },
       "slo_budget_summary_failed"
     );
     return zero;

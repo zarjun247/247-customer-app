@@ -148,6 +148,7 @@ import {
   assertPrescriptionUsableForCustomer,
   logPrescriptionVaultAccess,
 } from "./services/prescriptionVault";
+import { emitSloEvent } from "./services/sloService";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const otpRateLimit = new Map<string, { count: number; ts: number }>();
@@ -890,66 +891,83 @@ const prescriptionRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const user = await getUserById(ctx.user.id);
-      const buffer = Buffer.from(input.imageBase64, "base64");
-      const allowed: Record<string, { ext: string; magic: number[] }> = {
-        "image/jpeg": { ext: "jpg", magic: [0xff, 0xd8, 0xff] },
-        "image/png": { ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
-        "application/pdf": { ext: "pdf", magic: [0x25, 0x50, 0x44, 0x46] },
-      };
-      const rule = allowed[input.mimeType];
-      if (!rule)
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Unsupported file type",
+      const _started = Date.now();
+      let _withinBudget = false;
+      try {
+        const user = await getUserById(ctx.user.id);
+        const buffer = Buffer.from(input.imageBase64, "base64");
+        const allowed: Record<string, { ext: string; magic: number[] }> = {
+          "image/jpeg": { ext: "jpg", magic: [0xff, 0xd8, 0xff] },
+          "image/png": { ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
+          "application/pdf": { ext: "pdf", magic: [0x25, 0x50, 0x44, 0x46] },
+        };
+        const rule = allowed[input.mimeType];
+        if (!rule)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Unsupported file type",
+          });
+        if (buffer.length > 8 * 1024 * 1024)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "File too large",
+          });
+        if (!rule.magic.every((b, i) => buffer[i] === b))
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid file signature",
+          });
+        const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        const rxId = await createPrescription(
+          ctx.user.id,
+          user?.assignedStoreId ?? undefined,
+          url,
+          key,
+          input.metadata
+            ? {
+                doctorName: input.metadata.doctorName,
+                doctorRegNo: input.metadata.doctorRegNo,
+                clinicName: input.metadata.clinicName,
+                prescriptionDate: input.metadata.prescriptionDate
+                  ? new Date(input.metadata.prescriptionDate)
+                  : undefined,
+                validUntil: input.metadata.validUntil
+                  ? new Date(input.metadata.validUntil)
+                  : undefined,
+                patientName: input.metadata.patientName,
+                linkedProductIds: input.metadata.linkedProductIds,
+                source: input.metadata.source ?? "upload",
+              }
+            : { source: "upload" }
+        );
+        await writeAuditLog(
+          ctx.user.id,
+          "prescription_uploaded",
+          "prescription",
+          rxId,
+          undefined,
+          {
+            actorRole: ctx.user.role,
+            afterJson: {
+              metadataSupplied: Boolean(input.metadata),
+              source: input.metadata?.source ?? "upload",
+            },
+            channel: "app",
+          }
+        );
+        _withinBudget = Date.now() - _started <= 2_000;
+        return { prescriptionId: rxId, imageUrl: url };
+      } finally {
+        void emitSloEvent({
+          sloName: "prescription.upload.latency",
+          target: 0.95,
+          measuredValue: Date.now() - _started,
+          withinBudget: _withinBudget,
+          sampleCount: 1,
+          windowSeconds: 60,
         });
-      if (buffer.length > 8 * 1024 * 1024)
-        throw new TRPCError({ code: "BAD_REQUEST", message: "File too large" });
-      if (!rule.magic.every((b, i) => buffer[i] === b))
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid file signature",
-        });
-      const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
-      const { url } = await storagePut(key, buffer, input.mimeType);
-      const rxId = await createPrescription(
-        ctx.user.id,
-        user?.assignedStoreId ?? undefined,
-        url,
-        key,
-        input.metadata
-          ? {
-              doctorName: input.metadata.doctorName,
-              doctorRegNo: input.metadata.doctorRegNo,
-              clinicName: input.metadata.clinicName,
-              prescriptionDate: input.metadata.prescriptionDate
-                ? new Date(input.metadata.prescriptionDate)
-                : undefined,
-              validUntil: input.metadata.validUntil
-                ? new Date(input.metadata.validUntil)
-                : undefined,
-              patientName: input.metadata.patientName,
-              linkedProductIds: input.metadata.linkedProductIds,
-              source: input.metadata.source ?? "upload",
-            }
-          : { source: "upload" }
-      );
-      await writeAuditLog(
-        ctx.user.id,
-        "prescription_uploaded",
-        "prescription",
-        rxId,
-        undefined,
-        {
-          actorRole: ctx.user.role,
-          afterJson: {
-            metadataSupplied: Boolean(input.metadata),
-            source: input.metadata?.source ?? "upload",
-          },
-          channel: "app",
-        }
-      );
-      return { prescriptionId: rxId, imageUrl: url };
+      }
     }),
   list: protectedProcedure.query(async ({ ctx }) =>
     getPrescriptionsByUser(ctx.user.id)

@@ -7,6 +7,7 @@ import { orders } from "../../drizzle/schema";
 import { logAudit } from "./audit";
 import { ENV } from "../_core/env";
 import { readFlag } from "./emergencyStopService";
+import { emitSloEvent } from "./sloService";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -19,59 +20,73 @@ export interface RetentionTickResult {
 const _REGULATED_SCHEDULE_PATTERN = /^(H|H1|X)$/i; // defined for reference; enforcement is in pharmacy rules layer
 
 export async function runRetentionTick(): Promise<RetentionTickResult> {
-  if (!ENV.retentionWorkerEnabled) {
-    logger.debug(
-      "retentionWorker: RETENTION_WORKER_ENABLED=false; skipping tick"
-    );
-    return { processed: 0, errors: 0 };
-  }
-  const stopFlag = await readFlag();
-  if (stopFlag.active) {
-    logger.warn(
-      { reason: stopFlag.reason },
-      "retentionWorker: skipping tick — emergency stop active"
-    );
-    return { processed: 0, errors: 0 };
-  }
-
-  const db = await getDb();
-  if (!db) {
-    logger.error("retentionWorker: DB unavailable");
-    return { processed: 0, errors: 0 };
-  }
-
-  const confirmed = await db
-    .select()
-    .from(dsrRequests)
-    .where(
-      and(
-        eq(dsrRequests.requestKind, "erasure"),
-        eq(dsrRequests.requestStatus, "confirmed")
-      )
-    )
-    .limit(50);
-
-  let processed = 0;
-  let errors = 0;
-
-  for (const req of confirmed) {
-    try {
-      await processErasureRequest(db, req);
-      processed++;
-    } catch (err) {
-      logger.error(
-        { requestId: req.id, err: String(err) },
-        "retentionWorker: error processing erasure"
+  const started = Date.now();
+  let withinBudget = false;
+  try {
+    if (!ENV.retentionWorkerEnabled) {
+      logger.debug(
+        "retentionWorker: RETENTION_WORKER_ENABLED=false; skipping tick"
       );
-      errors++;
+      return { processed: 0, errors: 0 };
     }
-  }
+    const stopFlag = await readFlag();
+    if (stopFlag.active) {
+      logger.warn(
+        { reason: stopFlag.reason },
+        "retentionWorker: skipping tick — emergency stop active"
+      );
+      return { processed: 0, errors: 0 };
+    }
 
-  if (processed > 0 || errors > 0) {
-    logger.info({ processed, errors }, "retentionWorker: tick complete");
-  }
+    const db = await getDb();
+    if (!db) {
+      logger.error("retentionWorker: DB unavailable");
+      return { processed: 0, errors: 0 };
+    }
 
-  return { processed, errors };
+    const confirmed = await db
+      .select()
+      .from(dsrRequests)
+      .where(
+        and(
+          eq(dsrRequests.requestKind, "erasure"),
+          eq(dsrRequests.requestStatus, "confirmed")
+        )
+      )
+      .limit(50);
+
+    let processed = 0;
+    let errors = 0;
+
+    for (const req of confirmed) {
+      try {
+        await processErasureRequest(db, req);
+        processed++;
+      } catch (err) {
+        logger.error(
+          { requestId: req.id, err: String(err) },
+          "retentionWorker: error processing erasure"
+        );
+        errors++;
+      }
+    }
+
+    if (processed > 0 || errors > 0) {
+      logger.info({ processed, errors }, "retentionWorker: tick complete");
+    }
+
+    withinBudget = Date.now() - started <= 30_000;
+    return { processed, errors };
+  } finally {
+    void emitSloEvent({
+      sloName: "retention.tick.duration",
+      target: 0.95,
+      measuredValue: Date.now() - started,
+      withinBudget,
+      sampleCount: 1,
+      windowSeconds: 60,
+    });
+  }
 }
 
 async function processErasureRequest(

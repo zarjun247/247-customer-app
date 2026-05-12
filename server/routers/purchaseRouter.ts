@@ -27,6 +27,7 @@ import {
 import { executeCommand } from "../services/executeCommand";
 import { purchaseRouterExtension } from "./purchaseRouterExtension";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
+import { emitSloEvent } from "../services/sloService";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");
@@ -86,7 +87,7 @@ function calcGst(
   };
 }
 
-function computeExpiryBucket(
+function _computeExpiryBucket(
   expiryDate: Date | string | null
 ): "normal" | "warning" | "critical" | "quarantine_candidate" | "expired" {
   if (!expiryDate) return "normal";
@@ -151,8 +152,7 @@ export const purchaseRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      requireStoreAccess(ctx.user, input.storeId);
       const internalBarcode = generateInternalBarcode({
         productId: input.productId,
         batchId: input.batchId,
@@ -224,8 +224,8 @@ export const purchaseRouter = router({
     )
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { purchaseInvoices, suppliers, users } = await import(
         "../../drizzle/schema"
@@ -264,8 +264,6 @@ export const purchaseRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
       const db = await getDbSafe();
       const { purchaseInvoices, purchaseLines, products, suppliers } =
         await import("../../drizzle/schema");
@@ -302,8 +300,7 @@ export const purchaseRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       requirePurchase(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      requireStoreAccess(ctx.user, input.storeId);
       const db = await getDbSafe();
       const { purchaseInvoices } = await import("../../drizzle/schema");
       const [result] = await db.insert(purchaseInvoices).values({
@@ -630,57 +627,78 @@ export const purchaseRouter = router({
   commitInvoice: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      requirePurchase(ctx.user.role);
-      return executeCommand({
-        name: "purchase.commitInvoice",
-        version: 1,
-        idempotencyKey: `purchase:commit:${input.id}`,
-        input,
-        context: {
-          actorUserId: String(ctx.user.id),
-          actorRole: ctx.user.role,
-          storeId: null,
-          traceId: null,
-        },
-        handler: async (_inp, _tx, _commandCtx) => {
-          // syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null }) is reconciled after canonical seam stock movements.
-          const result = await commitPurchaseInvoiceExactlyOnce({
-            invoiceId: input.id,
-            idempotencyKey: buildIdempotencyKey([
-              "purchase",
-              "commit",
-              input.id,
-              getRequestIdFromContext(ctx) ?? "no-request-id",
-            ]),
-            actorId: ctx.user.id,
+      const started = Date.now();
+      let withinBudget = false;
+      try {
+        requirePurchase(ctx.user.role);
+        const result = await executeCommand({
+          name: "purchase.commitInvoice",
+          version: 1,
+          idempotencyKey: `purchase:commit:${input.id}`,
+          input,
+          context: {
+            actorUserId: String(ctx.user.id),
             actorRole: ctx.user.role,
-          });
-          const db = await getDbSafe();
-          const { purchaseInvoices } = await import("../../drizzle/schema");
-          const [invoice] = await db
-            .select()
-            .from(purchaseInvoices)
-            .where(eq(purchaseInvoices.id, input.id))
-            .limit(1);
-          return {
-            output: {
-              success: result.success,
-              gstSummary:
-                invoice?.gstSummary ?? (result as any).gstSummary ?? null,
-              idempotent: (result as any).idempotent,
-              duplicate: (result as any).duplicate,
-              status: (result as any).status,
-            },
-            sideEffects: [
-              {
-                kind: "inventory.snapshot-refresh",
-                payload: { invoiceId: input.id },
+            storeId: null,
+            traceId: null,
+          },
+          handler: async (_inp, _tx, _commandCtx) => {
+            // syncStoreSkuAggregate({ storeId: inv.storeId, productId: line.productId, variantId: null }) is reconciled after canonical seam stock movements.
+            const result = await commitPurchaseInvoiceExactlyOnce({
+              invoiceId: input.id,
+              idempotencyKey: buildIdempotencyKey([
+                "purchase",
+                "commit",
+                input.id,
+                (getRequestIdFromContext(ctx) as string | null) ??
+                  "no-request-id",
+              ]),
+              actorId: ctx.user.id,
+              actorRole: ctx.user.role,
+            });
+            const db = await getDbSafe();
+            const { purchaseInvoices } = await import("../../drizzle/schema");
+            const [invoice] = await db
+              .select()
+              .from(purchaseInvoices)
+              .where(eq(purchaseInvoices.id, input.id))
+              .limit(1);
+            const r = result as {
+              gstSummary?: unknown;
+              idempotent?: boolean;
+              duplicate?: boolean;
+              status?: string;
+            };
+            return {
+              output: {
+                success: result.success,
+                gstSummary: invoice?.gstSummary ?? r.gstSummary ?? null,
+                idempotent: r.idempotent,
+                duplicate: r.duplicate,
+                status: r.status,
               },
-            ],
-          };
-        },
-        sloName: "trpc.purchase.commit.p99",
-      });
+              sideEffects: [
+                {
+                  kind: "inventory.snapshot-refresh",
+                  payload: { invoiceId: input.id },
+                },
+              ],
+            };
+          },
+          sloName: "trpc.purchase.commit.p99",
+        });
+        withinBudget = Date.now() - started <= 500;
+        return result;
+      } finally {
+        void emitSloEvent({
+          sloName: "purchase.commitPurchaseInvoice.latency",
+          target: 0.95,
+          measuredValue: Date.now() - started,
+          withinBudget,
+          sampleCount: 1,
+          windowSeconds: 60,
+        });
+      }
     }),
 
   ...purchaseRouterExtension,
