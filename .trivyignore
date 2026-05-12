@@ -3,8 +3,16 @@
 #   available in any Alpine 3.21.x release as of review date.
 # Go binary CVEs: embedded in pnpm standalone CLI, not our code.
 # Node transitive CVEs: no patched version reachable via overrides.
+# GHSA entries: npm vendor-severity is HIGH but CVSS < 7; no actionable fix.
 # Review quarterly or on next Alpine base image bump.
-# New CVEs NOT in this list will still fail CI (exit-code: 1 stays).
+# New CVEs/GHSAs NOT in this list will still fail CI (exit-code: 1 stays).
+
+GHSA-6475-r3vj-m8vf
+GHSA-39q2-94rc-95cp
+GHSA-cj63-jhhr-wcxv
+GHSA-cjmm-f4jc-qw8r
+GHSA-h8r8-wccr-v5f2
+GHSA-67mh-4wv8-2f99
 
 CVE-2023-39318
 CVE-2023-39319
