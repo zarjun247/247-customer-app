@@ -19,8 +19,8 @@ describe("refund ledger implementation guards", () => {
 
   it("persists failed provider refunds and does not fake provider success", () => {
     expect(service).toContain("paymentConnector.refund");
-    expect(service).toContain(
-      "markRefundFailedRecord({ refundId: created.refundId"
+    expect(service).toMatch(
+      /markRefundFailedRecord\(\{\s*\n?\s*refundId: created\.refundId/
     );
     expect(service).toContain('status: "failed" as const');
     expect(service.indexOf("paymentConnector.refund")).toBeLessThan(

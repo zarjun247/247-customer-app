@@ -70,7 +70,9 @@ describe("h1 register correctness guards", () => {
   });
 
   it("audit payload includes string-safe sale refs and line refs", () => {
-    expect(source).toContain("const auditPayload = { saleRef, saleLineRef");
+    expect(source).toMatch(
+      /const auditPayload = \{\s*\n?\s*saleRef,\s*\n?\s*saleLineRef,/
+    );
     expect(source).toContain("afterJson: auditPayload");
     expect(source).toContain(
       "afterJson: { ...auditPayload, h1RegisterId: existing.id }"
