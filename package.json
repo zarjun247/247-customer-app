@@ -48,7 +48,8 @@
   },
   "lint-staged": {
     "**/*.{ts,tsx,js,mjs}": [
-      "prettier --write"
+      "prettier --write",
+      "eslint --max-warnings=0"
     ]
   },
   "dependencies": {
