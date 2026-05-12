@@ -81,3 +81,16 @@ Manual verification steps to run when Docker becomes available:
   docker stop mysql_sm_k
 
 ## Status: PHASE 0 CODE COMPLETE — AWAITING DOCKER VERIFICATION
+
+## Phase 0 CI failure + fix (2026-05-12)
+
+First CI run on the draft PR failed mysql-db-lifecycle with:
+  FATAL: Migration 0061_vault_encryption_columns.sql failed at statement:
+  ALTER TABLE prescriptions ADD COLUMN encryption_key_version ... AFTER pharmacist_note
+  Error: Unknown column 'pharmacist_note' in 'prescriptions'
+
+This surfaced a real schema bug in 0061 that the SM-E2-ci inline loop
+had been silently working around for months. Two compatibility shims
+added to apply-migrations.mjs (SKIP_ERRORS set, AFTER-clause retry)
+preserve the existing production schema state. SM-L Phase 4 takes the
+schema archaeology TODO.

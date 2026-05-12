@@ -82,6 +82,16 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 - SM-E2-ci inline mysql2 loops removed from `ci.yml` and `concurrency-proof.yml`; both now use `pnpm run test:db:bootstrap` (single step, all 68 migrations).
 - Production deploy via `pnpm run db:push` no longer broken.
 
+**Compatibility shim retained from SM-E2-ci.** The apply-migrations.mjs
+runner inherits two behaviors from the SM-E2-ci inline mysql2 loop:
+skipping idempotency errors (ER_TABLE_EXISTS_ERROR, ER_DUP_FIELDNAME,
+ER_DUP_KEYNAME, ER_CANT_DROP_FIELD_OR_KEY) and stripping invalid
+`AFTER` clauses on `ER_BAD_FIELD_ERROR`. Specifically,
+`0061_vault_encryption_columns.sql` references
+`prescriptions.pharmacist_note` which does not exist when 0061 runs.
+SM-L Phase 4 (architecture cleanup) should audit drizzle/0050-0067
+for invalid AFTER clauses and produce corrected migration files.
+
 ### Closed by SM-E (this PR)
 
 - Family consent DOB gate passive — FIXED: migration 0064 adds `users.date_of_birth`; `assertConsentForScheduleSale()` will enforce once DOB is collected

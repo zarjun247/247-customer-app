@@ -13,6 +13,13 @@ if (!DATABASE_URL) {
 
 const MIGRATIONS_DIR = path.resolve(process.cwd(), "drizzle");
 
+const SKIP_ERRORS = new Set([
+  "ER_TABLE_EXISTS_ERROR",
+  "ER_DUP_FIELDNAME",
+  "ER_DUP_KEYNAME",
+  "ER_CANT_DROP_FIELD_OR_KEY",
+]);
+
 function hashContent(content) {
   return crypto.createHash("sha256").update(content).digest("hex");
 }
@@ -74,8 +81,39 @@ async function applyMigration(conn, filename, content) {
     try {
       await conn.query(stmt);
     } catch (err) {
+      // Idempotency: a previous run (drizzle-kit migrate or the
+      // SM-E2-ci inline mysql2 loop) already applied this statement.
+      if (SKIP_ERRORS.has(err.code)) {
+        console.log(`  skip stmt: ${err.code}`);
+        continue;
+      }
+      // Legacy compatibility: some bespoke migrations (e.g.
+      // 0061_vault_encryption_columns.sql) reference columns via
+      // AFTER <col> where the referenced column does not exist at
+      // that migration's runtime position. The SM-E2-ci inline loop
+      // stripped AFTER and retried. We preserve that behavior.
+      // TODO(SM-L Phase 4): audit drizzle/0050-0067 for invalid
+      // AFTER clauses and produce corrected migrations.
+      if (err.code === "ER_BAD_FIELD_ERROR" && /\bAFTER\b/i.test(stmt)) {
+        const stripped = stmt.replace(/\s+AFTER\s+`?\w+`?/i, "");
+        try {
+          await conn.query(stripped);
+          console.log("  ok (AFTER stripped)");
+          continue;
+        } catch (err2) {
+          if (SKIP_ERRORS.has(err2.code)) {
+            console.log(`  skip stmt (after retry): ${err2.code}`);
+            continue;
+          }
+          throw new Error(
+            `Migration ${filename} failed at statement:\n${stmt.slice(0, 200)}\n` +
+              `Initial error: ${err.message}\n` +
+              `Retry error: ${err2.message}`
+          );
+        }
+      }
       throw new Error(
-        `Migration ${filename} failed at statement:\n${stmt.slice(0, 300)}\nError: ${err.message}`
+        `Migration ${filename} failed at statement:\n${stmt.slice(0, 200)}\nError: ${err.message}`
       );
     }
   }
