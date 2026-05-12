@@ -25,6 +25,12 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 | Live monitoring ownership missing | Provider failures, dead letters, incidents may go unowned | Primary/secondary rota, escalation thresholds, daily review |
 | Emergency stop and rollback rehearsal missing | Launch team has not proven it can stop, roll back, and reconcile | Rehearsal notes with timeline, owners, commands, signoff |
 
+### P0 Code blockers (engineering, not evidence)
+
+| Blocker | Details |
+|---------|---------|
+| CSRF client wiring (P0) | `CSRF_ENFORCEMENT` defaults to `log_only` — blocks are skipped with a console warning. Required before setting `enforce`: (1) `generateCsrfToken` tRPC endpoint that returns a token, (2) client-side header injection (axios/fetch interceptor sends `x-csrf-token` on every mutation), (3) integration test asserting that a mutation without the header is rejected in enforce mode. Until these land, CSRF protect is advisory only. |
+
 ### P1 Controlled rollout blockers
 
 | Blocker | Status |
