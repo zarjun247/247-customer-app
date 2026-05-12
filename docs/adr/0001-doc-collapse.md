@@ -22,7 +22,7 @@ The proliferation was not malicious or careless — it was the natural output of
 - Two files (`CURRENT_MAIN_TRUTH.md` and `CURRENT_MAIN_TRUTH_V2.md`) had overlapping but inconsistent claims about system readiness.
 - The `PILOT_RUNBOOK.md` file still referenced an early pilot framing that had been superseded by production-readiness work.
 - Status files from 3–4 sprints ago made "complete" claims about items that were still open.
-- Every session had to be told to "read AGENTS.MD and these 10 status files" before starting, which consumed context and caused errors when stale files were read.
+- Every session had to be told to "read AGENT_INSTRUCTIONS.md and these 10 status files" before starting, which consumed context and caused errors when stale files were read.
 
 ---
 
@@ -68,7 +68,7 @@ Additionally:
 ## What was preserved
 
 **At repo root (explicitly kept):**
-- `AGENTS.MD` — non-negotiable execution doctrine. Updated to add new living docs to mandatory reads.
+- `AGENT_INSTRUCTIONS.md` — non-negotiable execution doctrine. Updated to add new living docs to mandatory reads.
 - `HANDOFF.md` — session continuity marker for resuming agent sessions.
 - `README.md` — rewritten to point to the 5 living docs.
 - `OPEN_BLOCKERS.md` — live blocker tracking; single source of truth for P0/P1/P2 blockers.
@@ -87,7 +87,7 @@ Additionally:
 
 ### Positive
 
-- **Discoverability:** A new operator can read `AGENTS.MD + docs/OPERATIONS.md + docs/COMPLIANCE.md + docs/STATUS.md` and understand how to run the system.
+- **Discoverability:** A new operator can read `AGENT_INSTRUCTIONS.md + docs/OPERATIONS.md + docs/COMPLIANCE.md + docs/STATUS.md` and understand how to run the system.
 - **Accuracy:** Living docs contain the current doctrine, not a snapshot from 3 sessions ago. Conflicts between old docs are resolved (older or superseded claims dropped; "needs verification" items are in STATUS.md §Open items).
 - **Reduced agent context waste:** Future sessions no longer need to read 15 status files to understand where things stand.
 - **CI enforcement:** `scripts/verify-docs-structure.mjs` enforces the structure persists — the living docs cannot be accidentally deleted without a CI failure.

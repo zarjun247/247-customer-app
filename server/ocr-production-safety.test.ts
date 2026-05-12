@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach } from "vitest";
 import fs from "node:fs";
-import { scanVirtualFiles } from "../scripts/ci-governance-guards.mjs";
+import { scanVirtualFiles } from "../scripts/ci-governance-guards-shim";
 import {
   getOcrProviderReadiness,
   isUnsafeOcrEvidenceUrl,

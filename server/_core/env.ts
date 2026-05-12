@@ -163,6 +163,19 @@ export const ENV = {
     (process.env.RETENTION_WORKER_ENABLED ?? "false").toLowerCase() === "true",
   // DPO_EMAIL: Data Protection Officer contact for grievance template (default "dpo@example.com")
   dpoEmail: process.env.DPO_EMAIL ?? "dpo@example.com",
+  // SM-E: final score-lift optional vars. Never add to assertProductionEnvSafe().
+  // APP_PHASE: "pilot" | "scaled" | "full" — controls feature flag gating (default "pilot")
+  appPhase: (process.env.APP_PHASE ?? "pilot") as "pilot" | "scaled" | "full",
+  // DSR_SLA_MONITOR_ENABLED: opt-in DSR SLA monitor worker (default "false")
+  dsrSlaMonitorEnabled:
+    (process.env.DSR_SLA_MONITOR_ENABLED ?? "false").toLowerCase() === "true",
+  // BREACH_NOTIFY_RECIPIENT_EMAIL: email to notify on breach dispatch (default empty = log only)
+  breachNotifyRecipientEmail: process.env.BREACH_NOTIFY_RECIPIENT_EMAIL ?? "",
+  // CSRF_ENFORCEMENT: "off" | "log_only" | "enforce" (default "enforce")
+  csrfEnforcement: (process.env.CSRF_ENFORCEMENT ?? "enforce") as
+    | "off"
+    | "log_only"
+    | "enforce",
   // SM-C: CI hardening + operational tooling optional vars. Never add to assertProductionEnvSafe().
   // DOCKER_REGISTRY: registry prefix for docker push (e.g. "ghcr.io/org"). Empty = no push.
   dockerRegistry: process.env.DOCKER_REGISTRY ?? "",

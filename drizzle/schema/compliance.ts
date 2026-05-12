@@ -402,7 +402,30 @@ export const dsrRequests = mysqlTable(
   })
 );
 
+// ─── SM-E: DSR SLA Monitor Log (migration 0065) ──────────────────────────────
+export const dsrSlaMonitorLog = mysqlTable(
+  "dsr_sla_monitor_log",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    dsrRequestId: varchar("dsr_request_id", { length: 36 }).notNull(),
+    alertKind: varchar("alert_kind", { length: 32 }).notNull(),
+    daysToSla: int("days_to_sla").notNull(),
+    notifiedRecipientsJson: json("notified_recipients_json").notNull(),
+    detectedAt: timestamp("detected_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  t => ({
+    idxDsrSlaRequest: index("idx_dsr_sla_request").on(
+      t.dsrRequestId,
+      t.detectedAt
+    ),
+    idxDsrSlaKind: index("idx_dsr_sla_kind").on(t.alertKind, t.detectedAt),
+  })
+);
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
+export type DsrSlaMonitorLog = typeof dsrSlaMonitorLog.$inferSelect;
+export type NewDsrSlaMonitorLog = typeof dsrSlaMonitorLog.$inferInsert;
 export type ConsentNoticeVersion = typeof consentNoticeVersions.$inferSelect;
 export type NewConsentNoticeVersion = typeof consentNoticeVersions.$inferInsert;
 export type DsrRequest = typeof dsrRequests.$inferSelect;

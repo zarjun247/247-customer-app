@@ -3,9 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const adminRoutesPath = path.join(repoRoot, "client/src/routes/adminRoutes.tsx");
+const adminRoutesPath = path.join(
+  repoRoot,
+  "client/src/routes/adminRoutes.tsx"
+);
 const appPath = path.join(repoRoot, "client/src/App.tsx");
-const commandCenterPath = path.join(repoRoot, "client/src/pages/admin/AdminCommandCenter.tsx");
+const commandCenterPath = path.join(
+  repoRoot,
+  "client/src/pages/admin/AdminCommandCenter.tsx"
+);
 
 function read(filePath: string) {
   return fs.readFileSync(filePath, "utf8");
@@ -13,9 +19,18 @@ function read(filePath: string) {
 
 function routeBlock(source: string, routePath: string) {
   const escapedPath = routePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`\\{ path: "${escapedPath}", Component: ([A-Za-z0-9_]+) \\}`);
-  const match = source.match(pattern);
-  return match?.[1];
+  // Single-line: { path: "...", Component: Name }
+  const singleLine = new RegExp(
+    `\\{ path: "${escapedPath}", Component: ([A-Za-z0-9_]+) \\}`
+  );
+  const singleMatch = source.match(singleLine);
+  if (singleMatch) return singleMatch[1];
+  // Multi-line: path: "...", \n  Component: Name,
+  const multiLine = new RegExp(
+    `path: "${escapedPath}"[^}]*Component: ([A-Za-z0-9_]+)`,
+    "s"
+  );
+  return source.match(multiLine)?.[1];
 }
 
 describe("admin route cockpit guards", () => {
@@ -69,14 +84,20 @@ describe("admin route cockpit guards", () => {
   it("maps /admin/masters/customers to the customer page, not patient categories", () => {
     const adminRoutes = read(adminRoutesPath);
 
-    expect(routeBlock(adminRoutes, "/admin/masters/customers")).toBe("AdminCustomers");
-    expect(routeBlock(adminRoutes, "/admin/masters/patient-categories")).toBe("AdminPatientCategories");
+    expect(routeBlock(adminRoutes, "/admin/masters/customers")).toBe(
+      "AdminCustomers"
+    );
+    expect(routeBlock(adminRoutes, "/admin/masters/patient-categories")).toBe(
+      "AdminPatientCategories"
+    );
   });
 
   it("keeps the admin cockpit component renderable and wired with safe fallback states", () => {
     const commandCenter = read(commandCenterPath);
 
-    expect(commandCenter).toContain("export default function AdminCommandCenter()");
+    expect(commandCenter).toContain(
+      "export default function AdminCommandCenter()"
+    );
     expect(commandCenter).toContain("Risk Cockpit Foundation");
     expect(commandCenter).toContain("Stock Risk");
     expect(commandCenter).toContain("Near-expiry Risk");

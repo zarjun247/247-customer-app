@@ -2,7 +2,7 @@
 
 This handbook defines the operational procedures for 24/7 Pharmacy OS stores. It is executable doctrine: who does what, when, and what evidence they capture. It does not replace pharmacist judgement, legal review, or the signed staff roster required before controlled production.
 
-See also: [COMPLIANCE.md](./COMPLIANCE.md), [RUNTIME.md](./RUNTIME.md), [AGENTS.MD](../AGENTS.MD).
+See also: [COMPLIANCE.md](./COMPLIANCE.md), [RUNTIME.md](./RUNTIME.md), [AGENT_INSTRUCTIONS.md](../AGENT_INSTRUCTIONS.md).
 
 **SM-C runbook index (operational tooling — added 2026-05-12):**
 - [RUNBOOK_INCIDENTS.md](./RUNBOOK_INCIDENTS.md) — 5 incident playbooks (provider_down, db_failover, stock_corruption, payment_reconciliation_mismatch, ocr_pipeline_stuck)

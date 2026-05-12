@@ -97,21 +97,32 @@ function validateDoc() {
 }
 
 async function querySloCoverage() {
-  // TBD: query slo_events table
-  // SELECT slo_name, COUNT(*) as event_count, MAX(created_at) as last_event
-  // FROM slo_events
-  // WHERE created_at >= NOW() - INTERVAL :days DAY
-  //   AND slo_name IN (:paths)
-  // GROUP BY slo_name;
-  console.log(
-    "[slo-coverage] DB query not yet wired — returning mock coverage data."
-  );
-  return CRITICAL_PATHS.map(p => ({
-    sloName: p,
-    eventCount: 0,
-    lastEvent: null,
-    covered: false,
-  }));
+  const { createPool } = await import("mysql2/promise");
+  const pool = createPool(process.env.DATABASE_URL);
+  try {
+    const placeholders = CRITICAL_PATHS.map(() => "?").join(", ");
+    const [rows] = await pool.execute(
+      `SELECT slo_name, COUNT(*) AS event_count, MAX(created_at) AS last_event
+       FROM slo_events
+       WHERE created_at >= NOW() - INTERVAL ? DAY
+         AND slo_name IN (${placeholders})
+       GROUP BY slo_name`,
+      [LOOKBACK_DAYS, ...CRITICAL_PATHS]
+    );
+
+    const found = new Map(rows.map(r => [r.slo_name, r]));
+    return CRITICAL_PATHS.map(p => {
+      const row = found.get(p);
+      return {
+        sloName: p,
+        eventCount: row ? Number(row.event_count) : 0,
+        lastEvent: row ? row.last_event : null,
+        covered: row ? Number(row.event_count) > 0 : false,
+      };
+    });
+  } finally {
+    await pool.end();
+  }
 }
 
 async function main() {

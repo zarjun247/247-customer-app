@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { Route } from "wouter";
 import { ADMIN_ROLES } from "./roleGuards";
+import { PhaseGate } from "@/lib/featureFlags";
 import ExpiryDashboard from "@/pages/ExpiryDashboard";
 import BarcodePrint from "@/pages/BarcodePrint";
 import GstExport from "@/pages/GstExport";
@@ -158,8 +159,22 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/masters/printers", Component: AdminPrinters },
   { path: "/admin/masters/products", Component: AdminProducts },
   { path: "/admin/sales", Component: AdminSales },
-  { path: "/admin/intelligence", Component: AdminIntelligence },
-  { path: "/admin/ai-eval-ledger", Component: AdminAiEvalLedger },
+  {
+    path: "/admin/intelligence",
+    Component: () => (
+      <PhaseGate required="scaled" feature="Intelligence">
+        <AdminIntelligence />
+      </PhaseGate>
+    ),
+  },
+  {
+    path: "/admin/ai-eval-ledger",
+    Component: () => (
+      <PhaseGate required="scaled" feature="AI Eval Ledger">
+        <AdminAiEvalLedger />
+      </PhaseGate>
+    ),
+  },
   { path: "/admin/dsr-queue", Component: AdminDsrQueue },
   { path: "/admin/consent-registry", Component: AdminConsentRegistry },
   { path: "/admin/family-consent", Component: AdminFamilyConsent },

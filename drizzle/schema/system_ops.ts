@@ -701,6 +701,22 @@ export const incidentRehearsalLog = mysqlTable(
   })
 );
 
+// ─── SM-E: App Phase Flags (migration 0066) ──────────────────────────────────
+export const appPhaseFlags = mysqlTable(
+  "app_phase_flags",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    flagKey: varchar("flag_key", { length: 64 }).notNull(),
+    requiredPhase: varchar("required_phase", { length: 32 }).notNull(),
+    description: text("description").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  t => ({
+    uqAppPhaseFlagKey: uniqueIndex("uq_app_phase_flag_key").on(t.flagKey),
+  })
+);
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
 export type SystemEvent = typeof systemEvents.$inferSelect;
 export type InsertSystemEvent = typeof systemEvents.$inferInsert;

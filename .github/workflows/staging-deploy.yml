@@ -59,15 +59,11 @@ jobs:
       - name: Real deploy
         if: env.DRY_RUN == 'false'
         run: |
-          echo "Real deploy of ${{ github.sha }} to staging"
-          # TBD: wire real deploy commands here (see docs/RUNBOOK_DEPLOY.md)
-          # Steps would include:
-          #   pnpm run build
-          #   docker build -t $DOCKER_REGISTRY/247-customer-app:${{ github.sha }} .
-          #   docker push $DOCKER_REGISTRY/247-customer-app:${{ github.sha }}
-          #   pnpm run migrations:apply (against staging DB)
-          #   Verify /health/live and /health/ready return 200
-          echo "TBD — fill in per docs/RUNBOOK_DEPLOY.md §Staging deploy steps"
+          echo "ERROR: Real deploy steps are not wired yet." >&2
+          echo "Wire the actual deploy commands in this step before setting dry_run=false." >&2
+          echo "See docs/RUNBOOK_DEPLOY.md §Staging deploy steps for the required commands." >&2
+          echo "Required: pnpm run build, docker build/push, migrations:apply, health check." >&2
+          exit 1
         env:
           DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
           STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
