@@ -1,2 +1,17 @@
-73 vulnerabilities found
-Severity: 4 low | 42 moderate | 26 high | 1 critical
+24 vulnerabilities found
+Severity: 2 low | 19 moderate | 3 high (3 ignored)
+
+# Accepted / blocked CVEs (no upstream fix available as of 2026-05-12)
+#
+# CVE-2026-4867 — path-to-regexp < 0.1.13 (GHSA-37ch-88jc-xwx2)
+#   Path: express@4.21.2 > path-to-regexp@0.1.12
+#   Reason: pnpm "patched versions >=0.1.13" does not exist on npm registry.
+#   Express 4.x ships 0.x internally and will not upgrade mid-series.
+#   Suppressed via pnpm.auditConfig.ignoreCves. Revisit when Express 5.x is adopted.
+#
+# CVE-2026-4800 — lodash / lodash-es _.template code injection (GHSA-r5fr-rjxr-66jc)
+#   Paths: recharts@2.15.4 > lodash@4.17.21
+#          streamdown@1.4.0 > mermaid > ... > lodash-es@4.17.21
+#   Reason: pnpm "patched versions >=4.18.0" does not exist on npm registry.
+#   We do not call _.template anywhere in application code; risk is not reachable.
+#   Suppressed via pnpm.auditConfig.ignoreCves. Revisit if lodash ships a patched release.
