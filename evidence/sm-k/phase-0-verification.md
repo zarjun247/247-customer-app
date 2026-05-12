@@ -131,3 +131,22 @@ pointing at drizzle-kit.
 Fix: applyTestMigrations now invokes scripts/apply-migrations.mjs
 via the same spawn pattern, matching the path CI bootstrap uses.
 Verification query updated from __drizzle_migrations to _app_migrations.
+
+## Phase 0 CI failure round 4 + fix (2026-05-12)
+
+Fourth CI run proved the migration runner was correct:
+  - migration-smoke passed
+  - mysql-concurrency-proof passed
+  - mysql-db-lifecycle failed only inside the integration test assertion
+
+The remaining failure was:
+  server/mysql-db-lifecycle.integration.test.ts
+  querying __drizzle_migrations after SM-K Phase 0 had moved migration
+  truth to _app_migrations.
+
+Fix: the integration test assertion now queries _app_migrations, matching
+both scripts/apply-migrations.mjs and server/testUtils/dbTestLifecycle.ts.
+
+Note: scripts/restore-verify.mjs:62 also contains a __drizzle_migrations
+reference but only as a printed console.log command suggestion for human
+operators — it does not execute SQL and does not affect CI.

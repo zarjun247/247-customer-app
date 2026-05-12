@@ -117,6 +117,11 @@ drizzle-kit is no longer invoked anywhere in the codebase for
 migration apply — only retained for schema TS type generation via
 the drizzle:types script.
 
+**mysql-db-lifecycle test assertion retired from Drizzle journal (round 4).**
+server/mysql-db-lifecycle.integration.test.ts now verifies
+_app_migrations rather than __drizzle_migrations. All active migration
+apply and verification paths now consistently use the SM-K runner ledger.
+
 ### Closed by SM-E (this PR)
 
 - Family consent DOB gate passive — FIXED: migration 0064 adds `users.date_of_birth`; `assertConsentForScheduleSale()` will enforce once DOB is collected
