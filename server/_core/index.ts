@@ -77,32 +77,34 @@ async function startServer() {
   // ─── Worker Trigger (scheduled task endpoint) ──────────────────────────────
   // POST /api/worker/run — trigger OCR queue processing
   // Called by Manus scheduled tasks (uses app_session_id cookie for auth)
-  app.post("/api/worker/run", async (req, res) => {
-    const cronSecret = req.header("x-cron-secret") ?? "";
-    const bearer =
-      req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-    const hasConfiguredAuth = Boolean(
-      ENV.workerCronSecret || ENV.workerAdminToken
-    );
-    const isAuthed =
-      (ENV.workerCronSecret && cronSecret === ENV.workerCronSecret) ||
-      (ENV.workerAdminToken && bearer === ENV.workerAdminToken);
+  app.post("/api/worker/run", (req, res) => {
+    void (async () => {
+      const cronSecret = req.header("x-cron-secret") ?? "";
+      const bearer =
+        req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+      const hasConfiguredAuth = Boolean(
+        ENV.workerCronSecret || ENV.workerAdminToken
+      );
+      const isAuthed =
+        (ENV.workerCronSecret && cronSecret === ENV.workerCronSecret) ||
+        (ENV.workerAdminToken && bearer === ENV.workerAdminToken);
 
-    if (ENV.isProduction && (!hasConfiguredAuth || !isAuthed)) {
-      console.warn("worker.run_attempt denied", { ip: req.ip });
-      res.status(401).json({ success: false, error: "Unauthorized" });
-      return;
-    }
+      if (ENV.isProduction && (!hasConfiguredAuth || !isAuthed)) {
+        console.warn("worker.run_attempt denied", { ip: req.ip });
+        res.status(401).json({ success: false, error: "Unauthorized" });
+        return;
+      }
 
-    try {
-      console.info("worker.run_started", { ip: req.ip });
-      const processed = await processQueue();
-      console.info("worker.run_completed", { processed });
-      res.json({ success: true, processed });
-    } catch (err) {
-      console.error("worker.run_failed", redactSensitive(String(err)));
-      res.status(500).json({ success: false, error: "Worker run failed" });
-    }
+      try {
+        console.info("worker.run_started", { ip: req.ip });
+        const processed = await processQueue();
+        console.info("worker.run_completed", { processed });
+        res.json({ success: true, processed });
+      } catch (err) {
+        console.error("worker.run_failed", redactSensitive(String(err)));
+        res.status(500).json({ success: false, error: "Worker run failed" });
+      }
+    })();
   });
   // tRPC API
   app.use(
@@ -136,12 +138,12 @@ async function startServer() {
   process.on("SIGTERM", () => {
     stopRetentionWorker();
     stopDsrSlaMonitor();
-    sdk.shutdown().finally(() => process.exit(0));
+    void sdk.shutdown().finally(() => process.exit(0));
   });
   process.on("SIGINT", () => {
     stopRetentionWorker();
     stopDsrSlaMonitor();
-    sdk.shutdown().finally(() => process.exit(0));
+    void sdk.shutdown().finally(() => process.exit(0));
   });
 }
 

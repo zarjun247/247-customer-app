@@ -1,25 +1,46 @@
-import type { Express, NextFunction, Request, RequestHandler, Response } from "express";
+import type {
+  Express,
+  NextFunction,
+  Request,
+  RequestHandler,
+  Response,
+} from "express";
 import { ADMIN_ROLES, STAFF_ROLES, type UserRole } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
-import { getHealthReport, publicLiveness, publicReadiness } from "../services/healthcheck";
+import {
+  getHealthReport,
+  publicLiveness,
+  publicReadiness,
+} from "../services/healthcheck";
 import { safeError } from "../services/observability";
 
 function isStaffOrAdmin(role: unknown): role is UserRole {
-  return typeof role === "string" && [...STAFF_ROLES, ...ADMIN_ROLES].includes(role as UserRole);
+  return (
+    typeof role === "string" &&
+    [...STAFF_ROLES, ...ADMIN_ROLES].includes(role as UserRole)
+  );
 }
 
-export const requireStaff: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const user = await sdk.authenticateRequest(req);
-    if (!isStaffOrAdmin(user.role)) throw new Error("staff_access_required");
-    next();
-  } catch (error) {
-    const isProduction = process.env.NODE_ENV === "production";
-    res.status(isProduction ? 404 : 403).json({ status: "forbidden", requestId: res.locals.requestId, error: safeError(error).message });
-  }
+export const requireStaff: RequestHandler = (req, res, next) => {
+  sdk
+    .authenticateRequest(req)
+    .then(user => {
+      if (!isStaffOrAdmin(user.role)) throw new Error("staff_access_required");
+      next();
+    })
+    .catch(error => {
+      const isProduction = process.env.NODE_ENV === "production";
+      res
+        .status(isProduction ? 404 : 403)
+        .json({
+          status: "forbidden",
+          requestId: res.locals.requestId,
+          error: safeError(error).message,
+        });
+    });
 };
 
-async function livenessHandler(_req: Request, res: Response) {
+function livenessHandler(_req: Request, res: Response) {
   res.status(200).json(publicLiveness());
 }
 
@@ -36,10 +57,18 @@ async function detailedHealthHandler(_req: Request, res: Response) {
 export function registerHealthRoutes(app: Express): void {
   app.get("/healthz", livenessHandler);
   app.get("/api/healthz", livenessHandler);
-  app.get("/readyz", readinessHandler);
-  app.get("/api/readyz", readinessHandler);
-  app.get("/api/health", requireStaff, detailedHealthHandler);
-  app.get("/api/admin/health", requireStaff, detailedHealthHandler);
+  app.get("/readyz", (req, res, next) => {
+    readinessHandler(req, res).catch(next);
+  });
+  app.get("/api/readyz", (req, res, next) => {
+    readinessHandler(req, res).catch(next);
+  });
+  app.get("/api/health", requireStaff, (req, res, next) => {
+    detailedHealthHandler(req, res).catch(next);
+  });
+  app.get("/api/admin/health", requireStaff, (req, res, next) => {
+    detailedHealthHandler(req, res).catch(next);
+  });
 }
 
 export const healthRouteHandlers = {
