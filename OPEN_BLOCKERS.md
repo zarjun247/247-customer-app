@@ -76,6 +76,12 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 
 ## Closed by SM-*
 
+### Closed by SM-K (Phase 0)
+
+- Drizzle journal drift recovery: `_journal.json` tracked only 47 of 68 SQL files. Custom runner (`scripts/apply-migrations.mjs`) replaces drizzle-kit migrate and handles all 68 files idempotently via SHA-256 hash tracking in `_app_migrations`.
+- SM-E2-ci inline mysql2 loops removed from `ci.yml` and `concurrency-proof.yml`; both now use `pnpm run test:db:bootstrap` (single step, all 68 migrations).
+- Production deploy via `pnpm run db:push` no longer broken.
+
 ### Closed by SM-E (this PR)
 
 - Family consent DOB gate passive — FIXED: migration 0064 adds `users.date_of_birth`; `assertConsentForScheduleSale()` will enforce once DOB is collected

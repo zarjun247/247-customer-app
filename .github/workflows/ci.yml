@@ -241,56 +241,8 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
-      - name: Apply test DB migrations
+      - name: Apply migrations
         run: pnpm run test:db:bootstrap
-      - name: Apply schema extension migrations (0050+)
-        env:
-          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
-        run: |
-          node - <<'NODE_EOF'
-          const mysql = require('mysql2/promise');
-          const fs = require('fs');
-          const path = require('path');
-          const SKIP = new Set(['ER_TABLE_EXISTS_ERROR','ER_DUP_FIELDNAME','ER_DUP_KEYNAME','ER_CANT_DROP_FIELD_OR_KEY']);
-          (async () => {
-            const conn = await mysql.createConnection(process.env.DATABASE_URL);
-            const files = fs.readdirSync('drizzle')
-              .filter(f => {
-                if (!f.endsWith('.sql')) return false;
-                const m = f.match(/^(\d{4})_/);
-                return m ? parseInt(m[1], 10) >= 50 : false;
-              })
-              .sort();
-            for (const file of files) {
-              const sql = fs.readFileSync(path.join('drizzle', file), 'utf8');
-              const stmts = sql.split(/-->[ \t]*statement-breakpoint[ \t]*\r?\n|;[ \t]*(?:\r?\n|$)/)
-                .map(s => s.replace(/--[^\n]*/g, '').trim())
-                .filter(Boolean);
-              for (const stmt of stmts) {
-                try { await conn.query(stmt); console.log('ok:', file); }
-                catch(e) {
-                  if (SKIP.has(e.code)) { console.log('skip:', file, e.code); }
-                  else if (e.code === 'ER_BAD_FIELD_ERROR' && /\bAFTER\b/i.test(stmt)) {
-                    const stripped = stmt.replace(/\s+AFTER\s+`?\w+`?/i, '');
-                    try {
-                      await conn.query(stripped);
-                      console.log('ok (stripped AFTER):', file);
-                    } catch(e2) {
-                      if (SKIP.has(e2.code)) console.log('skip:', file, e2.code);
-                      else { console.error('FAIL:', file, e2.message); process.exitCode = 1; }
-                    }
-                  }
-                  else { console.error('FAIL:', file, e.message); process.exitCode = 1; }
-                }
-              }
-            }
-            await conn.end();
-          })().catch(e => { console.error(e); process.exit(1); });
-          NODE_EOF
-      - name: Apply column-level schema extensions
-        env:
-          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
-        run: node scripts/migrate-v10.mjs
       - name: MySQL DB lifecycle smoke
         run: pnpm run test:db:smoke
 
