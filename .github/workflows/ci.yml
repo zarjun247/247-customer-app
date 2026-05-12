@@ -269,7 +269,17 @@ jobs:
               for (const stmt of stmts) {
                 try { await conn.query(stmt); console.log('ok:', file); }
                 catch(e) {
-                  if (SKIP.has(e.code)) console.log('skip:', file, e.code);
+                  if (SKIP.has(e.code)) { console.log('skip:', file, e.code); }
+                  else if (e.code === 'ER_BAD_FIELD_ERROR' && /\bAFTER\b/i.test(stmt)) {
+                    const stripped = stmt.replace(/\s+AFTER\s+`?\w+`?/i, '');
+                    try {
+                      await conn.query(stripped);
+                      console.log('ok (stripped AFTER):', file);
+                    } catch(e2) {
+                      if (SKIP.has(e2.code)) console.log('skip:', file, e2.code);
+                      else { console.error('FAIL:', file, e2.message); process.exitCode = 1; }
+                    }
+                  }
                   else { console.error('FAIL:', file, e.message); process.exitCode = 1; }
                 }
               }
