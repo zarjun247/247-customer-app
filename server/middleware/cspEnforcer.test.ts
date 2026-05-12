@@ -1,15 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { buildCspHeader, buildCspMiddleware, parseCspMode } from "./cspEnforcer";
+import {
+  buildCspHeader,
+  buildCspMiddleware,
+  parseCspMode,
+} from "./cspEnforcer";
 
 // ─── parseCspMode ─────────────────────────────────────────────────────────────
 
 describe("parseCspMode", () => {
-  it("returns 'off' for undefined", () => {
-    expect(parseCspMode(undefined)).toBe("off");
+  it("returns 'enforce' for undefined (SM-B default change)", () => {
+    expect(parseCspMode(undefined)).toBe("enforce");
   });
 
-  it("returns 'off' for unknown string", () => {
-    expect(parseCspMode("garbage")).toBe("off");
+  it("returns 'enforce' for unknown string (SM-B default change)", () => {
+    expect(parseCspMode("garbage")).toBe("enforce");
   });
 
   it("returns 'enforce' when passed 'enforce'", () => {
@@ -59,7 +63,9 @@ describe("buildCspHeader", () => {
 function makeRes() {
   const headers: Record<string, string> = {};
   return {
-    setHeader: (name: string, value: string) => { headers[name] = value; },
+    setHeader: (name: string, value: string) => {
+      headers[name] = value;
+    },
     headers,
   };
 }
@@ -69,7 +75,9 @@ describe("buildCspMiddleware", () => {
     const mw = buildCspMiddleware("off");
     const res = makeRes();
     let called = false;
-    mw({} as any, res as any, () => { called = true; });
+    mw({} as any, res as any, () => {
+      called = true;
+    });
     expect(called).toBe(true);
     expect(res.headers["Content-Security-Policy"]).toBeUndefined();
     expect(res.headers["Content-Security-Policy-Report-Only"]).toBeUndefined();
@@ -95,7 +103,9 @@ describe("buildCspMiddleware", () => {
     const mw = buildCspMiddleware("enforce", "/api/csp-report");
     const res = makeRes();
     mw({} as any, res as any, () => {});
-    expect(res.headers["Content-Security-Policy"]).toContain("report-uri /api/csp-report");
+    expect(res.headers["Content-Security-Policy"]).toContain(
+      "report-uri /api/csp-report"
+    );
   });
 
   it("calls next() in all modes", () => {
@@ -103,7 +113,9 @@ describe("buildCspMiddleware", () => {
       const mw = buildCspMiddleware(mode);
       const res = makeRes();
       let nextCalled = false;
-      mw({} as any, res as any, () => { nextCalled = true; });
+      mw({} as any, res as any, () => {
+        nextCalled = true;
+      });
       expect(nextCalled).toBe(true);
     }
   });

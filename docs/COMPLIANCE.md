@@ -31,7 +31,25 @@ The National Medical Commission 2023 regulations state that registered medical p
 
 ### India Digital Personal Data Protection (DPDP) Act 2023
 
-The DPDP Act requires: notice, purpose-bound and necessary processing, consent that is free/specific/informed/unambiguous, and the ability to withdraw consent with comparable ease. The 2025 rules are staged but now concrete enough that building ahead of the compliance floor is required. See [docs/dpdp/](./dpdp/) for the data flow scaffold and consent matrix.
+The DPDP Act requires: notice, purpose-bound and necessary processing, consent that is free/specific/informed/unambiguous, and the ability to withdraw consent with comparable ease. The 2025 rules are staged but now concrete enough that building ahead of the compliance floor is required.
+
+**SM-B implementation (2026-05-12):** Core DPDP technical controls are now implemented:
+- Versioned consent notice registry (`consent_notice_versions` table, SHA-256 integrity)
+- Full DSR pipeline: access, export, rectification, erasure (7-day confirmation window), consent log, grievance
+- Family consent enforcement for Schedule H/H1/X dispensing to minors
+- India region data residency assertion at boot (opt-in via `DPDP_REGION_REQUIRED`)
+- Breach notification template per DPDP Section 8 + CERT-In 72-hour requirement
+- Customer privacy UI at `/privacy` (all DSR rights self-service)
+- Admin DSR queue at `/admin/dsr-queue`, consent registry at `/admin/consent-registry`, family consent at `/admin/family-consent`
+- Retention worker for PII erasure (OFF by default; opt-in via `RETENTION_WORKER_ENABLED`)
+
+**Remaining DPDP gaps (tracked in LEGAL_REVIEW_PACK.md):**
+- Right to Nominate (Section 11(5)) — deferred to SM-C
+- Third-party DPA/SCC for WhatsApp, Razorpay — legal action required
+- Statutory retention schedule for prescription records — legal sign-off required
+- Guardian documentation requirements for Schedule X — legal + pharmacist sign-off required
+
+See also: [docs/DPDP_OPERATIONS.md](./DPDP_OPERATIONS.md), [LEGAL_REVIEW_PACK.md](../LEGAL_REVIEW_PACK.md).
 
 ### CERT-In directions
 

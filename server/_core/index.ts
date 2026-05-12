@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { initializeTelemetry } from "./telemetry";
+import { assertIndiaRegionStorage } from "../services/regionAssertion";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -39,6 +40,13 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // DPDP region assertion: opt-in via DPDP_REGION_REQUIRED env var.
+  // Throws at boot if DPDP_REGION_REQUIRED is set and storage is not in the required region.
+  await assertIndiaRegionStorage().catch(err => {
+    console.error("FATAL: India region assertion failed:", err.message);
+    if (process.env.DPDP_REGION_REQUIRED) process.exit(1);
+  });
+
   // OTel SDK must start before Express/HTTP prototypes are first accessed.
   // shimmer patches exported prototype methods (not the require cache), so
   // calling start() here — before express() and createServer() — is sufficient
@@ -63,9 +71,14 @@ async function startServer() {
   // Called by Manus scheduled tasks (uses app_session_id cookie for auth)
   app.post("/api/worker/run", async (req, res) => {
     const cronSecret = req.header("x-cron-secret") ?? "";
-    const bearer = req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-    const hasConfiguredAuth = Boolean(ENV.workerCronSecret || ENV.workerAdminToken);
-    const isAuthed = (ENV.workerCronSecret && cronSecret === ENV.workerCronSecret) || (ENV.workerAdminToken && bearer === ENV.workerAdminToken);
+    const bearer =
+      req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    const hasConfiguredAuth = Boolean(
+      ENV.workerCronSecret || ENV.workerAdminToken
+    );
+    const isAuthed =
+      (ENV.workerCronSecret && cronSecret === ENV.workerCronSecret) ||
+      (ENV.workerAdminToken && bearer === ENV.workerAdminToken);
 
     if (ENV.isProduction && (!hasConfiguredAuth || !isAuthed)) {
       console.warn("worker.run_attempt denied", { ip: req.ip });

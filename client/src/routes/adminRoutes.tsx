@@ -63,6 +63,9 @@ import AdminAvailability from "@/pages/admin/AdminAvailability";
 import AdminSecurity from "@/pages/admin/AdminSecurity";
 import AdminIntelligence from "@/pages/admin/AdminIntelligence";
 import AdminAiEvalLedger from "@/pages/admin/AdminAiEvalLedger";
+import AdminDsrQueue from "@/pages/admin/AdminDsrQueue";
+import AdminConsentRegistry from "@/pages/admin/AdminConsentRegistry";
+import AdminFamilyConsent from "@/pages/admin/AdminFamilyConsent";
 
 export type AdminRouteDefinition = {
   path: string;
@@ -118,7 +121,10 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/inventory/adjustments", Component: AdminStockAdjustment },
   { path: "/admin/inventory/audit", Component: AdminStockAudit },
   { path: "/admin/customers", Component: AdminCustomers },
-  { path: "/admin/customers/medicine-records", Component: AdminCustomerMedicineRecords },
+  {
+    path: "/admin/customers/medicine-records",
+    Component: AdminCustomerMedicineRecords,
+  },
   { path: "/admin/riders", Component: AdminRiders },
   { path: "/admin/delivery", Component: AdminDelivery },
   { path: "/admin/whatsapp", Component: AdminWhatsApp },
@@ -135,10 +141,16 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/masters/categories", Component: AdminCategories },
   { path: "/admin/masters/generics", Component: AdminGenerics },
   { path: "/admin/masters/schedules", Component: AdminSchedules },
-  { path: "/admin/masters/discount-categories", Component: AdminDiscountCategories },
+  {
+    path: "/admin/masters/discount-categories",
+    Component: AdminDiscountCategories,
+  },
   { path: "/admin/masters/discounts", Component: AdminDiscountCategories },
   { path: "/admin/masters/doctors", Component: AdminDoctors },
-  { path: "/admin/masters/patient-categories", Component: AdminPatientCategories },
+  {
+    path: "/admin/masters/patient-categories",
+    Component: AdminPatientCategories,
+  },
   { path: "/admin/masters/customers", Component: AdminCustomers },
   { path: "/admin/masters/staff", Component: AdminStaff },
   { path: "/admin/masters/stores", Component: AdminStores },
@@ -148,6 +160,9 @@ export const adminRoutes: AdminRouteDefinition[] = [
   { path: "/admin/sales", Component: AdminSales },
   { path: "/admin/intelligence", Component: AdminIntelligence },
   { path: "/admin/ai-eval-ledger", Component: AdminAiEvalLedger },
+  { path: "/admin/dsr-queue", Component: AdminDsrQueue },
+  { path: "/admin/consent-registry", Component: AdminConsentRegistry },
+  { path: "/admin/family-consent", Component: AdminFamilyConsent },
 ];
 
 type RestrictedRouteComponent = ComponentType<{
@@ -155,7 +170,11 @@ type RestrictedRouteComponent = ComponentType<{
   allow: Set<string>;
 }>;
 
-export function AdminRoutes({ RestrictedRoute }: { RestrictedRoute: RestrictedRouteComponent }) {
+export function AdminRoutes({
+  RestrictedRoute,
+}: {
+  RestrictedRoute: RestrictedRouteComponent;
+}) {
   return (
     <>
       {adminRoutes.map(({ path, Component }) => (

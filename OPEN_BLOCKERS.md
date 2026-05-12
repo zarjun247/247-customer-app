@@ -204,4 +204,26 @@ Current score update: **8.9 / 10 controlled-production readiness** for launch pr
 
 **Acceptance rate in `getStats()` uses a 30-day outcome window.** Older outcomes (> 30 days) are excluded from the acceptance rate calculation. This window is appropriate for trending but may misrepresent rates for low-volume suggestion kinds. Consider exposing the window as a parameter in a follow-up.
 
-**Migration number 0057 is reserved for `ai_eval_ledger`.** Do not use migration 0057 for any other purpose. Next available migration number for follow-up work is 0058.
+**Migration number 0057 is reserved for `ai_eval_ledger`.** Do not use migration 0057 for any other purpose. Next available migration numbers for SM-B are 0058–0061 (consent_notice_versions, dsr_requests, family_consent, vault_encryption_columns).
+
+## SM-B follow-ups (logged 2026-05-12)
+
+**CSP mode changed from `off` to `enforce` (SM-B headline change).** Existing deployments must verify that their content includes no inline scripts or styles that violate the CSP policy before upgrading. Test the UI under CSP enforce mode before going live. Use `CSP_MODE=report_only` first if unsure.
+
+**CSRF secret required in production.** `CSRF_SECRET` must be set to a 64-byte random value before serving real users. A `CRITICAL` log warning fires at boot if unset in production. Generate: `openssl rand -hex 64`.
+
+**Retention worker is OFF by default and irreversible.** The retention/erasure worker only runs when `RETENTION_WORKER_ENABLED=true`. Erasure anonymises PII in `users`, `prescriptions`, and `orders` tables and cannot be undone. Enable only after legal sign-off on the statutory retention schedule (see LEGAL_REVIEW_PACK.md item L-1). Test with a staging data set first.
+
+**Region assertion is opt-in.** Set `DPDP_REGION_REQUIRED=true` in production to enforce India data residency at boot. Unset (the default) skips the check. Required before DPDP compliance can be claimed. Verify S3 bucket and RDS instance are in `ap-south-1` or `ap-south-2` before enabling.
+
+**DSR SLA monitoring is not automated.** There is no built-in alert when a DSR request approaches the 30-day SLA. Implement a DB query or monitoring alert as described in `docs/DPDP_OPERATIONS.md §9.1` before going live with DPDP DSR handling.
+
+**Right to Nominate (DPDP Section 11(5)) not yet implemented.** Deferred to SM-C. Until implemented, document the manual workaround in the customer support SOP (customer contacts DPO by email).
+
+**Family consent DOB gate is passive (no DOB in users schema).** `assertConsentForScheduleSale()` treats all customers as adults because `users.dateOfBirth` does not exist in the current schema. The family consent enforcement will not fire until DOB collection is added in a follow-up migration and back-filled for existing customers. Add `dateOfBirth` column to `users` in a follow-up migration.
+
+**`dsrAdminRouter.listFamilyConsents` fetches all records with no store scoping.** In multi-store deployments, admin staff should only see family consent records for their assigned store. Add store-scoped filtering to `listFamilyConsents` before multi-store rollout.
+
+**Breach notification is a template only.** `generateBreachNotification()` returns formatted text but does not send any email or file any incident. Integrate with an SMTP/SES sender in a follow-up PR. Until wired, operator must manually send the notification within 72 hours.
+
+**Migration numbers 0058–0061 are reserved for SM-B DPDP schema.** Do not use these migration numbers for any other purpose. Next available migration number after SM-B is 0062.
