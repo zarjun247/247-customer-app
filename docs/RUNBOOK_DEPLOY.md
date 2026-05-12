@@ -76,9 +76,15 @@ If any command fails: **HALT** and resolve the failure before proceeding.
 3. Reviewer approves — workflow proceeds:
    - Runs `validate-deployment-env.mjs`, `migrations:verify`, `deployment-readiness-check.mjs`
    - Builds Docker image (if DOCKER_REGISTRY is set)
-   - Applies migrations against staging DB
+   - Applies migrations against staging DB via `pnpm run db:push` (custom runner, not drizzle-kit)
    - Starts the application
 4. After workflow completes, run staging smoke tests (see §Smoke tests).
+
+> **Migration runner note (SM-K):** `pnpm run db:push` now executes `scripts/apply-migrations.mjs`,
+> which applies all 68+ SQL files idempotently. On first deploy after SM-K, run
+> `pnpm run db:bootstrap` instead (runs bootstrap + apply) to pre-populate the `_app_migrations`
+> tracking table for existing databases. **Do NOT run `drizzle-kit migrate`** — it only knows
+> about migrations 0000–0049 and will skip the rest.
 
 ---
 

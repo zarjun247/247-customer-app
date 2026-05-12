@@ -67,6 +67,29 @@ node scripts/verify-docs-structure.mjs   # Asserts 5 living docs + ADR + DPDP sc
 
 ## Migration safety
 
+### Migration runner (SM-K, replaces drizzle-kit migrate)
+
+`drizzle/meta/_journal.json` tracks only migrations 0000–0049. Migrations 0050+ and the three `partN_*.sql` files are bespoke hand-authored multi-statement SQL that drizzle-kit cannot represent. Running `drizzle-kit migrate` would silently skip these files.
+
+**DO NOT run `drizzle-kit generate` or `drizzle-kit migrate` against any shared database.** They will produce destructive migrations because the journal is incomplete and snapshots stop at 0021.
+
+The custom runner (`scripts/apply-migrations.mjs`) is the authoritative migration executor:
+
+```bash
+# Apply all pending migrations (production deploy)
+DATABASE_URL=mysql://... pnpm run db:push
+
+# Bootstrap an existing database (one-time, on first deploy after SM-K)
+DATABASE_URL=mysql://... pnpm run db:bootstrap
+```
+
+`drizzle-kit` remains installed for TypeScript schema type generation only:
+```bash
+pnpm run drizzle:types
+```
+
+New migrations must be authored as raw SQL files in `drizzle/` with the next available number (0068, 0069, …). The runner applies files in lexical order, idempotently, with SHA-256 hash tracking in `_app_migrations`.
+
 ### Numbering rules
 
 - Migration files live in `drizzle/` and follow the pattern `NNNN_description.sql` (zero-padded 4-digit sequence).
