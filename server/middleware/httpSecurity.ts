@@ -198,12 +198,32 @@ export function applyHttpSecurity(
 
   // CSRF protection — wired in SM-E. Runs after body parsers so token can appear in body.
   // Exempt: provider webhooks (use HMAC signature), worker trigger, health, metrics.
-  const csrfMode = (env.CSRF_ENFORCEMENT ?? "enforce") as
+  // Default is "log_only" until generateCsrfToken endpoint + client header injection land.
+  const csrfMode = (env.CSRF_ENFORCEMENT ?? "log_only") as
     | "off"
     | "log_only"
     | "enforce";
-  if (csrfMode !== "off") {
+  if (csrfMode === "enforce") {
     app.use(csrfMiddleware);
     app.use(handleCsrfError);
+  } else if (csrfMode === "log_only") {
+    app.use(
+      (
+        req: Parameters<RequestHandler>[0],
+        res: Parameters<RequestHandler>[1],
+        next: Parameters<RequestHandler>[2]
+      ) => {
+        csrfMiddleware(req, res, (err?: unknown) => {
+          if (err)
+            console.warn(
+              "[csrf] would have blocked:",
+              req.path,
+              (err as Error).message
+            );
+          next();
+        });
+      }
+    );
   }
+  // "off" → no-op
 }

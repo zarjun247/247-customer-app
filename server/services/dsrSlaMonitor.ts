@@ -1,5 +1,5 @@
 import pino from "pino";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { dsrRequests, dsrSlaMonitorLog } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
@@ -41,13 +41,16 @@ export async function runDsrSlaMonitorTick(): Promise<{ alerts: number }> {
     const daysToSla = SLA_DAYS - ageDays;
     const alertKind = daysToSla < 0 ? "breached_sla" : "approaching_sla";
 
-    await db.insert(dsrSlaMonitorLog).values({
-      dsrRequestId: req.id,
-      alertKind,
-      daysToSla,
-      notifiedRecipientsJson: JSON.stringify([ENV.dpoEmail]),
-      detectedAt: now,
-    });
+    await db
+      .insert(dsrSlaMonitorLog)
+      .values({
+        dsrRequestId: req.id,
+        alertKind,
+        daysToSla,
+        notifiedRecipientsJson: JSON.stringify([ENV.dpoEmail]),
+        detectedAt: now,
+      })
+      .onDuplicateKeyUpdate({ set: { detectedAt: sql`NOW()` } });
 
     logger.warn(
       { requestId: req.id, alertKind, daysToSla },
