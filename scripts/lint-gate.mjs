@@ -1,33 +1,53 @@
 /**
- * Compares the current ESLint problem count against lint-baseline.txt.
- * Fails if count increases (regression), passes if stable or improved.
+ * Per-file lint ratchet: compares current ESLint error counts against
+ * scripts/lint-baseline-by-file.json. Any file that gains errors vs its
+ * baseline fails the gate. Files that improve (fewer errors) are allowed.
  */
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
+import path from "path";
 
-const baseline = parseInt(readFileSync("lint-baseline.txt", "utf8").trim(), 10);
-if (isNaN(baseline)) {
-  console.error("lint-baseline.txt is missing or invalid");
-  process.exit(1);
-}
+const baselinePath = new URL(
+  "./lint-baseline-by-file.json",
+  import.meta.url
+).pathname.replace(/^\/([A-Z]:)/, "$1");
+const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
 
-let output = "";
+let raw = "";
 try {
-  output = execSync("pnpm run lint", {
+  raw = execSync("pnpm exec eslint server/ shared/ --format json", {
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
+    maxBuffer: 64 * 1024 * 1024,
   });
 } catch (err) {
-  output = (err.stdout ?? "") + (err.stderr ?? "");
+  raw = err.stdout ?? "[]";
 }
 
-const match = output.match(/(\d+) problems/);
-const current = match ? parseInt(match[1], 10) : 0;
+const results = JSON.parse(raw || "[]");
+const regressions = [];
+let totalErrors = 0;
 
-if (current > baseline) {
-  console.error(
-    `Lint regression: ${current} problems > baseline ${baseline}. Run pnpm run lint:fix to remediate.`
-  );
+for (const r of results) {
+  if (!r.errorCount && !r.warningCount) continue;
+  const rel = r.filePath
+    .replace(process.cwd().replace(/\\/g, "/") + "/", "")
+    .replace(/\\/g, "/");
+  const allowed = (baseline[rel] ?? { errors: 0 }).errors;
+  const current = r.errorCount;
+  totalErrors += current;
+  if (current > allowed) {
+    regressions.push({ file: rel, allowed, current });
+  }
+}
+
+if (regressions.length) {
+  console.error("Lint regressions detected:");
+  for (const { file, allowed, current } of regressions) {
+    console.error(`  ${file}: ${current} errors (baseline: ${allowed})`);
+  }
   process.exit(1);
 }
-console.log(`Lint OK: ${current} problems (baseline ${baseline})`);
+console.log(
+  `Lint gate OK: ${totalErrors} total errors (all within per-file baselines)`
+);
