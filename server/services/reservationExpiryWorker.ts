@@ -45,16 +45,17 @@ export async function sweepOnce(): Promise<{
   failed: number;
 }> {
   if (isPolling) return { swept: 0, succeeded: 0, failed: 0 };
-  const stopFlag = await readFlag();
-  if (stopFlag.active) {
-    logger.warn(
-      { reason: stopFlag.reason },
-      "reservationExpiryWorker: skipping tick — emergency stop active"
-    );
-    return { swept: 0, succeeded: 0, failed: 0 };
-  }
   isPolling = true;
   try {
+    const stopFlag = await readFlag();
+    if (stopFlag.active) {
+      logger.warn(
+        { reason: stopFlag.reason },
+        "reservationExpiryWorker: skipping tick — emergency stop active"
+      );
+      return { swept: 0, succeeded: 0, failed: 0 };
+    }
+
     const db = await getDb();
     if (!db) return { swept: 0, succeeded: 0, failed: 0 };
 

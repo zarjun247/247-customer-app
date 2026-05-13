@@ -10,8 +10,10 @@ describe("public/high-risk route inspection guard", () => {
   it("inspects existing auth/OTP routes and preserves no-OTP logging posture", () => {
     expect(routers).toContain("sendOtp");
     expect(routers).toContain("verifyOtp");
-    expect(routers).toContain("console.info(\"auth.otp_requested\")");
-    expect(routers).not.toMatch(/console\.(log|info|warn|error)\([^\n]*(devCode|code)[^\n]*\)/);
+    expect(routers).toContain('console.info("auth.otp_requested")');
+    expect(routers).not.toMatch(
+      /console\.(log|info|warn|error)\([^\n]*(devCode|code)[^\n]*\)/
+    );
     expect(abuse).toContain("checkOtpSend");
     expect(abuse).toContain("checkOtpVerifyFailure");
   });
@@ -26,7 +28,7 @@ describe("public/high-risk route inspection guard", () => {
   it("inspects cart/checkout routes and central spam guards", () => {
     expect(routers).toContain("const cartRouter = router");
     expect(routers).toContain("upsertCartItem");
-    expect(routers).toContain("checkout: protectedProcedure");
+    expect(routers).toContain("checkout: customerMutationProcedure");
     expect(abuse).toContain("checkCartUpsert");
     expect(abuse).toContain("checkCheckoutAttempt");
   });

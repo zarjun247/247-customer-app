@@ -8,13 +8,17 @@ vi.mock("../_core/env", () => ({
   ENV: { dsrSlaMonitorEnabled: true, dpoEmail: "dpo@example.com" },
 }));
 
+vi.mock("./emergencyStopService", () => ({
+  readFlag: vi.fn().mockResolvedValue({ active: false, reason: null }),
+}));
+
 const insertedRows: unknown[] = [];
 let onDuplicateKeyUpdateCalled = 0;
 
 const mockInsert = vi.fn(() => ({
   values: vi.fn((row: unknown) => {
     return {
-      onDuplicateKeyUpdate: vi.fn(({ set }: { set: unknown }) => {
+      onDuplicateKeyUpdate: vi.fn(({ set: _set }: { set: unknown }) => {
         // Only insert if no matching (dsrRequestId, alertKind, same-day) row exists
         const key = `${(row as Record<string, unknown>).dsrRequestId}:${(row as Record<string, unknown>).alertKind}`;
         const existing = insertedRows.find(

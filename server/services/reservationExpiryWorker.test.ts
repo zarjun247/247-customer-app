@@ -32,6 +32,10 @@ vi.mock("../_core/env", () => ({
   },
 }));
 
+vi.mock("./emergencyStopService", () => ({
+  readFlag: vi.fn().mockResolvedValue({ active: false, reason: null }),
+}));
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeExpiredReservation(id: string) {
@@ -70,7 +74,10 @@ describe("sweepOnce", () => {
   it("expires found reservations and returns counts", async () => {
     const expiredRes = makeExpiredReservation("res-expired-1");
     mockSelect.mockReturnValueOnce(makeSelectChain([expiredRes]));
-    mockExpire.mockResolvedValue({ reservationId: "res-expired-1", expiredAt: new Date() });
+    mockExpire.mockResolvedValue({
+      reservationId: "res-expired-1",
+      expiredAt: new Date(),
+    });
 
     const result = await sweepOnce();
     expect(result.swept).toBe(1);
@@ -78,7 +85,7 @@ describe("sweepOnce", () => {
     expect(result.failed).toBe(0);
     expect(mockExpire).toHaveBeenCalledWith(
       expect.objectContaining({ reservationId: "res-expired-1" }),
-      expect.objectContaining({ actorRole: "system" }),
+      expect.objectContaining({ actorRole: "system" })
     );
   });
 
@@ -113,16 +120,24 @@ describe("sweepOnce", () => {
   it("is non-reentrant (second call while first is running returns zeros)", async () => {
     // Simulate a slow first sweep by making expire hang
     let resolveFirst!: () => void;
-    const slowExpire = new Promise<void>((r) => { resolveFirst = r; });
+    const slowExpire = new Promise<void>(r => {
+      resolveFirst = r;
+    });
 
-    mockSelect.mockReturnValueOnce(makeSelectChain([makeExpiredReservation("slow")]));
-    mockExpire.mockReturnValueOnce(slowExpire.then(() => ({ reservationId: "slow", expiredAt: new Date() })));
+    mockSelect.mockReturnValueOnce(
+      makeSelectChain([makeExpiredReservation("slow")])
+    );
+    mockExpire.mockReturnValueOnce(
+      slowExpire.then(() => ({ reservationId: "slow", expiredAt: new Date() }))
+    );
 
     // Start first sweep (don't await yet)
     const firstSweep = sweepOnce();
 
     // Start second sweep immediately
-    mockSelect.mockReturnValueOnce(makeSelectChain([makeExpiredReservation("second")]));
+    mockSelect.mockReturnValueOnce(
+      makeSelectChain([makeExpiredReservation("second")])
+    );
     const secondResult = await sweepOnce();
 
     // Second should be a no-op (isPolling guard)
