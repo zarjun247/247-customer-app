@@ -1,7 +1,6 @@
 /**
- * Per-file lint ratchet: compares current ESLint error counts against
- * scripts/lint-baseline-by-file.json. Any file that gains errors vs its
- * baseline fails the gate. Files that improve (fewer errors) are allowed.
+ * Hard-zero lint gate: any ESLint error in server/ or shared/ fails the build.
+ * Test files (*.test.ts) use per-file ratchet from lint-baseline-by-file.json.
  */
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
@@ -33,21 +32,27 @@ for (const r of results) {
   const rel = r.filePath
     .replace(process.cwd().replace(/\\/g, "/") + "/", "")
     .replace(/\\/g, "/");
-  const allowed = (baseline[rel] ?? { errors: 0 }).errors;
+  const isTestFile = rel.endsWith(".test.ts") || rel.endsWith(".test.tsx");
   const current = r.errorCount;
   totalErrors += current;
-  if (current > allowed) {
-    regressions.push({ file: rel, allowed, current });
+
+  if (isTestFile) {
+    // Per-file ratchet for test files only
+    const allowed = (baseline[rel] ?? { errors: 0 }).errors;
+    if (current > allowed) {
+      regressions.push({ file: rel, allowed, current });
+    }
+  } else if (current > 0) {
+    // Hard zero for all non-test source files
+    regressions.push({ file: rel, allowed: 0, current });
   }
 }
 
 if (regressions.length) {
-  console.error("Lint regressions detected:");
+  console.error("Lint errors found. Run pnpm run lint to see details.");
   for (const { file, allowed, current } of regressions) {
     console.error(`  ${file}: ${current} errors (baseline: ${allowed})`);
   }
   process.exit(1);
 }
-console.log(
-  `Lint gate OK: ${totalErrors} total errors (all within per-file baselines)`
-);
+console.log(`Lint gate OK: ${totalErrors} total errors`);

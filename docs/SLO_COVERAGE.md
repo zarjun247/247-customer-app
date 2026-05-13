@@ -10,15 +10,15 @@ Updated after each merged MP. See [RUNTIME.md](./RUNTIME.md) §SLO definitions a
 
 | Critical path | SLO name | Target | Emitter wired | Notes |
 |--------------|----------|--------|---------------|-------|
-| sale.confirmSale | `sale.confirmSale.latency` | p95 ≤ 300ms | Planned (MP5 follow-up) | `executeCommand` wrapper not yet emitting SLO events |
-| purchase.commitPurchaseInvoice | `purchase.commitPurchaseInvoice.latency` | p95 ≤ 500ms | Planned (MP5 follow-up) | Same as above |
-| payment.captureWebhook | `payment.captureWebhook.latency` | p99 ≤ 30s | Planned (MP1-rest PR-B) | Dead-letter router follow-up noted in OPEN_BLOCKERS |
-| prescription.upload | `prescription.upload.latency` | p95 ≤ 2s | Not yet wired | Prescription router needs emitSloEvent() call |
-| ocr.process | `ocr.process.latency` | p95 ≤ 5s | Not yet wired | OCR worker needs emitSloEvent() on job completion |
-| inventory.adjust | `inventory.adjust.latency` | p95 ≤ 200ms | Not yet wired | Stock movement write path needs emitSloEvent() |
-| dsr.access | `dsr.access.latency` | p95 ≤ 500ms | Not yet wired | DSR router (SM-B) needs emitSloEvent() on access requests |
-| dsr.erasure | `dsr.erasure.latency` | p95 ≤ 5s | Not yet wired | Retention worker (SM-B) needs emitSloEvent() on erasure completion |
-| retention.tick | `retention.tick.duration` | p95 ≤ 30s per tick | Not yet wired | retentionWorker.ts runRetentionTick() needs emitSloEvent() |
+| sale.confirmSale | `sale.confirmSale.latency` | p95 ≤ 300ms | Yes — server/routers/salesRouter.ts:740 | SM-N verified |
+| purchase.commitPurchaseInvoice | `purchase.commitPurchaseInvoice.latency` | p95 ≤ 500ms | Yes — server/routers/purchaseRouter.ts:693 | SM-N verified |
+| payment.captureWebhook | `payment.captureWebhook.latency` | p99 ≤ 30s | Yes — server/paymentWebhookRoutes.ts:53 | SM-N verified |
+| prescription.upload | `prescription.upload.latency` | p95 ≤ 2s | Yes — server/routers.ts:962 | SM-N verified |
+| ocr.process | `ocr.process.latency` | p95 ≤ 5s | Yes — server/ingestion.ts:435 | SM-N verified |
+| inventory.adjust | `inventory.adjust.latency` | p95 ≤ 200ms | Yes — server/routers/inventoryRouter.ts:954 | SM-N verified |
+| dsr.access | `dsr.access.latency` | p95 ≤ 500ms | Yes — server/routers/dsrRouter.ts:18 | SM-N verified |
+| dsr.erasure | `dsr.erasure.latency` | p95 ≤ 5s | Yes — server/routers/dsrRouter.ts:85 | SM-N verified |
+| retention.tick | `retention.tick.duration` | p95 ≤ 30s per tick | Yes — server/services/retentionWorker.ts:81 | SM-N verified |
 
 ---
 
@@ -35,7 +35,7 @@ Updated after each merged MP. See [RUNTIME.md](./RUNTIME.md) §SLO definitions a
 
 ## SLO wiring status
 
-**Current state (2026-05-12, post SM-C):** Provider SLOs are wired. Critical path latency SLOs are planned but not yet emitting. Wire `sloService.emitSloEvent()` calls incrementally in follow-up PRs (one router per PR with idempotency and test coverage).
+**Current state (2026-05-13, post SM-N):** All 9 critical path latency SLOs and all 4 provider SLOs are wired. The "Not yet wired" status in earlier snapshots was stale — all paths were wired incrementally across SM-B through SM-LM and verified in SM-N.
 
 **Target (pre-production):** All rows in the "Emitter wired" column must show "Yes" before production launch.
 

@@ -35,7 +35,7 @@ This pack documents the technical implementation of India Digital Personal Data 
 | Section 11(2) | Right to correction | `dsr.rectification` mutation; admin approval workflow | ✅ |
 | Section 11(3) | Right to erasure | `dsr.erasure` + `dsr.confirmErasure`; 7-day confirmation window | ✅ |
 | Section 11(4) | Right to grievance redressal | `dsr.grievance` mutation; forwarded to DPO | ✅ |
-| Section 11(5) | Right to nominate | Not yet implemented (deferred to SM-C) | ⚠️ |
+| Section 11(5) | Right to nominate | `dsr.nominee.{add,list,revoke}` mutations; `dsr_nominees` table (migration 0074); admin queue via `dsrAdminRouter.listNominees`; customer UI in `dsrRouter`; PII-encrypted contact fields | ✅ |
 | Section 8(6) | Breach notification within 72h | `breachNotificationService.generateBreachNotification()` | ✅ (template) |
 | Section 13 | Data localisation for sensitive data | Region assertion via `DPDP_REGION_REQUIRED` | ✅ (opt-in) |
 
@@ -243,7 +243,7 @@ Region assertion is **opt-in** to avoid breaking existing deployments. It must b
 | L-3 | Breach notification template review | DPO | Before production |
 | L-4 | Key management SOP (AWS KMS or equivalent) | CISO | Before production |
 | L-5 | Third-party DPA / SCC for WhatsApp, Razorpay | Legal | Before production |
-| L-6 | Right to nominate implementation (Section 11(5)) | Engineering | SM-C |
+| L-6 | Right to nominate implementation (Section 11(5)) | Engineering | Done — SM-LM Phase 11 |
 | L-7 | DPDP_REGION_REQUIRED enforcement in prod config | DevOps | Before go-live |
 | L-8 | Review marketing consent flow (separate from rx_data_use) | Legal + Product | Before marketing feature ships |
 

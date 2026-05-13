@@ -27,9 +27,7 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 
 ### P0 Code blockers (engineering, not evidence)
 
-| Blocker | Details |
-|---------|---------|
-| CSRF client wiring (P0) | `CSRF_ENFORCEMENT` defaults to `log_only` — blocks are skipped with a console warning. Required before setting `enforce`: (1) `generateCsrfToken` tRPC endpoint that returns a token, (2) client-side header injection (axios/fetch interceptor sends `x-csrf-token` on every mutation), (3) integration test asserting that a mutation without the header is rejected in enforce mode. Until these land, CSRF protect is advisory only. |
+_No open P0 code blockers. All closed by SM-N (see closed section)._
 
 ### P1 Controlled rollout blockers
 
@@ -54,7 +52,7 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 
 **Reservation expiry worker** — `startReservationExpiryWorker()` not wired at boot. `cleanupExpiredLocks()` not scheduled. Old `stockReservations` table coexists with new `reservations`/`reservation_lines` — write paths need incremental migration.
 
-**PII encryption** — `customerPiiService.ts` and `prescriptionPiiService.ts` ship helpers but no write path calls them yet. Requires write-path wiring + data backfill migration atomically.
+**PII encryption write paths** — wired in SM-N (`upsertUser`, `upsertUserByPhone`, `updateUserProfile`). Existing rows remain plaintext. A data backfill migration (re-encrypt all users.phone + users.email rows using the active data key) is a deferred ops item; run during a maintenance window with `PII_ENCRYPTION_MASTER_KEY` set. `prescriptionPiiService.ts` helpers are still not wired on prescription write paths — deferred to MP7.
 
 **SMTP/SES breach notification** — `breachNotificationDispatcher.ts` wired; generates correct payload. No email transport configured. Set `BREACH_NOTIFY_RECIPIENT_EMAIL` in production env. See [FUTURE_FEATURES.md](./FUTURE_FEATURES.md).
 
@@ -129,6 +127,11 @@ the drizzle:types script.
 server/mysql-db-lifecycle.integration.test.ts now verifies
 _app_migrations rather than __drizzle_migrations. All active migration
 apply and verification paths now consistently use the SM-K runner ledger.
+
+### Closed by SM-N
+
+- CSRF client wiring (P0): Client now sends `x-csrf-token` header on every tRPC call via `httpBatchLink.headers`. Cookie name: `__Host-csrf`. CSRF enforcement can now be promoted from `log_only` to `enforce` in production.
+- Emergency stop middleware applied to `/api/trpc`: `createEmergencyStopMiddleware` inserted before tRPC mount; `readFlag()` blocks customer mutations when active; fails open if DB unreachable.
 
 ### Closed by SM-E (this PR)
 

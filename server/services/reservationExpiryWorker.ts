@@ -19,6 +19,10 @@ const SYSTEM_CONTEXT: CommandContext = {
   traceId: null,
 };
 
+/**
+ * Starts the reservation expiry sweep on an interval controlled by
+ * `ENV.reservationExpirySweepIntervalMs`. Idempotent — safe to call multiple times.
+ */
 export function startReservationExpiryWorker(): void {
   if (pollingTimer) return;
   const intervalMs = ENV.reservationExpirySweepIntervalMs;
@@ -28,6 +32,7 @@ export function startReservationExpiryWorker(): void {
   logger.info({ intervalMs }, "Reservation expiry worker started");
 }
 
+/** Stops the sweep interval. Safe to call if the worker is not running. */
 export function stopReservationExpiryWorker(): void {
   if (pollingTimer) {
     clearInterval(pollingTimer);
@@ -39,6 +44,12 @@ export function isReservationExpiryWorkerRunning(): boolean {
   return pollingTimer !== null;
 }
 
+/**
+ * Expires all active reservations past their `expiresAt` timestamp in one batch.
+ * Skips if an emergency stop is active or if a sweep is already in progress.
+ *
+ * @returns Counts of swept, succeeded, and failed reservation expirations
+ */
 export async function sweepOnce(): Promise<{
   swept: number;
   succeeded: number;

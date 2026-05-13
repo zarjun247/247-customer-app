@@ -40,6 +40,10 @@ import {
   whatsappSessions as _whatsappSessions,
 } from "../drizzle/schema";
 import { createOrderInvoiceSnapshot as _createOrderInvoiceSnapshot } from "./services/invoiceSnapshotService";
+import {
+  encryptUserPii,
+  encryptUserPhone,
+} from "./services/customerPiiService";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -61,15 +65,27 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
   if (!db) return;
+  const encrypted = await encryptUserPii({
+    phone: user.phone ?? null,
+    email: user.email ?? null,
+  });
   const values: InsertUser = { openId: user.openId };
   const updateSet: Record<string, unknown> = {};
-  const fields = ["name", "email", "loginMethod", "phone"] as const;
+  const fields = ["name", "loginMethod"] as const;
   for (const f of fields) {
     const v = user[f];
     if (v !== undefined) {
       values[f] = v ?? null;
       updateSet[f] = v ?? null;
     }
+  }
+  if (user.phone !== undefined) {
+    values.phone = encrypted.phone;
+    updateSet.phone = encrypted.phone;
+  }
+  if (user.email !== undefined) {
+    values.email = encrypted.email;
+    updateSet.email = encrypted.email;
   }
   if (user.lastSignedIn !== undefined) {
     values.lastSignedIn = user.lastSignedIn;
@@ -115,6 +131,7 @@ export async function upsertUserByPhone(
 ): Promise<{ id: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
+  const encryptedPhone = await encryptUserPhone(phone);
   const existing = await getUserByPhone(phone);
   if (existing) {
     await db
@@ -128,7 +145,7 @@ export async function upsertUserByPhone(
   }
   const result = await db.insert(users).values({
     openId: null, // nullable after migration
-    phone,
+    phone: encryptedPhone ?? phone,
     name: extra?.name ?? null,
     loginMethod: extra?.loginMethod ?? "phone",
     lastSignedIn: new Date(),
@@ -171,7 +188,11 @@ export async function updateUserProfile(
 ) {
   const db = await getDb();
   if (!db) return;
-  await db.update(users).set(data).where(eq(users.id, userId));
+  const update = { ...data };
+  if (update.phone != null) {
+    update.phone = (await encryptUserPhone(update.phone)) ?? update.phone;
+  }
+  await db.update(users).set(update).where(eq(users.id, userId));
 }
 
 // ─── OTP ──────────────────────────────────────────────────────────────────────
