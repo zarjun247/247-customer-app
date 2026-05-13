@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { inventoryRouterExtension } from "./inventoryRouterExtension";
+import { inventoryRouterExtension } from "./inventoryOpsRouter";
 import {
   isAdmin,
   isSuperAdmin,
@@ -1003,7 +1003,7 @@ const adjustmentRouter = router({
     }),
 });
 
-// ─── transfer, audit, quarantine, expiryActions: see inventoryRouterExtension.ts ──────────
+// ─── transfer, audit, quarantine, expiryActions: see inventoryOpsRouter.ts ───────────────────
 
 // ─── Combined Inventory Router ────────────────────────────────────────────────
 

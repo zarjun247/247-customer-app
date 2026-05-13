@@ -40,7 +40,7 @@ describe("multi-store runtime isolation hardening", () => {
   it("transfer endpoints explicitly enforce source/destination store scope instead of an unused storeId input", () => {
     const source =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/inventoryRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
     const stockInvariant = fs.readFileSync(
       "server/services/stockInvariant.ts",
       "utf8"
@@ -64,7 +64,7 @@ describe("multi-store runtime isolation hardening", () => {
   it("non-admin transfer and stock audit list paths fail closed to the caller store when no storeId filter is provided", () => {
     const src =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/inventoryRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
     const matches =
       src.match(/requireStoreScopedFilter\(ctx\.user, input\.storeId\)/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(3);

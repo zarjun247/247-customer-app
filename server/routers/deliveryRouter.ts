@@ -59,7 +59,7 @@ import { resolveNode, recordOrderTimestamp } from "../routingEngine";
 import { TRPCError } from "@trpc/server";
 import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
 import { logAudit } from "../services/audit";
-import { deliveryRouterExtension } from "./deliveryRouterExtension";
+import { deliveryRouterExtension } from "./deliverySlaRouter";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 const DELIVERY_ROLES = ["delivery_operator", "store_manager", "admin"] as const;

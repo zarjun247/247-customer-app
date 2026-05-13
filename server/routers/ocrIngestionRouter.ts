@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 import { eq, and, desc, like, or as _or, inArray } from "drizzle-orm";
-import { ocrIngestionRouterExtension } from "./ocrIngestionRouterExtension";
+import { ocrIngestionRouterExtension } from "./ocrAdminRouter";
 import {
   approvalStatusForException,
   classifyOcrLineException,

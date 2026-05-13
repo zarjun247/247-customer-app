@@ -26,7 +26,7 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { whatsappRouterExtension } from "./whatsappRouterExtension";
+import { whatsappRouterExtension } from "./whatsappMessagingRouter";
 import {
   and,
   desc,
@@ -646,7 +646,7 @@ const templateRouter = router({
   }),
 });
 
-// ─── handoff, message, cart, admin: see whatsappRouterExtension.ts ────────────
+// ─── handoff, message, cart, admin: see whatsappMessagingRouter.ts ───────────
 
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 

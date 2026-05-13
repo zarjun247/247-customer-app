@@ -1,4 +1,4 @@
-import { isStaffRole } from "./trpc";
+import { isStaffRole } from "./roles";
 
 const ALLOWED_PREFIXES = [
   "prescriptions/",

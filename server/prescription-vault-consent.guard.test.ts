@@ -28,7 +28,7 @@ const schema = readdirSync("drizzle/schema")
 const router = normalizeCode(readFileSync("server/routers.ts", "utf8"));
 const govRouter =
   readFileSync("server/routers/prescriptionGovRouter.ts", "utf8") +
-  readFileSync("server/routers/prescriptionGovRouterExtension.ts", "utf8");
+  readFileSync("server/routers/prescriptionReviewRouter.ts", "utf8");
 
 describe("prescription vault consent hardening", () => {
   it("adds nullable metadata, consent, on-file, and access audit schema fields", () => {

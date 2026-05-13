@@ -442,4 +442,4 @@ export const paymentConnector: PaymentGatewayConnector = {
   },
 };
 
-export * from "./connectorsPart2";
+export * from "./connectors-peripheral";

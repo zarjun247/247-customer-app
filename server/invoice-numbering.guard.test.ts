@@ -127,7 +127,7 @@ describe("invoice numbering foundation", () => {
     const src = fs.readFileSync("server/services/invoiceNumbering.ts", "utf8");
     const salesRouter =
       fs.readFileSync("server/routers/salesRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/salesRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/salesReportsRouter.ts", "utf8");
     expect(src).toContain("db.transaction");
     expect(src).toContain('for("update")');
     expect(src).toContain("LAST_INSERT_ID");

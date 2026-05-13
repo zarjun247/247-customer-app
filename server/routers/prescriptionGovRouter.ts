@@ -14,7 +14,7 @@ import {
 } from "../services/rbacPolicy";
 import { logPrescriptionVaultAccess } from "../services/prescriptionVault";
 import { eq, and, desc, sql, like, or } from "drizzle-orm";
-import { prescriptionGovRouterExtension } from "./prescriptionGovRouterExtension";
+import { prescriptionGovRouterExtension } from "./prescriptionReviewRouter";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");

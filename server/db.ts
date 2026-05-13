@@ -759,4 +759,4 @@ export async function getActivePriorApprovals(userId: number) {
     )
     .orderBy(desc(rxPriorApprovals.createdAt));
 }
-export * from "./dbPart2";
+export * from "./db-extended";

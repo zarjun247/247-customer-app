@@ -6,7 +6,7 @@ const routersWithNoLocalAuditHelpers = [
   "server/routers/prescriptionGovRouter.ts",
   "server/routers/ocrIngestionRouter.ts",
   "server/routers/masterDataRouter.ts",
-  "server/routers/masterDataPart3Router.ts",
+  "server/routers/masterDataCatalogRouter.ts",
 ];
 
 function read(p) {
@@ -34,7 +34,7 @@ describe("audit unification static guard", () => {
         ![
           "server/services/audit.ts",
           "server/db.ts",
-          "server/dbPart2.ts",
+          "server/db-extended.ts",
           "server/audit-unification.guard.test.ts",
         ].includes(f) && /db\.insert\(auditLogs/.test(read(f))
     );

@@ -127,7 +127,7 @@ describe("product master runtime gates", () => {
   it("wires OCR approval and commit paths to product validation", () => {
     const source =
       readFileSync("server/routers/ocrIngestionRouter.ts", "utf8") +
-      readFileSync("server/routers/ocrIngestionRouterExtension.ts", "utf8");
+      readFileSync("server/routers/ocrAdminRouter.ts", "utf8");
 
     expect(source).toContain("validatePurchaseLineMaster");
     expect(source).toContain(

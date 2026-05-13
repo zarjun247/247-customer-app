@@ -11,7 +11,7 @@ import {
   buildingMasterRouter,
   printerMasterRouter,
   productMasterRouter,
-} from "./masterDataPart3Router";
+} from "./masterDataCatalogRouter";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";

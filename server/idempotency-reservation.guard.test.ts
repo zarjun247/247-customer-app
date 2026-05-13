@@ -18,7 +18,7 @@ describe("idempotency/reservation guards", () => {
   it("purchase commit duplicate guard marker exists", () => {
     const src =
       fs.readFileSync("server/routers/purchaseRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/purchaseRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8");
     expect(src.includes("withIdempotency")).toBe(true);
     expect(src.includes('inv.status === "committed"')).toBe(true);
   });
@@ -27,7 +27,7 @@ describe("idempotency/reservation guards", () => {
     const del = fs.readFileSync("server/routers/deliveryRouter.ts", "utf8");
     const inv =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/inventoryRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
     expect(pay.includes('payment.status === "paid"')).toBe(true);
     expect(pay.includes("withIdempotency")).toBe(true);
     expect(del.includes('task.status === "delivered"')).toBe(true);

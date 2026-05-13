@@ -40,7 +40,7 @@ describe("barcode scan guards", () => {
     const sales = fs.readFileSync("server/routers/salesRouter.ts", "utf8");
     const inventory =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/inventoryRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
     const saleScanBody = sales.slice(
       sales.indexOf("scanBarcodeForSale"),
       sales.indexOf("// ─── Product Search")

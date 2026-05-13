@@ -25,7 +25,7 @@ import {
   validatePurchaseLineMaster,
 } from "../services/productMasterValidation";
 import { executeCommand } from "../services/executeCommand";
-import { purchaseRouterExtension } from "./purchaseRouterExtension";
+import { purchaseRouterExtension } from "./purchaseReturnsRouter";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 import { emitSloEvent } from "../services/sloService";
 

@@ -18,7 +18,7 @@ import {
   lte,
   isNull as _isNull,
 } from "drizzle-orm";
-import { customerMedicineRouterExtension } from "./customerMedicineRouterExtension";
+import { customerMedicineRouterExtension } from "./customerConsentAdminRouter";
 
 async function getDbSafe() {
   const { getDb } = await import("../db");

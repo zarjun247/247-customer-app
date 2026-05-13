@@ -50,7 +50,7 @@ import {
 } from "../services/productMasterValidation";
 import { emitSloEvent } from "../services/sloService";
 import { executeCommand } from "../services/executeCommand";
-import { salesRouterExtension } from "./salesRouterExtension";
+import { salesRouterExtension } from "./salesReportsRouter";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 
 async function getDbSafe() {

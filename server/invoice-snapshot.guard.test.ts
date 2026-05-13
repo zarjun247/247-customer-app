@@ -72,7 +72,7 @@ describe("immutable invoice snapshots", () => {
     const dbModule = normalizeCode(
       readFileSync(new URL("./db.ts", import.meta.url), "utf8") +
         "\n" +
-        readFileSync(new URL("./dbPart2.ts", import.meta.url), "utf8")
+        readFileSync(new URL("./db-extended.ts", import.meta.url), "utf8")
     );
     expect(salesRouter).toContain("createSaleInvoiceSnapshot(db, input.saleId");
     expect(dbModule).toContain(

@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import type { User } from "../../drizzle/schema";
-import { isStaffRole, isAdminRole } from "./trpc";
+import { isStaffRole, isAdminRole } from "./roles";
 
 export type AccessUser = Pick<User, "id" | "role" | "staffStoreId">;
 

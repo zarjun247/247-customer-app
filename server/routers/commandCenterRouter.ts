@@ -8,7 +8,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { commandCenterRouterExtension } from "./commandCenterRouterExtension";
+import { commandCenterRouterExtension } from "./commandCenterOcrRouter";
 import {
   orders,
   prescriptions,
@@ -540,7 +540,7 @@ const syncHealthCard = protectedProcedure.query(async ({ ctx }) => {
   };
 });
 
-// ─── Cards 14-21 + sub-dashboards + snapshot: see commandCenterRouterExtension.ts ─────────
+// ─── Cards 14-21 + sub-dashboards + snapshot: see commandCenterOcrRouter.ts ─────────────────
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 export const commandCenterRouter = router({

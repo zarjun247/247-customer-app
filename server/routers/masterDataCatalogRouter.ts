@@ -13,7 +13,7 @@ export {
   buildingMasterRouter,
   printerMasterRouter,
   productMasterRouter,
-} from "./masterDataPart3RouterExtension";
+} from "./masterDataCatalogExtRouter";
 
 function requireStaff(role: string) {
   const STAFF = [

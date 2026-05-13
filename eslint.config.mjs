@@ -57,6 +57,11 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "warn",
       "@typescript-eslint/no-unsafe-return": "warn",
       "@typescript-eslint/require-await": "warn",
+      // File size: warn when a source file exceeds 600 lines (doc in OPEN_BLOCKERS.md)
+      "max-lines": [
+        "warn",
+        { max: 600, skipComments: true, skipBlankLines: true },
+      ],
     },
   },
   // Sealed files: critical business logic — disable warning-level type-safety rules

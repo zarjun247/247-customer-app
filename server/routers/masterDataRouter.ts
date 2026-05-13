@@ -1205,7 +1205,7 @@ const stateRouter = router({
     }),
 });
 
-import { masterDataRouterExtension } from "./masterDataRouterExtension";
+import { masterDataRouterExtension } from "./masterDataRefRouter";
 
 // ─── Compose masterDataRouter ─────────────────────────────────────────────────────
 export const masterDataRouter = router({

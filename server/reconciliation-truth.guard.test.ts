@@ -5,7 +5,7 @@ describe("reconciliation truth guard", () => {
   const reports = readFileSync("server/routers/reportsRouter.ts", "utf8");
   const sales =
     readFileSync("server/routers/salesRouter.ts", "utf8") +
-    readFileSync("server/routers/salesRouterExtension.ts", "utf8");
+    readFileSync("server/routers/salesReportsRouter.ts", "utf8");
 
   it("migrated reports return normalized shape", () => {
     expect(reports).toContain("rows");

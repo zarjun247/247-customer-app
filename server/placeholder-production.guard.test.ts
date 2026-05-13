@@ -56,7 +56,7 @@ describe("placeholder production guard", () => {
         "central bootstrap path that defines DB access primitives",
       ],
       [
-        "server/dbPart2.ts",
+        "server/db-extended.ts",
         "extension of central db bootstrap — part of the same audit adapter layer",
       ],
     ]);
