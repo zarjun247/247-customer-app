@@ -20,7 +20,7 @@ const reservationService = normalizeCode(
 const purchaseRouter = normalizeCode(
   readFileSync("server/routers/purchaseRouter.ts", "utf8") +
     "\n" +
-    readFileSync("server/routers/purchaseRouterExtension.ts", "utf8")
+    readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8")
 );
 const barcodeService = readFileSync(
   "server/services/barcodeService.ts",

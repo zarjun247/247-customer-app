@@ -4,7 +4,18 @@ import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./db", () => ({ getDb: vi.fn() }));
-vi.mock("./services/jobQueue", () => ({ getQueueStats: vi.fn(async () => ({ queuedCount: 0, runningCount: 0, retryCount: 0, deadLetterCount: 0, staleRunningCount: 0, oldestQueuedAgeMs: null, oldestRetryAgeMs: null, generatedAt: new Date().toISOString() })) }));
+vi.mock("./services/jobQueue", () => ({
+  getQueueStats: vi.fn(async () => ({
+    queuedCount: 0,
+    runningCount: 0,
+    retryCount: 0,
+    deadLetterCount: 0,
+    staleRunningCount: 0,
+    oldestQueuedAgeMs: null,
+    oldestRetryAgeMs: null,
+    generatedAt: new Date().toISOString(),
+  })),
+}));
 
 const dbModule = await import("./db");
 const jobQueue = await import("./services/jobQueue");
@@ -19,19 +30,29 @@ describe("healthcheck service", () => {
   });
 
   it("does not mark unconfigured providers healthy", () => {
-    const providers = health.checkProviders({ PAYMENT_PROVIDER_ENABLED: "true" } as NodeJS.ProcessEnv);
+    const providers = health.checkProviders({
+      PAYMENT_PROVIDER_ENABLED: "true",
+    } as NodeJS.ProcessEnv);
     expect(providers.razorpay.status).toBe("not_configured");
     expect(providers.razorpay.status).not.toBe("healthy");
   });
 
   it("marks configured providers as configured, not healthy", () => {
-    const providers = health.checkProviders({ PAYMENT_PROVIDER_ENABLED: "true", RAZORPAY_KEY_ID: "rzp", RAZORPAY_KEY_SECRET: "secret" } as NodeJS.ProcessEnv);
+    const providers = health.checkProviders({
+      PAYMENT_PROVIDER_ENABLED: "true",
+      RAZORPAY_KEY_ID: "rzp",
+      RAZORPAY_KEY_SECRET: "secret",
+    } as NodeJS.ProcessEnv);
     expect(providers.razorpay.status).toBe("configured");
     expect(providers.razorpay.status).not.toBe("healthy");
   });
 
   it("returns unhealthy safely when the database query fails", async () => {
-    vi.mocked(dbModule.getDb).mockResolvedValue({ execute: vi.fn(async () => { throw new Error("mysql://user:pass@host/db"); }) } as any);
+    vi.mocked(dbModule.getDb).mockResolvedValue({
+      execute: vi.fn(async () => {
+        throw new Error("mysql://user:pass@host/db");
+      }),
+    } as unknown);
     const result = await health.checkDatabase();
     expect(result.status).toBe("unhealthy");
     expect(JSON.stringify(result)).not.toContain("mysql://user:pass");
@@ -47,10 +68,22 @@ describe("healthcheck service", () => {
   });
 
   it("worker health check is read-only and returns counts only", async () => {
-    vi.mocked(jobQueue.getQueueStats).mockResolvedValueOnce({ queuedCount: 1, runningCount: 0, retryCount: 0, deadLetterCount: 0, staleRunningCount: 0, oldestQueuedAgeMs: 10, oldestRetryAgeMs: null, generatedAt: "2026-05-09T00:00:00.000Z" });
+    vi.mocked(jobQueue.getQueueStats).mockResolvedValueOnce({
+      queuedCount: 1,
+      runningCount: 0,
+      retryCount: 0,
+      deadLetterCount: 0,
+      staleRunningCount: 0,
+      oldestQueuedAgeMs: 10,
+      oldestRetryAgeMs: null,
+      generatedAt: "2026-05-09T00:00:00.000Z",
+    });
     const result = await health.checkWorkerQueue();
     expect(jobQueue.getQueueStats).toHaveBeenCalledTimes(1);
-    expect(result.details).toMatchObject({ queuedCount: 1, deadLetterCount: 0 });
+    expect(result.details).toMatchObject({
+      queuedCount: 1,
+      deadLetterCount: 0,
+    });
     expect(JSON.stringify(result)).not.toContain("payloadJson");
   });
 

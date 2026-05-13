@@ -30,6 +30,7 @@ function formatDate(d: Date): string {
     .replace(/\.\d{3}Z$/, " UTC");
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function generateBreachNotification(
   input: BreachNotificationInput
 ): Promise<BreachNotificationResult> {

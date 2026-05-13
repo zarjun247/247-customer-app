@@ -3,16 +3,26 @@ import { assertStoreIdMatchesUser } from "./storeAccessHelpers";
 import type { TrpcContext } from "./context";
 
 function makeCtx(role: string, staffStoreId: number | null): TrpcContext {
-  return { req: {} as any, res: {} as any, user: { id: 1, role, staffStoreId } as any };
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  return {
+    req: {} as any,
+    res: {} as any,
+    user: { id: 1, role, staffStoreId } as any,
+  };
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
 describe("assertStoreIdMatchesUser", () => {
   it("passes for super_admin accessing any store", () => {
-    expect(() => assertStoreIdMatchesUser(makeCtx("super_admin", null), 42)).not.toThrow();
+    expect(() =>
+      assertStoreIdMatchesUser(makeCtx("super_admin", null), 42)
+    ).not.toThrow();
   });
 
   it("passes for staff assigned to the matching store", () => {
-    expect(() => assertStoreIdMatchesUser(makeCtx("pharmacist", 3), 3)).not.toThrow();
+    expect(() =>
+      assertStoreIdMatchesUser(makeCtx("pharmacist", 3), 3)
+    ).not.toThrow();
   });
 
   it("throws FORBIDDEN for staff assigned to a different store", () => {
@@ -20,6 +30,7 @@ describe("assertStoreIdMatchesUser", () => {
   });
 
   it("throws UNAUTHORIZED for unauthenticated caller", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ctx: TrpcContext = { req: {} as any, res: {} as any, user: null };
     expect(() => assertStoreIdMatchesUser(ctx, 3)).toThrow();
   });

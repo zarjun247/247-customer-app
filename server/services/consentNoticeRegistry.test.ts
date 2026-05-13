@@ -39,7 +39,7 @@ beforeEach(() => {
 describe("publishNotice", () => {
   it("inserts a notice and returns id and content hash", async () => {
     const chain = makeInsertChain(42);
-    (getDb as any).mockResolvedValue(chain);
+    vi.mocked(getDb).mockResolvedValue(chain);
 
     const result = await publishNotice({
       noticeKind: "privacy_policy",
@@ -56,7 +56,7 @@ describe("publishNotice", () => {
 
   it("computes SHA-256 of content text", async () => {
     const chain = makeInsertChain(1);
-    (getDb as any).mockResolvedValue(chain);
+    vi.mocked(getDb).mockResolvedValue(chain);
 
     const r1 = await publishNotice({
       noticeKind: "terms",
@@ -77,7 +77,7 @@ describe("publishNotice", () => {
   });
 
   it("throws when DB is unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(
       publishNotice({
         noticeKind: "privacy_policy",
@@ -92,14 +92,14 @@ describe("publishNotice", () => {
 
 describe("getActiveNotice", () => {
   it("returns null when DB is unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     const result = await getActiveNotice({ noticeKind: "privacy_policy" });
     expect(result).toBeNull();
   });
 
   it("returns null when no rows found", async () => {
     const chain = makeSelectChain([]);
-    (getDb as any).mockResolvedValue(chain);
+    vi.mocked(getDb).mockResolvedValue(chain);
 
     const result = await getActiveNotice({ noticeKind: "privacy_policy" });
     expect(result).toBeNull();
@@ -126,7 +126,7 @@ describe("getActiveNotice", () => {
       contentText: "new",
     };
     const chain = makeSelectChain([row1, row2]);
-    (getDb as any).mockResolvedValue(chain);
+    vi.mocked(getDb).mockResolvedValue(chain);
 
     const result = await getActiveNotice({ noticeKind: "privacy_policy" });
     expect(result?.version).toBe("2.0.0");
@@ -135,7 +135,7 @@ describe("getActiveNotice", () => {
 
 describe("listNoticesForKind", () => {
   it("returns empty array when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     const result = await listNoticesForKind({ noticeKind: "marketing" });
     expect(result).toEqual([]);
   });
@@ -146,7 +146,7 @@ describe("listNoticesForKind", () => {
       { id: 2, noticeKind: "marketing", version: "1.1.0" },
     ];
     const chain = makeSelectChain(rows);
-    (getDb as any).mockResolvedValue(chain);
+    vi.mocked(getDb).mockResolvedValue(chain);
 
     const result = await listNoticesForKind({ noticeKind: "marketing" });
     expect(result.length).toBe(2);
@@ -157,7 +157,7 @@ describe("recordUserAcceptance", () => {
   it("inserts into privacy_consents", async () => {
     const values = vi.fn().mockResolvedValue({});
     const insert = vi.fn().mockReturnValue({ values });
-    (getDb as any).mockResolvedValue({ insert });
+    vi.mocked(getDb).mockResolvedValue({ insert });
 
     await recordUserAcceptance({ userId: 5, noticeId: 10 });
     expect(insert).toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe("recordUserAcceptance", () => {
   });
 
   it("throws when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(
       recordUserAcceptance({ userId: 1, noticeId: 1 })
     ).rejects.toThrow("DB unavailable");

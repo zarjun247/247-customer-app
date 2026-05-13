@@ -118,6 +118,15 @@ export const ENV = {
     process.env.RESERVATION_EXPIRY_BATCH_SIZE ?? "100"
   ),
   stockLockTimeoutMs: Number(process.env.STOCK_LOCK_TIMEOUT_MS ?? "5000"),
+  // SM-LM Phase 1: worker enable flags + stock lock cleanup interval
+  reservationExpiryWorkerEnabled:
+    (process.env.RESERVATION_EXPIRY_WORKER_ENABLED ?? "true").toLowerCase() ===
+    "true",
+  stockLockCleanupEnabled:
+    (process.env.STOCK_LOCK_CLEANUP_ENABLED ?? "true").toLowerCase() === "true",
+  stockLockCleanupIntervalMs: Number(
+    process.env.STOCK_LOCK_CLEANUP_INTERVAL_MS ?? "60000"
+  ),
   // MP7: security hardening optional vars. PII_ENCRYPTION_MASTER_KEY is REQUIRED in production (handled above).
   // CSP_MODE default changed from "off" to "enforce" in SM-B. Set CSP_MODE=report_only for staged rollout.
   cspMode: (process.env.CSP_MODE ?? "enforce") as
@@ -193,6 +202,10 @@ export const ENV = {
   releaseChannel: (process.env.RELEASE_CHANNEL ?? "staging") as
     | "staging"
     | "production",
+  // SM-LM Phase 10 (Option B): DOCTOR_CONSULT_URL — external telemedicine redirect URL.
+  // When set, the "Consult a Doctor" button deep-links here. Default empty = button hidden.
+  // Never add to assertProductionEnvSafe() — optional feature.
+  doctorConsultUrl: process.env.DOCTOR_CONSULT_URL ?? "",
 };
 
 assertProductionEnvSafe();

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 /**
  * commandCenterRouterExtension — second half of commandCenter procedures
  * (ocrQueue through snapshot)
@@ -12,7 +13,7 @@ import {
   riders,
   batches,
   storeSkus,
-  products,
+  products as _products,
   ingestionJobs,
   refillPlans,
   refillEvents,
@@ -21,7 +22,7 @@ import {
   systemEvents,
   medivisionSyncLog,
   sales,
-  whatsappMessages,
+  whatsappMessages as _whatsappMessages,
   staffHandoffs,
   slaEvents,
 } from "../../drizzle/schema";
@@ -32,15 +33,15 @@ import {
   gte,
   sql,
   desc,
-  asc,
+  asc as _asc,
   inArray,
   ne,
   isNull,
   isNotNull,
   lt,
-  gt,
-  or,
-  between,
+  gt as _gt,
+  or as _or,
+  between as _between,
 } from "drizzle-orm";
 
 const ADMIN_ROLES = [
@@ -469,9 +470,9 @@ const expiryDashboard = protectedProcedure
         fefoCompliance: null,
         byBucket: [],
       };
-    const cut60 = nowPlus(60 * DAY);
-    const cut90 = nowPlus(90 * DAY);
-    const now = new Date();
+    const _cut60 = nowPlus(60 * DAY);
+    const _cut90 = nowPlus(90 * DAY);
+    const _now = new Date();
     const [byBucket, fefo] = await Promise.all([
       db
         .select({

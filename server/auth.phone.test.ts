@@ -93,7 +93,6 @@ describe("verifyOtp response shape", () => {
   });
 });
 
-
 describe("authenticateRequest phone session", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -108,12 +107,20 @@ describe("authenticateRequest phone session", () => {
     const { sdk } = await import("./_core/sdk");
     const { COOKIE_NAME } = await import("@shared/const");
     const token = await sdk.signSession(
-      { openId: "phone:+919999999999", appId: "test-app-id", name: "Phone User" },
-      { expiresInMs: 60_000 },
+      {
+        openId: "phone:+919999999999",
+        appId: "test-app-id",
+        name: "Phone User",
+      },
+      { expiresInMs: 60_000 }
     );
 
     const req = { headers: { cookie: `${COOKIE_NAME}=${token}` } };
-    await expect(sdk.authenticateRequest(req as any)).resolves.toMatchObject({ id: 7, phone: "+919999999999" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(sdk.authenticateRequest(req as any)).resolves.toMatchObject({
+      id: 7,
+      phone: "+919999999999",
+    });
     expect(db.getUserByPhone).toHaveBeenCalledWith("+919999999999");
   });
 });

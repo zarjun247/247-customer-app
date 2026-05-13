@@ -19,19 +19,22 @@ import { eq, isNull } from "drizzle-orm";
 import { storagePut } from "./storage";
 
 // ─── Category colours for SVG placeholders ────────────────────────────────────
-const CATEGORY_PALETTE: Record<string, { bg: string; accent: string; text: string }> = {
-  medicine:   { bg: "#0f1923", accent: "#2dd4bf", text: "#e2e8f0" },
-  devices:    { bg: "#0f1923", accent: "#60a5fa", text: "#e2e8f0" },
-  baby:       { bg: "#0f1923", accent: "#f9a8d4", text: "#e2e8f0" },
-  nutrition:  { bg: "#0f1923", accent: "#86efac", text: "#e2e8f0" },
-  fmcg:       { bg: "#0f1923", accent: "#fbbf24", text: "#e2e8f0" },
-  wellness:   { bg: "#0f1923", accent: "#c4b5fd", text: "#e2e8f0" },
+const CATEGORY_PALETTE: Record<
+  string,
+  { bg: string; accent: string; text: string }
+> = {
+  medicine: { bg: "#0f1923", accent: "#2dd4bf", text: "#e2e8f0" },
+  devices: { bg: "#0f1923", accent: "#60a5fa", text: "#e2e8f0" },
+  baby: { bg: "#0f1923", accent: "#f9a8d4", text: "#e2e8f0" },
+  nutrition: { bg: "#0f1923", accent: "#86efac", text: "#e2e8f0" },
+  fmcg: { bg: "#0f1923", accent: "#fbbf24", text: "#e2e8f0" },
+  wellness: { bg: "#0f1923", accent: "#c4b5fd", text: "#e2e8f0" },
 };
 
 const SCHEDULE_BADGE: Record<string, string> = {
-  H:   "Rx",
-  H1:  "Rx H1",
-  X:   "Rx X",
+  H: "Rx",
+  H1: "Rx H1",
+  X: "Rx X",
   OTC: "OTC",
 };
 
@@ -51,9 +54,10 @@ export function generateProductPlaceholderSvg(
 
   // Truncate name for display
   const displayName = name.length > 28 ? name.slice(0, 26) + "…" : name;
-  const displayCompany = (companyName ?? "").length > 22
-    ? (companyName ?? "").slice(0, 20) + "…"
-    : (companyName ?? "");
+  const displayCompany =
+    (companyName ?? "").length > 22
+      ? (companyName ?? "").slice(0, 20) + "…"
+      : (companyName ?? "");
   const displayPack = packSize ?? "";
 
   // Initials for the icon circle
@@ -133,7 +137,11 @@ export async function uploadPlaceholderForProduct(product: {
     product.companyName
   );
   const key = `product-images/placeholder-${product.id}.svg`;
-  const { url } = await storagePut(key, Buffer.from(svg, "utf-8"), "image/svg+xml");
+  const { url } = await storagePut(
+    key,
+    Buffer.from(svg, "utf-8"),
+    "image/svg+xml"
+  );
   return url;
 }
 
@@ -141,7 +149,9 @@ export async function uploadPlaceholderForProduct(product: {
  * Attempt to fetch a product image from Open Food Facts by product name.
  * Returns the image URL or null.
  */
-export async function fetchOpenFoodFactsImage(productName: string): Promise<string | null> {
+export async function fetchOpenFoodFactsImage(
+  productName: string
+): Promise<string | null> {
   try {
     const query = encodeURIComponent(productName.replace(/\s+/g, " ").trim());
     const res = await fetch(
@@ -149,7 +159,9 @@ export async function fetchOpenFoodFactsImage(productName: string): Promise<stri
       { signal: AbortSignal.timeout(5000) }
     );
     if (!res.ok) return null;
-    const data = await res.json() as { products?: Array<{ image_front_url?: string; image_url?: string }> };
+    const data = (await res.json()) as {
+      products?: Array<{ image_front_url?: string; image_url?: string }>;
+    };
     const first = data.products?.[0];
     if (!first) return null;
     return first.image_front_url ?? first.image_url ?? null;

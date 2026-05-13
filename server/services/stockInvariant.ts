@@ -200,20 +200,18 @@ export async function releaseQuarantine(input: {
         status: "active",
       })
       .where(eq(batchLedger.id, input.batchId));
-    await tx
-      .insert(stockMovements)
-      .values({
-        batchId: input.batchId,
-        storeId: batch.storeId,
-        movementType: "audit_correction",
-        qty,
-        qtyBefore,
-        qtyAfter,
-        reason: `Release from quarantine. ${input.note ?? ""}`.trim(),
-        performedBy: input.actor.actorId ?? 0,
-        referenceType: "batch_quarantine",
-        referenceId: input.batchId,
-      });
+    await tx.insert(stockMovements).values({
+      batchId: input.batchId,
+      storeId: batch.storeId,
+      movementType: "audit_correction",
+      qty,
+      qtyBefore,
+      qtyAfter,
+      reason: `Release from quarantine. ${input.note ?? ""}`.trim(),
+      performedBy: input.actor.actorId ?? 0,
+      referenceType: "batch_quarantine",
+      referenceId: input.batchId,
+    });
     await logAudit({
       action: "inventory.batch_released_from_quarantine",
       entityType: "batch_ledger",
@@ -599,40 +597,36 @@ export async function transferStock(input: {
         .update(batchLedger)
         .set({ qtyOnHand: sourceAfter })
         .where(eq(batchLedger.id, input.sourceBatchId));
-      await tx
-        .insert(stockMovements)
-        .values({
-          batchId: input.sourceBatchId,
-          storeId: input.sourceStoreId,
-          movementType: "stock_adjustment",
-          qty: -qty,
-          qtyBefore: sourceBefore,
-          qtyAfter: sourceAfter,
-          referenceType: "stock_transfer",
-          referenceId: input.referenceId,
-          reason: input.reason ?? "Transfer out",
-          performedBy: input.actor.actorId ?? 0,
-        });
+      await tx.insert(stockMovements).values({
+        batchId: input.sourceBatchId,
+        storeId: input.sourceStoreId,
+        movementType: "stock_adjustment",
+        qty: -qty,
+        qtyBefore: sourceBefore,
+        qtyAfter: sourceAfter,
+        referenceType: "stock_transfer",
+        referenceId: input.referenceId,
+        reason: input.reason ?? "Transfer out",
+        performedBy: input.actor.actorId ?? 0,
+      });
       const destBefore = destinationBatch.qtyOnHand ?? 0;
       const destAfter = destBefore + qty;
       await tx
         .update(batchLedger)
         .set({ qtyOnHand: destAfter })
         .where(eq(batchLedger.id, input.destinationBatchId));
-      await tx
-        .insert(stockMovements)
-        .values({
-          batchId: input.destinationBatchId,
-          storeId: input.destinationStoreId,
-          movementType: "stock_adjustment",
-          qty,
-          qtyBefore: destBefore,
-          qtyAfter: destAfter,
-          referenceType: "stock_transfer",
-          referenceId: input.referenceId,
-          reason: input.reason ?? "Transfer in",
-          performedBy: input.actor.actorId ?? 0,
-        });
+      await tx.insert(stockMovements).values({
+        batchId: input.destinationBatchId,
+        storeId: input.destinationStoreId,
+        movementType: "stock_adjustment",
+        qty,
+        qtyBefore: destBefore,
+        qtyAfter: destAfter,
+        referenceType: "stock_transfer",
+        referenceId: input.referenceId,
+        reason: input.reason ?? "Transfer in",
+        performedBy: input.actor.actorId ?? 0,
+      });
       return {
         sourceMovement: { qtyBefore: sourceBefore, qtyAfter: sourceAfter },
         destinationMovement: { qtyBefore: destBefore, qtyAfter: destAfter },

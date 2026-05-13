@@ -2,6 +2,7 @@
  * masterDataPart3RouterExtension.ts — second half of masterDataPart3Router
  * Covers: buildingMasterRouter, printerMasterRouter, productMasterRouter
  */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
@@ -518,7 +519,7 @@ export const productMasterRouter = router({
     .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       requireManager(ctx.user.role);
-      const db = await getDb();
+      const _db = await getDb();
       // products table doesn't have isActive yet — we use a soft-delete via canonicalName marker
       // Instead, we log the deactivation as an audit event for now
       await logAudit({

@@ -15,7 +15,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function makeUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function makeUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 42,
     openId: "test-user-42",
@@ -44,7 +46,7 @@ function makeCtx(user: AuthenticatedUser | null = null): TrpcContext {
 const anonCtx = makeCtx(null);
 const adminCtx = makeCtx(makeUser({ role: "admin" }));
 const userCtx = makeCtx(makeUser({ role: "user" }));
-const storeManagerCtx = makeCtx(makeUser({ role: "store_manager", id: 10 }));
+const _storeManagerCtx = makeCtx(makeUser({ role: "store_manager", id: 10 }));
 
 // ─── Ingestion Router ─────────────────────────────────────────────────────────
 
@@ -70,7 +72,9 @@ describe("ingestionRouter — auth guard", () => {
 
   it("ingestion.retryOcr rejects unauthenticated callers", async () => {
     const caller = appRouter.createCaller(anonCtx);
-    await expect(caller.ingestion.retryOcr({ ingestionId: 1 })).rejects.toMatchObject({
+    await expect(
+      caller.ingestion.retryOcr({ ingestionId: 1 })
+    ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
   });
@@ -82,6 +86,7 @@ describe("ingestionRouter — input validation", () => {
     await expect(
       caller.ingestion.upload({
         filename: "test.exe",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mimeType: "application/exe" as any,
         base64Data: "dGVzdA==",
         storeId: 1,
@@ -104,6 +109,7 @@ describe("ingestionRouter — input validation", () => {
   it("ingestion.approveItem rejects missing itemId", async () => {
     const caller = appRouter.createCaller(adminCtx);
     await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       caller.ingestion.approveItem({ itemId: undefined as any })
     ).rejects.toThrow();
   });
@@ -165,6 +171,7 @@ describe("helpdeskRouter — input validation", () => {
     const caller = appRouter.createCaller(userCtx);
     await expect(
       caller.helpdesk.create({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         category: "invalid_category" as any,
         subject: "Valid subject here",
         description: "A valid description that is long enough",
@@ -177,6 +184,7 @@ describe("helpdeskRouter — input validation", () => {
     await expect(
       caller.helpdesk.updateStatus({
         ticketId: 1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: "flying" as any,
       })
     ).rejects.toThrow();
@@ -218,14 +226,13 @@ describe("consentRouter — auth guard", () => {
 describe("consentRouter — input validation", () => {
   it("consent.grant rejects empty types array", async () => {
     const caller = appRouter.createCaller(userCtx);
-    await expect(
-      caller.consent.grant({ types: [] })
-    ).rejects.toThrow();
+    await expect(caller.consent.grant({ types: [] })).rejects.toThrow();
   });
 
   it("consent.grant rejects invalid consent type", async () => {
     const caller = appRouter.createCaller(userCtx);
     await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       caller.consent.grant({ types: ["invalid_type" as any] })
     ).rejects.toThrow();
   });
@@ -234,6 +241,7 @@ describe("consentRouter — input validation", () => {
     const caller = appRouter.createCaller(userCtx);
     // terms_of_service is not in the revoke enum — should throw Zod error
     await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       caller.consent.revoke({ type: "terms_of_service" as any })
     ).rejects.toThrow();
   });
@@ -241,22 +249,24 @@ describe("consentRouter — input validation", () => {
   it("consent.revoke rejects non-revocable type (privacy_policy)", async () => {
     const caller = appRouter.createCaller(userCtx);
     await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       caller.consent.revoke({ type: "privacy_policy" as any })
     ).rejects.toThrow();
   });
 
   it("consent.history rejects limit > 100", async () => {
     const caller = appRouter.createCaller(userCtx);
-    await expect(
-      caller.consent.history({ limit: 999 })
-    ).rejects.toThrow();
+    await expect(caller.consent.history({ limit: 999 })).rejects.toThrow();
   });
 
   it("consent.history accepts valid limit and offset (Zod passes)", async () => {
     // Zod validation passes; DB may return empty array or error depending on env
     const caller = appRouter.createCaller(userCtx);
     // Should NOT throw a Zod validation error — either resolves or throws DB error
-    const result = await caller.consent.history({ limit: 10, offset: 0 }).catch((err: any) => err);
+    const result = await caller.consent
+      .history({ limit: 10, offset: 0 })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .catch((err: any) => err);
     // If it resolves, it should be an array; if it rejects, it should be a server error (not Zod)
     if (Array.isArray(result)) {
       expect(result).toBeDefined();

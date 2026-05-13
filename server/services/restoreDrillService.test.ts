@@ -8,15 +8,25 @@ vi.mock("fs", () => {
         if (store[p]) return store[p];
         throw new Error("ENOENT");
       },
-      writeFileSync: (p: string, data: string) => { store[p] = data; },
-      renameSync: (src: string, dst: string) => { store[dst] = store[src]; delete store[src]; },
+      writeFileSync: (p: string, data: string) => {
+        store[p] = data;
+      },
+      renameSync: (src: string, dst: string) => {
+        store[dst] = store[src];
+        delete store[src];
+      },
     },
     readFileSync: (p: string) => {
       if (store[p]) return store[p];
       throw new Error("ENOENT");
     },
-    writeFileSync: (p: string, data: string) => { store[p] = data; },
-    renameSync: (src: string, dst: string) => { store[dst] = store[src]; delete store[src]; },
+    writeFileSync: (p: string, data: string) => {
+      store[p] = data;
+    },
+    renameSync: (src: string, dst: string) => {
+      store[dst] = store[src];
+      delete store[src];
+    },
   };
 });
 
@@ -32,7 +42,9 @@ import {
   type RestoreDrillRecord,
 } from "./restoreDrillService";
 
-function makeRecord(overrides: Partial<RestoreDrillRecord> = {}): RestoreDrillRecord {
+function makeRecord(
+  overrides: Partial<RestoreDrillRecord> = {}
+): RestoreDrillRecord {
   return {
     id: "restore-1",
     ts: new Date().toISOString(),
@@ -82,7 +94,9 @@ describe("restoreDrillService", () => {
   });
 
   it("listDrills returns in reverse order", async () => {
-    await recordDrill(makeRecord({ id: "r1", ts: new Date(Date.now() - 2000).toISOString() }));
+    await recordDrill(
+      makeRecord({ id: "r1", ts: new Date(Date.now() - 2000).toISOString() })
+    );
     await recordDrill(makeRecord({ id: "r2", ts: new Date().toISOString() }));
     const drills = await listDrills(10);
     expect(drills[0].id).toBe("r2");

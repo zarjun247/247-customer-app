@@ -42,7 +42,15 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 
 ### Infrastructure / wiring follow-ups
 
-**Outbox dispatcher** — `startOutboxDispatcher()` not called at boot. Side-effect handlers not registered. Three procedures migrated (`sale.confirm`, `purchase.commitInvoice`, `payment.verifyPayment`); ~30 others still use direct DB writes. Multi-node requires `SELECT ... FOR UPDATE SKIP LOCKED`.
+**Outbox dispatcher** — `startOutboxDispatcher()` not called at boot. Side-effect handlers not registered. Three procedures migrated (`sale.confirm`, `purchase.commitInvoice`, `payment.verifyPayment`); 97 direct DB writes across routers still bypass `executeCommand` (SM-LM Phase 4.2 deferred — requires per-procedure domain analysis, idempotency key design, command naming, and outbox wiring; estimated 3–5 engineering days). Multi-node requires `SELECT ... FOR UPDATE SKIP LOCKED`.
+
+**stockReservations drop deferred** — table is still actively written by `reservationService.ts` and read by `inventoryRouter.ts`, `healthcheck.ts`, and stock availability queries in `db.ts`/`db-extended.ts`. Full migration to `reservation_ledger` required before drop. Deferred to post-launch architecture cleanup.
+
+**Large files (>600 lines) — advisory** — `max-lines: warn` lint rule added (SM-LM Phase 4.5); pre-commit gate exempts this rule. 31 existing source files exceed the threshold. Split deferred to post-launch. Known offenders: `server/routers.ts` (1609), `server/routers/whatsappRouter.ts` (1425), `server/routers/masterDataRouter.ts` (1223), `server/routers/commandCenterOcrRouter.ts` (1113), `server/routers/deliveryRouter.ts` (1048), `server/routers/inventoryRouter.ts` (1015), `server/routers/ocrIngestionRouter.ts` (975), `server/services/supplierLedger.ts` (879), and 23 more files (600–780 lines).
+
+**Circular imports (Part2 pattern)** — `db.ts ↔ db-extended.ts`, `connectors.ts ↔ connectors-peripheral.ts`, `pharmacy.ts ↔ pharmacy-metrics.ts`, `routingEngine.ts ↔ routing-engine-extended.ts`. These are intentional file-size splits where the extended file re-uses helpers from the base and the base barrel-exports the extended file. The `trpc ↔ rbac` cycle was fixed by extracting `_core/roles.ts` (SM-LM Phase 4.3). The Part2 cycles require splitting the shared helpers into a third module to resolve — deferred to post-launch architecture cleanup.
+
+**Coverage measurement blocked** — `@vitest/coverage-v8` cannot be installed in the current environment (SSL certificate validation failure on npm registry). Coverage configuration is in `vitest.config.ts` with thresholds (statements 40%, branches 35%, functions 40%, lines 40%). Run `pnpm add -D @vitest/coverage-v8` and `pnpm run test:coverage` once network/SSL is resolved. Phases 8 (gap-fill) and 9 (Stryker mutation testing) are deferred for the same reason.
 
 **Reservation expiry worker** — `startReservationExpiryWorker()` not wired at boot. `cleanupExpiredLocks()` not scheduled. Old `stockReservations` table coexists with new `reservations`/`reservation_lines` — write paths need incremental migration.
 

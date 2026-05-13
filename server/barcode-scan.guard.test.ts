@@ -17,6 +17,7 @@ describe("barcode scan guards", () => {
     const payload = getBarcodeLabelPayload({
       productName: "X",
       internalBarcode: "PHX-1",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     expect(payload.customerName).toBeUndefined();
     expect(payload.patientName).toBeUndefined();
@@ -39,7 +40,7 @@ describe("barcode scan guards", () => {
     const sales = fs.readFileSync("server/routers/salesRouter.ts", "utf8");
     const inventory =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/inventoryRouterExtension.ts", "utf8");
+      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
     const saleScanBody = sales.slice(
       sales.indexOf("scanBarcodeForSale"),
       sales.indexOf("// ─── Product Search")

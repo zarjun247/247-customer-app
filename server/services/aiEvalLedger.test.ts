@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createHash } from "crypto";
-import { canonicalize, appendSuggestion, recordOutcome, verifyChain, getStats, listSuggestions } from "./aiEvalLedger";
+import {
+  canonicalize,
+  appendSuggestion,
+  recordOutcome,
+  verifyChain,
+  getStats,
+  listSuggestions,
+} from "./aiEvalLedger";
 
 // ─── In-memory DB state ───────────────────────────────────────────────────────
 
@@ -43,7 +50,8 @@ function makeGenesisRow(): LedgerRow {
   return {
     id: 0,
     sequenceNumber: 0,
-    prevHash: "0000000000000000000000000000000000000000000000000000000000000000",
+    prevHash:
+      "0000000000000000000000000000000000000000000000000000000000000000",
     rowHash: GENESIS_HASH,
     suggestionKind: "genesis",
     scopeType: "global",
@@ -63,22 +71,17 @@ function buildMockDb(opts: { throwOnInsert?: boolean } = {}) {
   const { throwOnInsert = false } = opts;
 
   function makeSelect(table: "ledger" | "outcomes") {
-    const getRows = () => table === "ledger" ? ledgerRows : outcomeRows;
-
-    const terminal = {
-      // final awaitable promise returned by chaining
-      then: undefined as unknown,
-    };
+    const getRows = () => (table === "ledger" ? ledgerRows : outcomeRows);
 
     const withLimit = (rows: unknown[], n: number) => rows.slice(0, n);
-    const withOffset = (rows: unknown[], o: number) => rows.slice(o);
 
     // Chainable select builder
     function chain(filteredRows: () => LedgerRow[] | OutcomeRow[]) {
       return {
         orderBy: (_col?: unknown) => ({
           limit: (n: number) => ({
-            offset: (o: number) => Promise.resolve(filteredRows().slice(o, o + n)),
+            offset: (o: number) =>
+              Promise.resolve(filteredRows().slice(o, o + n)),
           }),
         }),
         limit: (n: number) => Promise.resolve(withLimit(filteredRows(), n)),
@@ -94,7 +97,9 @@ function buildMockDb(opts: { throwOnInsert?: boolean } = {}) {
         // appendSuggestion uses desc(sequenceNumber) to get the latest row — always return DESC order
         limit: (n: number) => {
           const all = getRows() as LedgerRow[];
-          const sorted = [...all].sort((a, b) => b.sequenceNumber - a.sequenceNumber);
+          const sorted = [...all].sort(
+            (a, b) => b.sequenceNumber - a.sequenceNumber
+          );
           return Promise.resolve(sorted.slice(0, n));
         },
       }),
@@ -106,7 +111,9 @@ function buildMockDb(opts: { throwOnInsert?: boolean } = {}) {
   return {
     select: (_fields?: unknown) => ({
       from: (table: unknown) => {
-        const name = String((table as { _?: { name?: string } })?._?.name ?? table);
+        const name = String(
+          (table as { _?: { name?: string } })?._?.name ?? table
+        );
         const t = name.includes("outcomes") ? "outcomes" : "ledger";
         return makeSelect(t);
       },
@@ -142,7 +149,9 @@ beforeEach(() => {
   outcomeRows = [];
   nextLedgerId = 1;
   nextOutcomeId = 1;
-  mockGetDb.mockResolvedValue(buildMockDb() as unknown as Awaited<ReturnType<typeof getDb>>);
+  mockGetDb.mockResolvedValue(
+    buildMockDb() as unknown as Awaited<ReturnType<typeof getDb>>
+  );
 });
 
 // ─── canonicalize tests ───────────────────────────────────────────────────────
@@ -187,7 +196,7 @@ describe("appendSuggestion", () => {
       modelVersion: "heuristic-v1",
     });
     expect(result.sequenceNumber).toBe(1);
-    const stored = ledgerRows.find((r) => r.id === result.ledgerId);
+    const stored = ledgerRows.find(r => r.id === result.ledgerId);
     expect(stored?.prevHash).toBe(GENESIS_HASH);
   });
 
@@ -200,7 +209,7 @@ describe("appendSuggestion", () => {
       outputPayload: { y: 1 },
       modelVersion: "heuristic-v1",
     });
-    const firstRowHash = ledgerRows.find((r) => r.id === r1.ledgerId)!.rowHash;
+    const firstRowHash = ledgerRows.find(r => r.id === r1.ledgerId)!.rowHash;
 
     const r2 = await appendSuggestion({
       suggestionKind: "stockout_alert",
@@ -211,7 +220,7 @@ describe("appendSuggestion", () => {
       modelVersion: "heuristic-v1",
     });
     expect(r2.sequenceNumber).toBe(2);
-    const stored2 = ledgerRows.find((r) => r.id === r2.ledgerId);
+    const stored2 = ledgerRows.find(r => r.id === r2.ledgerId);
     expect(stored2?.prevHash).toBe(firstRowHash);
   });
 
@@ -224,7 +233,7 @@ describe("appendSuggestion", () => {
       outputPayload: { score: 0.5 },
       modelVersion: "heuristic-v1",
     });
-    const hash1 = ledgerRows.find((r) => r.id === r1.ledgerId)?.inputHash;
+    const hash1 = ledgerRows.find(r => r.id === r1.ledgerId)?.inputHash;
 
     ledgerRows = [makeGenesisRow()];
     nextLedgerId = 1;
@@ -237,12 +246,16 @@ describe("appendSuggestion", () => {
       outputPayload: { score: 0.5 },
       modelVersion: "heuristic-v1",
     });
-    const hash2 = ledgerRows.find((r) => r.id === r2.ledgerId)?.inputHash;
+    const hash2 = ledgerRows.find(r => r.id === r2.ledgerId)?.inputHash;
     expect(hash1).toBe(hash2);
   });
 
   it("returns {-1, '', -1} and does NOT throw when DB insert fails", async () => {
-    mockGetDb.mockResolvedValue(buildMockDb({ throwOnInsert: true }) as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      buildMockDb({ throwOnInsert: true }) as unknown as Awaited<
+        ReturnType<typeof getDb>
+      >
+    );
     const result = await appendSuggestion({
       suggestionKind: "refill_risk",
       scopeType: "customer",
@@ -257,7 +270,9 @@ describe("appendSuggestion", () => {
   });
 
   it("returns {-1, '', -1} when DB unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await appendSuggestion({
       suggestionKind: "refill_risk",
       scopeType: "customer",
@@ -284,7 +299,11 @@ describe("recordOutcome", () => {
       modelVersion: "heuristic-v1",
     });
     const ledgerCountBefore = ledgerRows.length;
-    await recordOutcome({ evalLedgerId: sug.ledgerId, outcomeKind: "accepted", recordedByUserId: "u-1" });
+    await recordOutcome({
+      evalLedgerId: sug.ledgerId,
+      outcomeKind: "accepted",
+      recordedByUserId: "u-1",
+    });
     expect(ledgerRows.length).toBe(ledgerCountBefore);
     expect(outcomeRows).toHaveLength(1);
     expect(outcomeRows[0].outcomeKind).toBe("accepted");
@@ -299,16 +318,27 @@ describe("recordOutcome", () => {
       outputPayload: {},
       modelVersion: "heuristic-v1",
     });
-    await recordOutcome({ evalLedgerId: sug.ledgerId, outcomeKind: "accepted" });
-    await recordOutcome({ evalLedgerId: sug.ledgerId, outcomeKind: "outcome_realized", outcomePayload: { note: "restock" } });
+    await recordOutcome({
+      evalLedgerId: sug.ledgerId,
+      outcomeKind: "accepted",
+    });
+    await recordOutcome({
+      evalLedgerId: sug.ledgerId,
+      outcomeKind: "outcome_realized",
+      outcomePayload: { note: "restock" },
+    });
     expect(outcomeRows).toHaveLength(2);
     expect(outcomeRows[0].outcomeKind).toBe("accepted");
     expect(outcomeRows[1].outcomeKind).toBe("outcome_realized");
   });
 
   it("throws when DB unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
-    await expect(recordOutcome({ evalLedgerId: 1, outcomeKind: "accepted" })).rejects.toThrow("DB unavailable");
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
+    await expect(
+      recordOutcome({ evalLedgerId: 1, outcomeKind: "accepted" })
+    ).rejects.toThrow("DB unavailable");
   });
 });
 
@@ -329,14 +359,18 @@ function makeVerifyMock(rows: LedgerRow[]) {
 
 describe("verifyChain", () => {
   it("returns verified=false when DB unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await verifyChain();
     expect(result.verified).toBe(false);
     expect(result.firstBreakReason).toContain("db unavailable");
   });
 
   it("verifies genesis-only chain (no suggestions yet)", async () => {
-    mockGetDb.mockResolvedValue(makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await verifyChain();
     expect(result.verified).toBe(true);
     expect(result.lastSequenceNumber).toBe(0);
@@ -352,7 +386,9 @@ describe("verifyChain", () => {
       modelVersion: "heuristic-v1",
     });
     // The appended row has been computed by appendSuggestion — verify it chains correctly
-    mockGetDb.mockResolvedValue(makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await verifyChain();
     expect(result.verified).toBe(true);
     expect(result.lastSequenceNumber).toBe(r.sequenceNumber);
@@ -369,8 +405,11 @@ describe("verifyChain", () => {
       modelVersion: "heuristic-v1",
     });
     // Tamper with the appended row's hash
-    ledgerRows[1].rowHash = "tampered-0000000000000000000000000000000000000000000000000";
-    mockGetDb.mockResolvedValue(makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>);
+    ledgerRows[1].rowHash =
+      "tampered-0000000000000000000000000000000000000000000000000";
+    mockGetDb.mockResolvedValue(
+      makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await verifyChain();
     expect(result.verified).toBe(false);
     expect(result.firstBreakAt).toBeDefined();
@@ -386,15 +425,20 @@ describe("verifyChain", () => {
       modelVersion: "heuristic-v1",
     });
     // Break prevHash link
-    ledgerRows[1].prevHash = "broken-prev-hash-0000000000000000000000000000000000000000000";
-    mockGetDb.mockResolvedValue(makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>);
+    ledgerRows[1].prevHash =
+      "broken-prev-hash-0000000000000000000000000000000000000000000";
+    mockGetDb.mockResolvedValue(
+      makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await verifyChain();
     expect(result.verified).toBe(false);
     expect(result.firstBreakAt).toBe(1);
   });
 
   it("fromSequence/toSequence filters work (empty range returns verified=true rowsChecked=0)", async () => {
-    mockGetDb.mockResolvedValue(makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      makeVerifyMock(ledgerRows) as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await verifyChain({ fromSequence: 99, toSequence: 200 });
     expect(result.verified).toBe(true);
     expect(result.rowsChecked).toBe(0);
@@ -405,7 +449,9 @@ describe("verifyChain", () => {
 
 describe("getStats", () => {
   it("returns zero stats when DB unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const stats = await getStats();
     expect(stats.totalSuggestions).toBe(0);
     expect(stats.acceptanceRate).toBe(0);
@@ -427,27 +473,35 @@ describe("listSuggestions", () => {
   // For the empty-rows case, the outcomes query is never called (guarded by ledgerIds.length > 0).
 
   it("returns empty records and total=0 when DB is unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await listSuggestions();
     expect(result.records).toEqual([]);
     expect(result.total).toBe(0);
   });
 
   it("returns empty records when limit=0", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await listSuggestions({ limit: 0, offset: 0 });
     expect(Array.isArray(result.records)).toBe(true);
     expect(result.total).toBe(0);
   });
 
   it("suggestionKind filter accepted without error when DB unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await listSuggestions({ suggestionKind: "refill_risk" });
     expect(Array.isArray(result.records)).toBe(true);
   });
 
   it("scopeType filter accepted without error when DB unavailable", async () => {
-    mockGetDb.mockResolvedValue(null as unknown as Awaited<ReturnType<typeof getDb>>);
+    mockGetDb.mockResolvedValue(
+      null as unknown as Awaited<ReturnType<typeof getDb>>
+    );
     const result = await listSuggestions({ scopeType: "customer" });
     expect(result).toBeDefined();
   });

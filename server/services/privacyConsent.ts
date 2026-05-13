@@ -104,7 +104,7 @@ export class InMemoryPrivacyConsentStore {
   readonly records: PrivacyConsentRecord[] = [];
   readonly audits: Array<{ action: string; afterJson: unknown }> = [];
 
-  async append(record: PrivacyConsentRecord): Promise<PrivacyConsentRecord> {
+  append(record: PrivacyConsentRecord): Promise<PrivacyConsentRecord> {
     const now = new Date();
     const saved = {
       ...record,
@@ -113,35 +113,38 @@ export class InMemoryPrivacyConsentStore {
       updatedAt: now,
     };
     this.records.push(saved);
-    return saved;
+    return Promise.resolve(saved);
   }
 
-  async latest(
+  latest(
     subject: ConsentSubject,
     consentType: PrivacyConsentType
   ): Promise<PrivacyConsentRecord | null> {
-    return (
+    return Promise.resolve(
       this.records
         .filter(r => r.consentType === consentType && sameSubject(r, subject))
         .sort(newestFirst)[0] ?? null
     );
   }
 
-  async trail(
+  trail(
     subject: ConsentSubject,
     consentType?: PrivacyConsentType
   ): Promise<PrivacyConsentRecord[]> {
-    return this.records
-      .filter(
-        r =>
-          (!consentType || r.consentType === consentType) &&
-          sameSubject(r, subject)
-      )
-      .sort(newestFirst);
+    return Promise.resolve(
+      this.records
+        .filter(
+          r =>
+            (!consentType || r.consentType === consentType) &&
+            sameSubject(r, subject)
+        )
+        .sort(newestFirst)
+    );
   }
 
-  async audit(action: string, afterJson: unknown) {
+  audit(action: string, afterJson: unknown): Promise<void> {
     this.audits.push({ action, afterJson: redactSensitiveForLogs(afterJson) });
+    return Promise.resolve();
   }
 }
 
@@ -320,7 +323,7 @@ export async function getConsentAuditTrail(
 
 export function isReminderOrMarketingAllowed(
   status: PrivacyConsentStatus,
-  purpose:
+  _purpose:
     | "refill_reminder"
     | "dosage_reminder"
     | "whatsapp_marketing"
@@ -331,7 +334,7 @@ export function isReminderOrMarketingAllowed(
 
 export function isTransactionalNotificationAllowed(
   status: PrivacyConsentStatus,
-  channel: "whatsapp_transactional" | "sms_transactional"
+  _channel: "whatsapp_transactional" | "sms_transactional"
 ) {
   return status === "granted" || status === "pending";
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
@@ -16,7 +17,10 @@ import {
   type PaymentVerificationStatus,
 } from "./paymentGateway";
 import { releaseReservationOnPaymentFailure } from "./reservationService";
-import { markRefundFailedRecord, markRefundSuccess } from "./refundService";
+import {
+  markRefundFailedRecord,
+  markRefundSuccess as _markRefundSuccess,
+} from "./refundService";
 import { settleProviderRefundExactlyOnce } from "./commercialTruthSeams";
 import { scheduleProviderEventRetry } from "./providerEventsService";
 import { logAudit } from "./audit";

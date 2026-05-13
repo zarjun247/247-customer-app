@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { metricsTokenAuth } from "./metricsAuth";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeReq(authHeader?: string): any {
   return {
     headers: authHeader ? { authorization: authHeader } : {},
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeRes(): any {
   return {
     status: vi.fn().mockReturnThis(),

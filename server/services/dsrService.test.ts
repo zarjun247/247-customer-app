@@ -42,7 +42,7 @@ function makeUpdateChain() {
   return { update };
 }
 
-function makeOrderedSelectChain(rows: unknown[]) {
+function _makeOrderedSelectChain(rows: unknown[]) {
   const limit = vi.fn().mockResolvedValue(rows);
   const orderBy = vi.fn().mockReturnValue({ limit });
   const where = vi.fn().mockReturnValue({ orderBy, limit });
@@ -88,7 +88,7 @@ describe("createAccessRequest", () => {
         }),
       }),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const result = await createAccessRequest({ customerId: 1 });
     expect(result.requestId).toBeDefined();
@@ -96,7 +96,7 @@ describe("createAccessRequest", () => {
   });
 
   it("throws INTERNAL_SERVER_ERROR when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(createAccessRequest({ customerId: 1 })).rejects.toMatchObject({
       code: "INTERNAL_SERVER_ERROR",
     });
@@ -106,7 +106,7 @@ describe("createAccessRequest", () => {
 describe("createExportRequest", () => {
   it("returns a requestId for JSON export", async () => {
     const db = makeFullDb([{ id: 1 }]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await createExportRequest({
       customerId: 1,
       exportFormat: "json",
@@ -116,7 +116,7 @@ describe("createExportRequest", () => {
 
   it("returns a requestId for CSV export", async () => {
     const db = makeFullDb([]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await createExportRequest({
       customerId: 1,
       exportFormat: "csv",
@@ -128,7 +128,7 @@ describe("createExportRequest", () => {
 describe("createRectificationRequest", () => {
   it("creates pending rectification request", async () => {
     const db = makeFullDb();
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await createRectificationRequest({
       customerId: 2,
       fieldChanges: [
@@ -148,7 +148,7 @@ describe("createRectificationRequest", () => {
 describe("createErasureRequest", () => {
   it("returns requestId, confirmationToken, and confirmationExpiresAt", async () => {
     const db = makeFullDb();
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await createErasureRequest({ customerId: 3, scope: "all" });
     expect(r.requestId).toBeDefined();
     expect(r.confirmationToken).toBeDefined();
@@ -161,7 +161,7 @@ describe("createErasureRequest", () => {
 
   it("supports marketing_only scope", async () => {
     const db = makeFullDb();
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await createErasureRequest({
       customerId: 1,
       scope: "marketing_only",
@@ -196,7 +196,7 @@ describe("confirmErasureRequest", () => {
           fn({ select: txSelect, update: txUpdate })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await confirmErasureRequest({
       requestId: "req-1",
@@ -223,7 +223,7 @@ describe("confirmErasureRequest", () => {
           })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await expect(
       confirmErasureRequest({ requestId: "missing", confirmationToken: "x" })
@@ -254,7 +254,7 @@ describe("confirmErasureRequest", () => {
           })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await expect(
       confirmErasureRequest({ requestId: "req-2", confirmationToken: "tok" })
@@ -285,7 +285,7 @@ describe("confirmErasureRequest", () => {
           })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await expect(
       confirmErasureRequest({ requestId: "req-3", confirmationToken: "wrong" })
@@ -320,7 +320,7 @@ describe("confirmErasureRequest", () => {
           })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await expect(
       confirmErasureRequest({ requestId: "req-4", confirmationToken: "tok" })
@@ -341,7 +341,7 @@ describe("getConsentLog", () => {
       revokedAt: null,
     };
     const db = makeFullDb([consentRow]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await getConsentLog({ customerId: 10 });
     expect(r.requestId).toBeDefined();
@@ -353,7 +353,7 @@ describe("getConsentLog", () => {
 describe("createGrievanceRequest", () => {
   it("returns requestId and dpoEmail", async () => {
     const db = makeFullDb();
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await createGrievanceRequest({
       customerId: 5,
@@ -366,7 +366,7 @@ describe("createGrievanceRequest", () => {
   });
 
   it("throws INTERNAL_SERVER_ERROR when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(
       createGrievanceRequest({
         customerId: 1,
@@ -386,7 +386,7 @@ describe("getDsrStatus", () => {
       requestStatus: "completed",
     };
     const db = makeSelectChain([row]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await getDsrStatus({ requestId: "req-abc", customerId: 1 });
     expect(r.id).toBe("req-abc");
@@ -394,7 +394,7 @@ describe("getDsrStatus", () => {
 
   it("throws NOT_FOUND when request is missing", async () => {
     const db = makeSelectChain([]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await expect(
       getDsrStatus({ requestId: "missing", customerId: 1 })

@@ -96,7 +96,7 @@ describe("acquireLock", () => {
     mockSelect.mockReturnValue(makeSelectChain([liveLock]));
 
     await expect(acquireLock("stock:1:42", 150)).rejects.toThrow(
-      LockAcquisitionFailedError,
+      LockAcquisitionFailedError
     );
   });
 });
@@ -135,7 +135,7 @@ describe("withLock", () => {
     await expect(
       withLock("stock:1:42", async () => {
         throw new Error("fn error");
-      }),
+      })
     ).rejects.toThrow("fn error");
 
     expect(mockDelete).toHaveBeenCalledTimes(1);

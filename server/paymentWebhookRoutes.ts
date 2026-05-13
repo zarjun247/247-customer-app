@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { TRPCError } from "@trpc/server";
 import { handleRazorpayWebhook } from "./services/paymentWebhookLifecycle";
 import { redactSensitive } from "./_core/redact";
+import { emitSloEvent } from "./services/sloService";
 
 function rawBodyFromRequest(req: Request): Buffer | string | null {
   if (Buffer.isBuffer(req.body)) return req.body;
@@ -22,6 +23,8 @@ function statusForError(error: unknown) {
 export function registerPaymentWebhookRoutes(app: Express) {
   app.post("/api/webhooks/razorpay", (req: Request, res: Response) => {
     void (async () => {
+      const started = Date.now();
+      let withinBudget = false;
       try {
         const result = await handleRazorpayWebhook({
           rawBody: rawBodyFromRequest(req),
@@ -30,13 +33,12 @@ export function registerPaymentWebhookRoutes(app: Express) {
             req.header("x-webhook-signature") ??
             null,
         });
-        res
-          .status(200)
-          .json({
-            ok: result.ok,
-            status: result.status,
-            idempotent: result.idempotent === true,
-          });
+        withinBudget = Date.now() - started <= 30_000;
+        res.status(200).json({
+          ok: result.ok,
+          status: result.status,
+          idempotent: result.idempotent === true,
+        });
       } catch (error) {
         console.warn(
           "payment_webhook_rejected",
@@ -47,6 +49,15 @@ export function registerPaymentWebhookRoutes(app: Express) {
         res
           .status(statusForError(error))
           .json({ ok: false, error: "payment_webhook_rejected" });
+      } finally {
+        void emitSloEvent({
+          sloName: "payment.captureWebhook.latency",
+          target: 0.99,
+          measuredValue: Date.now() - started,
+          withinBudget,
+          sampleCount: 1,
+          windowSeconds: 60,
+        });
       }
     })();
   });

@@ -20,7 +20,7 @@ type StockRow = { productId: number; stockQty: number; softLockedQty: number };
 
 // Demand query chain: .select().from().innerJoin().where().groupBy()
 function makeDemandDb(demandRows: DemandRow[], stockRows: StockRow[] = []) {
-  const callCount = 0;
+  // callCount was unused
   return {
     select: () => ({
       from: () => ({

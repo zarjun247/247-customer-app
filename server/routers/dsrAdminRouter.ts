@@ -2,10 +2,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import * as dsrService from "../services/dsrService";
 import { listNoticesForKind } from "../services/consentNoticeRegistry";
-import {
-  getActiveFamilyConsent,
-  revokeFamilyConsent,
-} from "../services/familyConsentService";
+import { revokeFamilyConsent } from "../services/familyConsentService";
 import { getDb } from "../db";
 import { familyConsent } from "../../drizzle/schema";
 import { desc } from "drizzle-orm";

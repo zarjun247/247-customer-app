@@ -89,7 +89,7 @@ async function runCommand<T>(
     idempotencyKey?: string;
     input?: unknown;
     sloName?: string;
-  },
+  }
 ) {
   const { executeCommand } = await import("./executeCommand");
   return executeCommand({
@@ -115,7 +115,9 @@ describe("executeCommand", () => {
     mockSelect.mockReturnValue(makeSelectChain([]));
     mockInsert.mockReturnValue(makeInsertChain());
     mockUpdate.mockReturnValue(makeUpdateChain());
-    mockTransaction.mockImplementation(async (fn: any) => fn(mockDb));
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn(mockDb)
+    );
 
     const output = { ok: true, saleId: "s1" };
     const result = await runCommand(async () => ({ output, sideEffects: [] }));
@@ -140,7 +142,7 @@ describe("executeCommand", () => {
           startedAt: new Date(),
           errorMessage: null,
         },
-      ]),
+      ])
     );
 
     const handlerSpy = vi.fn();
@@ -173,11 +175,11 @@ describe("executeCommand", () => {
           startedAt: new Date(),
           errorMessage: null,
         },
-      ]),
+      ])
     );
 
     await expect(
-      runCommand(async () => ({ output: {}, sideEffects: [] })),
+      runCommand(async () => ({ output: {}, sideEffects: [] }))
     ).rejects.toThrow(IdempotencyMismatchError);
   });
 
@@ -193,11 +195,11 @@ describe("executeCommand", () => {
           startedAt: new Date(),
           errorMessage: null,
         },
-      ]),
+      ])
     );
 
     await expect(
-      runCommand(async () => ({ output: {}, sideEffects: [] }), { input }),
+      runCommand(async () => ({ output: {}, sideEffects: [] }), { input })
     ).rejects.toThrow(CommandInFlightError);
   });
 
@@ -213,11 +215,11 @@ describe("executeCommand", () => {
           startedAt: new Date(),
           errorMessage: "Stock insufficient",
         },
-      ]),
+      ])
     );
 
     await expect(
-      runCommand(async () => ({ output: {}, sideEffects: [] }), { input }),
+      runCommand(async () => ({ output: {}, sideEffects: [] }), { input })
     ).rejects.toThrow(CommandPriorFailureError);
   });
 
@@ -231,7 +233,7 @@ describe("executeCommand", () => {
     });
 
     await expect(
-      runCommand(async () => ({ output: {}, sideEffects: [] })),
+      runCommand(async () => ({ output: {}, sideEffects: [] }))
     ).rejects.toThrow("Stock error");
 
     // update should have been called to mark the command as failed
@@ -249,7 +251,7 @@ describe("executeCommand", () => {
     });
 
     await expect(
-      runCommand(async () => ({ output: {}, sideEffects: [] })),
+      runCommand(async () => ({ output: {}, sideEffects: [] }))
     ).rejects.toThrow("handler exploded mid-transaction");
 
     // Should have attempted to mark as failed via update (outside tx)
@@ -263,18 +265,19 @@ describe("executeCommand", () => {
     mockUpdate.mockReturnValue(makeUpdateChain());
 
     const txInsertKinds: string[] = [];
-    let txCompletionSet: any = null;
+    let txCompletionSet: unknown = null;
 
-    mockTransaction.mockImplementation(async (fn: any) => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const fakeTx = {
         insert: vi.fn().mockImplementation(() => ({
-          values: vi.fn().mockImplementation((v: any) => {
-            if (v.sideEffectKind) txInsertKinds.push(v.sideEffectKind);
+          values: vi.fn().mockImplementation((v: Record<string, unknown>) => {
+            if (v.sideEffectKind)
+              txInsertKinds.push(v.sideEffectKind as string);
             return Promise.resolve([{}]);
           }),
         })),
         update: vi.fn().mockImplementation(() => ({
-          set: vi.fn().mockImplementation((s: any) => {
+          set: vi.fn().mockImplementation((s: unknown) => {
             txCompletionSet = s;
             return { where: vi.fn().mockResolvedValue([{}]) };
           }),
@@ -285,7 +288,9 @@ describe("executeCommand", () => {
 
     await runCommand(async () => ({
       output: { ok: true },
-      sideEffects: [{ kind: "whatsapp.sale-confirmation", payload: { saleId: "s1" } }],
+      sideEffects: [
+        { kind: "whatsapp.sale-confirmation", payload: { saleId: "s1" } },
+      ],
     }));
 
     expect(txInsertKinds).toContain("whatsapp.sale-confirmation");
@@ -297,20 +302,21 @@ describe("executeCommand", () => {
     mockSelect.mockReturnValue(makeSelectChain([]));
     mockInsert.mockReturnValue(makeInsertChain());
     mockUpdate.mockReturnValue(makeUpdateChain());
-    mockTransaction.mockImplementation(async (fn: any) => fn(mockDb));
-
-    await runCommand(
-      async () => ({ output: {}, sideEffects: [] }),
-      { sloName: "trpc.sale.confirm.p99" },
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn(mockDb)
     );
 
+    await runCommand(async () => ({ output: {}, sideEffects: [] }), {
+      sloName: "trpc.sale.confirm.p99",
+    });
+
     // emitSloEvent is fire-and-forget, wait for it
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     expect(mockEmitSloEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         sloName: "trpc.sale.confirm.p99",
         withinBudget: true,
-      }),
+      })
     );
   });
 
@@ -324,18 +330,17 @@ describe("executeCommand", () => {
     });
 
     await expect(
-      runCommand(
-        async () => ({ output: {}, sideEffects: [] }),
-        { sloName: "trpc.sale.confirm.p99" },
-      ),
+      runCommand(async () => ({ output: {}, sideEffects: [] }), {
+        sloName: "trpc.sale.confirm.p99",
+      })
     ).rejects.toThrow();
 
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     expect(mockEmitSloEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         sloName: "trpc.sale.confirm.p99",
         withinBudget: false,
-      }),
+      })
     );
   });
 
@@ -365,7 +370,7 @@ describe("executeCommand", () => {
           startedAt: new Date(),
           errorMessage: null,
         },
-      ]),
+      ])
     );
 
     const { executeCommand } = await import("./executeCommand");
@@ -377,7 +382,7 @@ describe("executeCommand", () => {
         input,
         context: baseCtx,
         handler: async () => ({ output: {}, sideEffects: [] }),
-      }),
+      })
     ).rejects.toThrow(CommandInFlightError);
   });
 
@@ -386,12 +391,12 @@ describe("executeCommand", () => {
     mockSelect.mockReturnValue(makeSelectChain([]));
     mockInsert.mockReturnValue(makeInsertChain());
 
-    let capturedCompletionSet: any = null;
-    mockTransaction.mockImplementation(async (fn: any) => {
+    let capturedCompletionSet: unknown = null;
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const fakeTx = {
         insert: vi.fn().mockResolvedValue([{}]),
         update: vi.fn().mockImplementation(() => ({
-          set: vi.fn().mockImplementation((s: any) => {
+          set: vi.fn().mockImplementation((s: unknown) => {
             capturedCompletionSet = s;
             return { where: vi.fn().mockResolvedValue([{}]) };
           }),
@@ -411,15 +416,17 @@ describe("executeCommand", () => {
   it("trace ID from context is stored in command_log insert", async () => {
     mockSelect.mockReturnValue(makeSelectChain([]));
 
-    const insertedValues: any[] = [];
+    const insertedValues: unknown[] = [];
     mockInsert.mockImplementation(() => ({
-      values: vi.fn().mockImplementation((v: any) => {
+      values: vi.fn().mockImplementation((v: unknown) => {
         insertedValues.push(v);
         return Promise.resolve([{}]);
       }),
     }));
     mockUpdate.mockReturnValue(makeUpdateChain());
-    mockTransaction.mockImplementation(async (fn: any) => fn(mockDb));
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn(mockDb)
+    );
 
     const { executeCommand } = await import("./executeCommand");
     await executeCommand({
@@ -431,7 +438,9 @@ describe("executeCommand", () => {
       handler: async () => ({ output: { ok: true }, sideEffects: [] }),
     });
 
-    const logRow = insertedValues.find((v: any) => v.traceId !== undefined);
+    const logRow = insertedValues.find(
+      v => (v as Record<string, unknown>).traceId !== undefined
+    ) as Record<string, unknown> | undefined;
     expect(logRow?.traceId).toBe("trace-xyz-999");
   });
 });

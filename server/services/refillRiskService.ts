@@ -20,13 +20,20 @@ export type CustomerRefillRisk = {
   schedule: string | null;
 };
 
-const RISK_ORDER: Record<RiskLevel, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+const RISK_ORDER: Record<RiskLevel, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 function computeAverageInterval(sorted: Date[]): number {
   if (sorted.length < 2) return 0;
   const gaps: number[] = [];
   for (let i = 1; i < sorted.length; i++) {
-    gaps.push((sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24));
+    gaps.push(
+      (sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24)
+    );
   }
   return gaps.reduce((s, g) => s + g, 0) / gaps.length;
 }
@@ -35,7 +42,7 @@ function computeRisk(
   purchaseCount: number,
   averageIntervalDays: number,
   daysSinceLast: number,
-  schedule: string | null,
+  schedule: string | null
 ): { riskLevel: RiskLevel; riskScore: number; daysUntilRefillDue: number } {
   if (purchaseCount < 2 || averageIntervalDays <= 0) {
     return { riskLevel: "low", riskScore: 0.1, daysUntilRefillDue: -1 };
@@ -66,18 +73,23 @@ function computeRisk(
 function buildRiskEntry(
   customerId: string,
   productId: string,
-  purchases: Array<{ purchasedAt: Date; schedule: string | null }>,
+  purchases: Array<{ purchasedAt: Date; schedule: string | null }>
 ): CustomerRefillRisk {
-  const sorted = [...purchases].sort((a, b) => a.purchasedAt.getTime() - b.purchasedAt.getTime());
+  const sorted = [...purchases].sort(
+    (a, b) => a.purchasedAt.getTime() - b.purchasedAt.getTime()
+  );
   const lastPurchase = sorted[sorted.length - 1];
-  const daysSinceLast = (Date.now() - lastPurchase.purchasedAt.getTime()) / (1000 * 60 * 60 * 24);
-  const averageIntervalDays = computeAverageInterval(sorted.map((p) => p.purchasedAt));
+  const daysSinceLast =
+    (Date.now() - lastPurchase.purchasedAt.getTime()) / (1000 * 60 * 60 * 24);
+  const averageIntervalDays = computeAverageInterval(
+    sorted.map(p => p.purchasedAt)
+  );
   const schedule = purchases[0].schedule;
   const { riskLevel, riskScore, daysUntilRefillDue } = computeRisk(
     sorted.length,
     averageIntervalDays,
     daysSinceLast,
-    schedule,
+    schedule
   );
   return {
     customerId,
@@ -95,12 +107,12 @@ function buildRiskEntry(
 function applyFiltersAndLimit(
   results: CustomerRefillRisk[],
   minRiskLevel: RiskLevel | undefined,
-  limit: number,
+  limit: number
 ): CustomerRefillRisk[] {
   let filtered = results;
   if (minRiskLevel) {
     const minOrder = RISK_ORDER[minRiskLevel];
-    filtered = results.filter((r) => RISK_ORDER[r.riskLevel] >= minOrder);
+    filtered = results.filter(r => RISK_ORDER[r.riskLevel] >= minOrder);
   }
   filtered.sort((a, b) => b.riskScore - a.riskScore);
   return filtered.slice(0, limit);
@@ -108,7 +120,11 @@ function applyFiltersAndLimit(
 
 export async function getCustomerRefillRisks(
   customerId: string,
-  options?: { lookbackDays?: number; maxProducts?: number; minRiskLevel?: RiskLevel },
+  options?: {
+    lookbackDays?: number;
+    maxProducts?: number;
+    minRiskLevel?: RiskLevel;
+  }
 ): Promise<CustomerRefillRisk[]> {
   const lookbackDays = options?.lookbackDays ?? ENV.refillRiskLookbackDays;
   const maxProducts = options?.maxProducts ?? 50;
@@ -132,17 +148,23 @@ export async function getCustomerRefillRisks(
       and(
         eq(sales.customerId, customerId),
         eq(sales.status, "confirmed"),
-        gte(sales.createdAt, since.getTime()),
-      ),
+        gte(sales.createdAt, since.getTime())
+      )
     )
     .orderBy(desc(sales.createdAt));
 
   if (rows.length === 0) return [];
 
-  const byProduct = new Map<string, Array<{ purchasedAt: Date; schedule: string | null }>>();
+  const byProduct = new Map<
+    string,
+    Array<{ purchasedAt: Date; schedule: string | null }>
+  >();
   for (const row of rows) {
     const existing = byProduct.get(row.productId) ?? [];
-    existing.push({ purchasedAt: new Date(Number(row.createdAt)), schedule: row.schedule });
+    existing.push({
+      purchasedAt: new Date(Number(row.createdAt)),
+      schedule: row.schedule,
+    });
     byProduct.set(row.productId, existing);
   }
 
@@ -156,7 +178,7 @@ export async function getCustomerRefillRisks(
 
 export async function getStoreRefillAlerts(
   storeId: string,
-  options?: { lookbackDays?: number; minRiskLevel?: RiskLevel; limit?: number },
+  options?: { lookbackDays?: number; minRiskLevel?: RiskLevel; limit?: number }
 ): Promise<CustomerRefillRisk[]> {
   const lookbackDays = options?.lookbackDays ?? ENV.refillRiskLookbackDays;
   const limit = options?.limit ?? 100;
@@ -178,17 +200,23 @@ export async function getStoreRefillAlerts(
       and(
         eq(sales.storeId, storeId),
         eq(sales.status, "confirmed"),
-        gte(sales.createdAt, since.getTime()),
-      ),
+        gte(sales.createdAt, since.getTime())
+      )
     );
 
-  const customerRows = rows.filter((r) => r.customerId != null);
+  const customerRows = rows.filter(r => r.customerId != null);
 
-  const byKey = new Map<string, Array<{ purchasedAt: Date; schedule: string | null }>>();
+  const byKey = new Map<
+    string,
+    Array<{ purchasedAt: Date; schedule: string | null }>
+  >();
   for (const row of customerRows) {
     const key = `${row.customerId}::${row.productId}`;
     const existing = byKey.get(key) ?? [];
-    existing.push({ purchasedAt: new Date(Number(row.createdAt)), schedule: row.schedule });
+    existing.push({
+      purchasedAt: new Date(Number(row.createdAt)),
+      schedule: row.schedule,
+    });
     byKey.set(key, existing);
   }
 

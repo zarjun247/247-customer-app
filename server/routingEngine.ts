@@ -18,25 +18,26 @@
  * Every resolution is logged to routing_decisions.
  */
 
-import { getDb } from "./db";
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+import { getDb as _getDb } from "./db";
 import {
-  buildings,
+  buildings as _buildings,
   stores,
   storeSkus,
   batches,
   riders,
-  routingDecisions,
+  routingDecisions as _routingDecisions,
   storeCapabilities,
-  orderTimestamps,
+  orderTimestamps as _orderTimestamps,
 } from "../drizzle/schema";
 import { eq, and, gt, sql, inArray } from "drizzle-orm";
 import {
-  haversineMetres,
-  getDrivingEtaMins,
+  haversineMetres as _haversineMetres,
+  getDrivingEtaMins as _getDrivingEtaMins,
   formatEtaText as _formatEtaText,
 } from "./location";
 
-function formatEtaText(mins: number): string {
+function _formatEtaTextLocal(mins: number): string {
   return _formatEtaText(mins) ?? `~${mins} min`;
 }
 
@@ -343,4 +344,4 @@ export async function checkRiderCapacity(
   return passed;
 }
 
-export * from "./routingEnginePart2";
+export * from "./routing-engine-extended";

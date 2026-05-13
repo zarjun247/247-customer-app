@@ -15,13 +15,13 @@ export const availabilityRouter = router({
         productId: z.number().int().positive(),
         storeId: z.number().int().positive(),
         variantId: z.number().int().positive().optional().nullable(),
-      }),
+      })
     )
     .query(async ({ input }) => {
       return getCanonicalAvailability(
         input.productId,
         input.storeId,
-        input.variantId,
+        input.variantId
       );
     }),
 
@@ -35,11 +35,11 @@ export const availabilityRouter = router({
               productId: z.number().int().positive(),
               storeId: z.number().int().positive(),
               variantId: z.number().int().positive().optional().nullable(),
-            }),
+            })
           )
           .min(1)
           .max(MAX_MULTI_QUERY),
-      }),
+      })
     )
     .query(async ({ input }) => {
       return getMultiProductAvailability(input.items);

@@ -16,12 +16,13 @@
 import { z } from "zod";
 import { router, protectedProcedure, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { inventoryRouterExtension } from "./inventoryRouterExtension";
+import { inventoryRouterExtension } from "./inventoryOpsRouter";
 import {
   isAdmin,
   isSuperAdmin,
   requireStaffStore,
   requireStoreAccess,
+  type AccessUser,
 } from "../_core/rbac";
 import { logAudit } from "../services/audit";
 import {
@@ -31,8 +32,9 @@ import {
   releaseQuarantine,
   createBatchWithOpeningStock,
 } from "../services/stockInvariant";
-import { eq, and, or, lte, gt, sql, desc, asc } from "drizzle-orm";
+import { eq, and, lte, gt, sql, desc, asc } from "drizzle-orm";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
+import { emitSloEvent } from "../services/sloService";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 
@@ -83,7 +85,7 @@ function assertManagerRole(role: string | null | undefined) {
 }
 
 function requireStoreScopedFilter(
-  user: any,
+  user: AccessUser | null | undefined,
   requestedStoreId?: number
 ): number | undefined {
   if (requestedStoreId !== undefined) {
@@ -94,8 +96,8 @@ function requireStoreScopedFilter(
   return requireStaffStore(user);
 }
 
-function requireTransferEndpointAccess(
-  user: any,
+function _requireTransferEndpointAccess(
+  user: AccessUser | null | undefined,
   transfer: { fromStoreId: number; toStoreId: number },
   endpoint: "initiate" | "receive" | "read"
 ): void {
@@ -167,8 +169,12 @@ const batchRouter = router({
       assertInventoryRole(ctx.user.role);
       const visibleStoreId = requireStoreScopedFilter(ctx.user, input.storeId);
       const db = await getDb();
-      const { batchLedger, stockReservations, products, stores } =
-        await schema();
+      const {
+        batchLedger,
+        stockReservations: _stockReservations,
+        products,
+        stores,
+      } = await schema();
       const offset = (input.page - 1) * input.pageSize;
       const conds: ReturnType<typeof eq>[] = [];
       if (visibleStoreId) conds.push(eq(batchLedger.storeId, visibleStoreId));
@@ -230,12 +236,9 @@ const batchRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
-      const db = await getDb();
-      const { batchLedger } = await schema();
+      requireStoreAccess(ctx.user, input.storeId);
       const bucket = computeExpiryBucket(input.expiryDate);
-      const { batchId } = await createBatchWithOpeningStock({
+      const createResult = await createBatchWithOpeningStock({
         batch: {
           ...input,
           qtyOnHand: 0,
@@ -251,6 +254,7 @@ const batchRouter = router({
           source: "admin",
         },
       });
+      const batchId = createResult.batchId as number;
       try {
         await logAudit({
           actorId: ctx.user.id,
@@ -352,7 +356,7 @@ const batchRouter = router({
         },
         productId: batch.productId,
       });
-      const newOnHand = movement.qtyAfter;
+      const newOnHand = movement.qtyAfter as number;
       const newQuarantined = batch.qtyQuarantined + input.qty;
       await db
         .update(batchLedger)
@@ -524,8 +528,8 @@ const batchRouter = router({
     .input(z.object({ storeId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { batchLedger } = await schema();
       const conds = input.storeId
@@ -572,8 +576,8 @@ const stockRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { batchLedger, stockReservations, products, stores } =
         await schema();
@@ -627,8 +631,8 @@ const stockRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { stockMovements, batchLedger, products, stores } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -636,7 +640,24 @@ const stockRouter = router({
       if (input.storeId) conds.push(eq(stockMovements.storeId, input.storeId));
       if (input.batchId) conds.push(eq(stockMovements.batchId, input.batchId));
       if (input.movementType)
-        conds.push(eq(stockMovements.movementType, input.movementType as any));
+        conds.push(
+          eq(
+            stockMovements.movementType,
+            input.movementType as
+              | "quarantine"
+              | "purchase_inward"
+              | "sale_reserve"
+              | "sale_fulfil"
+              | "cancellation_release"
+              | "sale_return"
+              | "purchase_return"
+              | "stock_adjustment"
+              | "stock_transfer"
+              | "batch_transfer"
+              | "disposal"
+              | "audit_correction"
+          )
+        );
       if (input.productId)
         conds.push(eq(batchLedger.productId, input.productId));
 
@@ -670,8 +691,8 @@ const stockRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { batchLedger, products, stores } = await schema();
       const cutoff = new Date();
@@ -719,8 +740,8 @@ const stockRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { batchLedger } = await schema();
       const batches = await db
@@ -780,8 +801,8 @@ const adjustmentRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { stockAdjustments, batchLedger } = await schema();
       const offset = (input.page - 1) * input.pageSize;
@@ -864,63 +885,81 @@ const adjustmentRouter = router({
   approve: capabilityProcedure("inventory.adjust")
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      assertManagerRole(ctx.user.role);
-      const db = await getDb();
-      const { stockAdjustments, batchLedger } = await schema();
-      const [adj] = await db
-        .select()
-        .from(stockAdjustments)
-        .where(eq(stockAdjustments.id, input.id));
-      if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
-      await requireStoreAccessForEntity("batch", adj.batchId, ctx);
-      if (adj.status !== "pending_approval")
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Adjustment is not pending",
-        });
-      const [batch] = await db
-        .select()
-        .from(batchLedger)
-        .where(eq(batchLedger.id, adj.batchId));
-      if (!batch)
-        throw new TRPCError({ code: "NOT_FOUND", message: "Batch not found" });
-      const qtyChange = adj.adjustmentType === "increase" ? adj.qty : -adj.qty;
-      const movement = await adjustStock({
-        batchId: adj.batchId,
-        storeId: adj.storeId,
-        qtyDelta: qtyChange,
-        adjustmentType: adj.adjustmentType,
-        referenceType: "stock_adjustment",
-        referenceId: input.id,
-        reason: adj.reason,
-        actor: {
-          actorId: ctx.user.id,
-          actorRole: ctx.user.role,
-          source: "admin",
-        },
-        productId: batch.productId,
-      });
-      await db
-        .update(stockAdjustments)
-        .set({
-          status: "approved",
-          approvedBy: ctx.user.id,
-          approvedAt: new Date(),
-        })
-        .where(eq(stockAdjustments.id, input.id));
+      const started = Date.now();
+      let withinBudget = false;
       try {
-        await logAudit({
-          actorId: ctx.user.id,
-          entityType: "stock_adjustment",
-          entityId: input.id,
-          action: "inventory.approve",
-          reason: `Qty changed from ${movement.qtyBefore} to ${movement.qtyAfter}`,
-          source: "admin",
+        assertManagerRole(ctx.user.role);
+        const db = await getDb();
+        const { stockAdjustments, batchLedger } = await schema();
+        const [adj] = await db
+          .select()
+          .from(stockAdjustments)
+          .where(eq(stockAdjustments.id, input.id));
+        if (!adj) throw new TRPCError({ code: "NOT_FOUND" });
+        await requireStoreAccessForEntity("batch", adj.batchId, ctx);
+        if (adj.status !== "pending_approval")
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Adjustment is not pending",
+          });
+        const [batch] = await db
+          .select()
+          .from(batchLedger)
+          .where(eq(batchLedger.id, adj.batchId));
+        if (!batch)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Batch not found",
+          });
+        const qtyChange =
+          adj.adjustmentType === "increase" ? adj.qty : -adj.qty;
+        const movement = await adjustStock({
+          batchId: adj.batchId,
+          storeId: adj.storeId,
+          qtyDelta: qtyChange,
+          adjustmentType: adj.adjustmentType,
+          referenceType: "stock_adjustment",
+          referenceId: input.id,
+          reason: adj.reason,
+          actor: {
+            actorId: ctx.user.id,
+            actorRole: ctx.user.role,
+            source: "admin",
+          },
+          productId: batch.productId,
         });
-      } catch {
-        /* non-critical */
+        await db
+          .update(stockAdjustments)
+          .set({
+            status: "approved",
+            approvedBy: ctx.user.id,
+            approvedAt: new Date(),
+          })
+          .where(eq(stockAdjustments.id, input.id));
+        try {
+          await logAudit({
+            actorId: ctx.user.id,
+            entityType: "stock_adjustment",
+            entityId: input.id,
+            action: "inventory.approve",
+            reason: `Qty changed from ${movement.qtyBefore} to ${movement.qtyAfter}`,
+            source: "admin",
+          });
+        } catch {
+          /* non-critical */
+        }
+        withinBudget = Date.now() - started <= 200;
+        return { ok: true };
+      } finally {
+        void emitSloEvent({
+          sloName: "inventory.adjust.latency",
+          target: 0.95,
+          measuredValue: Date.now() - started,
+          withinBudget,
+          sampleCount: 1,
+          windowSeconds: 60,
+        });
       }
-      return { ok: true };
     }),
 
   reject: capabilityProcedure("inventory.adjust")
@@ -964,7 +1003,7 @@ const adjustmentRouter = router({
     }),
 });
 
-// ─── transfer, audit, quarantine, expiryActions: see inventoryRouterExtension.ts ──────────
+// ─── transfer, audit, quarantine, expiryActions: see inventoryOpsRouter.ts ───────────────────
 
 // ─── Combined Inventory Router ────────────────────────────────────────────────
 

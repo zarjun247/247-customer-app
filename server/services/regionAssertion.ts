@@ -87,6 +87,7 @@ async function assertS3Region(requiredRegion: string): Promise<void> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await
 async function assertDbRegion(requiredRegion: string): Promise<void> {
   const dbUrl = (process.env.DATABASE_URL ?? "").trim();
   if (!dbUrl) return;

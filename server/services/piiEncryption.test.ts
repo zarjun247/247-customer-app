@@ -27,7 +27,9 @@ function buildMockDb() {
         where: () => ({
           orderBy: () => ({
             limit: (n: number) => {
-              const active = keyStore.filter((k) => k.retiredAt === null).sort((a, b) => b.keyVersion - a.keyVersion);
+              const active = keyStore
+                .filter(k => k.retiredAt === null)
+                .sort((a, b) => b.keyVersion - a.keyVersion);
               return Promise.resolve(active.slice(0, n));
             },
           }),
@@ -39,7 +41,9 @@ function buildMockDb() {
       }),
     }),
     insert: () => ({
-      values: (row: Omit<KeyRow, "wrappedDataKey"> & { wrappedDataKey: string }) => {
+      values: (
+        row: Omit<KeyRow, "wrappedDataKey"> & { wrappedDataKey: string }
+      ) => {
         keyStore.push({ ...row, wrappedDataKey: row.wrappedDataKey });
         return Promise.resolve();
       },
@@ -48,7 +52,7 @@ function buildMockDb() {
       set: (updates: Partial<KeyRow>) => ({
         where: () => {
           if (updates.retiredAt) {
-            const target = keyStore.find((k) => k.retiredAt === null);
+            const target = keyStore.find(k => k.retiredAt === null);
             if (target) target.retiredAt = updates.retiredAt!;
           }
           return Promise.resolve();
@@ -58,7 +62,9 @@ function buildMockDb() {
   };
 }
 
-vi.mock("../db", () => ({ getDb: vi.fn(() => Promise.resolve(buildMockDb())) }));
+vi.mock("../db", () => ({
+  getDb: vi.fn(() => Promise.resolve(buildMockDb())),
+}));
 
 import { getMasterKey } from "./piiEncryption";
 import { getDb } from "../db";
@@ -77,7 +83,9 @@ function clearMasterKey(): void {
 
 beforeEach(() => {
   keyStore = [];
-  vi.mocked(getDb).mockImplementation(() => Promise.resolve(buildMockDb() as any));
+  vi.mocked(getDb).mockImplementation(() =>
+    Promise.resolve(buildMockDb() as unknown)
+  );
   clearMasterKey();
   process.env.NODE_ENV = "test";
 });
@@ -168,8 +176,12 @@ describe("passthrough mode", () => {
   it("encrypt without master key in production throws MasterKeyNotConfiguredError", async () => {
     clearMasterKey();
     process.env.NODE_ENV = "production";
-    const { encrypt, MasterKeyNotConfiguredError } = await import("./piiEncryption");
-    await expect(encrypt("hello", "customer.phone")).rejects.toBeInstanceOf(MasterKeyNotConfiguredError);
+    const { encrypt, MasterKeyNotConfiguredError } = await import(
+      "./piiEncryption"
+    );
+    await expect(encrypt("hello", "customer.phone")).rejects.toBeInstanceOf(
+      MasterKeyNotConfiguredError
+    );
   });
 });
 
@@ -178,25 +190,33 @@ describe("passthrough mode", () => {
 describe("error cases", () => {
   it("decrypt of tampered ciphertext (bad auth tag) throws DecryptionFailedError", async () => {
     setMasterKey(validMasterKey);
-    const { encrypt, decrypt, DecryptionFailedError } = await import("./piiEncryption");
+    const { encrypt, decrypt, DecryptionFailedError } = await import(
+      "./piiEncryption"
+    );
     const ct = await encrypt("secret", "customer.phone");
     const parts = ct.split(":");
     // Tamper the auth tag (index 4)
     parts[4] = Buffer.from("tampered-auth-tag").toString("base64");
     const tampered = parts.join(":");
-    await expect(decrypt(tampered, "customer.phone")).rejects.toBeInstanceOf(DecryptionFailedError);
+    await expect(decrypt(tampered, "customer.phone")).rejects.toBeInstanceOf(
+      DecryptionFailedError
+    );
   });
 
   it("decrypt with malformed format (too few parts) throws DecryptionFailedError", async () => {
     setMasterKey(validMasterKey);
     const { decrypt, DecryptionFailedError } = await import("./piiEncryption");
-    await expect(decrypt("v1:1:badformat", "customer.phone")).rejects.toBeInstanceOf(DecryptionFailedError);
+    await expect(
+      decrypt("v1:1:badformat", "customer.phone")
+    ).rejects.toBeInstanceOf(DecryptionFailedError);
   });
 
   it("decrypt with invalid key version throws DecryptionFailedError", async () => {
     setMasterKey(validMasterKey);
     const { decrypt, DecryptionFailedError } = await import("./piiEncryption");
-    await expect(decrypt("v1:notanumber:abc:abc:abc", "customer.phone")).rejects.toBeInstanceOf(DecryptionFailedError);
+    await expect(
+      decrypt("v1:notanumber:abc:abc:abc", "customer.phone")
+    ).rejects.toBeInstanceOf(DecryptionFailedError);
   });
 });
 
@@ -207,58 +227,78 @@ describe("scope isolation", () => {
     setMasterKey(validMasterKey);
     const insertedRows: Array<{ scope: string; keyVersion: number }> = [];
 
-    vi.mocked(getDb).mockImplementation(async () => ({
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            orderBy: () => ({ limit: () => Promise.resolve([]) }), // no existing keys
-            limit: () => Promise.resolve([]),
+    vi.mocked(getDb).mockImplementation(
+      async () =>
+        ({
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                orderBy: () => ({ limit: () => Promise.resolve([]) }), // no existing keys
+                limit: () => Promise.resolve([]),
+              }),
+              orderBy: () => ({ limit: () => Promise.resolve([]) }),
+            }),
           }),
-          orderBy: () => ({ limit: () => Promise.resolve([]) }),
-        }),
-      }),
-      insert: () => ({
-        values: (row: KeyRow) => {
-          insertedRows.push({ scope: row.scope, keyVersion: row.keyVersion });
-          return Promise.resolve();
-        },
-      }),
-    } as any));
+          insert: () => ({
+            values: (row: KeyRow) => {
+              insertedRows.push({
+                scope: row.scope,
+                keyVersion: row.keyVersion,
+              });
+              return Promise.resolve();
+            },
+          }),
+        }) as unknown
+    );
 
     const { encrypt } = await import("./piiEncryption");
     await encrypt("phone1", "customer.phone");
     await encrypt("email1", "customer.email");
-    expect(insertedRows.filter((r) => r.scope === "customer.phone").length).toBe(1);
-    expect(insertedRows.filter((r) => r.scope === "customer.email").length).toBe(1);
+    expect(insertedRows.filter(r => r.scope === "customer.phone").length).toBe(
+      1
+    );
+    expect(insertedRows.filter(r => r.scope === "customer.email").length).toBe(
+      1
+    );
   });
 
   it("each scope receives keyVersion=1 on first use (scopes are independent)", async () => {
     setMasterKey(validMasterKey);
     const insertedRows: Array<{ scope: string; keyVersion: number }> = [];
 
-    vi.mocked(getDb).mockImplementation(async () => ({
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            orderBy: () => ({ limit: () => Promise.resolve([]) }),
-            limit: () => Promise.resolve([]),
+    vi.mocked(getDb).mockImplementation(
+      async () =>
+        ({
+          select: () => ({
+            from: () => ({
+              where: () => ({
+                orderBy: () => ({ limit: () => Promise.resolve([]) }),
+                limit: () => Promise.resolve([]),
+              }),
+              orderBy: () => ({ limit: () => Promise.resolve([]) }),
+            }),
           }),
-          orderBy: () => ({ limit: () => Promise.resolve([]) }),
-        }),
-      }),
-      insert: () => ({
-        values: (row: KeyRow) => {
-          insertedRows.push({ scope: row.scope, keyVersion: row.keyVersion });
-          return Promise.resolve();
-        },
-      }),
-    } as any));
+          insert: () => ({
+            values: (row: KeyRow) => {
+              insertedRows.push({
+                scope: row.scope,
+                keyVersion: row.keyVersion,
+              });
+              return Promise.resolve();
+            },
+          }),
+        }) as unknown
+    );
 
     const { encrypt } = await import("./piiEncryption");
     await encrypt("a", "customer.phone");
     await encrypt("b", "customer.email");
-    expect(insertedRows.find((r) => r.scope === "customer.phone")?.keyVersion).toBe(1);
-    expect(insertedRows.find((r) => r.scope === "customer.email")?.keyVersion).toBe(1);
+    expect(
+      insertedRows.find(r => r.scope === "customer.phone")?.keyVersion
+    ).toBe(1);
+    expect(
+      insertedRows.find(r => r.scope === "customer.email")?.keyVersion
+    ).toBe(1);
   });
 });
 
@@ -276,7 +316,7 @@ describe("rotateKey", () => {
     expect(result.oldKeyVersion).toBe(1);
     expect(result.newKeyVersion).toBe(2);
     expect(keyStore.length).toBe(2);
-    expect(keyStore.find((k) => k.keyVersion === 1)?.retiredAt).not.toBeNull();
+    expect(keyStore.find(k => k.keyVersion === 1)?.retiredAt).not.toBeNull();
   });
 
   it("old ciphertext (v1) still decrypts after rotation to v2", async () => {
@@ -291,17 +331,23 @@ describe("rotateKey", () => {
               orderBy: () => ({
                 limit: (n: number) => {
                   const active = keyStore
-                    .filter((k) => k.scope === "customer.phone" && k.retiredAt === null)
+                    .filter(
+                      k => k.scope === "customer.phone" && k.retiredAt === null
+                    )
                     .sort((a, b) => b.keyVersion - a.keyVersion);
                   return Promise.resolve(active.slice(0, n));
                 },
               }),
               limit: (n: number) => {
-                const allForScope = keyStore.filter((k) => k.scope === "customer.phone");
+                const allForScope = keyStore.filter(
+                  k => k.scope === "customer.phone"
+                );
                 return Promise.resolve(allForScope.slice(0, n));
               },
             }),
-            orderBy: () => ({ limit: (n: number) => Promise.resolve(keyStore.slice(0, n)) }),
+            orderBy: () => ({
+              limit: (n: number) => Promise.resolve(keyStore.slice(0, n)),
+            }),
           }),
         }),
         insert: () => ({
@@ -314,14 +360,16 @@ describe("rotateKey", () => {
           set: (updates: Partial<KeyRow>) => ({
             where: () => {
               if (updates.retiredAt) {
-                const active = keyStore.find((k) => k.scope === "customer.phone" && k.retiredAt === null);
+                const active = keyStore.find(
+                  k => k.scope === "customer.phone" && k.retiredAt === null
+                );
                 if (active) active.retiredAt = updates.retiredAt!;
               }
               return Promise.resolve();
             },
           }),
         }),
-      } as any;
+      } as unknown;
     });
 
     const { encrypt, decrypt, rotateKey } = await import("./piiEncryption");
@@ -346,33 +394,44 @@ describe("rotateKey", () => {
               orderBy: () => ({
                 limit: (n: number) => {
                   const active = keyStore
-                    .filter((k) => k.scope === "customer.phone" && k.retiredAt === null)
+                    .filter(
+                      k => k.scope === "customer.phone" && k.retiredAt === null
+                    )
                     .sort((a, b) => b.keyVersion - a.keyVersion);
                   return Promise.resolve(active.slice(0, n));
                 },
               }),
               limit: (n: number) => {
-                return Promise.resolve(keyStore.filter((k) => k.scope === "customer.phone").slice(0, n));
+                return Promise.resolve(
+                  keyStore.filter(k => k.scope === "customer.phone").slice(0, n)
+                );
               },
             }),
-            orderBy: () => ({ limit: (n: number) => Promise.resolve(keyStore.slice(0, n)) }),
+            orderBy: () => ({
+              limit: (n: number) => Promise.resolve(keyStore.slice(0, n)),
+            }),
           }),
         }),
         insert: () => ({
-          values: (row: KeyRow) => { keyStore.push({ ...row }); return Promise.resolve(); },
+          values: (row: KeyRow) => {
+            keyStore.push({ ...row });
+            return Promise.resolve();
+          },
         }),
         update: () => ({
           set: (updates: Partial<KeyRow>) => ({
             where: () => {
               if (updates.retiredAt) {
-                const active = keyStore.find((k) => k.scope === "customer.phone" && k.retiredAt === null);
+                const active = keyStore.find(
+                  k => k.scope === "customer.phone" && k.retiredAt === null
+                );
                 if (active) active.retiredAt = updates.retiredAt!;
               }
               return Promise.resolve();
             },
           }),
         }),
-      } as any;
+      } as unknown;
     });
 
     const { encrypt, rotateKey } = await import("./piiEncryption");
@@ -384,8 +443,12 @@ describe("rotateKey", () => {
 
   it("throws MasterKeyNotConfiguredError when key absent", async () => {
     clearMasterKey();
-    const { rotateKey, MasterKeyNotConfiguredError } = await import("./piiEncryption");
-    await expect(rotateKey("customer.phone")).rejects.toBeInstanceOf(MasterKeyNotConfiguredError);
+    const { rotateKey, MasterKeyNotConfiguredError } = await import(
+      "./piiEncryption"
+    );
+    await expect(rotateKey("customer.phone")).rejects.toBeInstanceOf(
+      MasterKeyNotConfiguredError
+    );
   });
 });
 
@@ -396,14 +459,41 @@ describe("getKeyStatus", () => {
     setMasterKey(validMasterKey);
     const now = new Date();
     keyStore = [
-      { id: "a", keyVersion: 1, scope: "customer.phone", wrappedDataKey: "base64fake", algorithm: "aes-256-gcm", createdAt: now, rotatedFromId: null, retiredAt: now },
-      { id: "b", keyVersion: 2, scope: "customer.phone", wrappedDataKey: "base64fake", algorithm: "aes-256-gcm", createdAt: now, rotatedFromId: "a", retiredAt: null },
-      { id: "c", keyVersion: 1, scope: "customer.email", wrappedDataKey: "base64fake", algorithm: "aes-256-gcm", createdAt: now, rotatedFromId: null, retiredAt: null },
+      {
+        id: "a",
+        keyVersion: 1,
+        scope: "customer.phone",
+        wrappedDataKey: "base64fake",
+        algorithm: "aes-256-gcm",
+        createdAt: now,
+        rotatedFromId: null,
+        retiredAt: now,
+      },
+      {
+        id: "b",
+        keyVersion: 2,
+        scope: "customer.phone",
+        wrappedDataKey: "base64fake",
+        algorithm: "aes-256-gcm",
+        createdAt: now,
+        rotatedFromId: "a",
+        retiredAt: null,
+      },
+      {
+        id: "c",
+        keyVersion: 1,
+        scope: "customer.email",
+        wrappedDataKey: "base64fake",
+        algorithm: "aes-256-gcm",
+        createdAt: now,
+        rotatedFromId: null,
+        retiredAt: null,
+      },
     ];
     const { getKeyStatus } = await import("./piiEncryption");
     const statuses = await getKeyStatus();
-    const phone = statuses.find((s) => s.scope === "customer.phone");
-    const email = statuses.find((s) => s.scope === "customer.email");
+    const phone = statuses.find(s => s.scope === "customer.phone");
+    const email = statuses.find(s => s.scope === "customer.email");
     expect(phone?.retiredKeys).toBe(1);
     expect(phone?.activeKeyVersion).toBe(2);
     expect(phone?.totalKeys).toBe(2);
@@ -412,7 +502,7 @@ describe("getKeyStatus", () => {
   });
 
   it("returns empty array when db is unavailable", async () => {
-    vi.mocked(getDb).mockResolvedValueOnce(null as any);
+    vi.mocked(getDb).mockResolvedValueOnce(null as unknown);
     const { getKeyStatus } = await import("./piiEncryption");
     const result = await getKeyStatus();
     expect(result).toEqual([]);

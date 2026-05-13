@@ -1,16 +1,10 @@
 import { z } from "zod";
-import {
-  adminProcedure,
-  managerProcedure,
-  router,
-  capabilityProcedure,
-} from "../_core/trpc";
+import { managerProcedure, router, capabilityProcedure } from "../_core/trpc";
 import {
   getCommandLog,
   getCommandStats,
   listCommandLogs,
 } from "../services/commandLogService";
-import type { CommandState } from "../services/commandStateMachine";
 
 const commandStateEnum = z.enum([
   "in_flight",

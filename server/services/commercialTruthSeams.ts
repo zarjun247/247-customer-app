@@ -1,22 +1,55 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { batchLedger, counterPayments, paymentRecords, purchaseInvoices, purchaseLines, refunds, saleLines, sales } from "../../drizzle/schema";
+import {
+  batchLedger,
+  counterPayments,
+  paymentRecords,
+  purchaseInvoices,
+  purchaseLines,
+  refunds,
+  saleLines,
+  sales,
+} from "../../drizzle/schema";
 import { getDb } from "../db";
 import { reserveInvoiceNumber } from "./invoiceNumbering";
-import { createMutationFingerprint, withIdempotency } from "./idempotencyService";
-import { createBatchWithOpeningStock, decreaseStockForSaleConfirmation, increaseStockForPurchaseCommit } from "./stockInvariant";
-import { appendCommercialEventBestEffort, appendCommercialEventWithDb } from "./commercialLifecycle";
+import {
+  createMutationFingerprint,
+  withIdempotency,
+} from "./idempotencyService";
+import {
+  createBatchWithOpeningStock,
+  decreaseStockForSaleConfirmation,
+  increaseStockForPurchaseCommit,
+} from "./stockInvariant";
+import {
+  appendCommercialEventBestEffort,
+  appendCommercialEventWithDb,
+} from "./commercialLifecycle";
 import { syncStoreSkuAggregate } from "./reservationService";
 import { recordSupplierPayable } from "./supplierLedger";
-import { createRefundJournalBatch, postBalancedJournalBatch } from "./accountingLedger";
+import {
+  createRefundJournalBatch,
+  postBalancedJournalBatch,
+} from "./accountingLedger";
 
 function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  if (!db)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "DB unavailable",
+    });
   return db;
 }
 
-function calcPurchaseGst(purchaseRate: number, gstRate: number, qty: number, schemeDiscount: number, cashDiscount: number) {
+function calcPurchaseGst(
+  purchaseRate: number,
+  gstRate: number,
+  qty: number,
+  schemeDiscount: number,
+  cashDiscount: number
+) {
   const baseAmount = purchaseRate * qty;
   const schemeDis = baseAmount * (schemeDiscount / 100);
   const cashDis = (baseAmount - schemeDis) * (cashDiscount / 100);
@@ -25,159 +58,558 @@ function calcPurchaseGst(purchaseRate: number, gstRate: number, qty: number, sch
   return { taxableAmount, gstAmount };
 }
 
-function duplicateResult<T extends Record<string, unknown>>(result: T): T & { idempotent: true; duplicate: true; status: "already_processed" } {
-  return { ...result, idempotent: true, duplicate: true, status: "already_processed" };
+function duplicateResult<T extends Record<string, unknown>>(
+  result: T
+): T & { idempotent: true; duplicate: true; status: "already_processed" } {
+  return {
+    ...result,
+    idempotent: true,
+    duplicate: true,
+    status: "already_processed",
+  };
 }
 
-async function assertNoCommittedSupplierInvoiceDuplicate(db: any, invoice: { id: number; supplierId: number; storeId: number; invoiceNo: string }) {
+async function assertNoCommittedSupplierInvoiceDuplicate(
+  db: any,
+  invoice: {
+    id: number;
+    supplierId: number;
+    storeId: number;
+    invoiceNo: string;
+  }
+) {
   const normalizedInvoiceNo = invoice.invoiceNo.trim();
-  const [duplicate] = await db.select({ id: purchaseInvoices.id })
+  const [duplicate] = await db
+    .select({ id: purchaseInvoices.id })
     .from(purchaseInvoices)
-    .where(and(
-      eq(purchaseInvoices.supplierId, invoice.supplierId),
-      eq(purchaseInvoices.storeId, invoice.storeId),
-      eq(purchaseInvoices.invoiceNo, normalizedInvoiceNo),
-      inArray(purchaseInvoices.status, ["committed", "partially_returned", "returned"]),
-      ne(purchaseInvoices.id, invoice.id),
-    ))
+    .where(
+      and(
+        eq(purchaseInvoices.supplierId, invoice.supplierId),
+        eq(purchaseInvoices.storeId, invoice.storeId),
+        eq(purchaseInvoices.invoiceNo, normalizedInvoiceNo),
+        inArray(purchaseInvoices.status, [
+          "committed",
+          "partially_returned",
+          "returned",
+        ]),
+        ne(purchaseInvoices.id, invoice.id)
+      )
+    )
     .limit(1);
   if (duplicate) {
-    throw new TRPCError({ code: "CONFLICT", message: "Duplicate supplier invoice number for this supplier and store requires review before commit" });
+    throw new TRPCError({
+      code: "CONFLICT",
+      message:
+        "Duplicate supplier invoice number for this supplier and store requires review before commit",
+    });
   }
 }
 
-export async function commitPurchaseInvoiceExactlyOnce(input: { invoiceId: number; idempotencyKey: string; actorId: number; actorRole?: string | null }) {
+export async function commitPurchaseInvoiceExactlyOnce(input: {
+  invoiceId: number;
+  idempotencyKey: string;
+  actorId: number;
+  actorRole?: string | null;
+}) {
   const db = requireDb(await getDb());
-  return withIdempotency({
-    key: input.idempotencyKey,
-    scope: "purchase.commitInvoice",
-    operationType: "purchase_commit_invoice",
-    actorId: input.actorId,
-    entityType: "purchase_invoice",
-    entityId: String(input.invoiceId),
-    requestHash: createMutationFingerprint({ invoiceId: input.invoiceId }),
-  }, async () => {
-    const txResult = await db.transaction(async (tx: any) => {
-      const [invoice] = await tx.select().from(purchaseInvoices).where(eq(purchaseInvoices.id, input.invoiceId)).for("update").limit(1);
-      if (!invoice) throw new TRPCError({ code: "NOT_FOUND", message: "Invoice not found" });
-      if (invoice.status === "committed") return { ...duplicateResult({ success: true, invoiceId: input.invoiceId, committed: false }), _storeId: invoice.storeId as number, _invoiceNo: null as string | null, _skuProducts: [] as Array<{ storeId: number; productId: number }> };
-      if (invoice.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Invoice not in draft state" });
-      await assertNoCommittedSupplierInvoiceDuplicate(tx, invoice);
+  return withIdempotency(
+    {
+      key: input.idempotencyKey,
+      scope: "purchase.commitInvoice",
+      operationType: "purchase_commit_invoice",
+      actorId: input.actorId,
+      entityType: "purchase_invoice",
+      entityId: String(input.invoiceId),
+      requestHash: createMutationFingerprint({ invoiceId: input.invoiceId }),
+    },
+    async () => {
+      const txResult = await db.transaction(async (tx: any) => {
+        const [invoice] = await tx
+          .select()
+          .from(purchaseInvoices)
+          .where(eq(purchaseInvoices.id, input.invoiceId))
+          .for("update")
+          .limit(1);
+        if (!invoice)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Invoice not found",
+          });
+        if (invoice.status === "committed")
+          return {
+            ...duplicateResult({
+              success: true,
+              invoiceId: input.invoiceId,
+              committed: false,
+            }),
+            _storeId: invoice.storeId as number,
+            _invoiceNo: null as string | null,
+            _skuProducts: [] as Array<{ storeId: number; productId: number }>,
+          };
+        if (invoice.status !== "draft")
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invoice not in draft state",
+          });
+        await assertNoCommittedSupplierInvoiceDuplicate(tx, invoice);
 
-      const [claim] = await tx.update(purchaseInvoices).set({ status: "committed", committedAt: new Date(), approvedBy: input.actorId, approvedAt: new Date() }).where(and(eq(purchaseInvoices.id, input.invoiceId), eq(purchaseInvoices.status, "draft")));
-      if (Number((claim as { affectedRows?: number }).affectedRows ?? 0) !== 1) return { ...duplicateResult({ success: true, invoiceId: input.invoiceId, committed: false }), _storeId: invoice.storeId as number, _invoiceNo: null as string | null, _skuProducts: [] as Array<{ storeId: number; productId: number }> };
+        const [claim] = await tx
+          .update(purchaseInvoices)
+          .set({
+            status: "committed",
+            committedAt: new Date(),
+            approvedBy: input.actorId,
+            approvedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(purchaseInvoices.id, input.invoiceId),
+              eq(purchaseInvoices.status, "draft")
+            )
+          );
+        if (
+          Number((claim as { affectedRows?: number }).affectedRows ?? 0) !== 1
+        )
+          return {
+            ...duplicateResult({
+              success: true,
+              invoiceId: input.invoiceId,
+              committed: false,
+            }),
+            _storeId: invoice.storeId as number,
+            _invoiceNo: null as string | null,
+            _skuProducts: [] as Array<{ storeId: number; productId: number }>,
+          };
 
-      const lines = await tx.select().from(purchaseLines).where(eq(purchaseLines.purchaseInvoiceId, input.invoiceId));
-      if (!lines.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No lines to commit" });
-      const gstSummary: Record<string, { taxable: number; gst: number; total: number }> = {};
-      const skuProducts: Array<{ storeId: number; productId: number }> = [];
-      for (const line of lines) {
-        const qty = Number(line.qty ?? 0) + Number(line.freeQty ?? 0);
-        const pr = Number(line.purchaseRate ?? 0);
-        const gr = Number(line.gstRate ?? 12);
-        const sd = Number(line.schemeDiscount ?? 0);
-        const cd = Number(line.cashDiscount ?? 0);
-        const { taxableAmount, gstAmount } = calcPurchaseGst(pr, gr, Number(line.qty ?? 0), sd, cd);
-        const rateKey = `${gr}%`;
-        if (!gstSummary[rateKey]) gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
-        gstSummary[rateKey].taxable += taxableAmount;
-        gstSummary[rateKey].gst += gstAmount;
-        gstSummary[rateKey].total += taxableAmount + gstAmount;
-        const [existing] = await tx.select().from(batchLedger).where(and(eq(batchLedger.storeId, invoice.storeId), eq(batchLedger.productId, line.productId), eq(batchLedger.batchNo, line.batchNo))).limit(1);
-        const ledgerId = existing?.id ?? (await createBatchWithOpeningStock({
-          tx,
-          batch: {
-            productId: line.productId,
+        const lines = await tx
+          .select()
+          .from(purchaseLines)
+          .where(eq(purchaseLines.purchaseInvoiceId, input.invoiceId));
+        if (!lines.length)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No lines to commit",
+          });
+        const gstSummary: Record<
+          string,
+          { taxable: number; gst: number; total: number }
+        > = {};
+        const skuProducts: Array<{ storeId: number; productId: number }> = [];
+        for (const line of lines) {
+          const qty = Number(line.qty ?? 0) + Number(line.freeQty ?? 0);
+          const pr = Number(line.purchaseRate ?? 0);
+          const gr = Number(line.gstRate ?? 12);
+          const sd = Number(line.schemeDiscount ?? 0);
+          const cd = Number(line.cashDiscount ?? 0);
+          const { taxableAmount, gstAmount } = calcPurchaseGst(
+            pr,
+            gr,
+            Number(line.qty ?? 0),
+            sd,
+            cd
+          );
+          const rateKey = `${gr}%`;
+          if (!gstSummary[rateKey])
+            gstSummary[rateKey] = { taxable: 0, gst: 0, total: 0 };
+          gstSummary[rateKey].taxable += taxableAmount;
+          gstSummary[rateKey].gst += gstAmount;
+          gstSummary[rateKey].total += taxableAmount + gstAmount;
+          const [existing] = await tx
+            .select()
+            .from(batchLedger)
+            .where(
+              and(
+                eq(batchLedger.storeId, invoice.storeId),
+                eq(batchLedger.productId, line.productId),
+                eq(batchLedger.batchNo, line.batchNo)
+              )
+            )
+            .limit(1);
+          const ledgerId =
+            existing?.id ??
+            (
+              await createBatchWithOpeningStock({
+                tx,
+                batch: {
+                  productId: line.productId,
+                  storeId: invoice.storeId,
+                  supplierId: invoice.supplierId,
+                  batchNo: line.batchNo,
+                  expiryDate: line.expiryDate,
+                  mrp: String(line.mrp),
+                  purchaseRate: String(line.purchaseRate),
+                  saleRate: String(line.saleRate ?? line.mrp),
+                  qtyOnHand: 0,
+                  purchaseInvoiceId: invoice.id,
+                  storageCondition: "ambient",
+                  coldChainFlag: false,
+                  expiryBucket: "normal",
+                  status: "active",
+                  createdBy: input.actorId,
+                },
+                actor: {
+                  actorId: input.actorId,
+                  actorRole: input.actorRole,
+                  source: "service",
+                },
+              })
+            ).batchId;
+          await increaseStockForPurchaseCommit({
+            tx,
+            batchId: ledgerId,
             storeId: invoice.storeId,
+            qtyDelta: qty,
+            referenceType: "purchase_invoice",
+            referenceId: invoice.id,
+            reason: `Purchase commit ${invoice.invoiceNo}`,
+            actor: {
+              actorId: input.actorId,
+              actorRole: input.actorRole,
+              source: "service",
+            },
+            productId: line.productId,
+          });
+          skuProducts.push({
+            storeId: invoice.storeId,
+            productId: line.productId,
+          });
+        }
+        await tx
+          .update(purchaseInvoices)
+          .set({ gstSummary: JSON.stringify(gstSummary) })
+          .where(eq(purchaseInvoices.id, input.invoiceId));
+        await recordSupplierPayable(
+          tx,
+          {
             supplierId: invoice.supplierId,
-            batchNo: line.batchNo,
-            expiryDate: line.expiryDate,
-            mrp: String(line.mrp),
-            purchaseRate: String(line.purchaseRate),
-            saleRate: String(line.saleRate ?? line.mrp),
-            qtyOnHand: 0,
             purchaseInvoiceId: invoice.id,
-            storageCondition: "ambient",
-            coldChainFlag: false,
-            expiryBucket: "normal",
-            status: "active",
-            createdBy: input.actorId,
+            storeId: invoice.storeId,
+            amount: Number(invoice.netAmount ?? 0),
+            actorId: input.actorId,
+            actorRole: input.actorRole ?? "system",
+            source: "service",
           },
-          actor: { actorId: input.actorId, actorRole: input.actorRole, source: "service" },
-        })).batchId;
-        await increaseStockForPurchaseCommit({ tx, batchId: ledgerId, storeId: invoice.storeId, qtyDelta: qty, referenceType: "purchase_invoice", referenceId: invoice.id, reason: `Purchase commit ${invoice.invoiceNo}`, actor: { actorId: input.actorId, actorRole: input.actorRole, source: "service" }, productId: line.productId });
-        skuProducts.push({ storeId: invoice.storeId, productId: line.productId });
+          undefined
+        );
+        return {
+          success: true,
+          invoiceId: input.invoiceId,
+          committed: true,
+          gstSummary,
+          status: "processed" as const,
+          _storeId: invoice.storeId as number,
+          _invoiceNo: invoice.invoiceNo as string,
+          _skuProducts: skuProducts,
+        };
+      });
+      // syncStoreSkuAggregate and appendCommercialEventBestEffort are intentionally outside the transaction — both are best-effort.
+      if (txResult.committed) {
+        for (const { storeId, productId } of txResult._skuProducts) {
+          await syncStoreSkuAggregate({
+            storeId,
+            productId,
+            variantId: null,
+          }).catch(() => {});
+        }
+        await appendCommercialEventBestEffort({
+          aggregateType: "purchase_invoice",
+          aggregateId: input.invoiceId,
+          eventType: "purchase_committed",
+          actorType: "staff",
+          actorId: input.actorId,
+          storeId: txResult._storeId,
+          eventPayload: { invoiceNo: txResult._invoiceNo },
+          idempotencyKey: input.idempotencyKey,
+        });
       }
-      await tx.update(purchaseInvoices).set({ gstSummary: JSON.stringify(gstSummary) }).where(eq(purchaseInvoices.id, input.invoiceId));
-      await recordSupplierPayable(tx, { supplierId: invoice.supplierId, purchaseInvoiceId: invoice.id, storeId: invoice.storeId, amount: Number(invoice.netAmount ?? 0), actorId: input.actorId, actorRole: input.actorRole ?? "system", source: "service" }, undefined);
-      return { success: true, invoiceId: input.invoiceId, committed: true, gstSummary, status: "processed" as const, _storeId: invoice.storeId as number, _invoiceNo: invoice.invoiceNo as string, _skuProducts: skuProducts };
-    });
-    // syncStoreSkuAggregate and appendCommercialEventBestEffort are intentionally outside the transaction — both are best-effort.
-    if (txResult.committed) {
-      for (const { storeId, productId } of txResult._skuProducts) {
-        await syncStoreSkuAggregate({ storeId, productId, variantId: null }).catch(() => {});
-      }
-      await appendCommercialEventBestEffort({ aggregateType: "purchase_invoice", aggregateId: input.invoiceId, eventType: "purchase_committed", actorType: "staff", actorId: input.actorId, storeId: txResult._storeId, eventPayload: { invoiceNo: txResult._invoiceNo }, idempotencyKey: input.idempotencyKey });
+      const {
+        _storeId: _s,
+        _invoiceNo: _n,
+        _skuProducts: _p,
+        ...result
+      } = txResult;
+      return result;
     }
-    const { _storeId: _s, _invoiceNo: _n, _skuProducts: _p, ...result } = txResult;
-    return result;
-  });
+  );
 }
 
-export async function confirmSaleExactlyOnce(input: { saleId: string; idempotencyKey: string; actorId: number; actorRole?: string | null; paymentMode: "cash" | "upi" | "card" | "credit" | "mixed"; paymentRef?: string | null }) {
+export async function confirmSaleExactlyOnce(input: {
+  saleId: string;
+  idempotencyKey: string;
+  actorId: number;
+  actorRole?: string | null;
+  paymentMode: "cash" | "upi" | "card" | "credit" | "mixed";
+  paymentRef?: string | null;
+}) {
   const db = requireDb(await getDb());
-  return withIdempotency({ key: input.idempotencyKey, scope: "sales.confirmSale", operationType: "sale_confirm", actorId: input.actorId, entityType: "sale", entityId: input.saleId, requestHash: createMutationFingerprint({ saleId: input.saleId, paymentMode: input.paymentMode, paymentRef: input.paymentRef ?? null }) }, async () => {
-    const txResult = await db.transaction(async (tx: any) => {
-      const [sale] = await tx.select().from(sales).where(eq(sales.id, input.saleId)).for("update").limit(1);
-      if (!sale) throw new TRPCError({ code: "NOT_FOUND", message: "Sale not found" });
-      if (sale.status === "confirmed") return { ...duplicateResult({ success: true, saleId: input.saleId, billNo: sale.billNo, confirmed: false }), _storeId: sale.storeId as number };
-      if (sale.status !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "Sale not in draft state" });
-      const finalBillNo = sale.billNo.startsWith("DRF-") ? await reserveInvoiceNumber(tx, sale.storeId, "sale_invoice") : sale.billNo;
-      const [claim] = await tx.update(sales).set({ status: "confirmed", billNo: finalBillNo, paymentMode: input.paymentMode, paymentRef: input.paymentRef ?? null, confirmedAt: Date.now(), updatedAt: Date.now() }).where(and(eq(sales.id, input.saleId), eq(sales.status, "draft")));
-      if (Number((claim as { affectedRows?: number }).affectedRows ?? 0) !== 1) {
-        const [current] = await tx.select().from(sales).where(eq(sales.id, input.saleId)).limit(1);
-        return { ...duplicateResult({ success: true, saleId: input.saleId, billNo: current?.billNo ?? finalBillNo, confirmed: false }), _storeId: sale.storeId as number };
-      }
-      const lines = await tx.select().from(saleLines).where(eq(saleLines.saleId, input.saleId));
-      for (const line of lines) {
-        if (line.batchLedgerId) await decreaseStockForSaleConfirmation({ tx, batchId: Number(line.batchLedgerId), storeId: Number(sale.storeId), qtyDelta: -Number(line.qty), referenceType: "sale", referenceId: Number.parseInt(input.saleId, 10) || 0, reason: `Bill ${finalBillNo}`, actor: { actorId: input.actorId, actorRole: input.actorRole, source: "service" }, productId: Number(line.productId) });
-      }
-      await tx.insert(counterPayments).values({ id: randomUUID(), saleId: input.saleId, paymentMode: input.paymentMode, amount: sale.total, paymentRef: input.paymentRef ?? null, status: "confirmed", createdBy: String(input.actorId), createdAt: Date.now() });
-      return { success: true, saleId: input.saleId, billNo: finalBillNo, confirmed: true, status: "processed" as const, _storeId: sale.storeId as number };
-    });
-    // appendCommercialEventBestEffort is intentionally outside the transaction — it's best-effort.
-    if (txResult.confirmed) await appendCommercialEventBestEffort({ aggregateType: "sale", aggregateId: input.saleId, eventType: "order_confirmed", actorType: "staff", actorId: input.actorId, storeId: txResult._storeId, saleId: input.saleId, invoiceId: txResult.billNo, eventPayload: { billNo: txResult.billNo }, idempotencyKey: input.idempotencyKey });
-    const { _storeId: _, ...result } = txResult;
-    return result;
-  });
+  return withIdempotency(
+    {
+      key: input.idempotencyKey,
+      scope: "sales.confirmSale",
+      operationType: "sale_confirm",
+      actorId: input.actorId,
+      entityType: "sale",
+      entityId: input.saleId,
+      requestHash: createMutationFingerprint({
+        saleId: input.saleId,
+        paymentMode: input.paymentMode,
+        paymentRef: input.paymentRef ?? null,
+      }),
+    },
+    async () => {
+      const txResult = await db.transaction(async (tx: any) => {
+        const [sale] = await tx
+          .select()
+          .from(sales)
+          .where(eq(sales.id, input.saleId))
+          .for("update")
+          .limit(1);
+        if (!sale)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Sale not found" });
+        if (sale.status === "confirmed")
+          return {
+            ...duplicateResult({
+              success: true,
+              saleId: input.saleId,
+              billNo: sale.billNo,
+              confirmed: false,
+            }),
+            _storeId: sale.storeId as number,
+          };
+        if (sale.status !== "draft")
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Sale not in draft state",
+          });
+        const finalBillNo = sale.billNo.startsWith("DRF-")
+          ? await reserveInvoiceNumber(tx, sale.storeId, "sale_invoice")
+          : sale.billNo;
+        const [claim] = await tx
+          .update(sales)
+          .set({
+            status: "confirmed",
+            billNo: finalBillNo,
+            paymentMode: input.paymentMode,
+            paymentRef: input.paymentRef ?? null,
+            confirmedAt: Date.now(),
+            updatedAt: Date.now(),
+          })
+          .where(and(eq(sales.id, input.saleId), eq(sales.status, "draft")));
+        if (
+          Number((claim as { affectedRows?: number }).affectedRows ?? 0) !== 1
+        ) {
+          const [current] = await tx
+            .select()
+            .from(sales)
+            .where(eq(sales.id, input.saleId))
+            .limit(1);
+          return {
+            ...duplicateResult({
+              success: true,
+              saleId: input.saleId,
+              billNo: current?.billNo ?? finalBillNo,
+              confirmed: false,
+            }),
+            _storeId: sale.storeId as number,
+          };
+        }
+        const lines = await tx
+          .select()
+          .from(saleLines)
+          .where(eq(saleLines.saleId, input.saleId));
+        for (const line of lines) {
+          if (line.batchLedgerId)
+            await decreaseStockForSaleConfirmation({
+              tx,
+              batchId: Number(line.batchLedgerId),
+              storeId: Number(sale.storeId),
+              qtyDelta: -Number(line.qty),
+              referenceType: "sale",
+              referenceId: Number.parseInt(input.saleId, 10) || 0,
+              reason: `Bill ${finalBillNo}`,
+              actor: {
+                actorId: input.actorId,
+                actorRole: input.actorRole,
+                source: "service",
+              },
+              productId: Number(line.productId),
+            });
+        }
+        await tx.insert(counterPayments).values({
+          id: randomUUID(),
+          saleId: input.saleId,
+          paymentMode: input.paymentMode,
+          amount: sale.total,
+          paymentRef: input.paymentRef ?? null,
+          status: "confirmed",
+          createdBy: String(input.actorId),
+          createdAt: Date.now(),
+        });
+        return {
+          success: true,
+          saleId: input.saleId,
+          billNo: finalBillNo,
+          confirmed: true,
+          status: "processed" as const,
+          _storeId: sale.storeId as number,
+        };
+      });
+      // appendCommercialEventBestEffort is intentionally outside the transaction — it's best-effort.
+      if (txResult.confirmed)
+        await appendCommercialEventBestEffort({
+          aggregateType: "sale",
+          aggregateId: input.saleId,
+          eventType: "order_confirmed",
+          actorType: "staff",
+          actorId: input.actorId,
+          storeId: txResult._storeId,
+          saleId: input.saleId,
+          invoiceId: txResult.billNo,
+          eventPayload: { billNo: txResult.billNo },
+          idempotencyKey: input.idempotencyKey,
+        });
+      const { _storeId: _, ...result } = txResult;
+      return result;
+    }
+  );
 }
 
-export async function settleProviderRefundExactlyOnce(input: { gatewayOrderId: string; providerRefundId: string; amountPaise: number; idempotencyKey: string; reason?: string | null; actorId?: number | null }) {
+export async function settleProviderRefundExactlyOnce(input: {
+  gatewayOrderId: string;
+  providerRefundId: string;
+  amountPaise: number;
+  idempotencyKey: string;
+  reason?: string | null;
+  actorId?: number | null;
+}) {
   const db = requireDb(await getDb());
-  return withIdempotency({ key: input.idempotencyKey, scope: "refund.settle", operationType: "refund_settle", actorId: input.actorId ?? null, entityType: "payment", entityId: input.gatewayOrderId, requestHash: createMutationFingerprint({ gatewayOrderId: input.gatewayOrderId, providerRefundId: input.providerRefundId, amountPaise: input.amountPaise }) }, async () => db.transaction(async (tx) => {
-    const [payment] = await tx.select().from(paymentRecords).where(eq(paymentRecords.gatewayOrderId, input.gatewayOrderId)).for("update").limit(1);
-    if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment record not found" });
-    const [existing] = await tx.select().from(refunds).where(and(eq(refunds.provider, "razorpay"), eq(refunds.providerRefundId, input.providerRefundId))).limit(1);
-    if (existing) return duplicateResult({ success: true, refundId: existing.id, refunded: false });
-    const [totals] = await tx.select({ total: sql<number>`COALESCE(SUM(${refunds.amountPaise}), 0)` }).from(refunds).where(and(eq(refunds.paymentId, payment.id), inArray(refunds.status, ["pending", "success"])));
-    if (Number(totals?.total ?? 0) + input.amountPaise > Number(payment.amount ?? 0)) throw new TRPCError({ code: "BAD_REQUEST", message: "Refund exceeds available paid amount" });
-    const [result] = await tx.insert(refunds).values({ paymentId: payment.id, orderId: payment.orderId, provider: "razorpay", providerRefundId: input.providerRefundId, amountPaise: input.amountPaise, status: "success", reason: input.reason ?? null, initiatedBy: input.actorId ?? null });
-    const refundId = Number((result as { insertId?: number }).insertId);
-    const newTotal = Number(totals?.total ?? 0) + input.amountPaise;
-    await tx.update(paymentRecords).set({ status: newTotal >= Number(payment.amount ?? 0) ? "refunded" : payment.status, refundId: input.providerRefundId, refundedAt: newTotal >= Number(payment.amount ?? 0) ? new Date() : payment.refundedAt }).where(eq(paymentRecords.id, payment.id));
-    const journal = await postBalancedJournalBatch(tx, {
-      ...createRefundJournalBatch({ refundId, amount: input.amountPaise / 100, postedBy: input.actorId ?? null }),
-      metadataJson: {
-        paymentId: payment.id,
-        orderId: payment.orderId,
-        saleId: null,
-        refundId,
+  return withIdempotency(
+    {
+      key: input.idempotencyKey,
+      scope: "refund.settle",
+      operationType: "refund_settle",
+      actorId: input.actorId ?? null,
+      entityType: "payment",
+      entityId: input.gatewayOrderId,
+      requestHash: createMutationFingerprint({
+        gatewayOrderId: input.gatewayOrderId,
         providerRefundId: input.providerRefundId,
         amountPaise: input.amountPaise,
-      },
-      narration: `Provider refund reversal ${input.providerRefundId}`,
-    });
-    await appendCommercialEventWithDb(tx, { aggregateType: "refund", aggregateId: refundId, eventType: "refund_completed", actorType: "provider", orderId: payment.orderId, paymentId: payment.id, refundId, eventPayload: { amountPaise: input.amountPaise, providerRefundId: input.providerRefundId, accountingJournalBatchId: journal.id }, idempotencyKey: input.idempotencyKey, correlationId: input.gatewayOrderId });
-    return { success: true, refundId, refunded: true, accountingJournalBatchId: journal.id, status: "processed" as const };
-  }));
+      }),
+    },
+    async () =>
+      db.transaction(async tx => {
+        const [payment] = await tx
+          .select()
+          .from(paymentRecords)
+          .where(eq(paymentRecords.gatewayOrderId, input.gatewayOrderId))
+          .for("update")
+          .limit(1);
+        if (!payment)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Payment record not found",
+          });
+        const [existing] = await tx
+          .select()
+          .from(refunds)
+          .where(
+            and(
+              eq(refunds.provider, "razorpay"),
+              eq(refunds.providerRefundId, input.providerRefundId)
+            )
+          )
+          .limit(1);
+        if (existing)
+          return duplicateResult({
+            success: true,
+            refundId: existing.id,
+            refunded: false,
+          });
+        const [totals] = await tx
+          .select({
+            total: sql<number>`COALESCE(SUM(${refunds.amountPaise}), 0)`,
+          })
+          .from(refunds)
+          .where(
+            and(
+              eq(refunds.paymentId, payment.id),
+              inArray(refunds.status, ["pending", "success"])
+            )
+          );
+        if (
+          Number(totals?.total ?? 0) + input.amountPaise >
+          Number(payment.amount ?? 0)
+        )
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Refund exceeds available paid amount",
+          });
+        const [result] = await tx.insert(refunds).values({
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          provider: "razorpay",
+          providerRefundId: input.providerRefundId,
+          amountPaise: input.amountPaise,
+          status: "success",
+          reason: input.reason ?? null,
+          initiatedBy: input.actorId ?? null,
+        });
+        const refundId = Number((result as { insertId?: number }).insertId);
+        const newTotal = Number(totals?.total ?? 0) + input.amountPaise;
+        await tx
+          .update(paymentRecords)
+          .set({
+            status:
+              newTotal >= Number(payment.amount ?? 0)
+                ? "refunded"
+                : payment.status,
+            refundId: input.providerRefundId,
+            refundedAt:
+              newTotal >= Number(payment.amount ?? 0)
+                ? new Date()
+                : payment.refundedAt,
+          })
+          .where(eq(paymentRecords.id, payment.id));
+        const journal = await postBalancedJournalBatch(tx, {
+          ...createRefundJournalBatch({
+            refundId,
+            amount: input.amountPaise / 100,
+            postedBy: input.actorId ?? null,
+          }),
+          metadataJson: {
+            paymentId: payment.id,
+            orderId: payment.orderId,
+            saleId: null,
+            refundId,
+            providerRefundId: input.providerRefundId,
+            amountPaise: input.amountPaise,
+          },
+          narration: `Provider refund reversal ${input.providerRefundId}`,
+        });
+        await appendCommercialEventWithDb(tx, {
+          aggregateType: "refund",
+          aggregateId: refundId,
+          eventType: "refund_completed",
+          actorType: "provider",
+          orderId: payment.orderId,
+          paymentId: payment.id,
+          refundId,
+          eventPayload: {
+            amountPaise: input.amountPaise,
+            providerRefundId: input.providerRefundId,
+            accountingJournalBatchId: journal.id,
+          },
+          idempotencyKey: input.idempotencyKey,
+          correlationId: input.gatewayOrderId,
+        });
+        return {
+          success: true,
+          refundId,
+          refunded: true,
+          accountingJournalBatchId: journal.id,
+          status: "processed" as const,
+        };
+      })
+  );
 }

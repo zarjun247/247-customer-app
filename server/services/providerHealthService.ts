@@ -1,7 +1,10 @@
 import pino from "pino";
-import { and, sql, gte, eq, desc } from "drizzle-orm";
+import { sql, gte, eq, desc } from "drizzle-orm";
 import { getDb } from "../db";
-import { providerWebhookEvents, providerDeadLetters } from "../../drizzle/schema";
+import {
+  providerWebhookEvents,
+  providerDeadLetters,
+} from "../../drizzle/schema";
 import { emitSloEvent } from "./sloService";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -28,7 +31,7 @@ function classifyStatus(
   successRate: number | null,
   totalEvents: number,
   deadLetterCount: number,
-  oldestUnresolvedAgeMs: number | null,
+  oldestUnresolvedAgeMs: number | null
 ): ProviderStatus {
   if (totalEvents === 0) return "unknown";
   const rate = successRate ?? 0;
@@ -45,7 +48,10 @@ function classifyStatus(
   return "healthy";
 }
 
-function computeHealthScore(status: ProviderStatus, successRate: number | null): number {
+function computeHealthScore(
+  status: ProviderStatus,
+  successRate: number | null
+): number {
   const base = successRate != null ? Math.round(successRate * 100) : 0;
   if (status === "healthy") return Math.max(base, 95);
   if (status === "degraded") return Math.min(base, 94);
@@ -67,7 +73,9 @@ function asDate(v: unknown): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export async function listProviderHealthSnapshots(): Promise<ProviderHealthSnapshot[]> {
+export async function listProviderHealthSnapshots(): Promise<
+  ProviderHealthSnapshot[]
+> {
   const db = await getDb();
   if (!db) return [];
 
@@ -79,8 +87,12 @@ export async function listProviderHealthSnapshots(): Promise<ProviderHealthSnaps
         provider: providerWebhookEvents.provider,
         total: sql<number>`COUNT(*)`,
         succeeded: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'processed' THEN 1 ELSE 0 END)`,
-        lastSuccess: sql<string | null>`MAX(CASE WHEN ${providerWebhookEvents.processingStatus} = 'processed' THEN ${providerWebhookEvents.updatedAt} ELSE NULL END)`,
-        lastFailure: sql<string | null>`MAX(CASE WHEN ${providerWebhookEvents.processingStatus} IN ('failed', 'dead_letter') THEN ${providerWebhookEvents.updatedAt} ELSE NULL END)`,
+        lastSuccess: sql<
+          string | null
+        >`MAX(CASE WHEN ${providerWebhookEvents.processingStatus} = 'processed' THEN ${providerWebhookEvents.updatedAt} ELSE NULL END)`,
+        lastFailure: sql<
+          string | null
+        >`MAX(CASE WHEN ${providerWebhookEvents.processingStatus} IN ('failed', 'dead_letter') THEN ${providerWebhookEvents.updatedAt} ELSE NULL END)`,
       })
       .from(providerWebhookEvents)
       .where(gte(providerWebhookEvents.createdAt, since24h))
@@ -89,13 +101,18 @@ export async function listProviderHealthSnapshots(): Promise<ProviderHealthSnaps
       .select({
         provider: providerDeadLetters.provider,
         unresolvedCount: sql<number>`SUM(CASE WHEN ${providerDeadLetters.reviewStatus} = 'pending_review' THEN 1 ELSE 0 END)`,
-        oldestCreatedAt: sql<string | null>`MIN(CASE WHEN ${providerDeadLetters.reviewStatus} = 'pending_review' THEN ${providerDeadLetters.createdAt} ELSE NULL END)`,
+        oldestCreatedAt: sql<
+          string | null
+        >`MIN(CASE WHEN ${providerDeadLetters.reviewStatus} = 'pending_review' THEN ${providerDeadLetters.createdAt} ELSE NULL END)`,
       })
       .from(providerDeadLetters)
       .groupBy(providerDeadLetters.provider),
   ]);
 
-  const deadLetterMap = new Map<string, { unresolvedCount: number; oldestCreatedAt: Date | null }>();
+  const deadLetterMap = new Map<
+    string,
+    { unresolvedCount: number; oldestCreatedAt: Date | null }
+  >();
   for (const r of deadLetterRows) {
     deadLetterMap.set(r.provider, {
       unresolvedCount: asNum(r.unresolvedCount),
@@ -121,7 +138,12 @@ export async function listProviderHealthSnapshots(): Promise<ProviderHealthSnaps
     const oldestDlAt = dl?.oldestCreatedAt ?? null;
     const oldestAgeMs = oldestDlAt ? Date.now() - oldestDlAt.getTime() : null;
 
-    const status = classifyStatus(successRate, totalEvents, deadLetterCount, oldestAgeMs);
+    const status = classifyStatus(
+      successRate,
+      totalEvents,
+      deadLetterCount,
+      oldestAgeMs
+    );
     const healthScore = computeHealthScore(status, successRate);
 
     snapshots.push({
@@ -141,7 +163,10 @@ export async function listProviderHealthSnapshots(): Promise<ProviderHealthSnaps
   return snapshots.sort((a, b) => a.providerId.localeCompare(b.providerId));
 }
 
-export async function getProviderHealthDrilldown(providerType: string, _providerId: string) {
+export async function getProviderHealthDrilldown(
+  providerType: string,
+  _providerId: string
+) {
   const db = await getDb();
   if (!db) return { events: [], deadLetters: [] };
 
@@ -165,7 +190,7 @@ export async function getProviderHealthDrilldown(providerType: string, _provider
 
 export async function emitProviderHealthSloEvent(
   providerType: string,
-  snapshot: ProviderHealthSnapshot,
+  snapshot: ProviderHealthSnapshot
 ): Promise<void> {
   const sloName = `provider.${providerType}.success.rate`;
   const successRate = snapshot.successRate24h ?? 0;
@@ -187,7 +212,13 @@ export async function emitProviderHealthSloEvent(
   });
 
   logger.info(
-    { event: "provider_health_slo_emitted", providerType, sloName, successRate, withinBudget },
-    "provider_health_slo_emitted",
+    {
+      event: "provider_health_slo_emitted",
+      providerType,
+      sloName,
+      successRate,
+      withinBudget,
+    },
+    "provider_health_slo_emitted"
   );
 }

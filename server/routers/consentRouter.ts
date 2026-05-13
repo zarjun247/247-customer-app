@@ -18,7 +18,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getDb } from "../db";
 import { userConsents } from "../../drizzle/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 // Current consent document versions
 export const CONSENT_VERSIONS = {

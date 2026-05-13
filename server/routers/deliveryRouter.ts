@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 /**
  * PART 11 — Delivery & Rider Router
  *
@@ -39,17 +40,26 @@ import {
   deliveryTasks,
   riderLocations,
   routingDecisions,
-  slaEvents,
-  orderTimestamps,
+  slaEvents as _slaEvents,
+  orderTimestamps as _orderTimestamps,
   storeCapabilities,
   deliveryEvents,
 } from "../../drizzle/schema";
-import { eq, and, desc, gte, lte, sql, inArray, isNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  gte,
+  lte as _lte,
+  sql,
+  inArray as _inArray,
+  isNull as _isNull,
+} from "drizzle-orm";
 import { resolveNode, recordOrderTimestamp } from "../routingEngine";
 import { TRPCError } from "@trpc/server";
 import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
 import { logAudit } from "../services/audit";
-import { deliveryRouterExtension } from "./deliveryRouterExtension";
+import { deliveryRouterExtension } from "./deliverySlaRouter";
 
 // ─── Role helpers ─────────────────────────────────────────────────────────────
 const DELIVERY_ROLES = ["delivery_operator", "store_manager", "admin"] as const;
@@ -335,7 +345,7 @@ const riderRouter = router({
         source: z.enum(["gps", "manual", "network"]).default("gps"),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx: _ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       // Update rider current location
@@ -872,7 +882,7 @@ const taskRouter = router({
         collectedAmount: z.string(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx: _ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 

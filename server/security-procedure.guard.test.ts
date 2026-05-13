@@ -5,7 +5,12 @@ const allow = ["sendOtp", "verifyOtp", "health", "webhook"];
 
 describe("publicProcedure guard", () => {
   it("flags sensitive public procedures", () => {
-    const files = ["server/routers/paymentRouter.ts","server/routers/reportsRouter.ts","server/routers/salesRouter.ts","server/routers/deliveryRouter.ts"];
+    const files = [
+      "server/routers/paymentRouter.ts",
+      "server/routers/reportsRouter.ts",
+      "server/routers/salesRouter.ts",
+      "server/routers/deliveryRouter.ts",
+    ];
     for (const f of files) {
       const src = fs.readFileSync(f, "utf8");
       expect(src.includes("publicProcedure")).toBe(false);
@@ -18,5 +23,6 @@ describe("publicProcedure guard", () => {
     expect(src).toContain("Webhook verification required");
   });
 
-  it("documents explicit allowlist", () => expect(allow.length).toBeGreaterThan(0));
+  it("documents explicit allowlist", () =>
+    expect(allow.length).toBeGreaterThan(0));
 });

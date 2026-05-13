@@ -9,10 +9,10 @@ import {
 } from "./services/tallyExport";
 
 function createFakeDb() {
-  const runs: any[] = [];
+  const runs: Record<string, unknown>[] = [];
   return {
     runs,
-    async findTallyExportRun(input: any) {
+    async findTallyExportRun(input: Record<string, unknown>) {
       return (
         runs.find(
           run =>
@@ -24,7 +24,7 @@ function createFakeDb() {
         ) ?? null
       );
     },
-    async insertTallyExportRun(values: any) {
+    async insertTallyExportRun(values: Record<string, unknown>) {
       const run = { id: runs.length + 1, ...values };
       runs.push(run);
       return run;

@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { router, adminProcedure, superAdminProcedure } from "../_core/trpc";
 import { getKeyStatus, rotateKey } from "../services/piiEncryption";
-import { verifyChain, getChainStats, appendChainedAudit } from "../services/auditHashChain";
+import {
+  verifyChain,
+  getChainStats,
+  appendChainedAudit,
+} from "../services/auditHashChain";
 import {
   grantCapability,
   revokeCapability,
@@ -41,11 +44,15 @@ export const securityRouter = router({
   }),
 
   auditChainVerify: adminProcedure
-    .input(z.object({
-      fromSequence: z.number().int().min(0).optional(),
-      toSequence: z.number().int().min(0).optional(),
-      maxRows: z.number().int().min(1).max(100_000).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          fromSequence: z.number().int().min(0).optional(),
+          toSequence: z.number().int().min(0).optional(),
+          maxRows: z.number().int().min(1).max(100_000).optional(),
+        })
+        .optional()
+    )
     .query(async ({ input }) => {
       return verifyChain(input ?? {});
     }),
@@ -63,22 +70,28 @@ export const securityRouter = router({
     }),
 
   listGrants: adminProcedure
-    .input(z.object({
-      userId: z.union([z.string(), z.number()]).optional(),
-      capabilityName: z.string().optional(),
-      includeRevoked: z.boolean().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          userId: z.union([z.string(), z.number()]).optional(),
+          capabilityName: z.string().optional(),
+          includeRevoked: z.boolean().optional(),
+        })
+        .optional()
+    )
     .query(async ({ input }) => {
       return listGrants(input ?? {});
     }),
 
   grantCapability: superAdminProcedure
-    .input(z.object({
-      userId: z.union([z.string(), z.number()]),
-      capabilityName: z.string().min(1).max(128),
-      expiresAt: z.string().datetime().optional(),
-      reason: z.string().max(500).optional(),
-    }))
+    .input(
+      z.object({
+        userId: z.union([z.string(), z.number()]),
+        capabilityName: z.string().min(1).max(128),
+        expiresAt: z.string().datetime().optional(),
+        reason: z.string().max(500).optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       return grantCapability({
         userId: input.userId,
@@ -90,11 +103,13 @@ export const securityRouter = router({
     }),
 
   revokeCapability: superAdminProcedure
-    .input(z.object({
-      userId: z.union([z.string(), z.number()]),
-      capabilityName: z.string().min(1).max(128),
-      reason: z.string().max(500).optional(),
-    }))
+    .input(
+      z.object({
+        userId: z.union([z.string(), z.number()]),
+        capabilityName: z.string().min(1).max(128),
+        reason: z.string().max(500).optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       return revokeCapability({
         userId: input.userId,
@@ -106,18 +121,20 @@ export const securityRouter = router({
 
   // ─── Rate limit config (read-only view) ──────────────────────────────────────
 
-  rateLimitConfig: adminProcedure.query(async () => {
-    return Array.from(PROCEDURE_RATE_LIMITS.entries()).map(([procedure, policy]) => ({
-      procedure,
-      windowMs: policy.windowMs,
-      max: policy.max,
-      blockMs: policy.blockMs ?? null,
-    }));
+  rateLimitConfig: adminProcedure.query(() => {
+    return Array.from(PROCEDURE_RATE_LIMITS.entries()).map(
+      ([procedure, policy]) => ({
+        procedure,
+        windowMs: policy.windowMs,
+        max: policy.max,
+        blockMs: policy.blockMs ?? null,
+      })
+    );
   }),
 
   // ─── CSP mode status ─────────────────────────────────────────────────────────
 
-  cspStatus: adminProcedure.query(async () => {
+  cspStatus: adminProcedure.query(() => {
     return {
       mode: parseCspMode(process.env.CSP_MODE),
       reportUri: process.env.CSP_REPORT_URI ?? null,

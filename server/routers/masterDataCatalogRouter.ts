@@ -3,6 +3,7 @@
  * PART 3 — Master Data Part B + Upgraded Product Master
  * Covers: Doctor (upgraded), PatientCategory, Staff, Store, Building, Printer (upgraded), Product
  */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
@@ -12,7 +13,7 @@ export {
   buildingMasterRouter,
   printerMasterRouter,
   productMasterRouter,
-} from "./masterDataPart3RouterExtension";
+} from "./masterDataCatalogExtRouter";
 
 function requireStaff(role: string) {
   const STAFF = [

@@ -7,7 +7,9 @@ describe("env guard", () => {
     process.env.JWT_SECRET = "";
     process.env.DATABASE_URL = "";
     process.env.OTP_PROVIDER_ENABLED = "false";
-    await expect(import("./_core/env?guard=" + Date.now())).rejects.toThrow(/Missing required production env/);
+    await expect(import("./_core/env?guard=" + Date.now())).rejects.toThrow(
+      /Missing required production env/
+    );
     process.env = old;
   });
 });

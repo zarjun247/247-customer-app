@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, adminProcedure, managerProcedure } from "../_core/trpc";
+import { router, managerProcedure } from "../_core/trpc";
 import {
   buildCustomerContinuityGraph,
   buildProductContinuityGraph,

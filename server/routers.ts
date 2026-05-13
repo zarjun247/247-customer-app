@@ -4,14 +4,11 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
   protectedProcedure,
+  customerMutationProcedure,
   publicProcedure,
   router,
   requireOrderOwnershipOrStaff,
-  requireAnyRole,
   isStaffRole,
-  PHARMACIST_ROLES,
-  RIDER_ROLES,
-  STAFF_ROLES,
 } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
@@ -31,7 +28,6 @@ import {
   getOrderById,
   getOrderItems,
   updateOrderStatus,
-  updateOrderInvoice,
   createPrescription,
   getPrescriptionsByUser,
   getPrescriptionById,
@@ -133,7 +129,6 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "./services/notificationService";
-import { createReorderPrompt } from "./services/refillReminderService";
 import {
   createDosageSchedule,
   getTodayDosePlan,
@@ -153,6 +148,7 @@ import {
   assertPrescriptionUsableForCustomer,
   logPrescriptionVaultAccess,
 } from "./services/prescriptionVault";
+import { emitSloEvent } from "./services/sloService";
 
 // ─── Auth Router ──────────────────────────────────────────────────────────────
 const otpRateLimit = new Map<string, { count: number; ts: number }>();
@@ -234,9 +230,7 @@ const authRouter = router({
       console.info("auth.otp_verified");
 
       // Upsert the user record keyed by phone
-      const { id: userId } = await upsertUserByPhone(input.phone, {
-        loginMethod: "phone",
-      });
+      await upsertUserByPhone(input.phone, { loginMethod: "phone" });
       const user = await getUserByPhone(input.phone);
       if (!user)
         throw new TRPCError({
@@ -485,7 +479,7 @@ const routingRouter = router({
 // ─── Cart Router ──────────────────────────────────────────────────────────────
 const cartRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => getCart(ctx.user.id)),
-  upsert: protectedProcedure
+  upsert: customerMutationProcedure
     .input(
       z.object({
         skuId: z.number(),
@@ -541,7 +535,7 @@ const cartRouter = router({
       );
       return { success: true };
     }),
-  clear: protectedProcedure.mutation(async ({ ctx }) => {
+  clear: customerMutationProcedure.mutation(async ({ ctx }) => {
     await clearCart(ctx.user.id);
     return { success: true };
   }),
@@ -549,7 +543,7 @@ const cartRouter = router({
 
 // ─── Order Router (shared engine for app + WhatsApp) ─────────────────────────
 const orderRouter = router({
-  checkout: protectedProcedure
+  checkout: customerMutationProcedure
     .input(z.object({ prescriptionId: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
       const user = await getUserById(ctx.user.id);
@@ -797,7 +791,6 @@ const orderRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
       const userRole = ctx.user.role;
       // Customers cannot advance operational statuses
-      const customerOnlyStatuses = ["cancelled"];
       const staffOnlyStatuses = [
         "awaiting_pharmacist_review",
         "clarification_needed",
@@ -873,7 +866,7 @@ const orderRouter = router({
 
 // ─── Prescription Router ──────────────────────────────────────────────────────
 const prescriptionRouter = router({
-  upload: protectedProcedure
+  upload: customerMutationProcedure
     .input(
       z.object({
         imageBase64: z.string(),
@@ -898,66 +891,83 @@ const prescriptionRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const user = await getUserById(ctx.user.id);
-      const buffer = Buffer.from(input.imageBase64, "base64");
-      const allowed: Record<string, { ext: string; magic: number[] }> = {
-        "image/jpeg": { ext: "jpg", magic: [0xff, 0xd8, 0xff] },
-        "image/png": { ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
-        "application/pdf": { ext: "pdf", magic: [0x25, 0x50, 0x44, 0x46] },
-      };
-      const rule = allowed[input.mimeType];
-      if (!rule)
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Unsupported file type",
+      const _started = Date.now();
+      let _withinBudget = false;
+      try {
+        const user = await getUserById(ctx.user.id);
+        const buffer = Buffer.from(input.imageBase64, "base64");
+        const allowed: Record<string, { ext: string; magic: number[] }> = {
+          "image/jpeg": { ext: "jpg", magic: [0xff, 0xd8, 0xff] },
+          "image/png": { ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
+          "application/pdf": { ext: "pdf", magic: [0x25, 0x50, 0x44, 0x46] },
+        };
+        const rule = allowed[input.mimeType];
+        if (!rule)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Unsupported file type",
+          });
+        if (buffer.length > 8 * 1024 * 1024)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "File too large",
+          });
+        if (!rule.magic.every((b, i) => buffer[i] === b))
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid file signature",
+          });
+        const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        const rxId = await createPrescription(
+          ctx.user.id,
+          user?.assignedStoreId ?? undefined,
+          url,
+          key,
+          input.metadata
+            ? {
+                doctorName: input.metadata.doctorName,
+                doctorRegNo: input.metadata.doctorRegNo,
+                clinicName: input.metadata.clinicName,
+                prescriptionDate: input.metadata.prescriptionDate
+                  ? new Date(input.metadata.prescriptionDate)
+                  : undefined,
+                validUntil: input.metadata.validUntil
+                  ? new Date(input.metadata.validUntil)
+                  : undefined,
+                patientName: input.metadata.patientName,
+                linkedProductIds: input.metadata.linkedProductIds,
+                source: input.metadata.source ?? "upload",
+              }
+            : { source: "upload" }
+        );
+        await writeAuditLog(
+          ctx.user.id,
+          "prescription_uploaded",
+          "prescription",
+          rxId,
+          undefined,
+          {
+            actorRole: ctx.user.role,
+            afterJson: {
+              metadataSupplied: Boolean(input.metadata),
+              source: input.metadata?.source ?? "upload",
+            },
+            channel: "app",
+          }
+        );
+        _withinBudget = Date.now() - _started <= 2_000;
+        return { prescriptionId: rxId, imageUrl: url };
+      } finally {
+        void emitSloEvent({
+          sloName: "prescription.upload.latency",
+          target: 0.95,
+          measuredValue: Date.now() - _started,
+          withinBudget: _withinBudget,
+          sampleCount: 1,
+          windowSeconds: 60,
         });
-      if (buffer.length > 8 * 1024 * 1024)
-        throw new TRPCError({ code: "BAD_REQUEST", message: "File too large" });
-      if (!rule.magic.every((b, i) => buffer[i] === b))
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid file signature",
-        });
-      const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
-      const { url } = await storagePut(key, buffer, input.mimeType);
-      const rxId = await createPrescription(
-        ctx.user.id,
-        user?.assignedStoreId ?? undefined,
-        url,
-        key,
-        input.metadata
-          ? {
-              doctorName: input.metadata.doctorName,
-              doctorRegNo: input.metadata.doctorRegNo,
-              clinicName: input.metadata.clinicName,
-              prescriptionDate: input.metadata.prescriptionDate
-                ? new Date(input.metadata.prescriptionDate)
-                : undefined,
-              validUntil: input.metadata.validUntil
-                ? new Date(input.metadata.validUntil)
-                : undefined,
-              patientName: input.metadata.patientName,
-              linkedProductIds: input.metadata.linkedProductIds,
-              source: input.metadata.source ?? "upload",
-            }
-          : { source: "upload" }
-      );
-      await writeAuditLog(
-        ctx.user.id,
-        "prescription_uploaded",
-        "prescription",
-        rxId,
-        undefined,
-        {
-          actorRole: ctx.user.role,
-          afterJson: {
-            metadataSupplied: Boolean(input.metadata),
-            source: input.metadata?.source ?? "upload",
-          },
-          channel: "app",
-        }
-      );
-      return { prescriptionId: rxId, imageUrl: url };
+      }
     }),
   list: protectedProcedure.query(async ({ ctx }) =>
     getPrescriptionsByUser(ctx.user.id)
@@ -997,11 +1007,11 @@ const prescriptionRouter = router({
     const db = await getDb();
     if (db) {
       await Promise.all(
-        rows.map((rx: any) =>
+        rows.map(rx =>
           logPrescriptionVaultAccess(db, {
             actorId: ctx.user.id,
             actorRole: ctx.user.role ?? "customer",
-            prescriptionId: rx.id,
+            prescriptionId: (rx as { id: number }).id,
             purpose: "customer_vault_list",
             channel: "app",
             accessType: "view",
@@ -1009,6 +1019,8 @@ const prescriptionRouter = router({
         )
       );
     }
+    // getPrescriptionVault returns any[] because of a pre-existing any cast in db.ts
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return rows;
   }),
   /** Mark an approved prescription as permanently on-file */
@@ -1103,13 +1115,6 @@ const refillRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const pseudo = {
-        id: String(input.reminderId),
-        customerId: ctx.user.id,
-        productId: input.productId,
-        nextRefillDate: new Date().toISOString().slice(0, 10),
-        regulated: input.regulated,
-      };
       if (input.regulated) {
         await writeAuditLog(
           ctx.user.id,
@@ -1160,7 +1165,10 @@ const notificationRouter = router({
     )
     .mutation(
       async ({ ctx, input }) =>
-        await updateNotificationPreferences(ctx.user.id, input as any)
+        await updateNotificationPreferences(ctx.user.id, {
+          allowSensitiveInUnsafeChannels: input.allowSensitiveInUnsafeChannels,
+          channels: input.channels,
+        })
     ),
   createTest: protectedProcedure
     .input(
@@ -1321,12 +1329,19 @@ const whatsappRouter = router({
       }
       const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
-      const state = session?.flowState ? JSON.parse(session.flowState) : {};
+      type FlowState = {
+        searching?: boolean;
+        awaitingOrderId?: boolean;
+        awaitingImage?: boolean;
+      };
+      const state: FlowState = session?.flowState
+        ? (JSON.parse(session.flowState) as FlowState)
+        : {};
 
       // Simple state machine for WhatsApp flows
       let response = "";
       let nextFlow = flow;
-      let nextState = state;
+      let nextState: FlowState = state;
 
       if (
         input.message.toLowerCase() === "hi" ||
@@ -1529,6 +1544,13 @@ const consultRouter = router({
       );
       return { ok: true };
     }),
+
+  // Option B (SM-LM Phase 10): return external telemedicine URL configured via DOCTOR_CONSULT_URL.
+  // Returns empty string when not configured — frontend hides the button in that case.
+  getRedirectUrl: publicProcedure.query(() => ({
+    url: ENV.doctorConsultUrl,
+    enabled: Boolean(ENV.doctorConsultUrl),
+  })),
 });
 
 export const appRouter = router({

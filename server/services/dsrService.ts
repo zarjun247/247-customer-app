@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import { randomUUID } from "crypto";
 import { randomBytes } from "crypto";
 import pino from "pino";
 import { and, eq, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
-import { dsrRequests } from "../../drizzle/schema/compliance";
+import { dsrRequests, dsrNominees } from "../../drizzle/schema/compliance";
 import {
   users,
   privacyConsents,
@@ -569,6 +570,123 @@ export async function adminRejectRequest(input: {
     reason: input.reason,
     metadata: { requestId: input.requestId },
   });
+
+  return { ok: true };
+}
+
+// ─── SM-LM Phase 11: DSR §11(5) Nominees ─────────────────────────────────────
+
+export async function addNominee(input: {
+  userId: number;
+  nomineeName: string;
+  nomineeEmail: string;
+  nomineePhone?: string;
+  relationship: string;
+}): Promise<{ nomineeId: string }> {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+  const existing = await db
+    .select({ id: dsrNominees.id })
+    .from(dsrNominees)
+    .where(
+      and(
+        eq(dsrNominees.userId, input.userId),
+        eq(dsrNominees.nomineeEmail, input.nomineeEmail),
+        eq(dsrNominees.isActive, true)
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "An active nominee with this email already exists",
+    });
+  }
+
+  const id = randomUUID();
+  await db.insert(dsrNominees).values({
+    id,
+    userId: input.userId,
+    nomineeName: input.nomineeName,
+    nomineeEmail: input.nomineeEmail,
+    nomineePhone: input.nomineePhone ?? null,
+    relationship: input.relationship,
+  });
+
+  await logAudit({
+    actorId: input.userId,
+    action: "dsr.nominee.added",
+    entityType: "customer",
+    entityId: input.userId,
+    metadata: { nomineeId: id, nomineeEmail: input.nomineeEmail },
+  });
+
+  logger.info({ userId: input.userId, nomineeId: id }, "dsr: nominee added");
+
+  return { nomineeId: id };
+}
+
+export async function listNominees(input: {
+  userId: number;
+}): Promise<(typeof dsrNominees.$inferSelect)[]> {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+  return db
+    .select()
+    .from(dsrNominees)
+    .where(
+      and(eq(dsrNominees.userId, input.userId), eq(dsrNominees.isActive, true))
+    )
+    .orderBy(desc(dsrNominees.createdAt))
+    .limit(20);
+}
+
+export async function revokeNominee(input: {
+  userId: number;
+  nomineeId: string;
+}): Promise<{ ok: true }> {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+  const [nominee] = await db
+    .select()
+    .from(dsrNominees)
+    .where(
+      and(
+        eq(dsrNominees.id, input.nomineeId),
+        eq(dsrNominees.userId, input.userId)
+      )
+    )
+    .limit(1);
+
+  if (!nominee) throw new TRPCError({ code: "NOT_FOUND" });
+  if (!nominee.isActive) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Nominee already revoked",
+    });
+  }
+
+  await db
+    .update(dsrNominees)
+    .set({ isActive: false, revokedAt: new Date() })
+    .where(eq(dsrNominees.id, input.nomineeId));
+
+  await logAudit({
+    actorId: input.userId,
+    action: "dsr.nominee.revoked",
+    entityType: "customer",
+    entityId: input.userId,
+    metadata: { nomineeId: input.nomineeId },
+  });
+
+  logger.info(
+    { userId: input.userId, nomineeId: input.nomineeId },
+    "dsr: nominee revoked"
+  );
 
   return { ok: true };
 }

@@ -8,15 +8,25 @@ vi.mock("fs", () => {
         if (store[p]) return store[p];
         throw new Error("ENOENT");
       },
-      writeFileSync: (p: string, data: string) => { store[p] = data; },
-      renameSync: (src: string, dst: string) => { store[dst] = store[src]; delete store[src]; },
+      writeFileSync: (p: string, data: string) => {
+        store[p] = data;
+      },
+      renameSync: (src: string, dst: string) => {
+        store[dst] = store[src];
+        delete store[src];
+      },
     },
     readFileSync: (p: string) => {
       if (store[p]) return store[p];
       throw new Error("ENOENT");
     },
-    writeFileSync: (p: string, data: string) => { store[p] = data; },
-    renameSync: (src: string, dst: string) => { store[dst] = store[src]; delete store[src]; },
+    writeFileSync: (p: string, data: string) => {
+      store[p] = data;
+    },
+    renameSync: (src: string, dst: string) => {
+      store[dst] = store[src];
+      delete store[src];
+    },
   };
 });
 
@@ -32,7 +42,9 @@ import {
   type ChaosDrillRecord,
 } from "./chaosService";
 
-function makeRecord(overrides: Partial<ChaosDrillRecord> = {}): ChaosDrillRecord {
+function makeRecord(
+  overrides: Partial<ChaosDrillRecord> = {}
+): ChaosDrillRecord {
   return {
     id: "drill-1",
     ts: new Date().toISOString(),
@@ -81,7 +93,9 @@ describe("chaosService", () => {
   });
 
   it("recordDrill and listDrillRecords work end to end", async () => {
-    await recordDrill(makeRecord({ id: "d1", scenario: "dead-letter-injection" }));
+    await recordDrill(
+      makeRecord({ id: "d1", scenario: "dead-letter-injection" })
+    );
     await recordDrill(makeRecord({ id: "d2", scenario: "slo-budget-breach" }));
     const records = await listDrillRecords(10);
     expect(records[0].id).toBe("d2");

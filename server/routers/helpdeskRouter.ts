@@ -6,7 +6,13 @@
  * Admins can view all tickets and resolve them.
  */
 
-import { router, protectedProcedure, adminProcedure, capabilityProcedure } from "../_core/trpc";
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+import {
+  router,
+  protectedProcedure,
+  adminProcedure,
+  capabilityProcedure,
+} from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -22,7 +28,15 @@ export const helpdeskRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        category: z.enum(["order", "prescription", "delivery", "billing", "product", "account", "other"]),
+        category: z.enum([
+          "order",
+          "prescription",
+          "delivery",
+          "billing",
+          "product",
+          "account",
+          "other",
+        ]),
         subject: z.string().min(5).max(255),
         description: z.string().min(10).max(5000),
         orderId: z.number().int().positive().optional(),
@@ -32,7 +46,11 @@ export const helpdeskRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const [result] = await db.insert(helpdeskTickets).values({
         userId: ctx.user.id,
@@ -62,14 +80,20 @@ export const helpdeskRouter = router({
   list: protectedProcedure
     .input(
       z.object({
-        status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
+        status: z
+          .enum(["open", "in_progress", "resolved", "closed"])
+          .optional(),
         limit: z.number().int().min(1).max(50).default(20),
         offset: z.number().int().min(0).default(0),
       })
     )
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const condition = input.status
         ? and(
@@ -96,7 +120,11 @@ export const helpdeskRouter = router({
     .input(z.object({ ticketId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const tickets = await db
         .select()
@@ -125,8 +153,20 @@ export const helpdeskRouter = router({
   listAll: adminProcedure
     .input(
       z.object({
-        status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
-        category: z.enum(["order", "prescription", "delivery", "billing", "product", "account", "other"]).optional(),
+        status: z
+          .enum(["open", "in_progress", "resolved", "closed"])
+          .optional(),
+        category: z
+          .enum([
+            "order",
+            "prescription",
+            "delivery",
+            "billing",
+            "product",
+            "account",
+            "other",
+          ])
+          .optional(),
         priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
         limit: z.number().int().min(1).max(100).default(50),
         offset: z.number().int().min(0).default(0),
@@ -134,13 +174,20 @@ export const helpdeskRouter = router({
     )
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       // Build conditions
       const conditions = [];
-      if (input.status) conditions.push(eq(helpdeskTickets.status, input.status));
-      if (input.category) conditions.push(eq(helpdeskTickets.category, input.category));
-      if (input.priority) conditions.push(eq(helpdeskTickets.priority, input.priority));
+      if (input.status)
+        conditions.push(eq(helpdeskTickets.status, input.status));
+      if (input.category)
+        conditions.push(eq(helpdeskTickets.category, input.category));
+      if (input.priority)
+        conditions.push(eq(helpdeskTickets.priority, input.priority));
 
       const tickets = await db
         .select()
@@ -166,15 +213,20 @@ export const helpdeskRouter = router({
         assignedTo: z.number().int().positive().optional(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const updateData: Record<string, unknown> = {
         status: input.status,
       };
 
-      if (input.resolutionNote) updateData.resolutionNote = input.resolutionNote;
+      if (input.resolutionNote)
+        updateData.resolutionNote = input.resolutionNote;
       if (input.assignedTo) updateData.assignedTo = input.assignedTo;
       if (input.status === "resolved" || input.status === "closed") {
         updateData.resolvedAt = new Date();
@@ -201,7 +253,11 @@ export const helpdeskRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       await db
         .update(helpdeskTickets)

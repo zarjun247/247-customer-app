@@ -1,10 +1,4 @@
-import type {
-  Express,
-  NextFunction,
-  Request,
-  RequestHandler,
-  Response,
-} from "express";
+import type { Express, Request, RequestHandler, Response } from "express";
 import { ADMIN_ROLES, STAFF_ROLES, type UserRole } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
 import {
@@ -30,13 +24,11 @@ export const requireStaff: RequestHandler = (req, res, next) => {
     })
     .catch(error => {
       const isProduction = process.env.NODE_ENV === "production";
-      res
-        .status(isProduction ? 404 : 403)
-        .json({
-          status: "forbidden",
-          requestId: res.locals.requestId,
-          error: safeError(error).message,
-        });
+      res.status(isProduction ? 404 : 403).json({
+        status: "forbidden",
+        requestId: (res.locals as Record<string, string | undefined>).requestId,
+        error: safeError(error).message,
+      });
     });
 };
 

@@ -36,7 +36,7 @@ function makeRes(): Partial<Response> {
 beforeEach(() => {
   vi.clearAllMocks();
   mockDoubleCsrfProtection.mockImplementation(
-    (_req: any, _res: any, next: any) => next()
+    (_req: unknown, _res: unknown, next: () => void) => next()
   );
 });
 
@@ -117,7 +117,7 @@ describe("handleCsrfError", () => {
       mockInvalidCsrfTokenError,
       makeReq("/api/trpc/foo") as Request,
       res,
-      next as any
+      next as unknown
     );
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(
@@ -134,7 +134,7 @@ describe("handleCsrfError", () => {
       otherError,
       makeReq("/api/trpc/foo") as Request,
       res,
-      next as any
+      next as unknown
     );
     expect(next).toHaveBeenCalledWith(otherError);
     expect(res.status).not.toHaveBeenCalled();

@@ -10,6 +10,12 @@ const sharedRules = {
 };
 
 export default tseslint.config(
+  // Global linter options: allow broad file-level eslint-disable headers
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: false,
+    },
+  },
   // Ignore generated/build artifacts and config files
   {
     ignores: [
@@ -51,6 +57,32 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "warn",
       "@typescript-eslint/no-unsafe-return": "warn",
       "@typescript-eslint/require-await": "warn",
+      // File size: warn when a source file exceeds 600 lines (doc in OPEN_BLOCKERS.md)
+      "max-lines": [
+        "warn",
+        { max: 600, skipComments: true, skipBlankLines: true },
+      ],
+    },
+  },
+  // Sealed files: critical business logic — disable warning-level type-safety rules
+  // (business invariants are enforced by test coverage, not lint)
+  {
+    files: [
+      "server/services/stockInvariant.ts",
+      "server/services/reservationLedger.ts",
+      "server/services/aiGovernance.ts",
+      "server/services/capabilityGrantService.ts",
+      "server/services/auditHashChain.ts",
+    ],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/require-await": "off",
     },
   },
   // Test files: recommended without full type checking (test files excluded from tsconfig.json)

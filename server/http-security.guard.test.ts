@@ -16,7 +16,10 @@ import { redactSensitive } from "./_core/redact";
 describe("http security middleware guards", () => {
   it("wires Helmet/security middleware into the Express entrypoint", () => {
     const entrypoint = fs.readFileSync("server/_core/index.ts", "utf8");
-    const middleware = fs.readFileSync("server/middleware/httpSecurity.ts", "utf8");
+    const middleware = fs.readFileSync(
+      "server/middleware/httpSecurity.ts",
+      "utf8"
+    );
 
     expect(entrypoint).toContain("applyHttpSecurity(app)");
     expect(middleware).toContain("helmet(");
@@ -41,7 +44,10 @@ describe("http security middleware guards", () => {
     expect(allowlist.has("*")).toBe(false);
     expect(allowlist.has("http://localhost:5173")).toBe(false);
 
-    const middlewareSource = fs.readFileSync("server/middleware/httpSecurity.ts", "utf8");
+    const middlewareSource = fs.readFileSync(
+      "server/middleware/httpSecurity.ts",
+      "utf8"
+    );
     expect(middlewareSource).not.toContain('Access-Control-Allow-Origin", "*"');
     expect(middlewareSource).not.toContain("Access-Control-Allow-Origin', '*'");
   });
@@ -60,16 +66,25 @@ describe("http security middleware guards", () => {
       ip: "203.0.113.9",
       requestId: "req_abcdefghi",
       user: { id: 42, staffStoreId: 7 },
-      header: (name: string) => (name.toLowerCase() === "user-agent" ? "vitest-agent" : undefined),
-    } as any;
-    const res = { statusCode: 401, locals: { requestId: "req_abcdefghi" } } as any;
+      header: (name: string) =>
+        name.toLowerCase() === "user-agent" ? "vitest-agent" : undefined,
+    } as unknown;
+    const res = {
+      statusCode: 401,
+      locals: { requestId: "req_abcdefghi" },
+    } as unknown;
 
-    const entry = buildAccessLogEntry(req, res, startedAt, new Error("otp=123456 gatewaySignature=secret cookie=session-token"));
+    const entry = buildAccessLogEntry(
+      req,
+      res,
+      startedAt,
+      new Error("otp=123456 gatewaySignature=secret cookie=session-token")
+    );
     const serialized = redactSensitive(JSON.stringify(entry));
 
     expect(serialized).toContain("req_abcdefghi");
-    expect(serialized).toContain("\"userId\":\"42\"");
-    expect(serialized).toContain("\"storeId\":\"7\"");
+    expect(serialized).toContain('"userId":"42"');
+    expect(serialized).toContain('"storeId":"7"');
     expect(serialized).not.toContain("otp=123456");
     expect(serialized).not.toContain("secret");
     expect(serialized).not.toContain("session-token");
@@ -78,14 +93,21 @@ describe("http security middleware guards", () => {
 
   it("does not use a broad global 50mb parser and preserves raw webhook parser ordering", () => {
     const entrypoint = fs.readFileSync("server/_core/index.ts", "utf8");
-    const middleware = fs.readFileSync("server/middleware/httpSecurity.ts", "utf8");
+    const middleware = fs.readFileSync(
+      "server/middleware/httpSecurity.ts",
+      "utf8"
+    );
 
     expect(entrypoint).not.toContain('express.json({ limit: "50mb" })');
     expect(entrypoint).not.toContain('express.urlencoded({ limit: "50mb"');
     expect(NORMAL_JSON_LIMIT).toBe("1mb");
     expect(RAW_WEBHOOK_LIMIT).toBe("2mb");
-    const applyBody = middleware.slice(middleware.indexOf("export function applyHttpSecurity"));
-    expect(applyBody.indexOf("registerRawWebhookParsers(app)")).toBeLessThan(applyBody.indexOf("normalJsonParser()"));
+    const applyBody = middleware.slice(
+      middleware.indexOf("export function applyHttpSecurity")
+    );
+    expect(applyBody.indexOf("registerRawWebhookParsers(app)")).toBeLessThan(
+      applyBody.indexOf("normalJsonParser()")
+    );
     expect(middleware).toContain('"/api/webhooks/razorpay"');
     expect(middleware).toContain('"/api/webhooks/whatsapp"');
     expect(middleware).toContain("express.raw");
@@ -102,7 +124,10 @@ describe("http security middleware guards", () => {
         "webhook-provider",
       ])
     );
-    expect(rateLimitScaffold.filter(policy => policy.productionBackendRequired).length).toBeGreaterThanOrEqual(5);
+    expect(
+      rateLimitScaffold.filter(policy => policy.productionBackendRequired)
+        .length
+    ).toBeGreaterThanOrEqual(5);
   });
 
   it("exports middleware functions used by the server boundary", () => {

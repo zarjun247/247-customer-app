@@ -10,8 +10,6 @@ import {
   listUpcomingShifts,
   upsertShift,
   listAllShifts,
-  type OnCallRole,
-  type OnCallShift,
 } from "../services/onCallRota";
 
 const OnCallRoleEnum = z.enum([

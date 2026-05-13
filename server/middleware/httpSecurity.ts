@@ -155,6 +155,7 @@ export const errorAccessLogMiddleware = requestErrorLoggerMiddleware;
 export const buildAccessLogEntry = buildRequestLogEntry;
 export { isSafeRequestId, requestIdMiddleware };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MiddlewareRegistrar = { use: (...args: any[]) => unknown };
 
 export function registerRawWebhookParsers(app: MiddlewareRegistrar) {

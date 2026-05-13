@@ -1,6 +1,10 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { providerDeadLetters, providerWebhookEvents, workerJobs } from "../../drizzle/schema";
+import {
+  providerDeadLetters,
+  providerWebhookEvents,
+  workerJobs,
+} from "../../drizzle/schema";
 
 export const OBSERVABILITY_METRIC_NAMES = [
   "api_latency_seconds",
@@ -14,7 +18,8 @@ export const OBSERVABILITY_METRIC_NAMES = [
   "provider_dead_letter_total",
 ] as const;
 
-export type ObservabilityMetricName = typeof OBSERVABILITY_METRIC_NAMES[number];
+export type ObservabilityMetricName =
+  (typeof OBSERVABILITY_METRIC_NAMES)[number];
 
 export type ProviderVisibilitySummary = {
   source: "provider_event_tables";
@@ -35,7 +40,9 @@ export type ProviderVisibilitySummary = {
   };
 };
 
-const zeroSummary = (databaseConfigured: boolean): ProviderVisibilitySummary => ({
+const zeroSummary = (
+  databaseConfigured: boolean
+): ProviderVisibilitySummary => ({
   source: "provider_event_tables",
   databaseConfigured,
   providerEvents: {
@@ -65,22 +72,28 @@ export async function getProviderVisibilitySummary(): Promise<ProviderVisibility
   const db = await getDb();
   if (!db) return zeroSummary(false);
 
-  const [providerCounts] = await db.select({
-    total: sql<number>`COUNT(*)`,
-    failed: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'failed' THEN 1 ELSE 0 END)`,
-    retryScheduled: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'retry_scheduled' THEN 1 ELSE 0 END)`,
-    deadLetterStatus: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'dead_letter' THEN 1 ELSE 0 END)`,
-  }).from(providerWebhookEvents);
+  const [providerCounts] = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+      failed: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'failed' THEN 1 ELSE 0 END)`,
+      retryScheduled: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'retry_scheduled' THEN 1 ELSE 0 END)`,
+      deadLetterStatus: sql<number>`SUM(CASE WHEN ${providerWebhookEvents.processingStatus} = 'dead_letter' THEN 1 ELSE 0 END)`,
+    })
+    .from(providerWebhookEvents);
 
-  const [deadLetterCounts] = await db.select({
-    total: sql<number>`COUNT(*)`,
-    pendingReview: sql<number>`SUM(CASE WHEN ${providerDeadLetters.reviewStatus} = 'pending_review' THEN 1 ELSE 0 END)`,
-  }).from(providerDeadLetters);
+  const [deadLetterCounts] = await db
+    .select({
+      total: sql<number>`COUNT(*)`,
+      pendingReview: sql<number>`SUM(CASE WHEN ${providerDeadLetters.reviewStatus} = 'pending_review' THEN 1 ELSE 0 END)`,
+    })
+    .from(providerDeadLetters);
 
-  const [workerCounts] = await db.select({
-    backlog: sql<number>`SUM(CASE WHEN ${workerJobs.status} IN ('queued', 'retry_scheduled') THEN 1 ELSE 0 END)`,
-    deadLetter: sql<number>`SUM(CASE WHEN ${workerJobs.status} = 'dead_letter' THEN 1 ELSE 0 END)`,
-  }).from(workerJobs);
+  const [workerCounts] = await db
+    .select({
+      backlog: sql<number>`SUM(CASE WHEN ${workerJobs.status} IN ('queued', 'retry_scheduled') THEN 1 ELSE 0 END)`,
+      deadLetter: sql<number>`SUM(CASE WHEN ${workerJobs.status} = 'dead_letter' THEN 1 ELSE 0 END)`,
+    })
+    .from(workerJobs);
 
   return {
     source: "provider_event_tables",

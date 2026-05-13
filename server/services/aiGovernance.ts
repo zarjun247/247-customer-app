@@ -24,19 +24,33 @@ export type AIGovernanceDecision = {
   createdAt: string;
 };
 
-const PROHIBITED_TASK_PATTERN = /(diagnos|prescrib|substitut|dosage|dose|approve.*prescription|reject.*prescription|dispens|release.*regulated|confirm.*sale|finali[sz]e.*fulfillment|treatment)/i;
-const REGULATED_MUTATION_PATTERN = /(approve|approved|confirm|confirmed|finali[sz]e|release|dispense|pack|pick|deliver|substitut|rxCleared|pharmacistApproved|h1Released|saleConfirmed)/i;
-const REGULATED_CONTEXT_PATTERN = /(regulated|prescription|rx|schedule[_ -]?(h1?|x)|h1|narcotic|controlled|pharmacist|fulfillment|sale|orderLine|medicine)/i;
+const PROHIBITED_TASK_PATTERN =
+  /(diagnos|prescrib|substitut|dosage|dose|approve.*prescription|reject.*prescription|dispens|release.*regulated|confirm.*sale|finali[sz]e.*fulfillment|treatment)/i;
+const REGULATED_MUTATION_PATTERN =
+  /(approve|approved|confirm|confirmed|finali[sz]e|release|dispense|pack|pick|deliver|substitut|rxCleared|pharmacistApproved|h1Released|saleConfirmed)/i;
+const REGULATED_CONTEXT_PATTERN =
+  /(regulated|prescription|rx|schedule[_ -]?(h1?|x)|h1|narcotic|controlled|pharmacist|fulfillment|sale|orderLine|medicine)/i;
 
 export function hashAIArtifact(value: unknown): string {
-  return crypto.createHash("sha256").update(JSON.stringify(redactObject(value))).digest("hex");
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(redactObject(value)))
+    .digest("hex");
 }
 
 export function classifyAITask(taskType: string): AITaskClassification {
-  if (PROHIBITED_TASK_PATTERN.test(taskType)) return "prohibited_clinical_or_dispensing";
-  if (/ocr.*prescription|prescription.*ocr|ocr.*invoice|invoice.*ocr/i.test(taskType)) return "ocr_data_capture";
-  if (/expiry|fefo|inventory/i.test(taskType)) return "inventory_expiry_analysis";
-  if (/anomaly|risk|monitor/i.test(taskType)) return "operational_anomaly_detection";
+  if (PROHIBITED_TASK_PATTERN.test(taskType))
+    return "prohibited_clinical_or_dispensing";
+  if (
+    /ocr.*prescription|prescription.*ocr|ocr.*invoice|invoice.*ocr/i.test(
+      taskType
+    )
+  )
+    return "ocr_data_capture";
+  if (/expiry|fefo|inventory/i.test(taskType))
+    return "inventory_expiry_analysis";
+  if (/anomaly|risk|monitor/i.test(taskType))
+    return "operational_anomaly_detection";
   return "ops_summary";
 }
 
@@ -48,16 +62,29 @@ export function assertAITaskAllowed(taskType: string): AITaskClassification {
   return classification;
 }
 
-function scanForRegulatedMutation(value: unknown, keyPath: string[] = []): string | null {
+function scanForRegulatedMutation(
+  value: unknown,
+  keyPath: string[] = []
+): string | null {
   if (value === null || value === undefined) return null;
   const path = keyPath.join(".");
-  if (REGULATED_MUTATION_PATTERN.test(path) && REGULATED_CONTEXT_PATTERN.test(path)) return path;
+  if (
+    REGULATED_MUTATION_PATTERN.test(path) &&
+    REGULATED_CONTEXT_PATTERN.test(path)
+  )
+    return path;
   if (typeof value === "string") {
-    if (REGULATED_MUTATION_PATTERN.test(value) && REGULATED_CONTEXT_PATTERN.test(`${path} ${value}`)) return path || "output";
+    if (
+      REGULATED_MUTATION_PATTERN.test(value) &&
+      REGULATED_CONTEXT_PATTERN.test(`${path} ${value}`)
+    )
+      return path || "output";
     return null;
   }
   if (typeof value !== "object") return null;
-  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, nested] of Object.entries(
+    value as Record<string, unknown>
+  )) {
     const hit = scanForRegulatedMutation(nested, [...keyPath, key]);
     if (hit) return hit;
   }
@@ -67,7 +94,9 @@ function scanForRegulatedMutation(value: unknown, keyPath: string[] = []): strin
 export function assertAIOutputAssistiveOnly(output: unknown): void {
   const mutationPath = scanForRegulatedMutation(output);
   if (mutationPath) {
-    throw new Error(`AI output attempted regulated fulfillment mutation at ${mutationPath}; pharmacist-gated workflow required`);
+    throw new Error(
+      `AI output attempted regulated fulfillment mutation at ${mutationPath}; pharmacist-gated workflow required`
+    );
   }
 }
 
@@ -87,26 +116,34 @@ export async function auditAIDecision(input: {
     taskType: input.taskType,
     classification,
     assistiveOnly: true,
-    pharmacistApprovalRequired: /prescription|rx|regulated|h1|schedule|medicine/i.test(input.taskType),
+    pharmacistApprovalRequired:
+      /prescription|rx|regulated|h1|schedule|medicine/i.test(input.taskType),
     mayMutateRegulatedFulfillment: false,
     regulatedEntityRef: input.regulatedEntityRef ?? null,
     inputHash: hashAIArtifact(input.input),
-    outputHash: input.output === undefined ? undefined : hashAIArtifact(input.output),
+    outputHash:
+      input.output === undefined ? undefined : hashAIArtifact(input.output),
     modelName: input.modelName ?? null,
     actorId: input.actorId ?? null,
     correlationId: input.correlationId ?? null,
     createdAt: new Date().toISOString(),
   };
-  await logAudit({
-    action: "ai.decision_recorded",
-    entityType: "ai_decision",
-    entityRef: input.regulatedEntityRef ?? input.taskType,
-    actorType: "system",
-    actorId: input.actorId ?? null,
-    reason: "assistive_ai_only_no_regulated_mutation",
-    afterJson: decision,
-    metadata: { taskType: input.taskType, correlationId: input.correlationId ?? null },
-    source: "system",
-  }, input.ctx);
+  await logAudit(
+    {
+      action: "ai.decision_recorded",
+      entityType: "ai_decision",
+      entityRef: input.regulatedEntityRef ?? input.taskType,
+      actorType: "system",
+      actorId: input.actorId ?? null,
+      reason: "assistive_ai_only_no_regulated_mutation",
+      afterJson: decision,
+      metadata: {
+        taskType: input.taskType,
+        correlationId: input.correlationId ?? null,
+      },
+      source: "system",
+    },
+    input.ctx
+  );
   return decision;
 }

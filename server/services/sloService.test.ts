@@ -9,7 +9,7 @@ const mockDb = { insert: mockInsert, select: mockSelect };
 const mockGetDb = vi.fn();
 
 vi.mock("../db", () => ({
-  getDb: (...args: any[]) => mockGetDb(...args),
+  getDb: (...args: unknown[]) => mockGetDb(...args),
 }));
 
 import {
@@ -20,19 +20,28 @@ import {
 } from "./sloService";
 
 describe("SLO_DEFINITIONS", () => {
-  const names = SLO_DEFINITIONS.map((d) => d.name);
+  const names = SLO_DEFINITIONS.map(d => d.name);
 
-  it("contains all six expected SLO names", () => {
+  it("contains all expected SLO names", () => {
     expect(names).toContain("trpc.sale.confirm.p99");
     expect(names).toContain("trpc.purchase.commit.p99");
     expect(names).toContain("trpc.payment.verify.p99");
     expect(names).toContain("http.api.latency.p95");
     expect(names).toContain("provider.razorpay.success.rate");
     expect(names).toContain("provider.whatsapp.success.rate");
+    expect(names).toContain("sale.confirmSale.latency");
+    expect(names).toContain("purchase.commitPurchaseInvoice.latency");
+    expect(names).toContain("payment.captureWebhook.latency");
+    expect(names).toContain("prescription.upload.latency");
+    expect(names).toContain("ocr.process.latency");
+    expect(names).toContain("inventory.adjust.latency");
+    expect(names).toContain("dsr.access.latency");
+    expect(names).toContain("dsr.erasure.latency");
+    expect(names).toContain("retention.tick.duration");
   });
 
-  it("has exactly six entries", () => {
-    expect(SLO_DEFINITIONS).toHaveLength(6);
+  it("has exactly fifteen entries", () => {
+    expect(SLO_DEFINITIONS).toHaveLength(15);
   });
 
   it("each entry has required shape with valid ranges", () => {
@@ -49,8 +58,12 @@ describe("SLO_DEFINITIONS", () => {
   });
 
   it("razorpay and whatsapp SLOs use 300-second window", () => {
-    const razorpay = SLO_DEFINITIONS.find((d) => d.name === "provider.razorpay.success.rate");
-    const whatsapp = SLO_DEFINITIONS.find((d) => d.name === "provider.whatsapp.success.rate");
+    const razorpay = SLO_DEFINITIONS.find(
+      d => d.name === "provider.razorpay.success.rate"
+    );
+    const whatsapp = SLO_DEFINITIONS.find(
+      d => d.name === "provider.whatsapp.success.rate"
+    );
     expect(razorpay?.windowSeconds).toBe(300);
     expect(whatsapp?.windowSeconds).toBe(300);
   });
@@ -95,7 +108,9 @@ describe("emitSloEvent", () => {
 
   it("returns silently without throwing when DB insert throws", async () => {
     mockGetDb.mockResolvedValue(mockDb);
-    mockInsert.mockReturnValue({ values: vi.fn().mockRejectedValue(new Error("db error")) });
+    mockInsert.mockReturnValue({
+      values: vi.fn().mockRejectedValue(new Error("db error")),
+    });
     await expect(
       emitSloEvent({
         sloName: "trpc.sale.confirm.p99",
@@ -131,13 +146,17 @@ describe("recordLatencyForSlo", () => {
   });
 
   it("passes context through to emitSloEvent when provided", async () => {
-    await recordLatencyForSlo("http.api.latency.p95", 5, { route: "/api/orders" });
+    await recordLatencyForSlo("http.api.latency.p95", 5, {
+      route: "/api/orders",
+    });
     const inserted = mockValues.mock.calls[0][0];
     expect(inserted.context).toEqual({ route: "/api/orders" });
   });
 
   it("returns silently for unknown SLO names without throwing", async () => {
-    await expect(recordLatencyForSlo("unknown.slo.name", 0.1)).resolves.toBeUndefined();
+    await expect(
+      recordLatencyForSlo("unknown.slo.name", 0.1)
+    ).resolves.toBeUndefined();
     expect(mockInsert).not.toHaveBeenCalled();
   });
 });
@@ -157,7 +176,9 @@ describe("getSloBudgetSummary", () => {
   });
 
   it("returns zero-state when no events exist for the SLO", async () => {
-    const withChain = { where: vi.fn().mockResolvedValue([{ eventCount: 0, withinCount: 0 }]) };
+    const withChain = {
+      where: vi.fn().mockResolvedValue([{ eventCount: 0, withinCount: 0 }]),
+    };
     const fromChain = { from: vi.fn().mockReturnValue(withChain) };
     mockSelect.mockReturnValue(fromChain);
     mockGetDb.mockResolvedValue(mockDb);
@@ -176,7 +197,9 @@ describe("getSloBudgetSummary", () => {
       if (selectCallCount === 1) {
         return {
           from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ eventCount: 10, withinCount: 9 }]),
+            where: vi
+              .fn()
+              .mockResolvedValue([{ eventCount: 10, withinCount: 9 }]),
           }),
         };
       }
@@ -201,7 +224,9 @@ describe("getSloBudgetSummary", () => {
     });
     mockGetDb.mockResolvedValue(mockDb);
 
-    await expect(getSloBudgetSummary("trpc.sale.confirm.p99")).resolves.toMatchObject({
+    await expect(
+      getSloBudgetSummary("trpc.sale.confirm.p99")
+    ).resolves.toMatchObject({
       eventCount: 0,
       actualRate: 0,
       lastBreachAt: null,

@@ -23,14 +23,23 @@ import { eq, and } from "drizzle-orm";
 const ALLOWED_ROLES = ["store_manager", "admin"] as const;
 
 function assertRole(role: string) {
-  if (!ALLOWED_ROLES.includes(role as typeof ALLOWED_ROLES[number])) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Store manager access required" });
+  if (!ALLOWED_ROLES.includes(role as (typeof ALLOWED_ROLES)[number])) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Store manager access required",
+    });
   }
 }
 
-function getStoreId(user: { staffStoreId?: number | null; role: string }): number {
+function getStoreId(user: {
+  staffStoreId?: number | null;
+  role: string;
+}): number {
   if (user.staffStoreId) return user.staffStoreId;
-  throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No store assigned" });
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message: "No store assigned",
+  });
 }
 
 /**
@@ -57,14 +66,22 @@ function parseMedivisionCsv(csvText: string): Array<{
   const delimiter = lines[0].includes("\t") ? "\t" : ",";
 
   // Parse header
-  const rawHeaders = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const rawHeaders = lines[0].split(delimiter).map(h =>
+    h
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+  );
   const headerMap: Record<string, number> = {};
-  rawHeaders.forEach((h, i) => { headerMap[h] = i; });
+  rawHeaders.forEach((h, i) => {
+    headerMap[h] = i;
+  });
 
   const get = (row: string[], keys: string[]): string => {
     for (const k of keys) {
       const idx = headerMap[k];
-      if (idx !== undefined && row[idx] !== undefined) return row[idx].trim().replace(/^"|"$/g, "");
+      if (idx !== undefined && row[idx] !== undefined)
+        return row[idx].trim().replace(/^"|"$/g, "");
     }
     return "";
   };
@@ -75,20 +92,30 @@ function parseMedivisionCsv(csvText: string): Array<{
     if (cols.length < 3) continue;
 
     const itemCode = get(cols, ["itemcode", "code", "productcode", "sku"]);
-    const itemName = get(cols, ["itemname", "name", "productname", "description"]);
+    const itemName = get(cols, [
+      "itemname",
+      "name",
+      "productname",
+      "description",
+    ]);
     if (!itemCode && !itemName) continue;
 
     rows.push({
       itemCode: itemCode || `MV-${i}`,
       itemName: itemName || "Unknown",
       pack: get(cols, ["pack", "packsize", "unit"]) || "1",
-      manufacturer: get(cols, ["manufacturer", "mfr", "company", "brand"]) || "",
-      mrp: parseFloat(get(cols, ["mrp", "maxretailprice", "sellingprice"])) || 0,
-      purchaseRate: parseFloat(get(cols, ["purchaserate", "costprice", "rate", "ptr"])) || 0,
+      manufacturer:
+        get(cols, ["manufacturer", "mfr", "company", "brand"]) || "",
+      mrp:
+        parseFloat(get(cols, ["mrp", "maxretailprice", "sellingprice"])) || 0,
+      purchaseRate:
+        parseFloat(get(cols, ["purchaserate", "costprice", "rate", "ptr"])) ||
+        0,
       category: get(cols, ["category", "type", "group"]) || "medicines",
       hsnCode: get(cols, ["hsncode", "hsn"]) || "30049099",
       gstRate: parseFloat(get(cols, ["gstrate", "gst", "taxrate"])) || 12,
-      stockQty: parseInt(get(cols, ["stockqty", "stock", "qty", "quantity"])) || 0,
+      stockQty:
+        parseInt(get(cols, ["stockqty", "stock", "qty", "quantity"])) || 0,
     });
   }
   return rows;
@@ -100,17 +127,23 @@ export const medivisionRouter = router({
    * Creates/updates products and store_skus in a single transaction.
    */
   importCsv: protectedProcedure
-    .input(z.object({
-      csvText: z.string().min(10, "CSV content is required"),
-      filename: z.string().default("medivision-import.csv"),
-      storeId: z.number().int().optional(),
-    }))
+    .input(
+      z.object({
+        csvText: z.string().min(10, "CSV content is required"),
+        filename: z.string().default("medivision-import.csv"),
+        storeId: z.number().int().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role);
       const storeId = input.storeId ?? getStoreId(ctx.user);
 
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
 
       // Create sync log entry
       const [logResult] = await db.insert(medivisionSyncLog).values({
@@ -121,10 +154,18 @@ export const medivisionRouter = router({
 
       const rows = parseMedivisionCsv(input.csvText);
       if (rows.length === 0) {
-        await db.update(medivisionSyncLog)
-          .set({ status: "failed", errors: "No parseable rows found in CSV", completedAt: new Date() })
+        await db
+          .update(medivisionSyncLog)
+          .set({
+            status: "failed",
+            errors: "No parseable rows found in CSV",
+            completedAt: new Date(),
+          })
           .where(eq(medivisionSyncLog.id, logId));
-        throw new TRPCError({ code: "BAD_REQUEST", message: "No parseable rows found in CSV" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No parseable rows found in CSV",
+        });
       }
 
       let inserted = 0;
@@ -146,7 +187,8 @@ export const medivisionRouter = router({
           if (existingProducts.length > 0) {
             productId = existingProducts[0].id;
             // Update MRP, HSN, GST rate
-            await db.update(products)
+            await db
+              .update(products)
               .set({
                 hsnCode: row.hsnCode,
                 gstRate: String(row.gstRate),
@@ -157,10 +199,25 @@ export const medivisionRouter = router({
             updated++;
           } else {
             // Insert new product
-            const validCategories = ["medicine", "devices", "baby", "nutrition", "fmcg", "wellness"] as const;
-            type ValidCat = typeof validCategories[number];
-            const catMap: Record<string, ValidCat> = { medicines: "medicine", personal_care: "fmcg", general: "fmcg" };
-            const resolvedCat: ValidCat = catMap[row.category] ?? (validCategories.includes(row.category as ValidCat) ? (row.category as ValidCat) : "medicine");
+            const validCategories = [
+              "medicine",
+              "devices",
+              "baby",
+              "nutrition",
+              "fmcg",
+              "wellness",
+            ] as const;
+            type ValidCat = (typeof validCategories)[number];
+            const catMap: Record<string, ValidCat> = {
+              medicines: "medicine",
+              personal_care: "fmcg",
+              general: "fmcg",
+            };
+            const resolvedCat: ValidCat =
+              catMap[row.category] ??
+              (validCategories.includes(row.category as ValidCat)
+                ? (row.category as ValidCat)
+                : "medicine");
             const [insertResult] = await db.insert(products).values({
               name: row.itemName,
               brand: row.manufacturer || null,
@@ -179,11 +236,17 @@ export const medivisionRouter = router({
           const existingSkus = await db
             .select({ id: storeSkus.id })
             .from(storeSkus)
-            .where(and(eq(storeSkus.productId, productId), eq(storeSkus.storeId, storeId)))
+            .where(
+              and(
+                eq(storeSkus.productId, productId),
+                eq(storeSkus.storeId, storeId)
+              )
+            )
             .limit(1);
 
           if (existingSkus.length > 0) {
-            await db.update(storeSkus)
+            await db
+              .update(storeSkus)
               .set({
                 stockQty: row.stockQty,
                 sellingPrice: String(row.mrp),
@@ -209,7 +272,8 @@ export const medivisionRouter = router({
       }
 
       // Update sync log
-      await db.update(medivisionSyncLog)
+      await db
+        .update(medivisionSyncLog)
         .set({
           rowsProcessed: rows.length,
           rowsInserted: inserted,
@@ -252,6 +316,7 @@ export const medivisionRouter = router({
   /**
    * Health check — confirms the router is reachable.
    */
+  // eslint-disable-next-line @typescript-eslint/require-await
   healthCheck: protectedProcedure.query(async ({ ctx }) => {
     assertRole(ctx.user.role);
     return {

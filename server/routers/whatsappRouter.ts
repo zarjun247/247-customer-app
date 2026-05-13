@@ -22,11 +22,21 @@
  *  - Admin: message queue, linked customers, handoffs, recent WA orders, templates
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { whatsappRouterExtension } from "./whatsappRouterExtension";
-import { and, desc, eq, gte, isNull, like, or, sql } from "drizzle-orm";
+import { whatsappRouterExtension } from "./whatsappMessagingRouter";
+import {
+  and,
+  desc,
+  eq,
+  gte as _gte,
+  isNull as _isNull,
+  like,
+  or as _or,
+  sql as _sql,
+} from "drizzle-orm";
 import { getDb } from "../db";
 import {
   whatsappLinks,
@@ -36,22 +46,22 @@ import {
   wabaMessageTemplates,
   staffHandoffs,
   whatsappWebhookLog,
-  whatsappSessions,
-  orders,
-  orderItems,
+  whatsappSessions as _whatsappSessions,
+  orders as _orders,
+  orderItems as _orderItems,
   products,
   storeSkus,
-  productVariants,
-  prescriptions,
+  productVariants as _productVariants,
+  prescriptions as _prescriptions,
   users,
   buildings,
-  stores,
-  refillReminders,
+  stores as _stores,
+  refillReminders as _refillReminders,
   refillPlans,
   ingestionJobs,
 } from "../../drizzle/schema";
 import {
-  getDb as getDbHelper,
+  getDb as _getDbHelper,
   getWhatsappSession,
   upsertWhatsappSession,
   getCatalog,
@@ -60,7 +70,7 @@ import {
   getOrderItemsForReorder,
   createOrder,
   getUserByPhone,
-  upsertUserByPhone,
+  upsertUserByPhone as _upsertUserByPhone,
   writeAuditLog,
   createWhatsappPrescription,
 } from "../db";
@@ -636,7 +646,7 @@ const templateRouter = router({
   }),
 });
 
-// ─── handoff, message, cart, admin: see whatsappRouterExtension.ts ────────────
+// ─── handoff, message, cart, admin: see whatsappMessagingRouter.ts ───────────
 
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 

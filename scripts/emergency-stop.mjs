@@ -94,6 +94,28 @@ function writeLocalFlag(data) {
   fs.renameSync(tmp, FLAG_PATH);
 }
 
+async function tryReadFromDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) return null;
+  const { createPool } = await import("mysql2/promise");
+  const pool = createPool(dbUrl);
+  try {
+    const [rows] = await pool.execute(
+      "SELECT setting_value FROM system_settings WHERE setting_key = 'app_emergency_stop' LIMIT 1"
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return typeof row.setting_value === "string"
+      ? JSON.parse(row.setting_value)
+      : row.setting_value;
+  } catch (err) {
+    console.error(`[emergency-stop] DB read failed: ${err.message}`);
+    return null;
+  } finally {
+    await pool.end();
+  }
+}
+
 async function tryWriteToDb(active, reason) {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
@@ -109,13 +131,12 @@ async function tryWriteToDb(active, reason) {
     const value = JSON.stringify({
       active,
       reason,
-      setAt: new Date().toISOString(),
-      setBy: ACTOR,
+      activated_at: active ? new Date().toISOString() : null,
     });
     await pool.execute(
-      `INSERT INTO system_settings (\`key\`, value, updated_at)
+      `INSERT INTO system_settings (setting_key, setting_value, updated_at)
        VALUES ('app_emergency_stop', ?, NOW())
-       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()`,
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()`,
       [value]
     );
     console.log("[emergency-stop] DB flag written to system_settings.");
@@ -130,17 +151,20 @@ async function tryWriteToDb(active, reason) {
 }
 
 async function main() {
-  const dbWritten = await tryWriteToDb(!isResume, reason);
-
   if (isStatus) {
-    const flag = readLocalFlag();
-    console.log("[emergency-stop] Current state:");
+    const dbFlag = await tryReadFromDb();
+    const flag = dbFlag ?? readLocalFlag();
+    const source = dbFlag ? "database" : "local file";
+    console.log(`[emergency-stop] Current state (source: ${source}):`);
     console.log(`  active: ${flag.active}`);
     console.log(`  reason: ${flag.reason ?? "(none)"}`);
-    console.log(`  setAt:  ${flag.setAt ?? "(never)"}`);
-    console.log(`  setBy:  ${flag.setBy ?? "(unknown)"}`);
+    console.log(
+      `  activated_at: ${flag.activated_at ?? flag.setAt ?? "(never)"}`
+    );
     process.exit(0);
   }
+
+  const dbWritten = await tryWriteToDb(!isResume, reason);
 
   if (!isResume && !reason) {
     console.error(

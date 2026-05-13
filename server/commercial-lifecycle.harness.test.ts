@@ -4,10 +4,10 @@ import { createCommercialLifecycleHarness } from "./testUtils/commercialFixtures
 
 const purchaseRouter =
   readFileSync("server/routers/purchaseRouter.ts", "utf8") +
-  readFileSync("server/routers/purchaseRouterExtension.ts", "utf8");
+  readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8");
 const salesRouter =
   readFileSync("server/routers/salesRouter.ts", "utf8") +
-  readFileSync("server/routers/salesRouterExtension.ts", "utf8");
+  readFileSync("server/routers/salesReportsRouter.ts", "utf8");
 const paymentRouter = readFileSync("server/routers/paymentRouter.ts", "utf8");
 const reportsRouter = readFileSync("server/routers/reportsRouter.ts", "utf8");
 const reservationService = readFileSync(

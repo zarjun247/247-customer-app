@@ -24,7 +24,7 @@ function makeSelectChain(rows: unknown[]) {
   return { select: vi.fn().mockReturnValue({ from }) };
 }
 
-function makeUpdateChain() {
+function _makeUpdateChain() {
   const where = vi.fn().mockResolvedValue({});
   const set = vi.fn().mockReturnValue({ where });
   return { update: vi.fn().mockReturnValue({ set }) };
@@ -36,7 +36,7 @@ beforeEach(() => {
 
 describe("runRetentionTick", () => {
   it("returns zero counts when DB is unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     const r = await runRetentionTick();
     expect(r.processed).toBe(0);
     expect(r.errors).toBe(0);
@@ -44,7 +44,7 @@ describe("runRetentionTick", () => {
 
   it("returns zero counts when no confirmed erasure requests exist", async () => {
     const db = makeSelectChain([]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await runRetentionTick();
     expect(r.processed).toBe(0);
@@ -77,7 +77,7 @@ describe("runRetentionTick", () => {
           fn({ update: txUpdate, select: txSelect })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await runRetentionTick();
     expect(r.processed).toBe(1);
@@ -97,7 +97,7 @@ describe("runRetentionTick", () => {
       ...makeSelectChain([req]),
       transaction: vi.fn().mockRejectedValue(new Error("TX failed")),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await runRetentionTick();
     expect(r.processed).toBe(0);
@@ -133,7 +133,7 @@ describe("runRetentionTick", () => {
           fn({ update: txUpdate, select: txSelect })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await runRetentionTick();
     expect(r.processed).toBe(1);
@@ -177,7 +177,7 @@ describe("runRetentionTick", () => {
           fn({ update: txUpdate, select: txSelect })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await runRetentionTick();
     expect(r.processed).toBe(2);
@@ -213,7 +213,7 @@ describe("runRetentionTick", () => {
           fn({ update: txUpdate, select: txSelect })
         ),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await runRetentionTick();
     expect(logAudit).toHaveBeenCalledWith(
@@ -226,12 +226,14 @@ describe("runRetentionTick", () => {
 
   it("returns zero processed when worker is disabled", async () => {
     const { ENV } = await import("../_core/env");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (ENV as any).retentionWorkerEnabled = false;
 
     const r = await runRetentionTick();
     expect(r.processed).toBe(0);
 
     // Restore
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (ENV as any).retentionWorkerEnabled = true;
   });
 
@@ -239,7 +241,7 @@ describe("runRetentionTick", () => {
     // This is structural: the DB query already filters by status="confirmed",
     // so the select returning empty = no requests to process
     const db = makeSelectChain([]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await runRetentionTick();
     expect(r.processed).toBe(0);
   });

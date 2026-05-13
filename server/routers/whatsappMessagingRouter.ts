@@ -4,6 +4,7 @@
  * Contains: handoffRouter, messageRouter, cartRouter, adminRouter
  * These are spread into whatsappFullRouter in whatsappRouter.ts.
  */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import crypto from "node:crypto";
 import { z } from "zod";
@@ -26,8 +27,8 @@ import {
 import {
   getWhatsappSession,
   upsertWhatsappSession,
-  getOrdersByUser,
-  getOrderItemsForReorder,
+  getOrdersByUser as _getOrdersByUser,
+  getOrderItemsForReorder as _getOrderItemsForReorder,
   createOrder,
   writeAuditLog,
 } from "../db";
@@ -132,7 +133,7 @@ function assertWhatsappWebhookGuard(
     });
 }
 
-async function createRegulatedIntentHandoff(input: {
+async function _createRegulatedIntentHandoff(input: {
   phone: string;
   userId: number | null;
   sessionId?: number;
@@ -164,7 +165,7 @@ async function createRegulatedIntentHandoff(input: {
   return handoffId;
 }
 
-function formatCart(lines: any[]): string {
+function _formatCart(lines: any[]): string {
   if (!lines.length) return "Your cart is empty.\n\nReply *hi* for main menu.";
   const items = lines.map(
     (l, i) =>

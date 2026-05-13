@@ -27,6 +27,7 @@ import {
   assertOcrProviderReady,
   assertRealOcrEvidence,
 } from "./services/ocrProductionSafety";
+import { emitSloEvent } from "./services/sloService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,7 +140,9 @@ export async function extractInvoiceItems(
     throw new Error("manual_required: OCR provider returned no parse payload");
 
   try {
-    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const parsed = (typeof raw === "string" ? JSON.parse(raw) : raw) as {
+      items?: unknown[];
+    };
     const items = (parsed.items ?? []) as ExtractedLineItem[];
     if (!items.length)
       throw new Error(
@@ -282,146 +285,160 @@ export async function detectDuplicate(
  * 6. Updates ingestion status to under_review
  */
 export async function runOcrPipeline(ingestionId: number): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Database unavailable");
-
-  // Fetch ingestion record
-  const ingestionRows = await db
-    .select()
-    .from(invoiceIngestions)
-    .where(eq(invoiceIngestions.id, ingestionId))
-    .limit(1);
-
-  if (ingestionRows.length === 0)
-    throw new Error(`Ingestion ${ingestionId} not found`);
-  const ingestion = ingestionRows[0];
-  assertRealOcrEvidence({
-    fileUrl: ingestion.fileUrl,
-    fileKey: ingestion.fileKey,
-  });
-
-  // Find the queued OCR job
-  const jobRows = await db
-    .select()
-    .from(ocrJobs)
-    .where(
-      and(eq(ocrJobs.ingestionId, ingestionId), eq(ocrJobs.status, "queued"))
-    )
-    .limit(1);
-
-  if (jobRows.length === 0)
-    throw new Error(`No queued OCR job for ingestion ${ingestionId}`);
-  const job = jobRows[0];
-
-  // Mark as processing
-  await db
-    .update(ocrJobs)
-    .set({
-      status: "processing",
-      startedAt: new Date(),
-      attempts: job.attempts + 1,
-    })
-    .where(eq(ocrJobs.id, job.id));
-
+  const started = Date.now();
+  let withinBudget = false;
   try {
-    // Extract items via LLM
-    const items = await extractInvoiceItems(
-      ingestion.fileUrl,
-      ingestion.mimeType
-    );
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
 
-    // Save raw response to OCR job
+    // Fetch ingestion record
+    const ingestionRows = await db
+      .select()
+      .from(invoiceIngestions)
+      .where(eq(invoiceIngestions.id, ingestionId))
+      .limit(1);
+
+    if (ingestionRows.length === 0)
+      throw new Error(`Ingestion ${ingestionId} not found`);
+    const ingestion = ingestionRows[0];
+    assertRealOcrEvidence({
+      fileUrl: ingestion.fileUrl,
+      fileKey: ingestion.fileKey,
+    });
+
+    // Find the queued OCR job
+    const jobRows = await db
+      .select()
+      .from(ocrJobs)
+      .where(
+        and(eq(ocrJobs.ingestionId, ingestionId), eq(ocrJobs.status, "queued"))
+      )
+      .limit(1);
+
+    if (jobRows.length === 0)
+      throw new Error(`No queued OCR job for ingestion ${ingestionId}`);
+    const job = jobRows[0];
+
+    // Mark as processing
     await db
       .update(ocrJobs)
       .set({
-        rawResponse: JSON.stringify(items),
-        parsedJson: JSON.stringify(items),
+        status: "processing",
+        startedAt: new Date(),
+        attempts: job.attempts + 1,
       })
       .where(eq(ocrJobs.id, job.id));
 
-    // Process each item: match + duplicate check
-    const reviewRows: Parameters<typeof db.insert>[0] extends never
-      ? never
-      : Array<{
-          ingestionId: number;
-          rawLine: string;
-          parsedName: string | null;
-          parsedBatch: string | null;
-          parsedExpiry: string | null;
-          parsedQty: number | null;
-          parsedUnitCost: string | null;
-          parsedMrp: string | null;
-          parsedBarcode: string | null;
-          matchedProductId: number | null;
-          matchedVariantId: number | null;
-          matchConfidence: string | null;
-          isDuplicate: boolean;
-          duplicateOfId: number | null;
-          status: "pending";
-        }> = [];
-
-    for (const item of items) {
-      const match = await matchProduct(item.parsedName);
-      const dupId = await detectDuplicate(
-        ingestionId,
-        item.parsedBatch,
-        item.parsedName
+    try {
+      // Extract items via LLM
+      const items = await extractInvoiceItems(
+        ingestion.fileUrl,
+        ingestion.mimeType
       );
 
-      reviewRows.push({
-        ingestionId,
-        rawLine: item.rawLine,
-        parsedName: item.parsedName,
-        parsedBatch: item.parsedBatch,
-        parsedExpiry: item.parsedExpiry,
-        parsedQty: item.parsedQty,
-        parsedUnitCost: item.parsedUnitCost?.toString() ?? null,
-        parsedMrp: item.parsedMrp?.toString() ?? null,
-        parsedBarcode: item.parsedBarcode,
-        matchedProductId: match?.productId ?? null,
-        matchedVariantId: match?.variantId ?? null,
-        matchConfidence: match ? match.confidence.toString() : null,
-        isDuplicate: dupId !== null,
-        duplicateOfId: dupId ?? null,
-        status: "pending" as const,
-      });
+      // Save raw response to OCR job
+      await db
+        .update(ocrJobs)
+        .set({
+          rawResponse: JSON.stringify(items),
+          parsedJson: JSON.stringify(items),
+        })
+        .where(eq(ocrJobs.id, job.id));
+
+      // Process each item: match + duplicate check
+      const reviewRows: Parameters<typeof db.insert>[0] extends never
+        ? never
+        : Array<{
+            ingestionId: number;
+            rawLine: string;
+            parsedName: string | null;
+            parsedBatch: string | null;
+            parsedExpiry: string | null;
+            parsedQty: number | null;
+            parsedUnitCost: string | null;
+            parsedMrp: string | null;
+            parsedBarcode: string | null;
+            matchedProductId: number | null;
+            matchedVariantId: number | null;
+            matchConfidence: string | null;
+            isDuplicate: boolean;
+            duplicateOfId: number | null;
+            status: "pending";
+          }> = [];
+
+      for (const item of items) {
+        const match = await matchProduct(item.parsedName);
+        const dupId = await detectDuplicate(
+          ingestionId,
+          item.parsedBatch,
+          item.parsedName
+        );
+
+        reviewRows.push({
+          ingestionId,
+          rawLine: item.rawLine,
+          parsedName: item.parsedName,
+          parsedBatch: item.parsedBatch,
+          parsedExpiry: item.parsedExpiry,
+          parsedQty: item.parsedQty,
+          parsedUnitCost: item.parsedUnitCost?.toString() ?? null,
+          parsedMrp: item.parsedMrp?.toString() ?? null,
+          parsedBarcode: item.parsedBarcode,
+          matchedProductId: match?.productId ?? null,
+          matchedVariantId: match?.variantId ?? null,
+          matchConfidence: match ? match.confidence.toString() : null,
+          isDuplicate: dupId !== null,
+          duplicateOfId: dupId ?? null,
+          status: "pending" as const,
+        });
+      }
+
+      if (reviewRows.length > 0) {
+        await db.insert(humanReviewItems).values(reviewRows);
+      }
+
+      // Update ingestion item count and status
+      await db
+        .update(invoiceIngestions)
+        .set({
+          ocrRawText: items.map(i => i.rawLine).join("\n"),
+          itemCount: reviewRows.length,
+          status: "under_review",
+        })
+        .where(eq(invoiceIngestions.id, ingestionId));
+
+      // Mark OCR job complete
+      await db
+        .update(ocrJobs)
+        .set({ status: "complete", completedAt: new Date() })
+        .where(eq(ocrJobs.id, job.id));
+      withinBudget = Date.now() - started <= 5_000;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      await db
+        .update(ocrJobs)
+        .set({ status: "failed", errorMessage })
+        .where(eq(ocrJobs.id, job.id));
+
+      await db
+        .update(invoiceIngestions)
+        .set({
+          status: "under_review",
+          notes: `OCR failed: ${errorMessage}. Manual review required.`,
+        })
+        .where(eq(invoiceIngestions.id, ingestionId));
+
+      throw err;
     }
-
-    if (reviewRows.length > 0) {
-      await db.insert(humanReviewItems).values(reviewRows);
-    }
-
-    // Update ingestion item count and status
-    await db
-      .update(invoiceIngestions)
-      .set({
-        ocrRawText: items.map(i => i.rawLine).join("\n"),
-        itemCount: reviewRows.length,
-        status: "under_review",
-      })
-      .where(eq(invoiceIngestions.id, ingestionId));
-
-    // Mark OCR job complete
-    await db
-      .update(ocrJobs)
-      .set({ status: "complete", completedAt: new Date() })
-      .where(eq(ocrJobs.id, job.id));
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-
-    await db
-      .update(ocrJobs)
-      .set({ status: "failed", errorMessage })
-      .where(eq(ocrJobs.id, job.id));
-
-    await db
-      .update(invoiceIngestions)
-      .set({
-        status: "under_review",
-        notes: `OCR failed: ${errorMessage}. Manual review required.`,
-      })
-      .where(eq(invoiceIngestions.id, ingestionId));
-
-    throw err;
+  } finally {
+    void emitSloEvent({
+      sloName: "ocr.process.latency",
+      target: 0.95,
+      measuredValue: Date.now() - started,
+      withinBudget,
+      sampleCount: 1,
+      windowSeconds: 60,
+    });
   }
 }

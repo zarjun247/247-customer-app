@@ -7,13 +7,15 @@
  * Also tests ETA fallback logic.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 // ─── Haversine distance helper (extracted for testing) ────────────────────────
 
 function haversineMetres(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
 ): number {
   const R = 6_371_000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -28,17 +30,85 @@ function haversineMetres(
 // ─── Mock store data (mirrors real Mumbai stores) ─────────────────────────────
 
 const STORES = [
-  { id: 1, name: "24/7 Pharmacy — Hiranandani Gardens", lat: "19.11970000", lng: "72.90500000", slaMins: 20, serviceRadius: 1500, isActive: true, address: "Hiranandani Gardens, Powai" },
-  { id: 2, name: "24/7 Pharmacy — Powai Lake View",     lat: "19.11750000", lng: "72.91000000", slaMins: 25, serviceRadius: 2000, isActive: true, address: "Powai Lake View" },
-  { id: 3, name: "24/7 Pharmacy — Chandivali",          lat: "19.11050000", lng: "72.89900000", slaMins: 30, serviceRadius: 2500, isActive: true, address: "Chandivali" },
-  { id: 4, name: "24/7 Pharmacy — Kanjurmarg",          lat: "19.13300000", lng: "72.92900000", slaMins: 35, serviceRadius: 3000, isActive: true, address: "Kanjurmarg" },
+  {
+    id: 1,
+    name: "24/7 Pharmacy — Hiranandani Gardens",
+    lat: "19.11970000",
+    lng: "72.90500000",
+    slaMins: 20,
+    serviceRadius: 1500,
+    isActive: true,
+    address: "Hiranandani Gardens, Powai",
+  },
+  {
+    id: 2,
+    name: "24/7 Pharmacy — Powai Lake View",
+    lat: "19.11750000",
+    lng: "72.91000000",
+    slaMins: 25,
+    serviceRadius: 2000,
+    isActive: true,
+    address: "Powai Lake View",
+  },
+  {
+    id: 3,
+    name: "24/7 Pharmacy — Chandivali",
+    lat: "19.11050000",
+    lng: "72.89900000",
+    slaMins: 30,
+    serviceRadius: 2500,
+    isActive: true,
+    address: "Chandivali",
+  },
+  {
+    id: 4,
+    name: "24/7 Pharmacy — Kanjurmarg",
+    lat: "19.13300000",
+    lng: "72.92900000",
+    slaMins: 35,
+    serviceRadius: 3000,
+    isActive: true,
+    address: "Kanjurmarg",
+  },
 ];
 
 const BUILDINGS = [
-  { id: 1, name: "Lodha Palava Phase 1", lat: "19.16210000", lng: "73.05430000", primaryStoreId: 4, fallbackStoreId: 2, pincode: "421204" },
-  { id: 2, name: "Hiranandani Gardens",  lat: "19.11970000", lng: "72.90500000", primaryStoreId: 1, fallbackStoreId: 2, pincode: "400076" },
-  { id: 3, name: "Godrej Emerald",       lat: "19.21830000", lng: "72.97810000", primaryStoreId: 4, fallbackStoreId: 2, pincode: "400607" },
-  { id: 4, name: "Runwal Forests",       lat: "19.13300000", lng: "72.92900000", primaryStoreId: 4, fallbackStoreId: 3, pincode: "400078" },
+  {
+    id: 1,
+    name: "Lodha Palava Phase 1",
+    lat: "19.16210000",
+    lng: "73.05430000",
+    primaryStoreId: 4,
+    fallbackStoreId: 2,
+    pincode: "421204",
+  },
+  {
+    id: 2,
+    name: "Hiranandani Gardens",
+    lat: "19.11970000",
+    lng: "72.90500000",
+    primaryStoreId: 1,
+    fallbackStoreId: 2,
+    pincode: "400076",
+  },
+  {
+    id: 3,
+    name: "Godrej Emerald",
+    lat: "19.21830000",
+    lng: "72.97810000",
+    primaryStoreId: 4,
+    fallbackStoreId: 2,
+    pincode: "400607",
+  },
+  {
+    id: 4,
+    name: "Runwal Forests",
+    lat: "19.13300000",
+    lng: "72.92900000",
+    primaryStoreId: 4,
+    fallbackStoreId: 3,
+    pincode: "400078",
+  },
 ];
 
 // ─── Routing logic (pure functions extracted from routing.ts for testing) ─────
@@ -57,7 +127,8 @@ function resolveStoreSync(
   const buildingLng = Number(building.lng);
 
   // Pass 1: Primary assignment
-  let resolvedStore = allStores.find(s => s.id === building.primaryStoreId && s.isActive) ?? null;
+  let resolvedStore =
+    allStores.find(s => s.id === building.primaryStoreId && s.isActive) ?? null;
   let resolutionPath = "primary_assignment";
 
   // Pass 2: Geo nearest fallback
@@ -66,7 +137,12 @@ function resolveStoreSync(
       .filter(s => s.isActive && s.lat && s.lng)
       .map(s => ({
         store: s,
-        distanceM: haversineMetres(buildingLat, buildingLng, Number(s.lat), Number(s.lng)),
+        distanceM: haversineMetres(
+          buildingLat,
+          buildingLng,
+          Number(s.lat),
+          Number(s.lng)
+        ),
       }))
       .sort((a, b) => a.distanceM - b.distanceM);
 
@@ -77,14 +153,24 @@ function resolveStoreSync(
   }
 
   // Pass 3: Stock availability filter
-  if (resolvedStore && requiredSkuIds && requiredSkuIds.length > 0 && storeStockMap) {
+  if (
+    resolvedStore &&
+    requiredSkuIds &&
+    requiredSkuIds.length > 0 &&
+    storeStockMap
+  ) {
     const hasStock = storeStockMap.get(resolvedStore.id) ?? false;
     if (!hasStock) {
       const candidates = allStores
         .filter(s => s.isActive && s.lat && s.lng && s.id !== resolvedStore!.id)
         .map(s => ({
           store: s,
-          distanceM: haversineMetres(buildingLat, buildingLng, Number(s.lat), Number(s.lng)),
+          distanceM: haversineMetres(
+            buildingLat,
+            buildingLng,
+            Number(s.lat),
+            Number(s.lng)
+          ),
         }))
         .sort((a, b) => a.distanceM - b.distanceM);
 
@@ -191,7 +277,12 @@ describe("Pass 2 — Geo nearest fallback", () => {
 
 describe("Pass 3 — Stock availability filter", () => {
   it("uses primary store when it has stock", () => {
-    const stockMap = new Map([[1, true], [2, true], [3, true], [4, true]]);
+    const stockMap = new Map([
+      [1, true],
+      [2, true],
+      [3, true],
+      [4, true],
+    ]);
     const result = resolveStoreSync(2, STORES, BUILDINGS, [101, 102], stockMap);
     expect(result).not.toBeNull();
     expect(result!.storeId).toBe(1); // Primary assignment, has stock
@@ -200,7 +291,12 @@ describe("Pass 3 — Stock availability filter", () => {
 
   it("falls back to geo nearest with stock when primary is out of stock", () => {
     // Building 2 primary is store 1 — mark store 1 as out of stock
-    const stockMap = new Map([[1, false], [2, true], [3, false], [4, false]]);
+    const stockMap = new Map([
+      [1, false],
+      [2, true],
+      [3, false],
+      [4, false],
+    ]);
     const result = resolveStoreSync(2, STORES, BUILDINGS, [101], stockMap);
     expect(result).not.toBeNull();
     expect(result!.storeId).toBe(2); // Nearest store with stock
@@ -209,7 +305,13 @@ describe("Pass 3 — Stock availability filter", () => {
 
   it("returns primary store even with requiredSkuIds when no stockMap is provided", () => {
     // Without stockMap, stock check is skipped
-    const result = resolveStoreSync(2, STORES, BUILDINGS, [101, 102], undefined);
+    const result = resolveStoreSync(
+      2,
+      STORES,
+      BUILDINGS,
+      [101, 102],
+      undefined
+    );
     expect(result).not.toBeNull();
     expect(result!.storeId).toBe(1);
     expect(result!.resolutionPath).toBe("primary_assignment");

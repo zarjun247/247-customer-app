@@ -51,7 +51,7 @@ describe("recordFamilyConsent", () => {
     const db = {
       ...makeInsertChain(7),
     };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const result = await recordFamilyConsent({
       minorCustomerId: 100,
@@ -66,7 +66,7 @@ describe("recordFamilyConsent", () => {
   });
 
   it("throws when DB is unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(
       recordFamilyConsent({
         minorCustomerId: 1,
@@ -80,7 +80,7 @@ describe("recordFamilyConsent", () => {
 
   it("stores guardian id proof fields when provided", async () => {
     const db = makeInsertChain(1);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await recordFamilyConsent({
       minorCustomerId: 1,
@@ -92,14 +92,14 @@ describe("recordFamilyConsent", () => {
       recordedByUserId: 2,
     });
 
-    const inserted = (db.insert as any).mock.calls[0];
+    const inserted = vi.mocked(db.insert).mock.calls[0];
     expect(inserted).toBeDefined();
   });
 });
 
 describe("getActiveFamilyConsent", () => {
   it("returns null when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     const r = await getActiveFamilyConsent({ minorCustomerId: 1 });
     expect(r).toBeNull();
   });
@@ -107,14 +107,14 @@ describe("getActiveFamilyConsent", () => {
   it("returns active consent record", async () => {
     const row = { id: 5, minorCustomerId: 100, consentRevokedAt: null };
     const db = makeSelectChain([row]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await getActiveFamilyConsent({ minorCustomerId: 100 });
     expect(r?.id).toBe(5);
   });
 
   it("returns null when no active record", async () => {
     const db = makeSelectChain([]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     const r = await getActiveFamilyConsent({ minorCustomerId: 200 });
     expect(r).toBeNull();
   });
@@ -126,7 +126,7 @@ describe("revokeFamilyConsent", () => {
     const selectDb = makeSelectChain([existing]);
     const updateDb = makeUpdateChain();
     const db = { ...selectDb, ...updateDb };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     const r = await revokeFamilyConsent({
       consentId: 3,
@@ -140,7 +140,7 @@ describe("revokeFamilyConsent", () => {
 
   it("throws NOT_FOUND when consent does not exist", async () => {
     const db = { ...makeSelectChain([]), ...makeUpdateChain() };
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
 
     await expect(
       revokeFamilyConsent({ consentId: 999, revokedByUserId: 1, reason: "x" })
@@ -148,7 +148,7 @@ describe("revokeFamilyConsent", () => {
   });
 
   it("throws when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(
       revokeFamilyConsent({ consentId: 1, revokedByUserId: 1, reason: "x" })
     ).rejects.toThrow("DB unavailable");
@@ -157,7 +157,7 @@ describe("revokeFamilyConsent", () => {
 
 describe("assertConsentForScheduleSale", () => {
   it("returns silently when DB unavailable", async () => {
-    (getDb as any).mockResolvedValue(null);
+    vi.mocked(getDb).mockResolvedValue(null);
     await expect(
       assertConsentForScheduleSale({ customerId: 1, scheduleClass: "H1" })
     ).resolves.toBeUndefined();
@@ -165,7 +165,7 @@ describe("assertConsentForScheduleSale", () => {
 
   it("returns silently when customer not found", async () => {
     const db = makeSelectChain([]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     await expect(
       assertConsentForScheduleSale({ customerId: 999, scheduleClass: "H" })
     ).resolves.toBeUndefined();
@@ -173,7 +173,7 @@ describe("assertConsentForScheduleSale", () => {
 
   it("returns silently for adult customer (no dateOfBirth in schema)", async () => {
     const db = makeSelectChain([{ id: 1, name: "Adult" }]);
-    (getDb as any).mockResolvedValue(db);
+    vi.mocked(getDb).mockResolvedValue(db);
     await expect(
       assertConsentForScheduleSale({ customerId: 1, scheduleClass: "H1" })
     ).resolves.toBeUndefined();
@@ -205,7 +205,7 @@ describe("assertConsentForScheduleSale", () => {
         }),
       }),
     };
-    (getDb as any).mockResolvedValue(selectDb);
+    vi.mocked(getDb).mockResolvedValue(selectDb);
 
     await expect(
       assertConsentForScheduleSale({ customerId: 5, scheduleClass: "H1" })
@@ -231,7 +231,7 @@ describe("assertConsentForScheduleSale", () => {
         }),
       }),
     };
-    (getDb as any).mockResolvedValue(selectDb);
+    vi.mocked(getDb).mockResolvedValue(selectDb);
 
     await expect(
       assertConsentForScheduleSale({ customerId: 6, scheduleClass: "H" })
@@ -243,7 +243,7 @@ describe("assertConsentForScheduleSale", () => {
       id: 7,
       dateOfBirth: new Date(Date.now() - 16 * 365 * 24 * 60 * 60 * 1000),
     };
-    const consent = {
+    const _consent = {
       id: 2,
       minorCustomerId: 7,
       consentScopeJson: ["general"],
@@ -270,7 +270,7 @@ describe("assertConsentForScheduleSale", () => {
         }),
       }),
     };
-    (getDb as any).mockResolvedValue(selectDb);
+    vi.mocked(getDb).mockResolvedValue(selectDb);
 
     await expect(
       assertConsentForScheduleSale({ customerId: 7, scheduleClass: "H1" })

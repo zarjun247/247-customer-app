@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { and, asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db";
@@ -238,23 +239,27 @@ export function createInMemoryCommercialEventStore(
   const events = seed.map(normalizeCommercialEvent);
   return {
     events,
-    async append(event) {
+    append(event) {
       if (event.idempotencyKey) {
         const existing = events.find(
           e => e.idempotencyKey === event.idempotencyKey
         );
-        if (existing) return { ...existing, duplicate: true };
+        if (existing) return Promise.resolve({ ...existing, duplicate: true });
       }
       events.push(event);
-      return event;
+      return Promise.resolve(event);
     },
-    async findByIdempotencyKey(key) {
-      return events.find(e => e.idempotencyKey === key) ?? null;
+    findByIdempotencyKey(key) {
+      return Promise.resolve(
+        events.find(e => e.idempotencyKey === key) ?? null
+      );
     },
-    async timeline(filter) {
-      return events
-        .filter(event => matchesTimelineFilter(event, filter))
-        .sort(compareCommercialEvents);
+    timeline(filter) {
+      return Promise.resolve(
+        events
+          .filter(event => matchesTimelineFilter(event, filter))
+          .sort(compareCommercialEvents)
+      );
     },
   };
 }

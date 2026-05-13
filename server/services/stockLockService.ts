@@ -32,10 +32,11 @@ const POLL_INTERVAL_MS = 100;
 
 export async function acquireLock(
   lockKey: string,
-  timeoutMs?: number,
+  timeoutMs?: number
 ): Promise<StockLock> {
   const db = await getDb();
-  if (!db) throw new LockAcquisitionFailedError("DB unavailable; cannot acquire lock");
+  if (!db)
+    throw new LockAcquisitionFailedError("DB unavailable; cannot acquire lock");
 
   const ttlMs = timeoutMs ?? ENV.stockLockTimeoutMs;
   const deadline = Date.now() + ttlMs;
@@ -73,18 +74,18 @@ export async function acquireLock(
       }
 
       // Live lock held by another caller — wait and poll
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
     }
   }
 
   throw new LockAcquisitionFailedError(
-    `Failed to acquire lock "${lockKey}" within ${ttlMs}ms`,
+    `Failed to acquire lock "${lockKey}" within ${ttlMs}ms`
   );
 }
 
 export async function releaseLock(
   lockKey: string,
-  acquiredBy: string,
+  acquiredBy: string
 ): Promise<void> {
   const db = await getDb();
   if (!db) {
@@ -92,9 +93,7 @@ export async function releaseLock(
     return;
   }
 
-  await db
-    .delete(stockLockKeys)
-    .where(eq(stockLockKeys.lockKey, lockKey));
+  await db.delete(stockLockKeys).where(eq(stockLockKeys.lockKey, lockKey));
 
   logger.debug({ lockKey, acquiredBy }, "Lock released");
 }
@@ -102,14 +101,17 @@ export async function releaseLock(
 export async function withLock<T>(
   lockKey: string,
   fn: () => Promise<T>,
-  timeoutMs?: number,
+  timeoutMs?: number
 ): Promise<T> {
   const lock = await acquireLock(lockKey, timeoutMs);
   try {
     return await fn();
   } finally {
-    await releaseLock(lock.lockKey, lock.acquiredBy).catch((err) => {
-      logger.warn({ err, lockKey }, "Failed to release lock on cleanup (non-fatal)");
+    await releaseLock(lock.lockKey, lock.acquiredBy).catch((err: unknown) => {
+      logger.warn(
+        { err, lockKey },
+        "Failed to release lock on cleanup (non-fatal)"
+      );
     });
   }
 }
@@ -117,18 +119,42 @@ export async function withLock<T>(
 export async function cleanupExpiredLocks(): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
-  const result = await db
+  const result: unknown = await db
     .delete(stockLockKeys)
     .where(lt(stockLockKeys.expiresAt, new Date()));
-  const raw = result as unknown;
-  const row = Array.isArray(raw) ? raw[0] : raw;
+  const row: unknown = Array.isArray(result) ? result[0] : result;
   return (row as { affectedRows?: number }).affectedRows ?? 0;
+}
+
+let stockLockTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startStockLockCleanup(): void {
+  if (stockLockTimer) return;
+  const intervalMs = ENV.stockLockCleanupIntervalMs;
+  stockLockTimer = setInterval(() => {
+    cleanupExpiredLocks().catch((err: unknown) =>
+      logger.error({ err }, "stockLockCleanup tick failed")
+    );
+  }, intervalMs);
+  logger.info({ intervalMs }, "stockLockCleanup started");
+}
+
+export function stopStockLockCleanup(): void {
+  if (stockLockTimer) {
+    clearInterval(stockLockTimer);
+    stockLockTimer = null;
+    logger.info("stockLockCleanup stopped");
+  }
+}
+
+export function isStockLockCleanupRunning(): boolean {
+  return stockLockTimer !== null;
 }
 
 export function makeLockKey(
   storeId: number,
   productId: number,
-  variantId?: number | null,
+  variantId?: number | null
 ): string {
   return variantId != null
     ? `stock:${storeId}:${productId}:${variantId}`

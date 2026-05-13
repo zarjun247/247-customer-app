@@ -27,7 +27,7 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
  */
 export function initializeTelemetry(
   traceExporterOverride?: SpanExporter,
-  { skipInstrumentations = false }: { skipInstrumentations?: boolean } = {},
+  { skipInstrumentations = false }: { skipInstrumentations?: boolean } = {}
 ): NodeSDK {
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
@@ -36,7 +36,7 @@ export function initializeTelemetry(
     spanProcessor = new SimpleSpanProcessor(traceExporterOverride);
   } else if (endpoint) {
     spanProcessor = new BatchSpanProcessor(
-      new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
+      new OTLPTraceExporter({ url: `${endpoint}/v1/traces` })
     );
   } else {
     // No OTLP endpoint — emit to console for local dev visibility.
@@ -46,7 +46,9 @@ export function initializeTelemetry(
   const sdk = new NodeSDK({
     serviceName: process.env.OTEL_SERVICE_NAME ?? "247-customer-app",
     spanProcessors: [spanProcessor],
-    instrumentations: skipInstrumentations ? [] : [getNodeAutoInstrumentations()],
+    instrumentations: skipInstrumentations
+      ? []
+      : [getNodeAutoInstrumentations()],
   });
 
   sdk.start();

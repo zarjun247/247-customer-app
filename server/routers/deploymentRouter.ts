@@ -4,7 +4,6 @@ import {
   getCurrentReadiness,
   listReadinessRecords,
   recordReadiness,
-  type ReadinessRecord,
 } from "../services/deploymentReadinessService";
 
 const CheckResultSchema = z.object({

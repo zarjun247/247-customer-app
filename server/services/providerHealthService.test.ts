@@ -3,15 +3,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock DB before importing the service
 const mockGroupBy = vi.fn();
 const mockWhere = vi.fn().mockReturnValue({ groupBy: mockGroupBy });
-const mockFrom = vi.fn().mockReturnValue({ where: mockWhere, groupBy: mockGroupBy });
-const mockOrderBy = vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) });
-const mockFromForDrilldown = vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ orderBy: mockOrderBy }) });
-const mockSelect = vi.fn().mockReturnValue({ from: mockFrom });
-
+const _mockFrom = vi
+  .fn()
+  .mockReturnValue({ where: mockWhere, groupBy: mockGroupBy });
+const _mockOrderBy = vi
+  .fn()
+  .mockReturnValue({ limit: vi.fn().mockResolvedValue([]) });
 const mockGetDb = vi.fn();
 
-vi.mock("../db", () => ({ getDb: (...args: any[]) => mockGetDb(...args) }));
-vi.mock("./sloService", () => ({ emitSloEvent: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../db", () => ({ getDb: (...args: unknown[]) => mockGetDb(...args) }));
+vi.mock("./sloService", () => ({
+  emitSloEvent: vi.fn().mockResolvedValue(undefined),
+}));
 
 import {
   listProviderHealthSnapshots,
@@ -58,7 +61,13 @@ describe("listProviderHealthSnapshots", () => {
               if (callCount === 1) {
                 // event rows
                 return Promise.resolve([
-                  { provider: "razorpay", total: 100, succeeded: 100, lastSuccess: new Date().toISOString(), lastFailure: null },
+                  {
+                    provider: "razorpay",
+                    total: 100,
+                    succeeded: 100,
+                    lastSuccess: new Date().toISOString(),
+                    lastFailure: null,
+                  },
                 ]);
               }
               // dead letter rows
@@ -103,7 +112,7 @@ describe("emitProviderHealthSloEvent", () => {
         withinBudget: true,
         sampleCount: 100,
         windowSeconds: 86400,
-      }),
+      })
     );
   });
 
@@ -112,7 +121,7 @@ describe("emitProviderHealthSloEvent", () => {
       providerId: "whatsapp",
       providerType: "whatsapp",
       status: "unhealthy",
-      successRate24h: 0.90,
+      successRate24h: 0.9,
       totalEvents24h: 50,
       deadLetterCount: 8,
       lastSuccessAt: null,
@@ -127,8 +136,8 @@ describe("emitProviderHealthSloEvent", () => {
       expect.objectContaining({
         sloName: "provider.whatsapp.success.rate",
         withinBudget: false,
-        measuredValue: 0.90,
-      }),
+        measuredValue: 0.9,
+      })
     );
   });
 
@@ -152,7 +161,7 @@ describe("emitProviderHealthSloEvent", () => {
       expect.objectContaining({
         measuredValue: 0,
         withinBudget: false,
-      }),
+      })
     );
   });
 
@@ -179,7 +188,7 @@ describe("emitProviderHealthSloEvent", () => {
           status: "degraded",
           deadLetterCount: 3,
         }),
-      }),
+      })
     );
   });
 });

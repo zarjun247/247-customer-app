@@ -423,6 +423,26 @@ export const dsrSlaMonitorLog = mysqlTable(
   })
 );
 
+// ─── SM-LM Phase 11: DSR Nominees (migration 0074) ───────────────────────────
+export const dsrNominees = mysqlTable(
+  "dsr_nominees",
+  {
+    id: varchar("id", { length: 36 }).notNull().primaryKey(),
+    userId: int("user_id").notNull(),
+    nomineeName: varchar("nominee_name", { length: 200 }).notNull(),
+    nomineeEmail: varchar("nominee_email", { length: 320 }).notNull(),
+    nomineePhone: varchar("nominee_phone", { length: 20 }),
+    relationship: varchar("relationship", { length: 100 }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  t => ({
+    idxDsrNomineesUser: index("idx_dsr_nominees_user").on(t.userId, t.isActive),
+    idxDsrNomineesEmail: index("idx_dsr_nominees_email").on(t.nomineeEmail),
+  })
+);
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
 export type DsrSlaMonitorLog = typeof dsrSlaMonitorLog.$inferSelect;
 export type NewDsrSlaMonitorLog = typeof dsrSlaMonitorLog.$inferInsert;
@@ -451,3 +471,5 @@ export type CommandLogRecord = typeof commandLog.$inferSelect;
 export type NewCommandLogRecord = typeof commandLog.$inferInsert;
 export type CommandOutboxRecord = typeof commandOutbox.$inferSelect;
 export type NewCommandOutboxRecord = typeof commandOutbox.$inferInsert;
+export type DsrNominee = typeof dsrNominees.$inferSelect;
+export type NewDsrNominee = typeof dsrNominees.$inferInsert;

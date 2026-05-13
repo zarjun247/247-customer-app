@@ -1,12 +1,30 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import * as dsrService from "../services/dsrService";
+import { emitSloEvent } from "../services/sloService";
 
 export const dsrRouter = router({
   // Customer requests access to their own data (synchronous)
-  access: protectedProcedure.mutation(async ({ ctx }) =>
-    dsrService.createAccessRequest({ customerId: ctx.user.id })
-  ),
+  access: protectedProcedure.mutation(async ({ ctx }) => {
+    const started = Date.now();
+    let withinBudget = false;
+    try {
+      const result = await dsrService.createAccessRequest({
+        customerId: ctx.user.id,
+      });
+      withinBudget = Date.now() - started <= 500;
+      return result;
+    } finally {
+      void emitSloEvent({
+        sloName: "dsr.access.latency",
+        target: 0.95,
+        measuredValue: Date.now() - started,
+        withinBudget,
+        sampleCount: 1,
+        windowSeconds: 60,
+      });
+    }
+  }),
 
   // Customer requests a downloadable data export
   export: protectedProcedure
@@ -53,12 +71,27 @@ export const dsrRouter = router({
         scope: z.enum(["all", "marketing_only", "behavioral_only"]),
       })
     )
-    .mutation(async ({ ctx, input }) =>
-      dsrService.createErasureRequest({
-        customerId: ctx.user.id,
-        scope: input.scope,
-      })
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const started = Date.now();
+      let withinBudget = false;
+      try {
+        const result = await dsrService.createErasureRequest({
+          customerId: ctx.user.id,
+          scope: input.scope,
+        });
+        withinBudget = Date.now() - started <= 5_000;
+        return result;
+      } finally {
+        void emitSloEvent({
+          sloName: "dsr.erasure.latency",
+          target: 0.95,
+          measuredValue: Date.now() - started,
+          withinBudget,
+          sampleCount: 1,
+          windowSeconds: 60,
+        });
+      }
+    }),
 
   // Public: customer clicks confirmation link in email (token-based, no session needed)
   confirmErasure: publicProcedure
@@ -105,4 +138,56 @@ export const dsrRouter = router({
         customerId: ctx.user.id,
       })
     ),
+
+  // ─── §11(5) Right to Nominate ────────────────────────────────────────────
+  // A data principal may appoint a nominee to exercise DSR rights on their behalf.
+
+  nominee: router({
+    add: protectedProcedure
+      .input(
+        z.object({
+          nomineeName: z.string().min(1).max(200),
+          nomineeEmail: z.string().email().max(320),
+          nomineePhone: z.string().max(20).optional(),
+          relationship: z.string().min(1).max(100),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const started = Date.now();
+        let withinBudget = false;
+        try {
+          const result = await dsrService.addNominee({
+            userId: ctx.user.id,
+            nomineeName: input.nomineeName,
+            nomineeEmail: input.nomineeEmail,
+            nomineePhone: input.nomineePhone,
+            relationship: input.relationship,
+          });
+          withinBudget = Date.now() - started <= 500;
+          return result;
+        } finally {
+          void emitSloEvent({
+            sloName: "dsr.nominee.add.latency",
+            target: 0.95,
+            measuredValue: Date.now() - started,
+            withinBudget,
+            sampleCount: 1,
+            windowSeconds: 60,
+          });
+        }
+      }),
+
+    list: protectedProcedure.query(async ({ ctx }) =>
+      dsrService.listNominees({ userId: ctx.user.id })
+    ),
+
+    revoke: protectedProcedure
+      .input(z.object({ nomineeId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) =>
+        dsrService.revokeNominee({
+          userId: ctx.user.id,
+          nomineeId: input.nomineeId,
+        })
+      ),
+  }),
 });

@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./db", () => ({ writeAuditLog: vi.fn(async () => undefined) }));
 
-const { redactObject, safeError, serializeSafeLog } = await import("./services/observability");
-const { sanitizeJobPayload, enqueueJob, resetJobQueueForTests } = await import("./services/jobQueue");
+const { safeError, serializeSafeLog } = await import(
+  "./services/observability"
+);
+const { sanitizeJobPayload, enqueueJob, resetJobQueueForTests } = await import(
+  "./services/jobQueue"
+);
 const { logAudit, requireOverrideReason } = await import("./services/audit");
 const db = await import("./db");
 
@@ -29,15 +33,42 @@ describe("PHI/PII/security redaction seal", () => {
 
   it("sanitizes worker/provider payload persistence", async () => {
     resetJobQueueForTests();
-    const sanitized = sanitizeJobPayload({ patientName: "Jane Patient", email: "jane@example.com", token: "abc", rawPayload: { secret: "value" }, nested: { phone: "+919999999999", ok: "safe" } });
-    expect(sanitized).toEqual({ patientName: "[REDACTED:phi]", email: "[REDACTED:phi]", token: "[REDACTED]", rawPayload: "[REDACTED]", nested: { phone: "[REDACTED:phi]", ok: "safe" } });
-    const job = await enqueueJob({ queueName: "providers", jobType: "provider.retry", idempotencyKey: "provider:redact:1", payloadJson: sanitized as Record<string, unknown> });
+    const sanitized = sanitizeJobPayload({
+      patientName: "Jane Patient",
+      email: "jane@example.com",
+      token: "abc",
+      rawPayload: { secret: "value" },
+      nested: { phone: "+919999999999", ok: "safe" },
+    });
+    expect(sanitized).toEqual({
+      patientName: "[REDACTED:phi]",
+      email: "[REDACTED:phi]",
+      token: "[REDACTED]",
+      rawPayload: "[REDACTED]",
+      nested: { phone: "[REDACTED:phi]", ok: "safe" },
+    });
+    const job = await enqueueJob({
+      queueName: "providers",
+      jobType: "provider.retry",
+      idempotencyKey: "provider:redact:1",
+      payloadJson: sanitized as Record<string, unknown>,
+    });
     expect(JSON.stringify(job.job.payloadJson)).not.toContain("Jane Patient");
     expect(JSON.stringify(job.job.payloadJson)).not.toContain("abc");
   });
 
   it("redacts audit before/after/metadata while preserving actor attribution", async () => {
-    await logAudit({ actorId: 42, actorRole: "pharmacist", action: "manual.override.test", entityType: "order", entityRef: "order:1", beforeJson: { patientName: "Jane Patient" }, afterJson: { phone: "+919999999999" }, reason: "operator corrected jane@example.com" });
+    await logAudit({
+      actorId: 42,
+      actorRole: "pharmacist",
+      action: "manual.override.test",
+      entityType: "order",
+      entityRef: "order:1",
+      beforeJson: { patientName: "Jane Patient" },
+      afterJson: { phone: "+919999999999" },
+      reason: "operator corrected jane@example.com",
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const written = vi.mocked(db.writeAuditLog).mock.calls.at(-1)?.[0] as any;
     const serialized = JSON.stringify(written);
     expect(written.actor.id).toBe(42);
@@ -48,12 +79,18 @@ describe("PHI/PII/security redaction seal", () => {
   });
 
   it("requires reasons for manual override audit actions", () => {
-    expect(requireOverrideReason("stock.override.adjust", "cycle count correction")).toBe("cycle count correction");
-    expect(() => requireOverrideReason("stock.override.adjust", "")).toThrow(/override_reason_required/);
+    expect(
+      requireOverrideReason("stock.override.adjust", "cycle count correction")
+    ).toBe("cycle count correction");
+    expect(() => requireOverrideReason("stock.override.adjust", "")).toThrow(
+      /override_reason_required/
+    );
   });
 
   it("safeError removes stack and credentials", () => {
-    const err = new Error("failed mysql://user:password@db/app for jane@example.com");
+    const err = new Error(
+      "failed mysql://user:password@db/app for jane@example.com"
+    );
     const safe = safeError(err);
     expect(safe).not.toHaveProperty("stack");
     expect(JSON.stringify(safe)).not.toContain("password@db");

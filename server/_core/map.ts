@@ -8,6 +8,7 @@
  */
 
 import { ENV } from "./env";
+import { makeCircuitBreaker } from "./circuitBreaker";
 
 // ============================================================================
 // Configuration
@@ -51,6 +52,31 @@ interface RequestOptions {
  * @param options - Additional request options
  * @returns The API response
  */
+const _mapsFetch = makeCircuitBreaker(
+  "maps",
+  async (
+    signal: AbortSignal,
+    url: string,
+    method: "GET" | "POST",
+    body: string | undefined
+  ): Promise<unknown> => {
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
+      );
+    }
+    return response.json();
+  },
+  { timeoutMs: 10_000 }
+);
+
 export async function makeRequest<T = unknown>(
   endpoint: string,
   params: Record<string, unknown> = {},
@@ -58,13 +84,9 @@ export async function makeRequest<T = unknown>(
 ): Promise<T> {
   const { baseUrl, apiKey } = getMapsConfig();
 
-  // Construct full URL: baseUrl + /v1/maps/proxy + endpoint
   const url = new URL(`${baseUrl}/v1/maps/proxy${endpoint}`);
-
-  // Add API key as query parameter (standard Google Maps API authentication)
   url.searchParams.append("key", apiKey);
 
-  // Add other query parameters
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       let paramStr: string;
@@ -78,22 +100,11 @@ export async function makeRequest<T = unknown>(
     }
   });
 
-  const response = await fetch(url.toString(), {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
-    );
-  }
-
-  return (await response.json()) as T;
+  return _mapsFetch(
+    url.toString(),
+    options.method ?? "GET",
+    options.body ? JSON.stringify(options.body) : undefined
+  ) as Promise<T>;
 }
 
 // ============================================================================
