@@ -41,6 +41,7 @@
     "regenerate:domains": "node scripts/regenerate-domains-md.mjs",
     "verify:wiring": "node scripts/verify-wiring.mjs",
     "docs:api": "typedoc",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint server/ shared/",
     "lint:fix": "eslint server/ shared/ --fix",
     "lint:ci": "node scripts/lint-gate.mjs",

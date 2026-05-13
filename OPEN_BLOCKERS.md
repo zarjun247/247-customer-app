@@ -50,6 +50,8 @@ See [SCORECARD.md](./SCORECARD.md) for the 10 items that require human action be
 
 **Circular imports (Part2 pattern)** — `db.ts ↔ db-extended.ts`, `connectors.ts ↔ connectors-peripheral.ts`, `pharmacy.ts ↔ pharmacy-metrics.ts`, `routingEngine.ts ↔ routing-engine-extended.ts`. These are intentional file-size splits where the extended file re-uses helpers from the base and the base barrel-exports the extended file. The `trpc ↔ rbac` cycle was fixed by extracting `_core/roles.ts` (SM-LM Phase 4.3). The Part2 cycles require splitting the shared helpers into a third module to resolve — deferred to post-launch architecture cleanup.
 
+**Coverage measurement blocked** — `@vitest/coverage-v8` cannot be installed in the current environment (SSL certificate validation failure on npm registry). Coverage configuration is in `vitest.config.ts` with thresholds (statements 40%, branches 35%, functions 40%, lines 40%). Run `pnpm add -D @vitest/coverage-v8` and `pnpm run test:coverage` once network/SSL is resolved. Phases 8 (gap-fill) and 9 (Stryker mutation testing) are deferred for the same reason.
+
 **Reservation expiry worker** — `startReservationExpiryWorker()` not wired at boot. `cleanupExpiredLocks()` not scheduled. Old `stockReservations` table coexists with new `reservations`/`reservation_lines` — write paths need incremental migration.
 
 **PII encryption** — `customerPiiService.ts` and `prescriptionPiiService.ts` ship helpers but no write path calls them yet. Requires write-path wiring + data backfill migration atomically.

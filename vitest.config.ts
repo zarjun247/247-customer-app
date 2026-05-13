@@ -14,6 +14,28 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts", "client/src/components/barcode/**/*.test.ts"],
+    include: [
+      "server/**/*.test.ts",
+      "server/**/*.spec.ts",
+      "client/src/components/barcode/**/*.test.ts",
+    ],
+    coverage: {
+      provider: "v8",
+      include: ["server/**/*.ts", "shared/**/*.ts"],
+      exclude: [
+        "server/**/*.test.ts",
+        "server/**/*.spec.ts",
+        "server/testUtils/**",
+        "drizzle/**",
+      ],
+      thresholds: {
+        statements: 40,
+        branches: 35,
+        functions: 40,
+        lines: 40,
+      },
+      reporter: ["text", "lcov"],
+      reportsDirectory: "coverage",
+    },
   },
 });
