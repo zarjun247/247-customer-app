@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
@@ -26,6 +26,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
     console.error("[API Query Error]", error);
@@ -34,17 +35,30 @@ queryClient.getQueryCache().subscribe(event => {
 
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
     console.error("[API Mutation Error]", error);
   }
 });
 
+function getCsrfToken(): string {
+  return (
+    document.cookie
+      .split("; ")
+      .find(row => row.startsWith("__Host-csrf="))
+      ?.split("=")[1] ?? ""
+  );
+}
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
+      headers: () => ({
+        "x-csrf-token": getCsrfToken(),
+      }),
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),

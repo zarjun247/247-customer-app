@@ -15,6 +15,13 @@ export type SideEffectHandler = (
 
 const handlers: Map<string, SideEffectHandler> = new Map();
 
+/**
+ * Registers a side-effect handler for the given outbox command kind.
+ *
+ * @param kind - The `commandOutbox.kind` value this handler processes
+ * @param handler - Async function invoked per outbox row; must be idempotent
+ * @throws Error if a handler for this kind is already registered
+ */
 export function registerOutboxHandler(
   kind: string,
   handler: SideEffectHandler
@@ -38,6 +45,10 @@ export function getRegisteredKinds(): string[] {
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
 let isPolling = false;
 
+/**
+ * Starts the outbox polling loop. Requires `OUTBOX_DISPATCH_ENABLED=true`.
+ * Interval controlled by `OUTBOX_POLL_INTERVAL_MS` (default 5000 ms).
+ */
 export function startOutboxDispatcher(): void {
   const enabled =
     (process.env.OUTBOX_DISPATCH_ENABLED ?? "").toLowerCase() === "true";
@@ -58,6 +69,7 @@ export function startOutboxDispatcher(): void {
   logger.info({ intervalMs }, "Outbox dispatcher started");
 }
 
+/** Stops the outbox polling loop. Safe to call even if the dispatcher is not running. */
 export function stopOutboxDispatcher(): void {
   if (pollingTimer) {
     clearInterval(pollingTimer);
@@ -70,6 +82,13 @@ export function isOutboxDispatcherRunning(): boolean {
   return pollingTimer !== null;
 }
 
+/**
+ * Processes one batch of pending outbox rows. Safe to call from tests or a
+ * one-shot worker invocation. Skips if a poll is already in progress or if
+ * the emergency stop flag is active.
+ *
+ * @returns Counts of processed, succeeded, and failed rows
+ */
 export async function pollOnce(): Promise<{
   processed: number;
   succeeded: number;

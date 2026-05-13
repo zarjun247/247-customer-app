@@ -129,6 +129,13 @@ function findDefinition(sloName: string): SloDefinition | undefined {
   return SLO_DEFINITIONS.find(d => d.name === sloName);
 }
 
+/**
+ * Writes a single SLO observation to the `slo_events` table.
+ * Fire-and-forget safe: swallows DB errors and logs a warning instead of throwing.
+ * If DB is unavailable the event is silently dropped.
+ *
+ * @param input - SLO event payload including name, measured value, and budget status
+ */
 export async function emitSloEvent(input: SloEventInput): Promise<void> {
   try {
     const db = await getDb();
@@ -165,6 +172,14 @@ export async function emitSloEvent(input: SloEventInput): Promise<void> {
   }
 }
 
+/**
+ * Emits an SLO latency observation, deriving withinBudget from the
+ * SLO_DEFINITIONS window.
+ *
+ * @param sloName - Must match a name in SLO_DEFINITIONS; warns and returns if unknown
+ * @param latencySeconds - Measured latency in seconds
+ * @param context - Optional key/value metadata attached to the event row
+ */
 export async function recordLatencyForSlo(
   sloName: string,
   latencySeconds: number,

@@ -19,6 +19,12 @@ async function getDb() {
   return db;
 }
 
+/**
+ * Guards against any stock movement that would result in negative on-hand quantity.
+ * Must be called inside the same DB transaction as the quantity update.
+ *
+ * @throws TRPCError BAD_REQUEST if qtyAfter < 0
+ */
 export async function assertNoNegativeStock(qtyAfter: number) {
   if (qtyAfter < 0)
     throw new TRPCError({
@@ -27,6 +33,13 @@ export async function assertNoNegativeStock(qtyAfter: number) {
     });
 }
 
+/**
+ * Fetches the current on-hand quantity row for a batch ledger entry.
+ *
+ * @param db - Active DB connection (must not be null)
+ * @param batchId - `batchLedger.id` to look up
+ * @throws TRPCError NOT_FOUND if the batch does not exist
+ */
 export async function getCurrentBatchQty(
   db: Awaited<ReturnType<typeof getDb>>,
   batchId: number

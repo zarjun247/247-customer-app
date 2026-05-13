@@ -44,7 +44,7 @@ The DPDP Act requires: notice, purpose-bound and necessary processing, consent t
 - Retention worker for PII erasure (OFF by default; opt-in via `RETENTION_WORKER_ENABLED`)
 
 **Remaining DPDP gaps (tracked in LEGAL_REVIEW_PACK.md):**
-- Right to Nominate (Section 11(5)) — deferred to SM-C
+- Right to Nominate (Section 11(5)) — implemented in SM-LM Phase 11 (`dsr_nominees` table, migration 0074, `dsr.nominee.*` mutations)
 - Third-party DPA/SCC for WhatsApp, Razorpay — legal action required
 - Statutory retention schedule for prescription records — legal sign-off required
 - Guardian documentation requirements for Schedule X — legal + pharmacist sign-off required

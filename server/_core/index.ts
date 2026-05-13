@@ -38,6 +38,7 @@ import { registerPaymentWebhookRoutes } from "../paymentWebhookRoutes";
 import { registerHealthRoutes } from "../routers/healthRouter";
 import { initObservability } from "./observability";
 import { registerObservabilityRoutes } from "../routers/observabilityRouter";
+import { createEmergencyStopMiddleware } from "./emergencyStopMiddleware";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -118,7 +119,11 @@ async function startServer() {
       }
     })();
   });
-  // tRPC API
+  // tRPC API — emergency stop blocks customer mutations; fails open if DB unreachable.
+  const emergencyStop = createEmergencyStopMiddleware({ adminBypass: false });
+  app.use("/api/trpc", (req, res, next) => {
+    void emergencyStop(req, res, next);
+  });
   app.use(
     "/api/trpc",
     createExpressMiddleware({

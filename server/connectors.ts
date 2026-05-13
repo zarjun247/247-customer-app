@@ -180,7 +180,63 @@ const _whatsappFetch = makeCircuitBreaker(
     }
     return { status: "sent", ok: true };
   },
-  { timeoutMs: 8_000 }
+  { timeoutMs: 5_000 }
+);
+
+const _razorpayCreate = makeCircuitBreaker(
+  "razorpay.createOrder",
+  async (
+    signal: AbortSignal,
+    params: {
+      amount: number;
+      currency: string;
+      receipt: string;
+      notes?: Record<string, string>;
+    }
+  ): Promise<{ id: string; amount: number | string; currency: string }> => {
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret)
+      throw new Error(
+        "Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing"
+      );
+    const Razorpay = (await import("razorpay")).default;
+    const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+    return Promise.race([
+      rzp.orders.create(params),
+      new Promise<never>((_, reject) =>
+        signal.addEventListener("abort", () =>
+          reject(new Error("razorpay.createOrder timed out"))
+        )
+      ),
+    ]);
+  },
+  { timeoutMs: 10_000 }
+);
+
+const _razorpayRefund = makeCircuitBreaker(
+  "razorpay.refund",
+  async (
+    signal: AbortSignal,
+    gatewayPaymentId: string,
+    opts: { amount?: number; notes?: { reason?: string } }
+  ): Promise<{ id: string; status: string }> => {
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret)
+      throw new Error("Payment refund unavailable: provider_unconfigured");
+    const Razorpay = (await import("razorpay")).default;
+    const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+    return Promise.race([
+      rzp.payments.refund(gatewayPaymentId, opts),
+      new Promise<never>((_, reject) =>
+        signal.addEventListener("abort", () =>
+          reject(new Error("razorpay.refund timed out"))
+        )
+      ),
+    ]);
+  },
+  { timeoutMs: 10_000 }
 );
 
 /**
@@ -357,26 +413,8 @@ function isExplicitPaymentDemoMode(): boolean {
  */
 export const paymentConnector: PaymentGatewayConnector = {
   async createOrder({ amount, currency, receipt, notes }) {
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!keyId || !keySecret) {
-      throw new Error(
-        "Payment provider_unconfigured: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing"
-      );
-    }
-
     try {
-      const Razorpay = (await import("razorpay")).default;
-      const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
-
-      const order = await rzp.orders.create({
-        amount,
-        currency,
-        receipt,
-        notes,
-      });
-
+      const order = await _razorpayCreate({ amount, currency, receipt, notes });
       return {
         gatewayOrderId: order.id,
         amount:
@@ -415,26 +453,12 @@ export const paymentConnector: PaymentGatewayConnector = {
   },
 
   async refund({ gatewayPaymentId, amount, reason }) {
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!keyId || !keySecret) {
-      throw new Error("Payment refund unavailable: provider_unconfigured");
-    }
-
     try {
-      const Razorpay = (await import("razorpay")).default;
-      const rzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
-
-      const refund = await rzp.payments.refund(gatewayPaymentId, {
+      const refund = await _razorpayRefund(gatewayPaymentId, {
         amount,
         notes: reason ? { reason } : undefined,
       });
-
-      return {
-        refundId: refund.id,
-        status: refund.status,
-      };
+      return { refundId: refund.id, status: refund.status };
     } catch (err) {
       console.error("[Payment] Razorpay refund failed:", err);
       throw new Error("Refund failed. Please contact support.");

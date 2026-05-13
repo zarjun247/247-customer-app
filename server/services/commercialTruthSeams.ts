@@ -105,6 +105,18 @@ async function assertNoCommittedSupplierInvoiceDuplicate(
   }
 }
 
+/**
+ * Commits a draft purchase invoice exactly once, guarded by idempotency key.
+ *
+ * @param input.invoiceId - Purchase invoice to commit
+ * @param input.idempotencyKey - Caller-supplied dedup key; safe to retry
+ * @param input.actorId - Staff user performing the commit
+ * @param input.actorRole - Optional role for audit
+ * @returns Commit result with idempotent/duplicate flags
+ * @throws TRPCError BAD_REQUEST if invoice is not in draft state
+ * @throws TRPCError NOT_FOUND if invoice does not exist
+ * @throws TRPCError CONFLICT if a committed supplier invoice duplicate is detected
+ */
 export async function commitPurchaseInvoiceExactlyOnce(input: {
   invoiceId: number;
   idempotencyKey: string;
@@ -333,6 +345,18 @@ export async function commitPurchaseInvoiceExactlyOnce(input: {
   );
 }
 
+/**
+ * Confirms a draft sale exactly once, reserving a sequential bill number and
+ * recording the counter payment.
+ *
+ * @param input.saleId - Draft sale UUID to confirm
+ * @param input.idempotencyKey - Caller-supplied dedup key; safe to retry
+ * @param input.actorId - Staff user confirming the sale
+ * @param input.paymentMode - Payment method used at the counter
+ * @param input.paymentRef - Optional gateway/UPI reference
+ * @returns Confirmation result with final billNo and idempotency metadata
+ * @throws TRPCError BAD_REQUEST if sale is not in draft state
+ */
 export async function confirmSaleExactlyOnce(input: {
   saleId: string;
   idempotencyKey: string;
@@ -474,6 +498,18 @@ export async function confirmSaleExactlyOnce(input: {
   );
 }
 
+/**
+ * Records a Razorpay refund settlement exactly once, posts a balanced
+ * accounting journal, and emits a refund_completed commercial event.
+ *
+ * @param input.gatewayOrderId - Razorpay order ID matching the original payment
+ * @param input.providerRefundId - Razorpay refund ID (used as idempotency anchor)
+ * @param input.amountPaise - Refund amount in paise
+ * @param input.idempotencyKey - Caller-supplied dedup key; safe to retry
+ * @returns Settlement result with refundId and accountingJournalBatchId
+ * @throws TRPCError NOT_FOUND if no payment record found for the gateway order
+ * @throws TRPCError BAD_REQUEST if refund would exceed the paid amount
+ */
 export async function settleProviderRefundExactlyOnce(input: {
   gatewayOrderId: string;
   providerRefundId: string;

@@ -98,6 +98,14 @@ async function assembleAccessPayload(
   };
 }
 
+/**
+ * Creates and immediately fulfils a DPDP §11(1) access request, assembling a
+ * profile + prescriptions + orders + consent log snapshot synchronously.
+ *
+ * @param input.customerId - Authenticated customer requesting their own data
+ * @returns requestId for audit traceability
+ * @throws TRPCError INTERNAL_SERVER_ERROR if DB is unavailable
+ */
 export async function createAccessRequest(input: {
   customerId: number;
 }): Promise<{ requestId: string }> {

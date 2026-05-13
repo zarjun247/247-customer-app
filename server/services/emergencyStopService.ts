@@ -24,6 +24,12 @@ const CACHE_TTL_MS = 5_000;
 let cachedFlag: EmergencyStopFlag | null = null;
 let cacheExpiresAt = 0;
 
+/**
+ * Reads the current emergency stop flag from the DB, with a 5-second TTL cache.
+ * Fails open: returns `{ active: false }` if the DB is unreachable.
+ *
+ * @returns Current flag state; never throws
+ */
 export async function readFlag(): Promise<EmergencyStopFlag> {
   if (cachedFlag !== null && Date.now() < cacheExpiresAt) {
     return cachedFlag;
@@ -69,6 +75,15 @@ export function _testOnlyInvalidateCache(): void {
   invalidateCache();
 }
 
+/**
+ * Sets or clears the emergency stop flag, invalidates the local cache, and
+ * appends a tamper-evident audit chain entry.
+ *
+ * @param active - `true` to activate the stop; `false` to clear it
+ * @param reason - Human-readable reason shown in the 503 response
+ * @param userId - Staff user ID initiating the change (for audit)
+ * @throws Error if DB is unavailable
+ */
 export async function setFlag(
   active: boolean,
   reason: string | null,

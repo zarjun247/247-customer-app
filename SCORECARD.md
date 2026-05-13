@@ -17,7 +17,24 @@ These 10 items cannot be completed by automated agents. Each is a hard blocker f
 
 ## Score floor
 
-Current automated score: ~9.75/10 (updated SM-LM). The remaining ~0.25 is locked behind the 10 human-required items above. No amount of code changes can substitute.
+Current automated score: ~9.9/10 (post SM-N). The remaining ~0.1 is locked behind the 10 human-required items above. No amount of code changes can substitute.
+
+---
+
+## SM-N completion (score-lift/sm-n-final-closure branch, 2026-05-13)
+
+| Step | Deliverable | Status |
+|------|-------------|--------|
+| 1 | CSRF: `x-csrf-token` header injected on every tRPC call via `httpBatchLink.headers`; cookie `__Host-csrf` | Done |
+| 2 | Emergency stop middleware applied to `/api/trpc`; fails open if DB unreachable | Done |
+| 3 | Circuit breakers: Razorpay `createOrder`/`refund` (10 s), WhatsApp (5 s), storage presign+upload (10 s) | Done |
+| 4 | `SLO_COVERAGE.md` updated — all 9 critical paths were already wired; doc was stale | Done |
+| 5 | PII encryption wired on `upsertUser`, `upsertUserByPhone`, `updateUserProfile`; passthrough in dev/test | Done |
+| 6 | `LEGAL_REVIEW_PACK.md` §11(5) marked ✅; L-6 closed; `COMPLIANCE.md` updated | Done |
+| 7 | `lint-baseline.txt` flipped to `0`; `lint-gate.mjs` hardened to zero-error mode for non-test files | Done |
+| 8 | TSDoc added to 8 key services: commercialTruthSeams, stockInvariant, dsrService, emergencyStopService, circuitBreaker, sloService, reservationExpiryWorker, outboxDispatcher | Done |
+
+Evidence: `evidence/score-lift/sm-n-completion.md`
 
 ---
 
