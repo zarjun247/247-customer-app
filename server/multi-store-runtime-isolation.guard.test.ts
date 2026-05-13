@@ -22,7 +22,7 @@ const callerFor = (role: string, staffStoreId: number | null = 1) =>
     user: { id: 11, role, staffStoreId },
     req: { headers: {} },
     res: {},
-  } as any);
+  } as unknown);
 
 describe("multi-store runtime isolation hardening", () => {
   it("store staff cannot read another store runtime detail while admin roles can cross-store", async () => {

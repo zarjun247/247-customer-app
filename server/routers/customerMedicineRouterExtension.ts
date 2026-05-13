@@ -114,11 +114,9 @@ const adminCustomerRouter = router({
         limit: z.number().default(20),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx: _ctx, input }) => {
       const db = await getDbSafe();
-      const { users, customerMedicineRecords } = await import(
-        "../../drizzle/schema"
-      );
+      const { users } = await import("../../drizzle/schema");
 
       const conditions = [];
       if (input.search) {
@@ -253,7 +251,7 @@ const adminCustomerRouter = router({
         limit: z.number().default(20),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx: _ctx, input }) => {
       const db = await getDbSafe();
       const { medicineRecordAccessLog, users } = await import(
         "../../drizzle/schema"
@@ -286,7 +284,7 @@ const adminCustomerRouter = router({
           .default("due_this_week"),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx: _ctx, input }) => {
       const db = await getDbSafe();
       const { refillPlans, products, users } = await import(
         "../../drizzle/schema"

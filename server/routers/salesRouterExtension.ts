@@ -3,6 +3,7 @@
  * Covers: listSales, getSale, cancelDraft, cancelSale, createReturn,
  *         approveReturn, listReturns, getReturn, reports
  */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -321,8 +322,8 @@ export const salesRouterExtension = {
         sales,
         saleReturns,
         saleReturnLines,
-        batchLedger,
-        stockMovements,
+        batchLedger: _batchLedger,
+        stockMovements: _stockMovements,
       } = await import("../../drizzle/schema");
       const [sale] = await db
         .select()

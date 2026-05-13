@@ -13,15 +13,17 @@ export type CommandLogListInput = {
 };
 
 export async function listCommandLogs(
-  input: CommandLogListInput,
+  input: CommandLogListInput
 ): Promise<{ records: CommandLogRecord[]; total: number }> {
   const db = await getDb();
   if (!db) return { records: [], total: 0 };
 
   const conditions = [];
-  if (input.commandName) conditions.push(eq(commandLog.commandName, input.commandName));
+  if (input.commandName)
+    conditions.push(eq(commandLog.commandName, input.commandName));
   if (input.state) conditions.push(eq(commandLog.state, input.state));
-  if (input.actorUserId) conditions.push(eq(commandLog.actorUserId, input.actorUserId));
+  if (input.actorUserId)
+    conditions.push(eq(commandLog.actorUserId, input.actorUserId));
   if (input.storeId) conditions.push(eq(commandLog.storeId, input.storeId));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -36,16 +38,15 @@ export async function listCommandLogs(
       .orderBy(desc(commandLog.startedAt))
       .limit(limit)
       .offset(offset),
-    db
-      .select({ total: count() })
-      .from(commandLog)
-      .where(where),
+    db.select({ total: count() }).from(commandLog).where(where),
   ]);
 
   return { records, total: Number(totalRows[0]?.total ?? 0) };
 }
 
-export async function getCommandLog(id: string): Promise<CommandLogRecord | null> {
+export async function getCommandLog(
+  id: string
+): Promise<CommandLogRecord | null> {
   const db = await getDb();
   if (!db) return null;
   const rows = await db
@@ -65,11 +66,17 @@ export type CommandStats = {
 };
 
 export async function getCommandStats(
-  windowHours: number = 24,
+  windowHours: number = 24
 ): Promise<CommandStats> {
   const db = await getDb();
   if (!db) {
-    return { total: 0, completed: 0, failed: 0, inFlight: 0, byCommandName: [] };
+    return {
+      total: 0,
+      completed: 0,
+      failed: 0,
+      inFlight: 0,
+      byCommandName: [],
+    };
   }
 
   const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
@@ -102,7 +109,7 @@ export async function getCommandStats(
     completed: Number(row?.completed ?? 0),
     failed: Number(row?.failed ?? 0),
     inFlight: Number(row?.inFlight ?? 0),
-    byCommandName: byName.map((r) => {
+    byCommandName: byName.map(r => {
       const total = Number(r.total);
       const failed = Number(r.failed);
       return {

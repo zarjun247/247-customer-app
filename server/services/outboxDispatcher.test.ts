@@ -1,11 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getRegisteredKinds,
   pollOnce,
@@ -91,7 +84,7 @@ describe("outboxDispatcher", () => {
     expect(handler).toHaveBeenCalledOnce();
     expect(handler).toHaveBeenCalledWith(
       { foo: "bar" },
-      { commandLogId: "cmd-1", attempts: 1 },
+      { commandLogId: "cmd-1", attempts: 1 }
     );
     expect(result.processed).toBe(1);
     expect(result.succeeded).toBe(1);
@@ -99,7 +92,9 @@ describe("outboxDispatcher", () => {
 
   // Test 2: Unknown kind logged and skipped
   it("unknown kind is skipped without calling any handler", async () => {
-    mockSelect.mockReturnValue(makeSelectChain([makeRow({ sideEffectKind: "unknown.kind" })]));
+    mockSelect.mockReturnValue(
+      makeSelectChain([makeRow({ sideEffectKind: "unknown.kind" })])
+    );
     mockUpdate.mockReturnValue(makeUpdateChain());
 
     const result = await pollOnce();
@@ -115,9 +110,9 @@ describe("outboxDispatcher", () => {
     registerOutboxHandler("test.kind", handler);
     mockSelect.mockReturnValue(makeSelectChain([makeRow()]));
 
-    const capturedSets: any[] = [];
+    const capturedSets: unknown[] = [];
     mockUpdate.mockImplementation(() => ({
-      set: vi.fn().mockImplementation((s: any) => {
+      set: vi.fn().mockImplementation((s: unknown) => {
         capturedSets.push(s);
         return { where: vi.fn().mockResolvedValue([{}]) };
       }),
@@ -125,19 +120,25 @@ describe("outboxDispatcher", () => {
 
     await pollOnce();
 
-    expect(capturedSets.some((s) => s.state === "dispatched")).toBe(true);
+    expect(
+      capturedSets.some(
+        s => (s as Record<string, unknown>).state === "dispatched"
+      )
+    ).toBe(true);
   });
 
   // Test 4: Failed dispatch increments attempts
   it("failed dispatch increments attempts", async () => {
     const handler = vi.fn().mockRejectedValue(new Error("send failed"));
     registerOutboxHandler("test.kind", handler);
-    mockSelect.mockReturnValue(makeSelectChain([makeRow({ attempts: 0, maxAttempts: 3 })]));
+    mockSelect.mockReturnValue(
+      makeSelectChain([makeRow({ attempts: 0, maxAttempts: 3 })])
+    );
 
-    const capturedSets: any[] = [];
+    const capturedSets: Record<string, unknown>[] = [];
     mockUpdate.mockImplementation(() => ({
-      set: vi.fn().mockImplementation((s: any) => {
-        capturedSets.push(s);
+      set: vi.fn().mockImplementation((s: unknown) => {
+        capturedSets.push(s as Record<string, unknown>);
         return { where: vi.fn().mockResolvedValue([{}]) };
       }),
     }));
@@ -154,12 +155,14 @@ describe("outboxDispatcher", () => {
   it("failed dispatch with attempts < maxAttempts advances nextAttemptAt", async () => {
     const handler = vi.fn().mockRejectedValue(new Error("timeout"));
     registerOutboxHandler("test.kind", handler);
-    mockSelect.mockReturnValue(makeSelectChain([makeRow({ attempts: 1, maxAttempts: 5 })]));
+    mockSelect.mockReturnValue(
+      makeSelectChain([makeRow({ attempts: 1, maxAttempts: 5 })])
+    );
 
-    const capturedSets: any[] = [];
+    const capturedSets: Record<string, unknown>[] = [];
     mockUpdate.mockImplementation(() => ({
-      set: vi.fn().mockImplementation((s: any) => {
-        capturedSets.push(s);
+      set: vi.fn().mockImplementation((s: unknown) => {
+        capturedSets.push(s as Record<string, unknown>);
         return { where: vi.fn().mockResolvedValue([{}]) };
       }),
     }));
@@ -172,7 +175,9 @@ describe("outboxDispatcher", () => {
     expect(updateSet.nextAttemptAt).toBeDefined();
     expect(updateSet.nextAttemptAt.getTime()).toBeGreaterThan(before);
     // Exponential backoff: 2^2 * 1000 = 4000ms for attempt #2
-    expect(updateSet.nextAttemptAt.getTime()).toBeLessThanOrEqual(after + 4_001);
+    expect(updateSet.nextAttemptAt.getTime()).toBeLessThanOrEqual(
+      after + 4_001
+    );
   });
 
   // Test 6: Failed dispatch with attempts >= maxAttempts → state goes to failed
@@ -180,20 +185,22 @@ describe("outboxDispatcher", () => {
     const handler = vi.fn().mockRejectedValue(new Error("permanent error"));
     registerOutboxHandler("test.kind", handler);
     // attempts=2, maxAttempts=3 → this is attempt #3, which reaches maxAttempts
-    mockSelect.mockReturnValue(makeSelectChain([makeRow({ attempts: 2, maxAttempts: 3 })]));
+    mockSelect.mockReturnValue(
+      makeSelectChain([makeRow({ attempts: 2, maxAttempts: 3 })])
+    );
 
-    const capturedSets: any[] = [];
+    const capturedSets: Record<string, unknown>[] = [];
     mockUpdate.mockImplementation(() => ({
-      set: vi.fn().mockImplementation((s: any) => {
-        capturedSets.push(s);
+      set: vi.fn().mockImplementation((s: unknown) => {
+        capturedSets.push(s as Record<string, unknown>);
         return { where: vi.fn().mockResolvedValue([{}]) };
       }),
     }));
 
     await pollOnce();
 
-    expect(capturedSets.some((s) => s.state === "failed")).toBe(true);
-    const failSet = capturedSets.find((s) => s.state === "failed");
+    expect(capturedSets.some(s => s.state === "failed")).toBe(true);
+    const failSet = capturedSets.find(s => s.state === "failed");
     expect(failSet?.failedAt).toBeInstanceOf(Date);
   });
 
@@ -239,14 +246,14 @@ describe("outboxDispatcher", () => {
   // Test 9: Concurrent pollOnce — second call is no-op
   it("concurrent pollOnce calls are guarded by isPolling", async () => {
     let resolveFirst!: () => void;
-    const firstPollPromise = new Promise<void>((resolve) => {
+    const firstPollPromise = new Promise<void>(resolve => {
       resolveFirst = resolve;
     });
 
     mockSelect.mockReturnValue(makeSelectChain([]));
 
     // First call: hangs until we release
-    const slowHandler = vi.fn().mockImplementation(() => firstPollPromise);
+    const _slowHandler = vi.fn().mockImplementation(() => firstPollPromise);
 
     // Override getDb to return a slow db
     let firstCall = true;
@@ -256,7 +263,9 @@ describe("outboxDispatcher", () => {
         return {
           from: vi.fn().mockReturnThis(),
           where: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockImplementation(() => firstPollPromise.then(() => [])),
+          limit: vi
+            .fn()
+            .mockImplementation(() => firstPollPromise.then(() => [])),
         };
       }
       return makeSelectChain([]);
@@ -267,7 +276,7 @@ describe("outboxDispatcher", () => {
     const p2 = pollOnce();
     resolveFirst();
 
-    const [r1, r2] = await Promise.all([p1, p2]);
+    const [_r1, r2] = await Promise.all([p1, p2]);
     // Second call should be a no-op
     expect(r2).toEqual({ processed: 0, succeeded: 0, failed: 0 });
   });
@@ -277,7 +286,7 @@ describe("outboxDispatcher", () => {
     const h = vi.fn();
     registerOutboxHandler("dupe.kind", h);
     expect(() => registerOutboxHandler("dupe.kind", vi.fn())).toThrow(
-      'Outbox handler for kind "dupe.kind" already registered',
+      'Outbox handler for kind "dupe.kind" already registered'
     );
   });
 

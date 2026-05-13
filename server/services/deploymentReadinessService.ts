@@ -4,7 +4,10 @@ import pino from "pino";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
-const VALIDATIONS_PATH = path.join(process.cwd(), "server/data/deployment-validations.json");
+const VALIDATIONS_PATH = path.join(
+  process.cwd(),
+  "server/data/deployment-validations.json"
+);
 
 export type CheckResult = {
   name: string;
@@ -40,29 +43,41 @@ function writeValidations(data: ValidationsFile): void {
   fs.renameSync(tmp, VALIDATIONS_PATH);
 }
 
-export async function listReadinessRecords(limit = 50): Promise<ReadinessRecord[]> {
+export function listReadinessRecords(limit = 50): Promise<ReadinessRecord[]> {
   const data = readValidations();
-  return data.records.slice(-limit).reverse();
+  return Promise.resolve(data.records.slice(-limit).reverse());
 }
 
-export async function getCurrentReadiness(
-  env: "staging" | "production",
-): Promise<{ status: "ready" | "stale" | "failed" | "unknown"; lastRecord?: ReadinessRecord; ageHours?: number }> {
+export function getCurrentReadiness(env: "staging" | "production"): Promise<{
+  status: "ready" | "stale" | "failed" | "unknown";
+  lastRecord?: ReadinessRecord;
+  ageHours?: number;
+}> {
   const data = readValidations();
   const forEnv = data.records.filter(r => r.env === env);
-  if (forEnv.length === 0) return { status: "unknown" };
+  if (forEnv.length === 0) return Promise.resolve({ status: "unknown" });
 
   const latest = forEnv[forEnv.length - 1];
   const ageHours = (Date.now() - new Date(latest.ts).getTime()) / 3_600_000;
 
-  if (latest.overall === "fail") return { status: "failed", lastRecord: latest, ageHours };
-  if (ageHours > 24) return { status: "stale", lastRecord: latest, ageHours };
-  return { status: "ready", lastRecord: latest, ageHours };
+  if (latest.overall === "fail")
+    return Promise.resolve({ status: "failed", lastRecord: latest, ageHours });
+  if (ageHours > 24)
+    return Promise.resolve({ status: "stale", lastRecord: latest, ageHours });
+  return Promise.resolve({ status: "ready", lastRecord: latest, ageHours });
 }
 
-export async function recordReadiness(input: ReadinessRecord): Promise<void> {
+export function recordReadiness(input: ReadinessRecord): Promise<void> {
   const data = readValidations();
   data.records.push(input);
   writeValidations(data);
-  logger.info({ event: "deployment_readiness_recorded", env: input.env, overall: input.overall }, "deployment_readiness_recorded");
+  logger.info(
+    {
+      event: "deployment_readiness_recorded",
+      env: input.env,
+      overall: input.overall,
+    },
+    "deployment_readiness_recorded"
+  );
+  return Promise.resolve();
 }

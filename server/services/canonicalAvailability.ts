@@ -1,7 +1,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import pino from "pino";
 import { getDb } from "../db";
-import { batchLedger, reservationLines, reservations } from "../../drizzle/schema";
+import {
+  batchLedger,
+  reservationLines,
+  reservations,
+} from "../../drizzle/schema";
 import { emitSloEvent } from "./sloService";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -31,12 +35,15 @@ const ACTIVE_RESERVATION_STATES = ["active", "pending_confirmation"] as const;
 export async function getCanonicalAvailability(
   productId: number,
   storeId: number,
-  variantId?: number | null,
+  variantId?: number | null
 ): Promise<CanonicalAvailability> {
   const started = Date.now();
   const db = await getDb();
   if (!db) {
-    logger.error({ productId, storeId }, "DB unavailable for canonical availability");
+    logger.error(
+      { productId, storeId },
+      "DB unavailable for canonical availability"
+    );
     return {
       productId,
       storeId,
@@ -61,8 +68,8 @@ export async function getCanonicalAvailability(
         eq(batchLedger.storeId, storeId),
         eq(batchLedger.productId, productId),
         eq(batchLedger.status, "active"),
-        ...(variantCond ? [variantCond] : []),
-      ),
+        ...(variantCond ? [variantCond] : [])
+      )
     )
     .orderBy(batchLedger.expiryDate);
 
@@ -79,7 +86,7 @@ export async function getCanonicalAvailability(
     };
   }
 
-  const batchIds = activeBatches.map((b) => b.id);
+  const batchIds = activeBatches.map(b => b.id);
 
   // 2. Sum reservation_lines quantities for active reservations on these batches.
   const reservedRows = await db
@@ -92,8 +99,11 @@ export async function getCanonicalAvailability(
       reservations,
       and(
         eq(reservationLines.reservationId, reservations.id),
-        inArray(reservations.state, ACTIVE_RESERVATION_STATES as unknown as string[]),
-      ),
+        inArray(
+          reservations.state,
+          ACTIVE_RESERVATION_STATES as unknown as string[]
+        )
+      )
     )
     .where(inArray(reservationLines.batchId, batchIds))
     .groupBy(reservationLines.batchId);
@@ -104,7 +114,7 @@ export async function getCanonicalAvailability(
   }
 
   // 3. Build per-batch availability (FEFO order already guaranteed by ORDER BY expiryDate).
-  const batchAvailabilities: BatchAvailability[] = activeBatches.map((b) => {
+  const batchAvailabilities: BatchAvailability[] = activeBatches.map(b => {
     const onHand = Number(b.qtyOnHand ?? 0);
     const reserved = reservedByBatch.get(b.id) ?? 0;
     const sellable = Math.max(0, onHand - reserved);
@@ -133,7 +143,7 @@ export async function getCanonicalAvailability(
 
   logger.debug(
     { productId, storeId, batchCount: activeBatches.length, durationMs },
-    "Canonical availability computed",
+    "Canonical availability computed"
   );
 
   return {
@@ -149,12 +159,16 @@ export async function getCanonicalAvailability(
 }
 
 export async function getMultiProductAvailability(
-  items: Array<{ productId: number; storeId: number; variantId?: number | null }>,
+  items: Array<{
+    productId: number;
+    storeId: number;
+    variantId?: number | null;
+  }>
 ): Promise<CanonicalAvailability[]> {
   // Run in parallel; avoid N+1 by batching per unique storeId group.
   return Promise.all(
-    items.map((item) =>
-      getCanonicalAvailability(item.productId, item.storeId, item.variantId),
-    ),
+    items.map(item =>
+      getCanonicalAvailability(item.productId, item.storeId, item.variantId)
+    )
   );
 }

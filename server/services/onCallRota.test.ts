@@ -111,7 +111,7 @@ describe("upsertShift", () => {
     expect(writeSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.stringContaining("new-shift"),
-      "utf-8",
+      "utf-8"
     );
   });
 
@@ -135,7 +135,7 @@ describe("escalate", () => {
 
   it("resolves without throwing when no PagerDuty key is configured", async () => {
     await expect(
-      escalate("P1", "incident_commander", { deadLetterId: 42 }),
+      escalate("P1", "incident_commander", { deadLetterId: 42 })
     ).resolves.toBeUndefined();
   });
 
@@ -147,7 +147,7 @@ describe("escalate", () => {
       ok: true,
     } as Response);
     await expect(
-      escalate("P0", "platform_owner", { reason: "test" }),
+      escalate("P0", "platform_owner", { reason: "test" })
     ).resolves.toBeUndefined();
     fetchSpy.mockRestore();
   });

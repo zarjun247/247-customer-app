@@ -16,37 +16,43 @@ export type ChaosScenario = {
 export const SCENARIOS: readonly ChaosScenario[] = [
   {
     name: "db-pool-exhaust",
-    description: "Opens N+1 connections to verify pool exhaustion error handling.",
+    description:
+      "Opens N+1 connections to verify pool exhaustion error handling.",
     dangerLevel: "high",
     requiresEnvFlag: true,
   },
   {
     name: "provider-webhook-fail",
-    description: "Posts an intentionally invalid webhook to verify rejection and dead-letter creation.",
+    description:
+      "Posts an intentionally invalid webhook to verify rejection and dead-letter creation.",
     dangerLevel: "low",
     requiresEnvFlag: false,
   },
   {
     name: "slo-budget-breach",
-    description: "Emits a synthetic SLO event with withinBudget=false to verify budget tracking.",
+    description:
+      "Emits a synthetic SLO event with withinBudget=false to verify budget tracking.",
     dangerLevel: "low",
     requiresEnvFlag: false,
   },
   {
     name: "dead-letter-injection",
-    description: "Creates a synthetic provider_dead_letter row to verify admin UI visibility.",
+    description:
+      "Creates a synthetic provider_dead_letter row to verify admin UI visibility.",
     dangerLevel: "low",
     requiresEnvFlag: false,
   },
   {
     name: "readiness-fail-injection",
-    description: "Writes a fail validation record to verify /healthz reflects it when DEPLOYMENT_VALIDATION_REQUIRED=true.",
+    description:
+      "Writes a fail validation record to verify /healthz reflects it when DEPLOYMENT_VALIDATION_REQUIRED=true.",
     dangerLevel: "medium",
     requiresEnvFlag: false,
   },
   {
     name: "latency-injection",
-    description: "Adds artificial latency to a local HTTP endpoint to verify timeout handling.",
+    description:
+      "Adds artificial latency to a local HTTP endpoint to verify timeout handling.",
     dangerLevel: "low",
     requiresEnvFlag: false,
   },
@@ -83,21 +89,29 @@ export function listScenarios(): readonly ChaosScenario[] {
   return SCENARIOS;
 }
 
-export async function listDrillRecords(limit = 50): Promise<ChaosDrillRecord[]> {
+export function listDrillRecords(limit = 50): Promise<ChaosDrillRecord[]> {
   const data = readChaos();
-  return data.records.slice(-limit).reverse();
+  return Promise.resolve(data.records.slice(-limit).reverse());
 }
 
-export async function recordDrill(input: ChaosDrillRecord): Promise<void> {
+export function recordDrill(input: ChaosDrillRecord): Promise<void> {
   const data = readChaos();
   data.records.push(input);
   writeChaos(data);
-  logger.info({ event: "chaos_drill_recorded", scenario: input.scenario, outcome: input.outcome }, "chaos_drill_recorded");
+  logger.info(
+    {
+      event: "chaos_drill_recorded",
+      scenario: input.scenario,
+      outcome: input.outcome,
+    },
+    "chaos_drill_recorded"
+  );
+  return Promise.resolve();
 }
 
 export function canTrigger(
   scenarioName: string,
-  env: string | undefined,
+  env: string | undefined
 ): { allowed: boolean; reason?: string } {
   const scenario = SCENARIOS.find(s => s.name === scenarioName);
   if (!scenario) {
@@ -105,7 +119,8 @@ export function canTrigger(
   }
 
   const isProduction = env === "production";
-  const chaosDrillEnabled = (process.env.CHAOS_DRILL_ENABLED ?? "").toLowerCase() === "true";
+  const chaosDrillEnabled =
+    (process.env.CHAOS_DRILL_ENABLED ?? "").toLowerCase() === "true";
 
   if (isProduction && !chaosDrillEnabled) {
     return {

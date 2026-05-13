@@ -13,7 +13,9 @@ export const multiStoreRuntimeRouter = router({
   store: staffProcedure
     .input(z.object({ storeId: z.number().int().positive() }))
     .query(({ ctx, input }) => {
-      requireStoreAccess(ctx.user, input.storeId, { allowAdminCrossStore: true });
+      requireStoreAccess(ctx.user, input.storeId, {
+        allowAdminCrossStore: true,
+      });
       return getStoreRuntimeDetail(input.storeId);
     }),
 });

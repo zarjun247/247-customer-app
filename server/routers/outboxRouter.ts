@@ -12,65 +12,70 @@ const listInput = z.object({
 });
 
 export const outboxRouter = router({
-  pending: adminProcedure
-    .input(listInput)
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return { records: [], total: 0 };
-      const rows = await db
-        .select()
-        .from(commandOutbox)
-        .where(eq(commandOutbox.state, "pending"))
-        .orderBy(desc(commandOutbox.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
-      return { records: rows };
-    }),
+  pending: adminProcedure.input(listInput).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { records: [], total: 0 };
+    const rows = await db
+      .select()
+      .from(commandOutbox)
+      .where(eq(commandOutbox.state, "pending"))
+      .orderBy(desc(commandOutbox.createdAt))
+      .limit(input.limit)
+      .offset(input.offset);
+    return { records: rows };
+  }),
 
-  dispatched: adminProcedure
-    .input(listInput)
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return { records: [], total: 0 };
-      const rows = await db
-        .select()
-        .from(commandOutbox)
-        .where(eq(commandOutbox.state, "dispatched"))
-        .orderBy(desc(commandOutbox.dispatchedAt))
-        .limit(input.limit)
-        .offset(input.offset);
-      return { records: rows };
-    }),
+  dispatched: adminProcedure.input(listInput).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { records: [], total: 0 };
+    const rows = await db
+      .select()
+      .from(commandOutbox)
+      .where(eq(commandOutbox.state, "dispatched"))
+      .orderBy(desc(commandOutbox.dispatchedAt))
+      .limit(input.limit)
+      .offset(input.offset);
+    return { records: rows };
+  }),
 
-  failed: adminProcedure
-    .input(listInput)
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return { records: [], total: 0 };
-      const rows = await db
-        .select()
-        .from(commandOutbox)
-        .where(eq(commandOutbox.state, "failed"))
-        .orderBy(desc(commandOutbox.failedAt))
-        .limit(input.limit)
-        .offset(input.offset);
-      return { records: rows };
-    }),
+  failed: adminProcedure.input(listInput).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { records: [], total: 0 };
+    const rows = await db
+      .select()
+      .from(commandOutbox)
+      .where(eq(commandOutbox.state, "failed"))
+      .orderBy(desc(commandOutbox.failedAt))
+      .limit(input.limit)
+      .offset(input.offset);
+    return { records: rows };
+  }),
 
   retry: adminProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
       const rows = await db
         .select()
         .from(commandOutbox)
         .where(eq(commandOutbox.id, input.id))
         .limit(1);
       const row = rows[0];
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Outbox row not found" });
+      if (!row)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Outbox row not found",
+        });
       if (row.state !== "failed") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Row is in state "${row.state}", not "failed"` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Row is in state "${row.state}", not "failed"`,
+        });
       }
       await db
         .update(commandOutbox)

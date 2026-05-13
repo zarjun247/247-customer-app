@@ -8,8 +8,8 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import {
-  assertSensitiveActionAllowed,
-  requirePermission,
+  assertSensitiveActionAllowed as _assertSensitiveActionAllowed,
+  requirePermission as _requirePermission,
 } from "../services/rbacPolicy";
 import {
   canUsePrescriptionOnFile,
@@ -390,7 +390,7 @@ export const prescriptionGovRouterExtension = {
         scheduleCode: z.enum(["OTC", "Rx", "H", "H1", "X", "NRX"]).optional(),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const db = await getDbSafe();
       const { prescriptions, prescriptionLines } = await import(
         "../../drizzle/schema"

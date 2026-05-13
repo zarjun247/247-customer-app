@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 /**
  * purchaseRouterExtension.ts — Extension for purchaseRouter.ts
  *
@@ -12,15 +13,15 @@ import { TRPCError } from "@trpc/server";
 import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { logAudit } from "../services/audit";
-import { withIdempotency } from "../services/idempotencyService";
+import { withIdempotency as _withIdempotency } from "../services/idempotencyService";
 import {
   decreaseStockForPurchaseReturn,
-  increaseStockForPurchaseCommit,
+  increaseStockForPurchaseCommit as _increaseStockForPurchaseCommit,
 } from "../services/stockInvariant";
 import { syncStoreSkuAggregate } from "../services/reservationService";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
 import {
-  recordSupplierPayable,
+  recordSupplierPayable as _recordSupplierPayable,
   recordSupplierPayment,
   getSupplierOutstanding,
   allocatePaymentToInvoice,

@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import pino from "pino";
-import { and, count, desc, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, count, desc, gte, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { aiEvalLedger, aiEvalOutcomes } from "../../drizzle/schema";
 

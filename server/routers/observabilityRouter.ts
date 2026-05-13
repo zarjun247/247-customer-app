@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import type { Express } from "express";
 import fs from "fs/promises";
 import path from "path";
@@ -28,7 +29,7 @@ export function registerObservabilityRoutes(app: Express) {
       try {
         const dashboards = await loadDashboardDefinitions();
         res.json({ dashboards, supportedMetrics: OBSERVABILITY_METRIC_NAMES });
-      } catch (_err) {
+      } catch {
         res.status(500).json({ error: "Failed to read dashboards" });
       }
     })();

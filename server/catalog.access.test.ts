@@ -14,9 +14,9 @@ const mockGetCatalog = vi.fn();
 const mockGetStoreById = vi.fn();
 
 vi.mock("./db", () => ({
-  getUserById: (...args: any[]) => mockGetUserById(...args),
-  getCatalog: (...args: any[]) => mockGetCatalog(...args),
-  getStoreById: (...args: any[]) => mockGetStoreById(...args),
+  getUserById: (...args: unknown[]) => mockGetUserById(...args),
+  getCatalog: (...args: unknown[]) => mockGetCatalog(...args),
+  getStoreById: (...args: unknown[]) => mockGetStoreById(...args),
   getBuildings: vi.fn().mockResolvedValue([]),
   getBuildingById: vi.fn().mockResolvedValue(null),
   updateUserProfile: vi.fn().mockResolvedValue(undefined),
@@ -68,7 +68,9 @@ vi.mock("./_core/notification", () => ({
 }));
 
 vi.mock("./_core/llm", () => ({
-  invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: "{}" } }] }),
+  invokeLLM: vi
+    .fn()
+    .mockResolvedValue({ choices: [{ message: { content: "{}" } }] }),
 }));
 
 vi.mock("./_core/voiceTranscription", () => ({
@@ -155,7 +157,12 @@ describe("catalog.list — onboarding guard", () => {
     mockGetCatalog.mockResolvedValue(mockItems);
 
     const caller = appRouter.createCaller(makeCtx(1));
-    const result = await caller.catalog.list({ search: "", category: "all", limit: 10, offset: 0 });
+    const result = await caller.catalog.list({
+      search: "",
+      category: "all",
+      limit: 10,
+      offset: 0,
+    });
     expect(result).toEqual(mockItems);
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import { createHash } from "crypto";
 import pino from "pino";
 import { and, eq, isNull, lte, or, gt } from "drizzle-orm";

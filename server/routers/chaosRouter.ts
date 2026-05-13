@@ -1,16 +1,10 @@
 import { z } from "zod";
-import {
-  adminProcedure,
-  managerProcedure,
-  router,
-  capabilityProcedure,
-} from "../_core/trpc";
+import { managerProcedure, router, capabilityProcedure } from "../_core/trpc";
 import {
   listScenarios,
   canTrigger,
   listDrillRecords,
   recordDrill,
-  type ChaosDrillRecord,
 } from "../services/chaosService";
 
 const ChaosDrillRecordSchema = z.object({

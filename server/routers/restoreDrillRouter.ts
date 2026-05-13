@@ -5,7 +5,6 @@ import {
   listDrills,
   getDrillAge,
   recordDrill,
-  type RestoreDrillRecord,
 } from "../services/restoreDrillService";
 
 const RestoreDrillRecordSchema = z.object({

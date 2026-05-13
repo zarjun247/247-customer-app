@@ -46,7 +46,7 @@ describe("invoice numbering foundation", () => {
   });
 
   it("reserves unique numbers for concurrent callers through the safe helper", async () => {
-    let sequence: any = null;
+    let sequence: Record<string, unknown> | null = null;
     let lock = Promise.resolve();
     const makeSelect = (fields?: unknown) => ({
       from: () => ({
@@ -59,18 +59,20 @@ describe("invoice numbering foundation", () => {
         }),
       }),
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db: any = {
       select: makeSelect,
       update: () => ({
-        set: (values: any) => ({
+        set: (values: Record<string, unknown>) => ({
           where: async () => {
             sequence = { ...sequence, ...values };
           },
         }),
       }),
       insert: () => ({
-        values: async (values: any) => {
+        values: async (values: Record<string, unknown>) => {
           if (sequence) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const err: any = new Error("duplicate");
             err.code = "ER_DUP_ENTRY";
             throw err;
@@ -78,7 +80,7 @@ describe("invoice numbering foundation", () => {
           sequence = { id: 1, ...values };
         },
       }),
-      transaction: async (fn: any) => {
+      transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
         const previous = lock;
         let release!: () => void;
         lock = new Promise<void>(resolve => {

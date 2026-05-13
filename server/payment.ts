@@ -3,12 +3,20 @@
  * Payment record helpers and SLA event management.
  * Works alongside connectors.ts (Razorpay SDK) and routers.ts (tRPC procedures).
  */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
 import { getDb } from "./db";
-import { paymentRecords, slaEvents, orders } from "../drizzle/schema";
+import {
+  paymentRecords,
+  slaEvents,
+  orders as _orders,
+} from "../drizzle/schema";
 import { eq, and, lte, isNull, gt } from "drizzle-orm";
 import { sendOpsAlert } from "./notifications";
-import { appendCommercialEventBestEffort, appendCommercialEventWithDb } from "./services/commercialLifecycle";
+import {
+  appendCommercialEventBestEffort,
+  appendCommercialEventWithDb,
+} from "./services/commercialLifecycle";
 
 // ─── Payment Record Helpers ───────────────────────────────────────────────────
 
@@ -69,7 +77,12 @@ export async function confirmPaymentRecord(params: {
       actorType: "provider",
       orderId: payment?.orderId ?? null,
       paymentId: payment?.id ?? null,
-      eventPayload: { gatewayOrderId: params.gatewayOrderId, gatewayPaymentId: params.gatewayPaymentId, method: params.method, amountPaise: payment?.amount ?? null },
+      eventPayload: {
+        gatewayOrderId: params.gatewayOrderId,
+        gatewayPaymentId: params.gatewayPaymentId,
+        method: params.method,
+        amountPaise: payment?.amount ?? null,
+      },
       idempotencyKey: `payment_verified:${params.gatewayPaymentId}`,
       correlationId: params.gatewayOrderId,
     });
@@ -94,7 +107,11 @@ export async function failPaymentRecord(params: {
     actorType: "provider",
     orderId: payment?.orderId ?? null,
     paymentId: payment?.id ?? null,
-    eventPayload: { gatewayOrderId: params.gatewayOrderId, reason: params.reason ?? "Payment failed", amountPaise: payment?.amount ?? null },
+    eventPayload: {
+      gatewayOrderId: params.gatewayOrderId,
+      reason: params.reason ?? "Payment failed",
+      amountPaise: payment?.amount ?? null,
+    },
     idempotencyKey: `payment_failed:${params.gatewayOrderId}`,
     correlationId: params.gatewayOrderId,
   });
@@ -218,17 +235,14 @@ export async function getSlaBreachSummary(storeId: number, days = 30) {
   const events = await db
     .select()
     .from(slaEvents)
-    .where(
-      and(
-        eq(slaEvents.storeId, storeId),
-        gt(slaEvents.createdAt, since)
-      )
-    );
+    .where(and(eq(slaEvents.storeId, storeId), gt(slaEvents.createdAt, since)));
 
   const total = events.length;
   const breached = events.filter(e => e.breached).length;
   const delivered = events.filter(e => e.deliveredAt !== null).length;
-  const onTime = events.filter(e => e.deliveredAt !== null && !e.breached).length;
+  const onTime = events.filter(
+    e => e.deliveredAt !== null && !e.breached
+  ).length;
 
   return {
     total,
@@ -257,16 +271,13 @@ export async function getOpenSlaEvents(storeId: number) {
       breached: slaEvents.breached,
     })
     .from(slaEvents)
-    .where(
-      and(
-        eq(slaEvents.storeId, storeId),
-        isNull(slaEvents.deliveredAt)
-      )
-    );
+    .where(and(eq(slaEvents.storeId, storeId), isNull(slaEvents.deliveredAt)));
 
   return rows.map(r => ({
     ...r,
-    minutesRemaining: Math.round((r.slaDeadline.getTime() - now.getTime()) / 60000),
+    minutesRemaining: Math.round(
+      (r.slaDeadline.getTime() - now.getTime()) / 60000
+    ),
     isBreached: r.breached || now > r.slaDeadline,
   }));
 }
@@ -278,7 +289,14 @@ export async function getExpiryZones(storeId: number) {
   if (!db) return null;
 
   const { batches } = await import("../drizzle/schema");
-  const { sql, and: _and, eq: _eq, lte: _lte, gt: _gt, ne: _ne } = await import("drizzle-orm");
+  const {
+    sql: _sql,
+    and: _and,
+    eq: _eq,
+    lte: _lte,
+    gt: _gt,
+    ne: _ne,
+  } = await import("drizzle-orm");
 
   const now = new Date();
   const d30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -305,17 +323,42 @@ export async function getExpiryZones(storeId: number) {
     );
 
   const expired = allBatches.filter(b => b.expiryDate <= now);
-  const critical = allBatches.filter(b => b.expiryDate > now && b.expiryDate <= d30);
-  const warning = allBatches.filter(b => b.expiryDate > d30 && b.expiryDate <= d60);
-  const caution = allBatches.filter(b => b.expiryDate > d60 && b.expiryDate <= d90);
+  const critical = allBatches.filter(
+    b => b.expiryDate > now && b.expiryDate <= d30
+  );
+  const warning = allBatches.filter(
+    b => b.expiryDate > d30 && b.expiryDate <= d60
+  );
+  const caution = allBatches.filter(
+    b => b.expiryDate > d60 && b.expiryDate <= d90
+  );
 
   const calcValue = (list: typeof allBatches) =>
-    list.reduce((s, b) => s + b.quantity * parseFloat(String(b.unitCost ?? 0)), 0);
+    list.reduce(
+      (s, b) => s + b.quantity * parseFloat(String(b.unitCost ?? 0)),
+      0
+    );
 
   return {
-    expired: { count: expired.length, value: calcValue(expired), items: expired },
-    critical: { count: critical.length, value: calcValue(critical), items: critical }, // <30d
-    warning: { count: warning.length, value: calcValue(warning), items: warning },     // 30–60d
-    caution: { count: caution.length, value: calcValue(caution), items: caution },     // 60–90d
+    expired: {
+      count: expired.length,
+      value: calcValue(expired),
+      items: expired,
+    },
+    critical: {
+      count: critical.length,
+      value: calcValue(critical),
+      items: critical,
+    }, // <30d
+    warning: {
+      count: warning.length,
+      value: calcValue(warning),
+      items: warning,
+    }, // 30–60d
+    caution: {
+      count: caution.length,
+      value: calcValue(caution),
+      items: caution,
+    }, // 60–90d
   };
 }

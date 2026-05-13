@@ -36,7 +36,9 @@ describe("PROCEDURE_RATE_LIMITS", () => {
 describe("checkProcedureRateLimit", () => {
   let store: MemoryRateLimitStore;
 
-  beforeEach(() => { store = new MemoryRateLimitStore(); });
+  beforeEach(() => {
+    store = new MemoryRateLimitStore();
+  });
 
   it("returns limited=false for an unconfigured procedure", () => {
     const result = checkProcedureRateLimit("some.unknown", mockCtx(), store);
@@ -45,7 +47,12 @@ describe("checkProcedureRateLimit", () => {
 
   it("returns limited=false on first call within limit", () => {
     const config = new Map([["test.proc", { windowMs: 60_000, max: 5 }]]);
-    const result = checkProcedureRateLimit("test.proc", mockCtx(), store, config);
+    const result = checkProcedureRateLimit(
+      "test.proc",
+      mockCtx(),
+      store,
+      config
+    );
     expect(result.limited).toBe(false);
   });
 
@@ -65,8 +72,18 @@ describe("checkProcedureRateLimit", () => {
     const ctx2 = mockCtx("2.2.2.2");
     checkProcedureRateLimit("test.proc", ctx1, store, config);
     checkProcedureRateLimit("test.proc", ctx1, store, config); // 2nd for ctx1 → over limit
-    const resultCtx1 = checkProcedureRateLimit("test.proc", ctx1, store, config);
-    const resultCtx2 = checkProcedureRateLimit("test.proc", ctx2, store, config); // 1st for ctx2 → OK
+    const resultCtx1 = checkProcedureRateLimit(
+      "test.proc",
+      ctx1,
+      store,
+      config
+    );
+    const resultCtx2 = checkProcedureRateLimit(
+      "test.proc",
+      ctx2,
+      store,
+      config
+    ); // 1st for ctx2 → OK
     expect(resultCtx1.limited).toBe(true);
     expect(resultCtx2.limited).toBe(false);
   });
@@ -77,8 +94,18 @@ describe("checkProcedureRateLimit", () => {
     const authCtx = mockCtx("3.3.3.3", 99);
     checkProcedureRateLimit("test.proc", anonCtx, store, config);
     checkProcedureRateLimit("test.proc", anonCtx, store, config); // over for anon
-    const anonResult = checkProcedureRateLimit("test.proc", anonCtx, store, config);
-    const authResult = checkProcedureRateLimit("test.proc", authCtx, store, config); // 1st for user 99 → OK
+    const anonResult = checkProcedureRateLimit(
+      "test.proc",
+      anonCtx,
+      store,
+      config
+    );
+    const authResult = checkProcedureRateLimit(
+      "test.proc",
+      authCtx,
+      store,
+      config
+    ); // 1st for user 99 → OK
     expect(anonResult.limited).toBe(true);
     expect(authResult.limited).toBe(false);
   });
@@ -99,17 +126,32 @@ describe("throwIfRateLimited", () => {
     // Exhaust the limit
     checkProcedureRateLimit("otp.send", ctx, store, config);
     checkProcedureRateLimit("otp.send", ctx, store, config);
-    expect(() => throwIfRateLimited("otp.send", ctx, store, config)).toThrow(TRPCError);
+    expect(() => throwIfRateLimited("otp.send", ctx, store, config)).toThrow(
+      TRPCError
+    );
   });
 });
 
 // ─── createExpressRateLimitMiddleware ─────────────────────────────────────────
 
 function makeResMock() {
-  const data: { status?: number; body?: unknown; headers: Record<string, string> } = { headers: {} };
+  const data: {
+    status?: number;
+    body?: unknown;
+    headers: Record<string, string>;
+  } = { headers: {} };
   return {
-    status: (code: number) => { data.status = code; return { json: (body: unknown) => { data.body = body; } }; },
-    setHeader: (k: string, v: string) => { data.headers[k] = v; },
+    status: (code: number) => {
+      data.status = code;
+      return {
+        json: (body: unknown) => {
+          data.body = body;
+        },
+      };
+    },
+    setHeader: (k: string, v: string) => {
+      data.headers[k] = v;
+    },
     data,
   };
 }
@@ -117,35 +159,59 @@ function makeResMock() {
 describe("createExpressRateLimitMiddleware", () => {
   it("calls next() when under limit", () => {
     const store = new MemoryRateLimitStore();
-    const mw = createExpressRateLimitMiddleware("/api/test", { windowMs: 60_000, max: 5 }, store);
+    const mw = createExpressRateLimitMiddleware(
+      "/api/test",
+      { windowMs: 60_000, max: 5 },
+      store
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req = { ip: "7.7.7.7", socket: {} } as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = makeResMock() as any;
     let nextCalled = false;
-    mw(req, res, () => { nextCalled = true; });
+    mw(req, res, () => {
+      nextCalled = true;
+    });
     expect(nextCalled).toBe(true);
   });
 
   it("responds 429 and does NOT call next() when over limit", () => {
     const store = new MemoryRateLimitStore();
-    const mw = createExpressRateLimitMiddleware("/api/test", { windowMs: 60_000, max: 1 }, store);
+    const mw = createExpressRateLimitMiddleware(
+      "/api/test",
+      { windowMs: 60_000, max: 1 },
+      store
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req = { ip: "8.8.8.8", socket: {} } as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res1 = makeResMock() as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res2 = makeResMock() as any;
     mw(req, res1, () => {});
     mw(req, res1, () => {}); // exhaust
     let nextCalled = false;
-    mw(req, res2, () => { nextCalled = true; }); // should be blocked
+    mw(req, res2, () => {
+      nextCalled = true;
+    }); // should be blocked
     expect(nextCalled).toBe(false);
     expect(res2.data.status).toBe(429);
   });
 
   it("sets Retry-After header on 429", () => {
     const store = new MemoryRateLimitStore();
-    const mw = createExpressRateLimitMiddleware("/api/test", { windowMs: 60_000, max: 1, blockMs: 30_000 }, store);
+    const mw = createExpressRateLimitMiddleware(
+      "/api/test",
+      { windowMs: 60_000, max: 1, blockMs: 30_000 },
+      store
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const req = { ip: "9.9.9.9", socket: {} } as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = makeResMock() as any;
     mw(req, res, () => {});
     mw(req, res, () => {}); // exhaust (blockMs kicks in)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res3 = makeResMock() as any;
     mw(req, res3, () => {});
     expect(res3.data.headers["Retry-After"]).toBeTruthy();

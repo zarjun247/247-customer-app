@@ -18,21 +18,14 @@ import {
   orderItems,
   storeSkus,
   batches,
-  vendors,
-  purchaseOrders,
-  poItems,
-  grnRecords,
-  staffAssignments,
   workflowEvents,
-  userImportanceScores,
   riders,
   deliveryEvents,
   deliveryOtps,
   metricsEvents,
-  users,
   products,
 } from "../drizzle/schema";
-import { eq, and, lte, gte, sql, desc, asc, inArray, ne } from "drizzle-orm";
+import { eq, and, lte, gte, sql, asc, inArray, ne } from "drizzle-orm";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -568,13 +561,11 @@ export async function verifyDeliveryOtp(orderId: number, otp: string) {
       .update(riders)
       .set({ status: "available" })
       .where(eq(riders.id, order[0].riderId));
-    await db
-      .insert(deliveryEvents)
-      .values({
-        orderId,
-        riderId: order[0].riderId,
-        eventType: "otp_verified",
-      });
+    await db.insert(deliveryEvents).values({
+      orderId,
+      riderId: order[0].riderId,
+      eventType: "otp_verified",
+    });
     await db
       .insert(deliveryEvents)
       .values({ orderId, riderId: order[0].riderId, eventType: "delivered" });

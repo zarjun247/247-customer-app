@@ -5,8 +5,12 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createAuthContext(overrides?: Partial<AuthenticatedUser>): { ctx: TrpcContext; clearedCookies: { name: string; options: Record<string, unknown> }[] } {
-  const clearedCookies: { name: string; options: Record<string, unknown> }[] = [];
+function createAuthContext(overrides?: Partial<AuthenticatedUser>): {
+  ctx: TrpcContext;
+  clearedCookies: { name: string; options: Record<string, unknown> }[];
+} {
+  const clearedCookies: { name: string; options: Record<string, unknown> }[] =
+    [];
   const user: AuthenticatedUser = {
     id: 1,
     openId: "test-user-001",
@@ -40,13 +44,23 @@ describe("auth.logout", () => {
     expect(result).toEqual({ success: true });
     expect(clearedCookies).toHaveLength(1);
     expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({ maxAge: -1, httpOnly: true, path: "/" });
+    expect(clearedCookies[0]?.options).toMatchObject({
+      maxAge: -1,
+      httpOnly: true,
+      path: "/",
+    });
   });
 });
 
 // ─── Order State Machine Tests ─────────────────────────────────────────────────
 describe("Order status machine", () => {
-  const STATUS_ORDER = ["created", "pharmacist_reviewing", "picking", "out_for_delivery", "delivered"];
+  const STATUS_ORDER = [
+    "created",
+    "pharmacist_reviewing",
+    "picking",
+    "out_for_delivery",
+    "delivered",
+  ];
 
   it("defines correct status progression", () => {
     expect(STATUS_ORDER[0]).toBe("created");
@@ -82,7 +96,9 @@ describe("FEFO batch allocation logic", () => {
   ];
 
   it("selects the earliest-expiring batch first", () => {
-    const sorted = [...batches].sort((a, b) => a.expiryDate.getTime() - b.expiryDate.getTime());
+    const sorted = [...batches].sort(
+      (a, b) => a.expiryDate.getTime() - b.expiryDate.getTime()
+    );
     expect(sorted[0].id).toBe(2); // June 2026 is earliest
   });
 
@@ -90,7 +106,9 @@ describe("FEFO batch allocation logic", () => {
     const now = new Date();
     const active = batches.filter(b => b.expiryDate > now);
     expect(active.length).toBeGreaterThan(0);
-    active.forEach(b => expect(b.expiryDate.getTime()).toBeGreaterThan(now.getTime()));
+    active.forEach(b =>
+      expect(b.expiryDate.getTime()).toBeGreaterThan(now.getTime())
+    );
   });
 });
 
@@ -100,20 +118,26 @@ describe("Expiry rules", () => {
 
   it("flags batch as 90-day warning when expiry is within 90 days", () => {
     const expiryIn85Days = new Date(now.getTime() + 85 * 24 * 60 * 60 * 1000);
-    const daysToExpiry = Math.ceil((expiryIn85Days.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysToExpiry = Math.ceil(
+      (expiryIn85Days.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
     expect(daysToExpiry).toBeLessThanOrEqual(90);
     expect(daysToExpiry).toBeGreaterThan(60);
   });
 
   it("flags batch as 60-day critical when expiry is within 60 days", () => {
     const expiryIn55Days = new Date(now.getTime() + 55 * 24 * 60 * 60 * 1000);
-    const daysToExpiry = Math.ceil((expiryIn55Days.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysToExpiry = Math.ceil(
+      (expiryIn55Days.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
     expect(daysToExpiry).toBeLessThanOrEqual(60);
   });
 
   it("does not flag batch with more than 90 days to expiry", () => {
     const expiryIn120Days = new Date(now.getTime() + 120 * 24 * 60 * 60 * 1000);
-    const daysToExpiry = Math.ceil((expiryIn120Days.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysToExpiry = Math.ceil(
+      (expiryIn120Days.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
     expect(daysToExpiry).toBeGreaterThan(90);
   });
 });
@@ -146,7 +170,9 @@ describe("Refill reminder engine", () => {
   it("calculates next reminder date as (lastOrdered + avgInterval - 5 days)", () => {
     const lastOrderedAt = new Date("2026-01-01");
     const avgIntervalDays = 30;
-    const expectedReminder = new Date(lastOrderedAt.getTime() + (avgIntervalDays - 5) * 24 * 60 * 60 * 1000);
+    const expectedReminder = new Date(
+      lastOrderedAt.getTime() + (avgIntervalDays - 5) * 24 * 60 * 60 * 1000
+    );
     const actualReminder = new Date("2026-01-26"); // Jan 1 + 25 days
     expect(expectedReminder.toDateString()).toBe(actualReminder.toDateString());
   });
@@ -168,18 +194,30 @@ describe("Refill reminder engine", () => {
 describe("WhatsApp bot flow state machine", () => {
   it("returns menu on 'hi' message", () => {
     const message = "hi";
-    const isMenuTrigger = ["hi", "hello", "menu"].includes(message.toLowerCase());
+    const isMenuTrigger = ["hi", "hello", "menu"].includes(
+      message.toLowerCase()
+    );
     expect(isMenuTrigger).toBe(true);
   });
 
   it("routes to search flow on '1'", () => {
     const message = "1";
-    const flowMap: Record<string, string> = { "1": "search", "2": "status", "3": "rx_upload", "4": "reorder", "5": "refills" };
+    const flowMap: Record<string, string> = {
+      "1": "search",
+      "2": "status",
+      "3": "rx_upload",
+      "4": "reorder",
+      "5": "refills",
+    };
     expect(flowMap[message]).toBe("search");
   });
 
   it("routes to status flow on '2'", () => {
-    const flowMap: Record<string, string> = { "1": "search", "2": "status", "3": "rx_upload" };
+    const flowMap: Record<string, string> = {
+      "1": "search",
+      "2": "status",
+      "3": "rx_upload",
+    };
     expect(flowMap["2"]).toBe("status");
   });
 });

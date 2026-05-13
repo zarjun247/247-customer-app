@@ -1,8 +1,16 @@
 import { eq } from "drizzle-orm";
-import { notificationEvents, notificationPreferences } from "../../drizzle/schema";
+import {
+  notificationEvents,
+  notificationPreferences,
+} from "../../drizzle/schema";
 import { getDb } from "../db";
 
-export type NotificationChannel = "in_app" | "push" | "email" | "whatsapp" | "sms";
+export type NotificationChannel =
+  | "in_app"
+  | "push"
+  | "email"
+  | "whatsapp"
+  | "sms";
 export type NotificationSendStatus =
   | "pending"
   | "sent"
@@ -12,7 +20,10 @@ export type NotificationSendStatus =
   | "dead_letter"
   | "skipped_demo";
 
-const defaultChannels: Array<{ channel: NotificationChannel; enabled: boolean }> = [
+const defaultChannels: Array<{
+  channel: NotificationChannel;
+  enabled: boolean;
+}> = [
   { channel: "in_app", enabled: true },
   { channel: "push", enabled: true },
   { channel: "email", enabled: true },
@@ -23,11 +34,23 @@ const defaultChannels: Array<{ channel: NotificationChannel; enabled: boolean }>
 const unsafeChannels: NotificationChannel[] = ["push", "sms", "whatsapp"];
 
 export function buildSafeNotificationPayload(
-  input: { channel: NotificationChannel; title: string; body: string; sensitive?: boolean },
-  allowSensitive = false,
+  input: {
+    channel: NotificationChannel;
+    title: string;
+    body: string;
+    sensitive?: boolean;
+  },
+  allowSensitive = false
 ) {
-  if (input.sensitive && unsafeChannels.includes(input.channel) && !allowSensitive) {
-    return { title: "Medication reminder", body: "You have an important pharmacy update." };
+  if (
+    input.sensitive &&
+    unsafeChannels.includes(input.channel) &&
+    !allowSensitive
+  ) {
+    return {
+      title: "Medication reminder",
+      body: "You have an important pharmacy update.",
+    };
   }
   return { title: input.title, body: input.body };
 }
@@ -44,7 +67,7 @@ export async function createNotification(input: {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const pref = await getNotificationPreferences(input.customerId);
-  const channelPref = pref.find((p) => p.channel === input.channel);
+  const channelPref = pref.find(p => p.channel === input.channel);
   if (channelPref && channelPref.enabled === false) {
     const [row] = await db
       .insert(notificationEvents)
@@ -54,17 +77,30 @@ export async function createNotification(input: {
         title: "Notification skipped",
         body: "Customer channel preference disabled.",
         type: input.type ?? "generic",
-        safePayloadJson: JSON.stringify({ skipped: true, reason: "preference_disabled" }),
+        safePayloadJson: JSON.stringify({
+          skipped: true,
+          reason: "preference_disabled",
+        }),
         provider: input.provider ?? null,
         status: "dead_letter",
       })
       .$returningId();
-    return { id: row.id, title: "Notification skipped", body: "Customer channel preference disabled.", status: "dead_letter" as const };
+    return {
+      id: row.id,
+      title: "Notification skipped",
+      body: "Customer channel preference disabled.",
+      status: "dead_letter" as const,
+    };
   }
   const allowSensitive = channelPref?.allowSensitiveContent ?? false;
   const safe = buildSafeNotificationPayload(
-    { channel: input.channel, title: input.title, body: input.body, sensitive: input.sensitive },
-    allowSensitive,
+    {
+      channel: input.channel,
+      title: input.title,
+      body: input.body,
+      sensitive: input.sensitive,
+    },
+    allowSensitive
   );
   const [row] = await db
     .insert(notificationEvents)
@@ -74,7 +110,10 @@ export async function createNotification(input: {
       title: safe.title,
       body: safe.body,
       type: input.type ?? "generic",
-      safePayloadJson: JSON.stringify({ ...safe, sensitiveRedacted: Boolean(input.sensitive && safe.body !== input.body) }),
+      safePayloadJson: JSON.stringify({
+        ...safe,
+        sensitiveRedacted: Boolean(input.sensitive && safe.body !== input.body),
+      }),
       provider: input.provider ?? null,
       status: "pending",
     })
@@ -82,24 +121,57 @@ export async function createNotification(input: {
   return { id: row.id, ...safe, status: "pending" as const };
 }
 
-export async function sendNotification(id: number, providerResult: boolean | { ok?: boolean; status?: NotificationSendStatus; providerMessageId?: string; error?: string } | null | undefined) {
+export async function sendNotification(
+  id: number,
+  providerResult:
+    | boolean
+    | {
+        ok?: boolean;
+        status?: NotificationSendStatus;
+        providerMessageId?: string;
+        error?: string;
+      }
+    | null
+    | undefined
+) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
 
   const normalized = normalizeProviderResult(providerResult);
   const update: Record<string, unknown> = { status: normalized.status };
   if (normalized.status === "sent") update.sentAt = new Date();
-  if (normalized.providerMessageId) update.providerMessageId = normalized.providerMessageId;
-  if (normalized.error) update.safePayloadJson = JSON.stringify({ error: normalized.error });
+  if (normalized.providerMessageId)
+    update.providerMessageId = normalized.providerMessageId;
+  if (normalized.error)
+    update.safePayloadJson = JSON.stringify({ error: normalized.error });
 
-  await db.update(notificationEvents).set(update).where(eq(notificationEvents.id, id));
+  await db
+    .update(notificationEvents)
+    .set(update)
+    .where(eq(notificationEvents.id, id));
   return { id, status: normalized.status };
 }
 
-export function normalizeProviderResult(providerResult: boolean | { ok?: boolean; status?: NotificationSendStatus; providerMessageId?: string; error?: string } | null | undefined) {
+export function normalizeProviderResult(
+  providerResult:
+    | boolean
+    | {
+        ok?: boolean;
+        status?: NotificationSendStatus;
+        providerMessageId?: string;
+        error?: string;
+      }
+    | null
+    | undefined
+) {
   if (providerResult === true) return { status: "sent" as const };
-  if (providerResult === false) return { status: "failed" as const, error: "provider_returned_false" };
-  if (!providerResult) return { status: "provider_unconfigured" as const, error: "provider_unavailable" };
+  if (providerResult === false)
+    return { status: "failed" as const, error: "provider_returned_false" };
+  if (!providerResult)
+    return {
+      status: "provider_unconfigured" as const,
+      error: "provider_unavailable",
+    };
   if (providerResult.status) {
     return {
       status: providerResult.status,
@@ -107,35 +179,58 @@ export function normalizeProviderResult(providerResult: boolean | { ok?: boolean
       error: providerResult.error,
     };
   }
-  if (providerResult.ok === true) return { status: "sent" as const, providerMessageId: providerResult.providerMessageId };
-  return { status: "failed" as const, error: providerResult.error ?? "provider_failed" };
+  if (providerResult.ok === true)
+    return {
+      status: "sent" as const,
+      providerMessageId: providerResult.providerMessageId,
+    };
+  return {
+    status: "failed" as const,
+    error: providerResult.error ?? "provider_failed",
+  };
 }
 
 export async function scheduleNotification(id: number, scheduledAt: Date) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  await db.update(notificationEvents).set({ scheduledFor: scheduledAt, status: "retry_scheduled" }).where(eq(notificationEvents.id, id));
+  await db
+    .update(notificationEvents)
+    .set({ scheduledFor: scheduledAt, status: "retry_scheduled" })
+    .where(eq(notificationEvents.id, id));
   return { id, scheduledAt, status: "retry_scheduled" as const };
 }
 
 export async function markNotificationSent(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  await db.update(notificationEvents).set({ status: "sent", sentAt: new Date() }).where(eq(notificationEvents.id, id));
+  await db
+    .update(notificationEvents)
+    .set({ status: "sent", sentAt: new Date() })
+    .where(eq(notificationEvents.id, id));
   return { id };
 }
 
-export async function markNotificationFailed(id: number, error: string, status: Exclude<NotificationSendStatus, "sent" | "pending"> = "failed") {
+export async function markNotificationFailed(
+  id: number,
+  error: string,
+  status: Exclude<NotificationSendStatus, "sent" | "pending"> = "failed"
+) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  await db.update(notificationEvents).set({ status, safePayloadJson: JSON.stringify({ error }) }).where(eq(notificationEvents.id, id));
+  await db
+    .update(notificationEvents)
+    .set({ status, safePayloadJson: JSON.stringify({ error }) })
+    .where(eq(notificationEvents.id, id));
   return { id, status };
 }
 
 export async function getCustomerNotifications(customerId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  return db.select().from(notificationEvents).where(eq(notificationEvents.userId, customerId));
+  return db
+    .select()
+    .from(notificationEvents)
+    .where(eq(notificationEvents.userId, customerId));
 }
 
 export async function getNotificationPreferences(customerId: number) {
@@ -144,15 +239,26 @@ export async function getNotificationPreferences(customerId: number) {
   for (const pref of defaultChannels) {
     await db
       .insert(notificationPreferences)
-      .values({ userId: customerId, channel: pref.channel, enabled: pref.enabled, allowSensitiveContent: false })
+      .values({
+        userId: customerId,
+        channel: pref.channel,
+        enabled: pref.enabled,
+        allowSensitiveContent: false,
+      })
       .onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
   }
-  return db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, customerId));
+  return db
+    .select()
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, customerId));
 }
 
 export async function updateNotificationPreferences(
   customerId: number,
-  updates: { allowSensitiveInUnsafeChannels?: boolean; channels?: Partial<Record<NotificationChannel, boolean>> },
+  updates: {
+    allowSensitiveInUnsafeChannels?: boolean;
+    channels?: Partial<Record<NotificationChannel, boolean>>;
+  }
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -161,15 +267,21 @@ export async function updateNotificationPreferences(
 
   if (updates.channels) {
     for (const [channel, enabled] of Object.entries(updates.channels)) {
-      const set: { enabled: boolean; allowSensitiveContent?: boolean; updatedAt: Date } = { enabled, updatedAt: new Date() };
-      if (updates.allowSensitiveInUnsafeChannels !== undefined) set.allowSensitiveContent = updates.allowSensitiveInUnsafeChannels;
+      const set: {
+        enabled: boolean;
+        allowSensitiveContent?: boolean;
+        updatedAt: Date;
+      } = { enabled, updatedAt: new Date() };
+      if (updates.allowSensitiveInUnsafeChannels !== undefined)
+        set.allowSensitiveContent = updates.allowSensitiveInUnsafeChannels;
       await db
         .insert(notificationPreferences)
         .values({
           userId: customerId,
           channel: channel as NotificationChannel,
           enabled,
-          allowSensitiveContent: updates.allowSensitiveInUnsafeChannels ?? false,
+          allowSensitiveContent:
+            updates.allowSensitiveInUnsafeChannels ?? false,
         })
         .onDuplicateKeyUpdate({ set });
     }
@@ -179,8 +291,19 @@ export async function updateNotificationPreferences(
     for (const channel of unsafeChannels) {
       await db
         .insert(notificationPreferences)
-        .values({ userId: customerId, channel, enabled: defaultChannels.find((p) => p.channel === channel)?.enabled ?? true, allowSensitiveContent: updates.allowSensitiveInUnsafeChannels })
-        .onDuplicateKeyUpdate({ set: { allowSensitiveContent: updates.allowSensitiveInUnsafeChannels, updatedAt: new Date() } });
+        .values({
+          userId: customerId,
+          channel,
+          enabled:
+            defaultChannels.find(p => p.channel === channel)?.enabled ?? true,
+          allowSensitiveContent: updates.allowSensitiveInUnsafeChannels,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            allowSensitiveContent: updates.allowSensitiveInUnsafeChannels,
+            updatedAt: new Date(),
+          },
+        });
     }
   }
 

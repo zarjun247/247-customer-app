@@ -11,8 +11,13 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { tplRxApproved, tplRxRejected, tplOutForDelivery, tplDelivered } from "../notifications";
+import { protectedProcedure, router } from "../_core/trpc";
+import {
+  tplRxApproved,
+  tplRxRejected,
+  tplOutForDelivery,
+  tplDelivered,
+} from "../notifications";
 import { sendCustomerNotification } from "../connectors";
 import { getUserById } from "../db";
 import {
@@ -47,18 +52,38 @@ import {
 
 const PHARMACIST_ROLES = ["pharmacist", "admin"] as const;
 const MANAGER_ROLES = ["store_manager", "admin"] as const;
-const STAFF_ROLES = ["pharmacist", "store_manager", "inventory_operator", "delivery_operator", "auditor", "admin"] as const;
+const STAFF_ROLES = [
+  "pharmacist",
+  "store_manager",
+  "inventory_operator",
+  "delivery_operator",
+  "auditor",
+  "admin",
+] as const;
 const ADMIN_ROLES = ["admin"] as const;
 
-function assertRole(userRole: string, allowed: readonly string[], label: string) {
+function assertRole(
+  userRole: string,
+  allowed: readonly string[],
+  label: string
+) {
   if (!allowed.includes(userRole)) {
-    throw new TRPCError({ code: "FORBIDDEN", message: `${label} access required` });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `${label} access required`,
+    });
   }
 }
 
-function getStoreId(user: { staffStoreId?: number | null; role: string }): number {
+function getStoreId(user: {
+  staffStoreId?: number | null;
+  role: string;
+}): number {
   if (user.staffStoreId) return user.staffStoreId;
-  throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No store assigned to this staff member" });
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message: "No store assigned to this staff member",
+  });
 }
 
 // ─── Pharmacist Workbench Router ──────────────────────────────────────────────
@@ -94,17 +119,24 @@ export const pharmacistRouter = router({
       // Look up order to get customer phone
       try {
         const { getDb } = await import("../db");
-        const { prescriptions, orders, users } = await import("../../drizzle/schema");
+        const { prescriptions } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         const db = await getDb();
         if (db) {
-          const rx = await db.select({ userId: prescriptions.userId }).from(prescriptions).where(eq(prescriptions.id, input.rxId)).limit(1);
+          const rx = await db
+            .select({ userId: prescriptions.userId })
+            .from(prescriptions)
+            .where(eq(prescriptions.id, input.rxId))
+            .limit(1);
           if (rx[0]) {
             const user = await getUserById(rx[0].userId);
-            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+            if (user?.phone)
+              await sendCustomerNotification(user.phone, payload);
           }
         }
-      } catch (e) { console.error("[SMS] approve notification failed:", e); }
+      } catch (e) {
+        console.error("[SMS] approve notification failed:", e);
+      }
       return result;
     }),
 
@@ -126,13 +158,20 @@ export const pharmacistRouter = router({
         const { eq } = await import("drizzle-orm");
         const db = await getDb();
         if (db) {
-          const rx = await db.select({ userId: prescriptions.userId }).from(prescriptions).where(eq(prescriptions.id, input.rxId)).limit(1);
+          const rx = await db
+            .select({ userId: prescriptions.userId })
+            .from(prescriptions)
+            .where(eq(prescriptions.id, input.rxId))
+            .limit(1);
           if (rx[0]) {
             const user = await getUserById(rx[0].userId);
-            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+            if (user?.phone)
+              await sendCustomerNotification(user.phone, payload);
           }
         }
-      } catch (e) { console.error("[SMS] reject notification failed:", e); }
+      } catch (e) {
+        console.error("[SMS] reject notification failed:", e);
+      }
       return result;
     }),
 
@@ -153,7 +192,12 @@ export const pharmacistRouter = router({
     }),
   /** Admin: list all orders with optional status filter */
   adminListOrders: protectedProcedure
-    .input(z.object({ status: z.string().optional(), limit: z.number().int().min(1).max(500).default(200) }))
+    .input(
+      z.object({
+        status: z.string().optional(),
+        limit: z.number().int().min(1).max(500).default(200),
+      })
+    )
     .query(async ({ ctx, input }) => {
       assertRole(ctx.user.role, STAFF_ROLES, "Staff");
       const { getAllOrders } = await import("../db");
@@ -180,20 +224,28 @@ export const inventoryRouter = router({
 
   /** Receive a GRN (Goods Received Note) — updates batches and stock quantities */
   receiveGrn: protectedProcedure
-    .input(z.object({
-      poId: z.number().int().optional(),
-      notes: z.string().optional(),
-      items: z.array(z.object({
-        productId: z.number().int(),
-        variantId: z.number().int().optional(),
-        batchNumber: z.string().min(1),
-        expiryDate: z.date(),
-        quantity: z.number().int().positive(),
-        unitCost: z.number().positive().optional(),
-      })),
-    }))
+    .input(
+      z.object({
+        poId: z.number().int().optional(),
+        notes: z.string().optional(),
+        items: z.array(
+          z.object({
+            productId: z.number().int(),
+            variantId: z.number().int().optional(),
+            batchNumber: z.string().min(1),
+            expiryDate: z.date(),
+            quantity: z.number().int().positive(),
+            unitCost: z.number().positive().optional(),
+          })
+        ),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, ["inventory_operator", "store_manager", "admin"], "Inventory operator");
+      assertRole(
+        ctx.user.role,
+        ["inventory_operator", "store_manager", "admin"],
+        "Inventory operator"
+      );
       const storeId = getStoreId(ctx.user);
       return receiveGrn({ ...input, storeId, receivedByUserId: ctx.user.id });
     }),
@@ -208,14 +260,16 @@ export const vendorRouter = router({
   }),
 
   create: protectedProcedure
-    .input(z.object({
-      name: z.string().min(1).max(200),
-      contactName: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().email().optional(),
-      gstin: z.string().optional(),
-      address: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        name: z.string().min(1).max(200),
+        contactName: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        gstin: z.string().optional(),
+        address: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
       return createVendor(input);
@@ -228,21 +282,29 @@ export const vendorRouter = router({
   }),
 
   createPO: protectedProcedure
-    .input(z.object({
-      vendorId: z.number().int(),
-      expectedDelivery: z.date().optional(),
-      notes: z.string().optional(),
-      items: z.array(z.object({
-        productId: z.number().int(),
-        variantId: z.number().int().optional(),
-        orderedQty: z.number().int().positive(),
-        unitCost: z.number().positive(),
-      })),
-    }))
+    .input(
+      z.object({
+        vendorId: z.number().int(),
+        expectedDelivery: z.date().optional(),
+        notes: z.string().optional(),
+        items: z.array(
+          z.object({
+            productId: z.number().int(),
+            variantId: z.number().int().optional(),
+            orderedQty: z.number().int().positive(),
+            unitCost: z.number().positive(),
+          })
+        ),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
       const storeId = getStoreId(ctx.user);
-      return createPurchaseOrder({ ...input, storeId, createdByUserId: ctx.user.id });
+      return createPurchaseOrder({
+        ...input,
+        storeId,
+        createdByUserId: ctx.user.id,
+      });
     }),
 });
 
@@ -256,10 +318,18 @@ export const staffRouter = router({
   }),
 
   assign: protectedProcedure
-    .input(z.object({
-      userId: z.number().int(),
-      role: z.enum(["pharmacist", "store_manager", "inventory_operator", "delivery_operator", "auditor"]),
-    }))
+    .input(
+      z.object({
+        userId: z.number().int(),
+        role: z.enum([
+          "pharmacist",
+          "store_manager",
+          "inventory_operator",
+          "delivery_operator",
+          "auditor",
+        ]),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       assertRole(ctx.user.role, ADMIN_ROLES, "Admin");
       const storeId = getStoreId(ctx.user);
@@ -278,7 +348,11 @@ export const staffRouter = router({
 
 export const riderRouter = router({
   available: protectedProcedure.query(async ({ ctx }) => {
-    assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
+    assertRole(
+      ctx.user.role,
+      ["delivery_operator", "store_manager", "admin"],
+      "Delivery operator"
+    );
     const storeId = getStoreId(ctx.user);
     return getAvailableRiders(storeId);
   }),
@@ -286,33 +360,59 @@ export const riderRouter = router({
   assign: protectedProcedure
     .input(z.object({ orderId: z.number().int(), riderId: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
-      const result = await assignRider(input.orderId, input.riderId, ctx.user.id);
+      assertRole(
+        ctx.user.role,
+        ["delivery_operator", "store_manager", "admin"],
+        "Delivery operator"
+      );
+      const result = await assignRider(
+        input.orderId,
+        input.riderId,
+        ctx.user.id
+      );
       // Fire-and-forget: notify customer via SMS
-      const payload = tplOutForDelivery({ orderId: input.orderId, customerName: "Customer", riderName: "Rider" });
+      const payload = tplOutForDelivery({
+        orderId: input.orderId,
+        customerName: "Customer",
+        riderName: "Rider",
+      });
       try {
         const { getDb } = await import("../db");
-        const { orders, users } = await import("../../drizzle/schema");
+        const { orders } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         const db = await getDb();
         if (db) {
-          const order = await db.select({ userId: orders.userId }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+          const order = await db
+            .select({ userId: orders.userId })
+            .from(orders)
+            .where(eq(orders.id, input.orderId))
+            .limit(1);
           if (order[0]) {
             const user = await getUserById(order[0].userId);
-            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+            if (user?.phone)
+              await sendCustomerNotification(user.phone, payload);
           }
         }
-      } catch (e) { console.error("[SMS] out-for-delivery notification failed:", e); }
+      } catch (e) {
+        console.error("[SMS] out-for-delivery notification failed:", e);
+      }
       return result;
     }),
 
   verifyOtp: protectedProcedure
     .input(z.object({ orderId: z.number().int(), otp: z.string().length(6) }))
     .mutation(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
+      assertRole(
+        ctx.user.role,
+        ["delivery_operator", "store_manager", "admin"],
+        "Delivery operator"
+      );
       const result = await verifyDeliveryOtp(input.orderId, input.otp);
       // Fire-and-forget: notify customer via SMS + close SLA event
-      const payload = tplDelivered({ orderId: input.orderId, customerName: "Customer" });
+      const payload = tplDelivered({
+        orderId: input.orderId,
+        customerName: "Customer",
+      });
       try {
         const { getDb } = await import("../db");
         const { orders } = await import("../../drizzle/schema");
@@ -320,21 +420,38 @@ export const riderRouter = router({
         const { closeSlaEvent } = await import("../payment");
         const db = await getDb();
         if (db) {
-          const order = await db.select({ userId: orders.userId }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+          const order = await db
+            .select({ userId: orders.userId })
+            .from(orders)
+            .where(eq(orders.id, input.orderId))
+            .limit(1);
           if (order[0]) {
             const user = await getUserById(order[0].userId);
-            if (user?.phone) await sendCustomerNotification(user.phone, payload);
+            if (user?.phone)
+              await sendCustomerNotification(user.phone, payload);
           }
         }
         await closeSlaEvent(input.orderId);
-      } catch (e) { console.error("[SMS] delivered notification failed:", e); }
+      } catch (e) {
+        console.error("[SMS] delivered notification failed:", e);
+      }
       return result;
     }),
 
   recordFailed: protectedProcedure
-    .input(z.object({ orderId: z.number().int(), riderId: z.number().int(), note: z.string().min(5) }))
+    .input(
+      z.object({
+        orderId: z.number().int(),
+        riderId: z.number().int(),
+        note: z.string().min(5),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, ["delivery_operator", "store_manager", "admin"], "Delivery operator");
+      assertRole(
+        ctx.user.role,
+        ["delivery_operator", "store_manager", "admin"],
+        "Delivery operator"
+      );
       return recordFailedDelivery(input.orderId, input.riderId, input.note);
     }),
 });

@@ -1,14 +1,22 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import pino from "pino";
 import { getDb } from "../db";
-import { sales, saleLines, products } from "../../drizzle/schema";
+import { sales, saleLines } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 export type ContinuityNode =
-  | { kind: "customer"; id: string; metadata?: { name?: string; loyaltyTier?: string } }
-  | { kind: "product"; id: string; metadata?: { name?: string; schedule?: string } };
+  | {
+      kind: "customer";
+      id: string;
+      metadata?: { name?: string; loyaltyTier?: string };
+    }
+  | {
+      kind: "product";
+      id: string;
+      metadata?: { name?: string; schedule?: string };
+    };
 
 export type ContinuityEdge = {
   fromCustomerId: string;
@@ -28,24 +36,30 @@ type PurchaseRecord = {
   schedule: string | null;
 };
 
-function computeIntervalStats(dates: Date[]): { average: number; variance: number } {
+function computeIntervalStats(dates: Date[]): {
+  average: number;
+  variance: number;
+} {
   if (dates.length < 2) return { average: 0, variance: 0 };
   const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
   const gaps: number[] = [];
   for (let i = 1; i < sorted.length; i++) {
-    gaps.push((sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24));
+    gaps.push(
+      (sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24)
+    );
   }
   const mean = gaps.reduce((s, g) => s + g, 0) / gaps.length;
-  const variance = gaps.length > 1
-    ? gaps.reduce((s, g) => s + Math.pow(g - mean, 2), 0) / gaps.length
-    : 0;
+  const variance =
+    gaps.length > 1
+      ? gaps.reduce((s, g) => s + Math.pow(g - mean, 2), 0) / gaps.length
+      : 0;
   return { average: mean, variance };
 }
 
 function computeContinuityScore(
   purchaseCount: number,
   intervalStats: { average: number; variance: number },
-  schedule: string | null,
+  schedule: string | null
 ): number {
   let score = 0;
 
@@ -73,7 +87,7 @@ function computeContinuityScore(
 
 export async function buildCustomerContinuityGraph(
   customerId: string,
-  options?: { lookbackDays?: number; maxEdges?: number },
+  options?: { lookbackDays?: number; maxEdges?: number }
 ): Promise<{ nodes: ContinuityNode[]; edges: ContinuityEdge[] }> {
   const lookbackDays = options?.lookbackDays ?? ENV.refillRiskLookbackDays;
   const maxEdges = options?.maxEdges ?? ENV.continuityGraphMaxNodes;
@@ -98,8 +112,8 @@ export async function buildCustomerContinuityGraph(
       and(
         eq(sales.customerId, customerId),
         eq(sales.status, "confirmed"),
-        gte(sales.createdAt, since.getTime()),
-      ),
+        gte(sales.createdAt, since.getTime())
+      )
     )
     .orderBy(desc(sales.createdAt));
 
@@ -126,10 +140,16 @@ export async function buildCustomerContinuityGraph(
     const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
     const firstPurchase = sorted[0];
     const lastPurchase = sorted[sorted.length - 1];
-    const daysCovered = (lastPurchase.getTime() - firstPurchase.getTime()) / (1000 * 60 * 60 * 24);
+    const daysCovered =
+      (lastPurchase.getTime() - firstPurchase.getTime()) /
+      (1000 * 60 * 60 * 24);
     const intervalStats = computeIntervalStats(dates);
     const schedule = purchases[0].schedule;
-    const continuityScore = computeContinuityScore(purchases.length, intervalStats, schedule);
+    const continuityScore = computeContinuityScore(
+      purchases.length,
+      intervalStats,
+      schedule
+    );
 
     edges.push({
       fromCustomerId: customerId,
@@ -147,7 +167,7 @@ export async function buildCustomerContinuityGraph(
   edges.sort((a, b) => b.continuityScore - a.continuityScore);
   const limitedEdges = edges.slice(0, maxEdges);
 
-  const productNodes: ContinuityNode[] = limitedEdges.map((e) => ({
+  const productNodes: ContinuityNode[] = limitedEdges.map(e => ({
     kind: "product" as const,
     id: e.toProductId,
   }));
@@ -160,7 +180,7 @@ export async function buildCustomerContinuityGraph(
 
 export async function buildProductContinuityGraph(
   productId: string,
-  options?: { storeId?: string; lookbackDays?: number; maxEdges?: number },
+  options?: { storeId?: string; lookbackDays?: number; maxEdges?: number }
 ): Promise<{ nodes: ContinuityNode[]; edges: ContinuityEdge[] }> {
   const lookbackDays = options?.lookbackDays ?? ENV.refillRiskLookbackDays;
   const maxEdges = options?.maxEdges ?? ENV.continuityGraphMaxNodes;
@@ -191,29 +211,45 @@ export async function buildProductContinuityGraph(
     .orderBy(desc(sales.createdAt));
 
   // Filter out rows with no customer (walk-in sales)
-  const customerRows = rows.filter((r) => r.customerId != null);
+  const customerRows = rows.filter(r => r.customerId != null);
 
   if (customerRows.length === 0) {
     return { nodes: [{ kind: "product", id: productId }], edges: [] };
   }
 
   // Group by customer
-  const byCustomer = new Map<string, Array<{ purchasedAt: Date; qty: number; schedule: string | null }>>();
+  const byCustomer = new Map<
+    string,
+    Array<{ purchasedAt: Date; qty: number; schedule: string | null }>
+  >();
   for (const row of customerRows) {
     const cid = row.customerId!;
     const existing = byCustomer.get(cid) ?? [];
-    existing.push({ purchasedAt: new Date(Number(row.createdAt)), qty: row.qty, schedule: row.schedule });
+    existing.push({
+      purchasedAt: new Date(Number(row.createdAt)),
+      qty: row.qty,
+      schedule: row.schedule,
+    });
     byCustomer.set(cid, existing);
   }
 
   const edges: ContinuityEdge[] = [];
   for (const [customerId, purchases] of Array.from(byCustomer)) {
-    const dates = purchases.map((p: { purchasedAt: Date; qty: number; schedule: string | null }) => p.purchasedAt);
+    const dates = purchases.map(
+      (p: { purchasedAt: Date; qty: number; schedule: string | null }) =>
+        p.purchasedAt
+    );
     const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
-    const daysCovered = (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) / (1000 * 60 * 60 * 24);
+    const daysCovered =
+      (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+      (1000 * 60 * 60 * 24);
     const intervalStats = computeIntervalStats(dates);
     const schedule = purchases[0].schedule;
-    const continuityScore = computeContinuityScore(purchases.length, intervalStats, schedule);
+    const continuityScore = computeContinuityScore(
+      purchases.length,
+      intervalStats,
+      schedule
+    );
     edges.push({
       fromCustomerId: customerId,
       toProductId: productId,
@@ -229,7 +265,7 @@ export async function buildProductContinuityGraph(
   edges.sort((a, b) => b.continuityScore - a.continuityScore);
   const limitedEdges = edges.slice(0, maxEdges);
 
-  const customerNodes: ContinuityNode[] = limitedEdges.map((e) => ({
+  const customerNodes: ContinuityNode[] = limitedEdges.map(e => ({
     kind: "customer" as const,
     id: e.fromCustomerId,
   }));
@@ -242,8 +278,14 @@ export async function buildProductContinuityGraph(
 
 export async function identifyContinuityCriticalSkus(
   storeId: string,
-  options?: { minCustomersAffected?: number; minContinuityScore?: number },
-): Promise<Array<{ productId: string; customersAffected: number; aggregateContinuityScore: number }>> {
+  options?: { minCustomersAffected?: number; minContinuityScore?: number }
+): Promise<
+  Array<{
+    productId: string;
+    customersAffected: number;
+    aggregateContinuityScore: number;
+  }>
+> {
   const minCustomersAffected = options?.minCustomersAffected ?? 3;
   const minContinuityScore = options?.minContinuityScore ?? 0.6;
   const lookbackDays = ENV.refillRiskLookbackDays;
@@ -265,33 +307,51 @@ export async function identifyContinuityCriticalSkus(
       and(
         eq(sales.storeId, storeId),
         eq(sales.status, "confirmed"),
-        gte(sales.createdAt, since.getTime()),
-      ),
+        gte(sales.createdAt, since.getTime())
+      )
     );
 
-  const customerRows = rows.filter((r) => r.customerId != null);
+  const customerRows = rows.filter(r => r.customerId != null);
 
   // Group by product → customer → purchases
-  const byProduct = new Map<string, Map<string, Array<{ purchasedAt: Date; schedule: string | null }>>>();
+  const byProduct = new Map<
+    string,
+    Map<string, Array<{ purchasedAt: Date; schedule: string | null }>>
+  >();
   for (const row of customerRows) {
     const pid = row.productId;
     const cid = row.customerId!;
     if (!byProduct.has(pid)) byProduct.set(pid, new Map());
     const byCustomer = byProduct.get(pid)!;
     const existing = byCustomer.get(cid) ?? [];
-    existing.push({ purchasedAt: new Date(Number(row.createdAt)), schedule: row.schedule });
+    existing.push({
+      purchasedAt: new Date(Number(row.createdAt)),
+      schedule: row.schedule,
+    });
     byCustomer.set(cid, existing);
   }
 
-  const results: Array<{ productId: string; customersAffected: number; aggregateContinuityScore: number }> = [];
+  const results: Array<{
+    productId: string;
+    customersAffected: number;
+    aggregateContinuityScore: number;
+  }> = [];
 
   for (const [productId, byCustomer] of Array.from(byProduct)) {
     let totalScore = 0;
     let qualifyingCustomers = 0;
 
     for (const [, purchases] of Array.from(byCustomer)) {
-      const intervalStats = computeIntervalStats(purchases.map((p: { purchasedAt: Date; schedule: string | null }) => p.purchasedAt));
-      const score = computeContinuityScore(purchases.length, intervalStats, purchases[0].schedule);
+      const intervalStats = computeIntervalStats(
+        purchases.map(
+          (p: { purchasedAt: Date; schedule: string | null }) => p.purchasedAt
+        )
+      );
+      const score = computeContinuityScore(
+        purchases.length,
+        intervalStats,
+        purchases[0].schedule
+      );
       if (score >= minContinuityScore) {
         totalScore += score;
         qualifyingCustomers++;
@@ -302,11 +362,14 @@ export async function identifyContinuityCriticalSkus(
       results.push({
         productId,
         customersAffected: qualifyingCustomers,
-        aggregateContinuityScore: qualifyingCustomers > 0 ? totalScore / qualifyingCustomers : 0,
+        aggregateContinuityScore:
+          qualifyingCustomers > 0 ? totalScore / qualifyingCustomers : 0,
       });
     }
   }
 
-  results.sort((a, b) => b.aggregateContinuityScore - a.aggregateContinuityScore);
+  results.sort(
+    (a, b) => b.aggregateContinuityScore - a.aggregateContinuityScore
+  );
   return results;
 }

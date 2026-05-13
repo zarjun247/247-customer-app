@@ -1,15 +1,30 @@
-import type { ErrorRequestHandler, Request, RequestHandler, Response } from "express";
-import { createRequestId, safeError, serializeSafeLog } from "../services/observability";
+import type {
+  ErrorRequestHandler,
+  Request,
+  RequestHandler,
+  Response,
+} from "express";
+import {
+  createRequestId,
+  safeError,
+  serializeSafeLog,
+} from "../services/observability";
 
 type RequestWithContext = Request & {
   requestId?: string;
-  user?: { id?: unknown; role?: unknown; staffStoreId?: unknown; assignedStoreId?: unknown } | null;
+  user?: {
+    id?: unknown;
+    role?: unknown;
+    staffStoreId?: unknown;
+    assignedStoreId?: unknown;
+  } | null;
 };
 
 type Logger = Pick<Console, "info" | "warn" | "error">;
 
 function safeId(value: unknown): string | undefined {
-  if (typeof value === "string" || typeof value === "number") return String(value).slice(0, 80);
+  if (typeof value === "string" || typeof value === "number")
+    return String(value).slice(0, 80);
   return undefined;
 }
 
@@ -31,10 +46,16 @@ export function requestIdMiddleware(): RequestHandler {
   };
 }
 
-export function buildRequestLogEntry(req: RequestWithContext, res: Response, startedAt: bigint, err?: unknown) {
+export function buildRequestLogEntry(
+  req: RequestWithContext,
+  res: Response,
+  startedAt: bigint,
+  err?: unknown
+) {
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
   return {
     event: err ? "http_request_error" : "http_request",
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     requestId: req.requestId ?? res.locals.requestId,
     method: req.method,
     path: req.path,
@@ -45,7 +66,9 @@ export function buildRequestLogEntry(req: RequestWithContext, res: Response, sta
   };
 }
 
-export function requestLoggerMiddleware(logger: Logger = console): RequestHandler {
+export function requestLoggerMiddleware(
+  logger: Logger = console
+): RequestHandler {
   return (req: RequestWithContext, res, next) => {
     const startedAt = process.hrtime.bigint();
     res.on("finish", () => {
@@ -59,7 +82,9 @@ export function requestLoggerMiddleware(logger: Logger = console): RequestHandle
   };
 }
 
-export function requestErrorLoggerMiddleware(logger: Pick<Console, "error"> = console): ErrorRequestHandler {
+export function requestErrorLoggerMiddleware(
+  logger: Pick<Console, "error"> = console
+): ErrorRequestHandler {
   return (err, req: RequestWithContext, res, next) => {
     const entry = buildRequestLogEntry(req, res, process.hrtime.bigint(), err);
     logger.error(serializeSafeLog(entry));

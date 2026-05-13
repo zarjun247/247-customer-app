@@ -8,7 +8,10 @@ describe("ocr purchase guards", () => {
   });
 
   it("has low-confidence draft safeguard", () => {
-    const src = fs.readFileSync("server/services/ocrPurchaseInwarding.ts", "utf8");
+    const src = fs.readFileSync(
+      "server/services/ocrPurchaseInwarding.ts",
+      "utf8"
+    );
     expect(src.includes("draft_required")).toBe(true);
   });
 });

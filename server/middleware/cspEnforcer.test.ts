@@ -75,7 +75,7 @@ describe("buildCspMiddleware", () => {
     const mw = buildCspMiddleware("off");
     const res = makeRes();
     let called = false;
-    mw({} as any, res as any, () => {
+    mw({} as unknown, res as unknown, () => {
       called = true;
     });
     expect(called).toBe(true);
@@ -86,7 +86,7 @@ describe("buildCspMiddleware", () => {
   it("mode=enforce: sets Content-Security-Policy header", () => {
     const mw = buildCspMiddleware("enforce");
     const res = makeRes();
-    mw({} as any, res as any, () => {});
+    mw({} as unknown, res as unknown, () => {});
     expect(res.headers["Content-Security-Policy"]).toBeTruthy();
     expect(res.headers["Content-Security-Policy-Report-Only"]).toBeUndefined();
   });
@@ -94,7 +94,7 @@ describe("buildCspMiddleware", () => {
   it("mode=report_only: sets Content-Security-Policy-Report-Only header", () => {
     const mw = buildCspMiddleware("report_only");
     const res = makeRes();
-    mw({} as any, res as any, () => {});
+    mw({} as unknown, res as unknown, () => {});
     expect(res.headers["Content-Security-Policy-Report-Only"]).toBeTruthy();
     expect(res.headers["Content-Security-Policy"]).toBeUndefined();
   });
@@ -102,7 +102,7 @@ describe("buildCspMiddleware", () => {
   it("enforce mode includes report-uri when provided", () => {
     const mw = buildCspMiddleware("enforce", "/api/csp-report");
     const res = makeRes();
-    mw({} as any, res as any, () => {});
+    mw({} as unknown, res as unknown, () => {});
     expect(res.headers["Content-Security-Policy"]).toContain(
       "report-uri /api/csp-report"
     );
@@ -113,7 +113,7 @@ describe("buildCspMiddleware", () => {
       const mw = buildCspMiddleware(mode);
       const res = makeRes();
       let nextCalled = false;
-      mw({} as any, res as any, () => {
+      mw({} as unknown, res as unknown, () => {
         nextCalled = true;
       });
       expect(nextCalled).toBe(true);

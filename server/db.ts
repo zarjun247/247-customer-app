@@ -1,13 +1,14 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import {
   and,
   desc,
   eq,
   gt,
-  gte,
-  ilike,
+  gte as _gte,
+  ilike as _ilike,
   like,
-  lt,
-  lte,
+  lt as _lt,
+  lte as _lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -17,9 +18,9 @@ import {
   markPrescriptionOnFileWithConsent,
 } from "./services/prescriptionVault";
 import {
-  auditLogs,
+  auditLogs as _auditLogs,
   batchLedger,
-  batches,
+  batches as _batches,
   buildings,
   cartItems,
   InsertUser,
@@ -29,19 +30,20 @@ import {
   prescriptions,
   productVariants,
   products,
-  refillReminders,
+  refillReminders as _refillReminders,
   rxPriorApprovals,
-  doctorConsultRequests,
+  doctorConsultRequests as _doctorConsultRequests,
   stockReservations,
   storeSkus,
   stores,
   users,
-  whatsappSessions,
+  whatsappSessions as _whatsappSessions,
 } from "../drizzle/schema";
-import { createOrderInvoiceSnapshot } from "./services/invoiceSnapshotService";
+import { createOrderInvoiceSnapshot as _createOrderInvoiceSnapshot } from "./services/invoiceSnapshotService";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {

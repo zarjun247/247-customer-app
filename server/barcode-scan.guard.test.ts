@@ -17,6 +17,7 @@ describe("barcode scan guards", () => {
     const payload = getBarcodeLabelPayload({
       productName: "X",
       internalBarcode: "PHX-1",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     expect(payload.customerName).toBeUndefined();
     expect(payload.patientName).toBeUndefined();

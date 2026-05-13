@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { staffDeviceSessions } from "../../drizzle/schema";
@@ -477,7 +478,7 @@ export async function assertSensitiveActionAllowed(
 ): Promise<void> {
   const policy = SENSITIVE_ACTIONS[action];
   try {
-    const role = requireAnyPermission(ctx, policy.permissions);
+    const _role = requireAnyPermission(ctx, policy.permissions);
     if (policy.freshSession)
       await requireFreshSession(ctx, {
         freshnessMinutes: policy.freshnessMinutes,

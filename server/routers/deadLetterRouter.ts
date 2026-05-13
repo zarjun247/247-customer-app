@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 import { z } from "zod";
 import { adminProcedure, router, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -11,32 +12,42 @@ export const deadLetterRouter = router({
     .input(
       z.object({
         providerType: z.string().optional(),
-        reviewStatus: z.enum(["pending_review", "resolved", "replayed"]).optional(),
+        reviewStatus: z
+          .enum(["pending_review", "resolved", "replayed"])
+          .optional(),
         limit: z.number().int().min(1).max(200).default(50),
         offset: z.number().int().min(0).default(0),
-      }),
+      })
     )
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { rows: [], count: 0 };
 
       const conditions = [
-        input.providerType ? eq(providerDeadLetters.provider, input.providerType) : undefined,
-        input.reviewStatus ? eq(providerDeadLetters.reviewStatus, input.reviewStatus) : undefined,
+        input.providerType
+          ? eq(providerDeadLetters.provider, input.providerType)
+          : undefined,
+        input.reviewStatus
+          ? eq(providerDeadLetters.reviewStatus, input.reviewStatus)
+          : undefined,
       ].filter(Boolean);
 
       const [rows, countRows] = await Promise.all([
         db
           .select()
           .from(providerDeadLetters)
-          .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined)
+          .where(
+            conditions.length > 0 ? and(...(conditions as any[])) : undefined
+          )
           .orderBy(desc(providerDeadLetters.createdAt))
           .limit(input.limit)
           .offset(input.offset),
         db
           .select({ count: sql<number>`COUNT(*)` })
           .from(providerDeadLetters)
-          .where(conditions.length > 0 ? and(...(conditions as any[])) : undefined),
+          .where(
+            conditions.length > 0 ? and(...(conditions as any[])) : undefined
+          ),
       ]);
 
       return { rows, count: Number(countRows[0]?.count ?? 0) };
@@ -46,7 +57,11 @@ export const deadLetterRouter = router({
     .input(z.object({ deadLetterId: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
 
       const [existing] = await db
         .select()
@@ -54,9 +69,16 @@ export const deadLetterRouter = router({
         .where(eq(providerDeadLetters.id, input.deadLetterId))
         .limit(1);
 
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Dead letter not found" });
+      if (!existing)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dead letter not found",
+        });
       if (existing.reviewStatus === "resolved") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Dead letter already resolved" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Dead letter already resolved",
+        });
       }
 
       const before = { reviewStatus: existing.reviewStatus };
@@ -92,11 +114,15 @@ export const deadLetterRouter = router({
       z.object({
         deadLetterId: z.number().int(),
         resolutionNotes: z.string().min(1).max(2000),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
 
       const [existing] = await db
         .select()
@@ -104,9 +130,16 @@ export const deadLetterRouter = router({
         .where(eq(providerDeadLetters.id, input.deadLetterId))
         .limit(1);
 
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Dead letter not found" });
+      if (!existing)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dead letter not found",
+        });
 
-      const before = { reviewStatus: existing.reviewStatus, reviewNote: existing.reviewNote };
+      const before = {
+        reviewStatus: existing.reviewStatus,
+        reviewNote: existing.reviewNote,
+      };
 
       await db
         .update(providerDeadLetters)
@@ -124,7 +157,10 @@ export const deadLetterRouter = router({
         entityType: "provider_dead_letter",
         entityId: input.deadLetterId,
         before,
-        after: { reviewStatus: "resolved", resolutionNotes: input.resolutionNotes },
+        after: {
+          reviewStatus: "resolved",
+          resolutionNotes: input.resolutionNotes,
+        },
         reason: input.resolutionNotes,
         channel: "admin",
       });
@@ -137,11 +173,15 @@ export const deadLetterRouter = router({
       z.object({
         deadLetterId: z.number().int(),
         severity: z.enum(["P0", "P1", "P2"]).default("P1"),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "DB unavailable",
+        });
 
       const [existing] = await db
         .select()
@@ -149,7 +189,11 @@ export const deadLetterRouter = router({
         .where(eq(providerDeadLetters.id, input.deadLetterId))
         .limit(1);
 
-      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Dead letter not found" });
+      if (!existing)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dead letter not found",
+        });
 
       const before = { reviewStatus: existing.reviewStatus };
 

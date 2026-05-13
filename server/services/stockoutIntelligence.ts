@@ -19,10 +19,14 @@ export type StockoutRisk = {
   forecastedStockoutDate: Date | null;
 };
 
-function classifyRisk(daysToStockout: number, lookaheadDays: number): { riskLevel: StockoutRiskLevel; riskScore: number } {
+function classifyRisk(
+  daysToStockout: number,
+  lookaheadDays: number
+): { riskLevel: StockoutRiskLevel; riskScore: number } {
   if (daysToStockout < 3) return { riskLevel: "critical", riskScore: 1.0 };
   if (daysToStockout < 7) return { riskLevel: "high", riskScore: 0.75 };
-  if (daysToStockout < lookaheadDays) return { riskLevel: "medium", riskScore: 0.5 };
+  if (daysToStockout < lookaheadDays)
+    return { riskLevel: "medium", riskScore: 0.5 };
   return { riskLevel: "low", riskScore: 0.2 };
 }
 
@@ -32,7 +36,7 @@ function buildStockoutRisk(
   currentSellable: number,
   totalQtySold: number,
   lookbackDays: number,
-  lookaheadDays: number,
+  lookaheadDays: number
 ): StockoutRisk {
   const averageDailyDemand = lookbackDays > 0 ? totalQtySold / lookbackDays : 0;
   let daysToStockout: number;
@@ -68,7 +72,7 @@ export async function getStockoutForecast(
     lookaheadDays?: number;
     limit?: number;
     minRiskLevel?: StockoutRiskLevel;
-  },
+  }
 ): Promise<StockoutRisk[]> {
   const lookbackDays = options?.lookbackDays ?? ENV.refillRiskLookbackDays;
   const lookaheadDays = options?.lookaheadDays ?? ENV.stockoutLookaheadDays;
@@ -93,8 +97,8 @@ export async function getStockoutForecast(
       and(
         eq(sales.storeId, storeId),
         eq(sales.status, "confirmed"),
-        gte(sales.createdAt, since.getTime()),
-      ),
+        gte(sales.createdAt, since.getTime())
+      )
     )
     .groupBy(saleLines.productId);
 
@@ -113,8 +117,8 @@ export async function getStockoutForecast(
       .where(
         and(
           eq(storeSkus.storeId, options.numericStoreId),
-          eq(storeSkus.isActive, true),
-        ),
+          eq(storeSkus.isActive, true)
+        )
       );
 
     for (const row of stockRows) {
@@ -123,7 +127,12 @@ export async function getStockoutForecast(
     }
   }
 
-  const RISK_ORDER: Record<StockoutRiskLevel, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  const RISK_ORDER: Record<StockoutRiskLevel, number> = {
+    critical: 4,
+    high: 3,
+    medium: 2,
+    low: 1,
+  };
 
   const results: StockoutRisk[] = [];
   for (const row of demandRows) {
@@ -137,7 +146,7 @@ export async function getStockoutForecast(
       currentSellable,
       totalQty,
       lookbackDays,
-      lookaheadDays,
+      lookaheadDays
     );
     results.push(risk);
   }
@@ -145,10 +154,12 @@ export async function getStockoutForecast(
   let filtered = results;
   if (options?.minRiskLevel) {
     const minOrder = RISK_ORDER[options.minRiskLevel];
-    filtered = results.filter((r) => RISK_ORDER[r.riskLevel] >= minOrder);
+    filtered = results.filter(r => RISK_ORDER[r.riskLevel] >= minOrder);
   }
 
-  filtered.sort((a, b) => b.riskScore - a.riskScore || a.daysToStockout - b.daysToStockout);
+  filtered.sort(
+    (a, b) => b.riskScore - a.riskScore || a.daysToStockout - b.daysToStockout
+  );
   return filtered.slice(0, limit);
 }
 
@@ -159,7 +170,7 @@ export async function getProductStockoutRisk(
     numericStoreId?: number;
     lookbackDays?: number;
     lookaheadDays?: number;
-  },
+  }
 ): Promise<StockoutRisk | null> {
   const lookbackDays = options?.lookbackDays ?? ENV.refillRiskLookbackDays;
   const lookaheadDays = options?.lookaheadDays ?? ENV.stockoutLookaheadDays;
@@ -179,8 +190,8 @@ export async function getProductStockoutRisk(
         eq(saleLines.productId, productId),
         eq(sales.storeId, storeId),
         eq(sales.status, "confirmed"),
-        gte(sales.createdAt, since.getTime()),
-      ),
+        gte(sales.createdAt, since.getTime())
+      )
     );
 
   const totalQty = Number(demandRows[0]?.totalQty ?? 0);
@@ -188,19 +199,32 @@ export async function getProductStockoutRisk(
   let currentSellable = 0;
   if (options?.numericStoreId !== undefined) {
     const stockRows = await db
-      .select({ stockQty: storeSkus.stockQty, softLockedQty: storeSkus.softLockedQty })
+      .select({
+        stockQty: storeSkus.stockQty,
+        softLockedQty: storeSkus.softLockedQty,
+      })
       .from(storeSkus)
       .where(
         and(
           eq(storeSkus.storeId, options.numericStoreId),
           eq(storeSkus.isActive, true),
-          sql`CAST(${storeSkus.productId} AS CHAR) = ${productId}`,
-        ),
+          sql`CAST(${storeSkus.productId} AS CHAR) = ${productId}`
+        )
       );
     if (stockRows.length > 0) {
-      currentSellable = Math.max(0, stockRows[0].stockQty - stockRows[0].softLockedQty);
+      currentSellable = Math.max(
+        0,
+        stockRows[0].stockQty - stockRows[0].softLockedQty
+      );
     }
   }
 
-  return buildStockoutRisk(productId, storeId, currentSellable, totalQty, lookbackDays, lookaheadDays);
+  return buildStockoutRisk(
+    productId,
+    storeId,
+    currentSellable,
+    totalQty,
+    lookbackDays,
+    lookaheadDays
+  );
 }

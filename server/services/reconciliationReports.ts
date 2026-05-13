@@ -14,7 +14,12 @@ function toNumber(value: unknown): number {
 }
 
 function isMissing(value: unknown): boolean {
-  return value === null || value === undefined || (typeof value === "string" && value.trim() === "") || Number.isNaN(value);
+  return (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "") ||
+    Number.isNaN(value)
+  );
 }
 
 function round2(value: number): number {
@@ -61,14 +66,19 @@ export type StockReconciliationRow = {
   mismatches: string[];
 };
 
-export function buildStockReconciliationReport(inputRows: StockReconciliationInputRow[]): ReportEnvelope<StockReconciliationRow, {
-  rowCount: number;
-  ledgerOnHand: number;
-  canonicalAvailable: number;
-  activeReservationQty: number;
-  mismatchCount: number;
-}> {
-  const rows = inputRows.map((row) => {
+export function buildStockReconciliationReport(
+  inputRows: StockReconciliationInputRow[]
+): ReportEnvelope<
+  StockReconciliationRow,
+  {
+    rowCount: number;
+    ledgerOnHand: number;
+    canonicalAvailable: number;
+    activeReservationQty: number;
+    mismatchCount: number;
+  }
+> {
+  const rows = inputRows.map(row => {
     const ledgerOnHand = toNumber(row.ledgerOnHand);
     const ledgerReserved = toNumber(row.ledgerReserved);
     const activeReservationQty = toNumber(row.activeReservationQty);
@@ -78,13 +88,24 @@ export function buildStockReconciliationReport(inputRows: StockReconciliationInp
     const storeSkuSoftLocked = toNumber(row.storeSkuSoftLocked);
     const movementProjectedOnHand = toNumber(row.movementProjectedOnHand);
     const canonicalAvailable = toNumber(row.canonicalAvailable);
-    const expectedCanonicalAvailable = ledgerOnHand - ledgerReserved - activeReservationQty - ledgerQuarantined - ledgerExpired;
+    const expectedCanonicalAvailable =
+      ledgerOnHand -
+      ledgerReserved -
+      activeReservationQty -
+      ledgerQuarantined -
+      ledgerExpired;
     const mismatches: string[] = [];
 
-    if (canonicalAvailable !== expectedCanonicalAvailable) mismatches.push("canonicalAvailability");
+    if (canonicalAvailable !== expectedCanonicalAvailable)
+      mismatches.push("canonicalAvailability");
     if (storeSkuStock !== ledgerOnHand) mismatches.push("storeSkuStock");
-    if (storeSkuSoftLocked !== activeReservationQty) mismatches.push("storeSkuSoftLocked");
-    if (movementProjectedOnHand !== 0 && movementProjectedOnHand !== ledgerOnHand) mismatches.push("stockMovements");
+    if (storeSkuSoftLocked !== activeReservationQty)
+      mismatches.push("storeSkuSoftLocked");
+    if (
+      movementProjectedOnHand !== 0 &&
+      movementProjectedOnHand !== ledgerOnHand
+    )
+      mismatches.push("stockMovements");
 
     return {
       productId: row.productId,
@@ -105,14 +126,14 @@ export function buildStockReconciliationReport(inputRows: StockReconciliationInp
       mismatches,
     };
   });
-  const mismatchCount = rows.filter((row) => row.mismatches.length > 0).length;
+  const mismatchCount = rows.filter(row => row.mismatches.length > 0).length;
   return {
     rows,
     totals: {
       rowCount: rows.length,
-      ledgerOnHand: sumBy(rows, (row) => row.ledgerOnHand),
-      canonicalAvailable: sumBy(rows, (row) => row.canonicalAvailable),
-      activeReservationQty: sumBy(rows, (row) => row.activeReservationQty),
+      ledgerOnHand: sumBy(rows, row => row.ledgerOnHand),
+      canonicalAvailable: sumBy(rows, row => row.canonicalAvailable),
+      activeReservationQty: sumBy(rows, row => row.activeReservationQty),
       mismatchCount,
     },
     csvData: rows,
@@ -120,7 +141,10 @@ export function buildStockReconciliationReport(inputRows: StockReconciliationInp
   };
 }
 
-export type H1CompletenessInputRow = Record<string, unknown> & { id: number; storeId?: number | null };
+export type H1CompletenessInputRow = Record<string, unknown> & {
+  id: number;
+  storeId?: number | null;
+};
 export type H1CompletenessRow = H1CompletenessInputRow & {
   missingFlags: string[];
   missingCount: number;
@@ -143,17 +167,29 @@ export const H1_COMPLETENESS_FIELDS = [
   "doctorName",
 ] as const;
 
-export function buildH1CompletenessReport(inputRows: H1CompletenessInputRow[]): ReportEnvelope<H1CompletenessRow, {
-  rowCount: number;
-  incompleteCount: number;
-  missingFieldCounts: Record<string, number>;
-}> {
+export function buildH1CompletenessReport(
+  inputRows: H1CompletenessInputRow[]
+): ReportEnvelope<
+  H1CompletenessRow,
+  {
+    rowCount: number;
+    incompleteCount: number;
+    missingFieldCounts: Record<string, number>;
+  }
+> {
   const missingFieldCounts: Record<string, number> = {};
-  const rows = inputRows.map((raw) => {
+  const rows = inputRows.map(raw => {
     const saleRef = raw.saleRef ?? raw.saleId ?? raw.orderId ?? null;
     const saleLineRef = raw.saleLineRef ?? raw.prescriptionLineId ?? null;
     const doctorName = raw.doctorName ?? raw.prescribingDoctor ?? null;
-    const enriched: H1CompletenessRow = { ...raw, saleRef, saleLineRef, doctorName, missingFlags: [], missingCount: 0 };
+    const enriched: H1CompletenessRow = {
+      ...raw,
+      saleRef,
+      saleLineRef,
+      doctorName,
+      missingFlags: [],
+      missingCount: 0,
+    };
 
     for (const field of H1_COMPLETENESS_FIELDS) {
       if (isMissing(enriched[field])) {
@@ -169,7 +205,7 @@ export function buildH1CompletenessReport(inputRows: H1CompletenessInputRow[]): 
     rows,
     totals: {
       rowCount: rows.length,
-      incompleteCount: rows.filter((row) => row.missingCount > 0).length,
+      incompleteCount: rows.filter(row => row.missingCount > 0).length,
       missingFieldCounts,
     },
     csvData: rows,
@@ -209,15 +245,20 @@ export type PaymentConsistencyRow = {
   mismatches: string[];
 };
 
-export function buildPaymentConsistencyReport(inputRows: PaymentConsistencyInputRow[]): ReportEnvelope<PaymentConsistencyRow, {
-  rowCount: number;
-  orderTotal: number;
-  paidAmount: number;
-  refundedAmount: number;
-  mismatchCount: number;
-  currentRefundSource: string;
-}> {
-  const rows = inputRows.map((row) => {
+export function buildPaymentConsistencyReport(
+  inputRows: PaymentConsistencyInputRow[]
+): ReportEnvelope<
+  PaymentConsistencyRow,
+  {
+    rowCount: number;
+    orderTotal: number;
+    paidAmount: number;
+    refundedAmount: number;
+    mismatchCount: number;
+    currentRefundSource: string;
+  }
+> {
+  const rows = inputRows.map(row => {
     const orderTotal = round2(toNumber(row.orderTotal));
     const paidAmount = round2(toNumber(row.paidAmountPaise) / 100);
     const refundedAmount = round2(toNumber(row.refundedAmountPaise) / 100);
@@ -225,13 +266,29 @@ export function buildPaymentConsistencyReport(inputRows: PaymentConsistencyInput
     const paymentRecordCount = toNumber(row.paymentRecordCount);
     const billNoCount = toNumber(row.billNoCount);
     const distinctBillNoCount = toNumber(row.distinctBillNoCount);
-    const hasInvoiceReference = !isMissing(row.invoiceUrl) || !isMissing(row.invoiceKey) || distinctBillNoCount > 0;
+    const hasInvoiceReference =
+      !isMissing(row.invoiceUrl) ||
+      !isMissing(row.invoiceKey) ||
+      distinctBillNoCount > 0;
     const mismatches: string[] = [];
 
-    if (["delivered", "closed"].includes(row.status ?? "") && paidAmount + refundedAmount < orderTotal) mismatches.push("paidLessThanOrderTotal");
-    if (["delivered", "closed"].includes(row.status ?? "") && paymentRecordCount === 0) mismatches.push("missingPaymentRecord");
-    if (["delivered", "closed"].includes(row.status ?? "") && !hasInvoiceReference) mismatches.push("missingInvoiceReference");
-    if (billNoCount !== distinctBillNoCount) mismatches.push("duplicateBillNoReferences");
+    if (
+      ["delivered", "closed"].includes(row.status ?? "") &&
+      paidAmount + refundedAmount < orderTotal
+    )
+      mismatches.push("paidLessThanOrderTotal");
+    if (
+      ["delivered", "closed"].includes(row.status ?? "") &&
+      paymentRecordCount === 0
+    )
+      mismatches.push("missingPaymentRecord");
+    if (
+      ["delivered", "closed"].includes(row.status ?? "") &&
+      !hasInvoiceReference
+    )
+      mismatches.push("missingInvoiceReference");
+    if (billNoCount !== distinctBillNoCount)
+      mismatches.push("duplicateBillNoReferences");
 
     return {
       orderId: row.orderId,
@@ -250,16 +307,17 @@ export function buildPaymentConsistencyReport(inputRows: PaymentConsistencyInput
       mismatches,
     };
   });
-  const mismatchCount = rows.filter((row) => row.mismatches.length > 0).length;
+  const mismatchCount = rows.filter(row => row.mismatches.length > 0).length;
   return {
     rows,
     totals: {
       rowCount: rows.length,
-      orderTotal: round2(sumBy(rows, (row) => row.orderTotal)),
-      paidAmount: round2(sumBy(rows, (row) => row.paidAmount)),
-      refundedAmount: round2(sumBy(rows, (row) => row.refundedAmount)),
+      orderTotal: round2(sumBy(rows, row => row.orderTotal)),
+      paidAmount: round2(sumBy(rows, row => row.paidAmount)),
+      refundedAmount: round2(sumBy(rows, row => row.refundedAmount)),
       mismatchCount,
-      currentRefundSource: "payment_records.refundId/refundedAt/status until refund ledger branch lands",
+      currentRefundSource:
+        "payment_records.refundId/refundedAt/status until refund ledger branch lands",
     },
     csvData: rows,
     mismatchCount,
@@ -288,19 +346,26 @@ export type SupplierOutstandingRow = {
   mismatches: string[];
 };
 
-export function buildSupplierOutstandingReport(inputRows: SupplierOutstandingInputRow[]): ReportEnvelope<SupplierOutstandingRow, {
-  rowCount: number;
-  invoiceTotal: number;
-  paymentTotal: number;
-  returnCreditTotal: number;
-  outstandingAmount: number;
-  mismatchCount: number;
-}> {
-  const rows = inputRows.map((row) => {
+export function buildSupplierOutstandingReport(
+  inputRows: SupplierOutstandingInputRow[]
+): ReportEnvelope<
+  SupplierOutstandingRow,
+  {
+    rowCount: number;
+    invoiceTotal: number;
+    paymentTotal: number;
+    returnCreditTotal: number;
+    outstandingAmount: number;
+    mismatchCount: number;
+  }
+> {
+  const rows = inputRows.map(row => {
     const invoiceTotal = round2(toNumber(row.invoiceTotal));
     const paymentTotal = round2(toNumber(row.paymentTotal));
     const returnCreditTotal = round2(toNumber(row.returnCreditTotal));
-    const outstandingAmount = round2(invoiceTotal - paymentTotal - returnCreditTotal);
+    const outstandingAmount = round2(
+      invoiceTotal - paymentTotal - returnCreditTotal
+    );
     const mismatches = outstandingAmount < 0 ? ["overpaidOrOverCredited"] : [];
     return {
       supplierId: row.supplierId,
@@ -314,15 +379,15 @@ export function buildSupplierOutstandingReport(inputRows: SupplierOutstandingInp
       mismatches,
     };
   });
-  const mismatchCount = rows.filter((row) => row.mismatches.length > 0).length;
+  const mismatchCount = rows.filter(row => row.mismatches.length > 0).length;
   return {
     rows,
     totals: {
       rowCount: rows.length,
-      invoiceTotal: round2(sumBy(rows, (row) => row.invoiceTotal)),
-      paymentTotal: round2(sumBy(rows, (row) => row.paymentTotal)),
-      returnCreditTotal: round2(sumBy(rows, (row) => row.returnCreditTotal)),
-      outstandingAmount: round2(sumBy(rows, (row) => row.outstandingAmount)),
+      invoiceTotal: round2(sumBy(rows, row => row.invoiceTotal)),
+      paymentTotal: round2(sumBy(rows, row => row.paymentTotal)),
+      returnCreditTotal: round2(sumBy(rows, row => row.returnCreditTotal)),
+      outstandingAmount: round2(sumBy(rows, row => row.outstandingAmount)),
       mismatchCount,
     },
     csvData: rows,
@@ -352,16 +417,21 @@ export type DailyGstRow = {
   invoiceCount: number;
 };
 
-export function buildDailyGstReport(inputRows: DailyGstInputRow[]): ReportEnvelope<DailyGstRow, {
-  rowCount: number;
-  taxableValue: number;
-  gstAmount: number;
-  grossSales: number;
-  discounts: number;
-  refundsOrReturns: number;
-  invoiceCount: number;
-}> {
-  const rows = inputRows.map((row) => ({
+export function buildDailyGstReport(
+  inputRows: DailyGstInputRow[]
+): ReportEnvelope<
+  DailyGstRow,
+  {
+    rowCount: number;
+    taxableValue: number;
+    gstAmount: number;
+    grossSales: number;
+    discounts: number;
+    refundsOrReturns: number;
+    invoiceCount: number;
+  }
+> {
+  const rows = inputRows.map(row => ({
     date: row.date,
     storeId: row.storeId,
     taxableValue: round2(toNumber(row.taxableValue)),
@@ -375,12 +445,12 @@ export function buildDailyGstReport(inputRows: DailyGstInputRow[]): ReportEnvelo
     rows,
     totals: {
       rowCount: rows.length,
-      taxableValue: round2(sumBy(rows, (row) => row.taxableValue)),
-      gstAmount: round2(sumBy(rows, (row) => row.gstAmount)),
-      grossSales: round2(sumBy(rows, (row) => row.grossSales)),
-      discounts: round2(sumBy(rows, (row) => row.discounts)),
-      refundsOrReturns: round2(sumBy(rows, (row) => row.refundsOrReturns)),
-      invoiceCount: sumBy(rows, (row) => row.invoiceCount),
+      taxableValue: round2(sumBy(rows, row => row.taxableValue)),
+      gstAmount: round2(sumBy(rows, row => row.gstAmount)),
+      grossSales: round2(sumBy(rows, row => row.grossSales)),
+      discounts: round2(sumBy(rows, row => row.discounts)),
+      refundsOrReturns: round2(sumBy(rows, row => row.refundsOrReturns)),
+      invoiceCount: sumBy(rows, row => row.invoiceCount),
     },
     csvData: rows,
   };

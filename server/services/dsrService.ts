@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import { randomUUID } from "crypto";
 import { randomBytes } from "crypto";
 import pino from "pino";

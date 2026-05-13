@@ -37,7 +37,13 @@ export type EventType =
   | "pharmacist_approved"
   | "out_for_delivery";
 
-export type ActorType = "customer" | "pharmacist" | "rider" | "system" | "admin" | "whatsapp";
+export type ActorType =
+  | "customer"
+  | "pharmacist"
+  | "rider"
+  | "system"
+  | "admin"
+  | "whatsapp";
 export type Severity = "info" | "warning" | "critical";
 export type Channel = "app" | "whatsapp" | "counter" | "system" | "import";
 
@@ -105,78 +111,366 @@ export async function emit(event: BusEvent): Promise<void> {
 // ─── Convenience emitters ────────────────────────────────────────────────────
 
 export const bus = {
-  orderPlaced: (orderId: number, userId: number, storeId: number, total: number, channel: Channel = "app") =>
-    emit({ eventType: "order_placed", entityType: "order", entityId: orderId, storeId, actorId: userId, actorType: "customer", payload: { total }, severity: "info", channel }),
+  orderPlaced: (
+    orderId: number,
+    userId: number,
+    storeId: number,
+    total: number,
+    channel: Channel = "app"
+  ) =>
+    emit({
+      eventType: "order_placed",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: userId,
+      actorType: "customer",
+      payload: { total },
+      severity: "info",
+      channel,
+    }),
 
   rxUploaded: (rxId: number, userId: number, storeId?: number) =>
-    emit({ eventType: "rx_uploaded", entityType: "prescription", entityId: rxId, storeId, actorId: userId, actorType: "customer", severity: "info", channel: "app" }),
+    emit({
+      eventType: "rx_uploaded",
+      entityType: "prescription",
+      entityId: rxId,
+      storeId,
+      actorId: userId,
+      actorType: "customer",
+      severity: "info",
+      channel: "app",
+    }),
 
   rxApproved: (rxId: number, pharmacistId: number, storeId: number) =>
-    emit({ eventType: "rx_approved", entityType: "prescription", entityId: rxId, storeId, actorId: pharmacistId, actorType: "pharmacist", severity: "info", channel: "system" }),
+    emit({
+      eventType: "rx_approved",
+      entityType: "prescription",
+      entityId: rxId,
+      storeId,
+      actorId: pharmacistId,
+      actorType: "pharmacist",
+      severity: "info",
+      channel: "system",
+    }),
 
-  rxRejected: (rxId: number, pharmacistId: number, storeId: number, reason?: string) =>
-    emit({ eventType: "rx_rejected", entityType: "prescription", entityId: rxId, storeId, actorId: pharmacistId, actorType: "pharmacist", payload: { reason }, severity: "warning", channel: "system" }),
+  rxRejected: (
+    rxId: number,
+    pharmacistId: number,
+    storeId: number,
+    reason?: string
+  ) =>
+    emit({
+      eventType: "rx_rejected",
+      entityType: "prescription",
+      entityId: rxId,
+      storeId,
+      actorId: pharmacistId,
+      actorType: "pharmacist",
+      payload: { reason },
+      severity: "warning",
+      channel: "system",
+    }),
 
   stockReserved: (orderId: number, storeId: number) =>
-    emit({ eventType: "stock_reserved", entityType: "order", entityId: orderId, storeId, actorType: "system", severity: "info", channel: "system" }),
+    emit({
+      eventType: "stock_reserved",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorType: "system",
+      severity: "info",
+      channel: "system",
+    }),
 
   pickingStarted: (orderId: number, storeId: number, staffId?: number) =>
-    emit({ eventType: "picking_started", entityType: "order", entityId: orderId, storeId, actorId: staffId, actorType: "pharmacist", severity: "info", channel: "system" }),
+    emit({
+      eventType: "picking_started",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: staffId,
+      actorType: "pharmacist",
+      severity: "info",
+      channel: "system",
+    }),
 
   packed: (orderId: number, storeId: number, staffId?: number) =>
-    emit({ eventType: "packed", entityType: "order", entityId: orderId, storeId, actorId: staffId, actorType: "pharmacist", severity: "info", channel: "system" }),
+    emit({
+      eventType: "packed",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: staffId,
+      actorType: "pharmacist",
+      severity: "info",
+      channel: "system",
+    }),
 
   riderAssigned: (orderId: number, riderId: number, storeId: number) =>
-    emit({ eventType: "rider_assigned", entityType: "order", entityId: orderId, storeId, actorId: riderId, actorType: "rider", severity: "info", channel: "system" }),
+    emit({
+      eventType: "rider_assigned",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: riderId,
+      actorType: "rider",
+      severity: "info",
+      channel: "system",
+    }),
 
   outForDelivery: (orderId: number, riderId: number, storeId: number) =>
-    emit({ eventType: "out_for_delivery", entityType: "order", entityId: orderId, storeId, actorId: riderId, actorType: "rider", severity: "info", channel: "system" }),
+    emit({
+      eventType: "out_for_delivery",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: riderId,
+      actorType: "rider",
+      severity: "info",
+      channel: "system",
+    }),
 
   delivered: (orderId: number, riderId: number, storeId: number) =>
-    emit({ eventType: "delivered", entityType: "order", entityId: orderId, storeId, actorId: riderId, actorType: "rider", severity: "info", channel: "system" }),
+    emit({
+      eventType: "delivered",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: riderId,
+      actorType: "rider",
+      severity: "info",
+      channel: "system",
+    }),
 
-  deliveryFailed: (orderId: number, riderId: number, storeId: number, reason: string) =>
-    emit({ eventType: "delivery_failed", entityType: "order", entityId: orderId, storeId, actorId: riderId, actorType: "rider", payload: { reason }, severity: "warning", channel: "system" }),
+  deliveryFailed: (
+    orderId: number,
+    riderId: number,
+    storeId: number,
+    reason: string
+  ) =>
+    emit({
+      eventType: "delivery_failed",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: riderId,
+      actorType: "rider",
+      payload: { reason },
+      severity: "warning",
+      channel: "system",
+    }),
 
   refillDue: (refillPlanId: number, userId: number, storeId?: number) =>
-    emit({ eventType: "refill_due", entityType: "refill_plan", entityId: refillPlanId, storeId, actorId: userId, actorType: "system", severity: "warning", channel: "system" }),
+    emit({
+      eventType: "refill_due",
+      entityType: "refill_plan",
+      entityId: refillPlanId,
+      storeId,
+      actorId: userId,
+      actorType: "system",
+      severity: "warning",
+      channel: "system",
+    }),
 
   paymentReceived: (orderId: number, amount: number, storeId: number) =>
-    emit({ eventType: "payment_received", entityType: "order", entityId: orderId, storeId, payload: { amount }, severity: "info", channel: "system" }),
+    emit({
+      eventType: "payment_received",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      payload: { amount },
+      severity: "info",
+      channel: "system",
+    }),
 
-  paymentFailed: (orderId: number, amount: number, storeId: number, reason?: string) =>
-    emit({ eventType: "payment_failed", entityType: "order", entityId: orderId, storeId, payload: { amount, reason }, severity: "warning", channel: "system" }),
+  paymentFailed: (
+    orderId: number,
+    amount: number,
+    storeId: number,
+    reason?: string
+  ) =>
+    emit({
+      eventType: "payment_failed",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      payload: { amount, reason },
+      severity: "warning",
+      channel: "system",
+    }),
 
-  purchaseCommitted: (invoiceId: number, storeId: number, vendorId: number, total: number) =>
-    emit({ eventType: "purchase_committed", entityType: "purchase_invoice", entityId: invoiceId, storeId, payload: { vendorId, total }, severity: "info", channel: "import" }),
+  purchaseCommitted: (
+    invoiceId: number,
+    storeId: number,
+    vendorId: number,
+    total: number
+  ) =>
+    emit({
+      eventType: "purchase_committed",
+      entityType: "purchase_invoice",
+      entityId: invoiceId,
+      storeId,
+      payload: { vendorId, total },
+      severity: "info",
+      channel: "import",
+    }),
 
-  stockAdjusted: (skuId: number, storeId: number, staffId: number, delta: number, reason: string) =>
-    emit({ eventType: "stock_adjusted", entityType: "store_sku", entityId: skuId, storeId, actorId: staffId, actorType: "admin", payload: { delta, reason }, severity: "warning", channel: "system" }),
+  stockAdjusted: (
+    skuId: number,
+    storeId: number,
+    staffId: number,
+    delta: number,
+    reason: string
+  ) =>
+    emit({
+      eventType: "stock_adjusted",
+      entityType: "store_sku",
+      entityId: skuId,
+      storeId,
+      actorId: staffId,
+      actorType: "admin",
+      payload: { delta, reason },
+      severity: "warning",
+      channel: "system",
+    }),
 
-  batchQuarantined: (batchId: number, storeId: number, staffId: number, reason: string) =>
-    emit({ eventType: "batch_quarantined", entityType: "batch", entityId: batchId, storeId, actorId: staffId, actorType: "admin", payload: { reason }, severity: "critical", channel: "system" }),
+  batchQuarantined: (
+    batchId: number,
+    storeId: number,
+    staffId: number,
+    reason: string
+  ) =>
+    emit({
+      eventType: "batch_quarantined",
+      entityType: "batch",
+      entityId: batchId,
+      storeId,
+      actorId: staffId,
+      actorType: "admin",
+      payload: { reason },
+      severity: "critical",
+      channel: "system",
+    }),
 
-  manualOverride: (entityType: string, entityId: number, storeId: number, staffId: number, note: string) =>
-    emit({ eventType: "manual_override", entityType, entityId, storeId, actorId: staffId, actorType: "admin", payload: { note }, severity: "warning", channel: "system" }),
+  manualOverride: (
+    entityType: string,
+    entityId: number,
+    storeId: number,
+    staffId: number,
+    note: string
+  ) =>
+    emit({
+      eventType: "manual_override",
+      entityType,
+      entityId,
+      storeId,
+      actorId: staffId,
+      actorType: "admin",
+      payload: { note },
+      severity: "warning",
+      channel: "system",
+    }),
 
   slaBreachRisk: (orderId: number, storeId: number, minutesRemaining: number) =>
-    emit({ eventType: "sla_breach_risk", entityType: "order", entityId: orderId, storeId, payload: { minutesRemaining }, severity: "critical", channel: "system" }),
+    emit({
+      eventType: "sla_breach_risk",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      payload: { minutesRemaining },
+      severity: "critical",
+      channel: "system",
+    }),
 
   syncStale: (feedName: string, storeId: number, lastSyncAt: Date) =>
-    emit({ eventType: "sync_stale", entityType: "sync_feed", storeId, payload: { feedName, lastSyncAt: lastSyncAt.toISOString() }, severity: "warning", channel: "import" }),
+    emit({
+      eventType: "sync_stale",
+      entityType: "sync_feed",
+      storeId,
+      payload: { feedName, lastSyncAt: lastSyncAt.toISOString() },
+      severity: "warning",
+      channel: "import",
+    }),
 
   ocrPending: (jobId: number, storeId?: number) =>
-    emit({ eventType: "ocr_pending", entityType: "ocr_job", entityId: jobId, storeId, severity: "info", channel: "import" }),
+    emit({
+      eventType: "ocr_pending",
+      entityType: "ocr_job",
+      entityId: jobId,
+      storeId,
+      severity: "info",
+      channel: "import",
+    }),
 
-  orderCancelled: (orderId: number, storeId: number, actorId: number, actorType: ActorType, reason?: string) =>
-    emit({ eventType: "order_cancelled", entityType: "order", entityId: orderId, storeId, actorId, actorType, payload: { reason }, severity: "warning", channel: "system" }),
+  orderCancelled: (
+    orderId: number,
+    storeId: number,
+    actorId: number,
+    actorType: ActorType,
+    reason?: string
+  ) =>
+    emit({
+      eventType: "order_cancelled",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId,
+      actorType,
+      payload: { reason },
+      severity: "warning",
+      channel: "system",
+    }),
 
-  whatsappOrder: (orderId: number, userId: number, storeId: number, total: number) =>
-    emit({ eventType: "whatsapp_order", entityType: "order", entityId: orderId, storeId, actorId: userId, actorType: "whatsapp", payload: { total }, severity: "info", channel: "whatsapp" }),
+  whatsappOrder: (
+    orderId: number,
+    userId: number,
+    storeId: number,
+    total: number
+  ) =>
+    emit({
+      eventType: "whatsapp_order",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: userId,
+      actorType: "whatsapp",
+      payload: { total },
+      severity: "info",
+      channel: "whatsapp",
+    }),
 
-  counterSale: (saleId: number, storeId: number, staffId: number, total: number) =>
-    emit({ eventType: "counter_sale", entityType: "sale", entityId: saleId, storeId, actorId: staffId, actorType: "admin", payload: { total }, severity: "info", channel: "counter" }),
+  counterSale: (
+    saleId: number,
+    storeId: number,
+    staffId: number,
+    total: number
+  ) =>
+    emit({
+      eventType: "counter_sale",
+      entityType: "sale",
+      entityId: saleId,
+      storeId,
+      actorId: staffId,
+      actorType: "admin",
+      payload: { total },
+      severity: "info",
+      channel: "counter",
+    }),
 
-  pharmacistApproved: (orderId: number, pharmacistId: number, storeId: number) =>
-    emit({ eventType: "pharmacist_approved", entityType: "order", entityId: orderId, storeId, actorId: pharmacistId, actorType: "pharmacist", severity: "info", channel: "system" }),
+  pharmacistApproved: (
+    orderId: number,
+    pharmacistId: number,
+    storeId: number
+  ) =>
+    emit({
+      eventType: "pharmacist_approved",
+      entityType: "order",
+      entityId: orderId,
+      storeId,
+      actorId: pharmacistId,
+      actorType: "pharmacist",
+      severity: "info",
+      channel: "system",
+    }),
 };

@@ -16,7 +16,7 @@ export const providerHealthRouter = router({
       z.object({
         providerType: z.string().min(1),
         providerId: z.string().min(1),
-      }),
+      })
     )
     .query(async ({ input }) => {
       return getProviderHealthDrilldown(input.providerType, input.providerId);
@@ -27,12 +27,14 @@ export const providerHealthRouter = router({
       z.object({
         providerType: z.string().min(1),
         providerId: z.string().min(1),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const snapshots = await listProviderHealthSnapshots();
       const snapshot = snapshots.find(
-        s => s.providerType === input.providerType && s.providerId === input.providerId,
+        s =>
+          s.providerType === input.providerType &&
+          s.providerId === input.providerId
       );
       if (!snapshot) {
         return { emitted: false, reason: "provider_not_found_in_snapshots" };

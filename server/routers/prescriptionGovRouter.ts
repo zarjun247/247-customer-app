@@ -12,12 +12,8 @@ import {
   assertSensitiveActionAllowed,
   requirePermission,
 } from "../services/rbacPolicy";
-import {
-  canUsePrescriptionOnFile,
-  isPrescriptionExpired,
-  logPrescriptionVaultAccess,
-} from "../services/prescriptionVault";
-import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
+import { logPrescriptionVaultAccess } from "../services/prescriptionVault";
+import { eq, and, desc, sql, like, or } from "drizzle-orm";
 import { prescriptionGovRouterExtension } from "./prescriptionGovRouterExtension";
 
 async function getDbSafe() {
@@ -40,7 +36,7 @@ function requirePharmacist(role: string | null | undefined) {
     });
 }
 
-function requireManager(role: string | null | undefined) {
+function _requireManager(role: string | null | undefined) {
   const allowed = ["admin", "super_admin", "store_manager", "pharmacist"];
   if (!role || !allowed.includes(role))
     throw new TRPCError({

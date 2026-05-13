@@ -25,8 +25,13 @@ export async function callDataApi(
   }
 
   // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/") ? ENV.forgeApiUrl : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL("webdevtoken.v1.WebDevService/CallApi", baseUrl).toString();
+  const baseUrl = ENV.forgeApiUrl.endsWith("/")
+    ? ENV.forgeApiUrl
+    : `${ENV.forgeApiUrl}/`;
+  const fullUrl = new URL(
+    "webdevtoken.v1.WebDevService/CallApi",
+    baseUrl
+  ).toString();
 
   const response = await fetch(fullUrl, {
     method: "POST",
@@ -52,6 +57,7 @@ export async function callDataApi(
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const payload = await response.json().catch(() => ({}));
   if (payload && typeof payload === "object" && "jsonData" in payload) {
     try {

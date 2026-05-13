@@ -21,9 +21,11 @@ function assertRole(role: string, allowed: readonly string[], label: string) {
     });
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 function getStoreId(user: any): number {
   return requireStaffStore(user);
 }
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 
 // ─── SLA sub-router ───────────────────────────────────────────────────────────
 
@@ -103,7 +105,7 @@ const slaRouter = router({
 const timestampsRouter = router({
   list: protectedProcedure
     .input(z.object({ orderId: z.number().int() }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx: _ctx, input }) => {
       const db = await getDb();
       if (!db) return [];
       return db

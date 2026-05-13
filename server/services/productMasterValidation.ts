@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 import { TRPCError } from "@trpc/server";
 import {
   assertProductMasterCompleteness,

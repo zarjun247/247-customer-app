@@ -140,9 +140,11 @@ describe("commandLogService", () => {
       mockSelect
         .mockReturnValueOnce({
           from: vi.fn().mockReturnThis(),
-          where: vi.fn().mockResolvedValue([
-            { total: 10, completed: 8, failed: 1, inFlight: 1 },
-          ]),
+          where: vi
+            .fn()
+            .mockResolvedValue([
+              { total: 10, completed: 8, failed: 1, inFlight: 1 },
+            ]),
         })
         .mockReturnValueOnce({
           from: vi.fn().mockReturnThis(),

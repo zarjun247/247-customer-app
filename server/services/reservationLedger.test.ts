@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  reserve,
-  confirm,
-  release,
-  expire,
   listActive,
   listByCustomer,
   getById,
@@ -11,13 +7,12 @@ import {
   ReservationExpiredError,
   IllegalReservationStateError,
   ReservationNotFoundError,
-  type ReserveLine,
 } from "./reservationLedger";
 import type { CommandContext } from "./executeCommand";
 
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockInsert, mockUpdate, mockSelect, mockTransaction, mockDelete, mockDb } =
+const { mockInsert, mockUpdate, mockSelect, mockTransaction, mockDb } =
   vi.hoisted(() => {
     const mockInsert = vi.fn();
     const mockUpdate = vi.fn();
@@ -31,7 +26,7 @@ const { mockInsert, mockUpdate, mockSelect, mockTransaction, mockDelete, mockDb 
       delete: mockDelete,
       transaction: mockTransaction,
     };
-    return { mockInsert, mockUpdate, mockSelect, mockTransaction, mockDelete, mockDb };
+    return { mockInsert, mockUpdate, mockSelect, mockTransaction, mockDb };
   });
 
 const { mockEmitSloEvent } = vi.hoisted(() => ({
@@ -45,15 +40,37 @@ vi.mock("../db", () => ({
 vi.mock("./sloService", () => ({
   emitSloEvent: mockEmitSloEvent,
   SLO_DEFINITIONS: [
-    { name: "trpc.reservation.reserve.p99", target: 0.99, windowSeconds: 60, description: "Reserve" },
-    { name: "trpc.reservation.confirm.p99", target: 0.99, windowSeconds: 60, description: "Confirm" },
-    { name: "trpc.reservation.release.p99", target: 0.99, windowSeconds: 60, description: "Release" },
-    { name: "trpc.reservation.expire.p99", target: 0.99, windowSeconds: 60, description: "Expire" },
+    {
+      name: "trpc.reservation.reserve.p99",
+      target: 0.99,
+      windowSeconds: 60,
+      description: "Reserve",
+    },
+    {
+      name: "trpc.reservation.confirm.p99",
+      target: 0.99,
+      windowSeconds: 60,
+      description: "Confirm",
+    },
+    {
+      name: "trpc.reservation.release.p99",
+      target: 0.99,
+      windowSeconds: 60,
+      description: "Release",
+    },
+    {
+      name: "trpc.reservation.expire.p99",
+      target: 0.99,
+      windowSeconds: 60,
+      description: "Expire",
+    },
   ],
 }));
 
 vi.mock("./stockLockService", () => ({
-  withLock: vi.fn().mockImplementation((_key: string, fn: () => Promise<unknown>) => fn()),
+  withLock: vi
+    .fn()
+    .mockImplementation((_key: string, fn: () => Promise<unknown>) => fn()),
   makeLockKey: vi.fn().mockReturnValue("stock:1:42"),
   acquireLock: vi.fn(),
   releaseLock: vi.fn(),
@@ -71,7 +88,7 @@ const CTX: CommandContext = {
 const STORE_ID = 1;
 const PRODUCT_ID = 42;
 
-function makeBatchRow(id: number, onHand: number, expiryDate: string) {
+function _makeBatchRow(id: number, onHand: number, expiryDate: string) {
   return {
     id,
     storeId: STORE_ID,
@@ -87,8 +104,10 @@ function makeBatchRow(id: number, onHand: number, expiryDate: string) {
   };
 }
 
-function makeAvailability(batches: Array<{ id: number; onHand: number; expiryDate: string }>) {
-  const batchAvails = batches.map((b) => ({
+function makeAvailability(
+  batches: Array<{ id: number; onHand: number; expiryDate: string }>
+) {
+  const batchAvails = batches.map(b => ({
     batchId: b.id,
     batchNo: `B${b.id}`,
     expiryDate: new Date(b.expiryDate),
@@ -108,7 +127,10 @@ function makeAvailability(batches: Array<{ id: number; onHand: number; expiryDat
   };
 }
 
-function makeActiveReservation(id: string, overrides: Record<string, unknown> = {}) {
+function makeActiveReservation(
+  id: string,
+  overrides: Record<string, unknown> = {}
+) {
   return {
     id,
     storeId: STORE_ID,
@@ -141,10 +163,12 @@ function setupCommandLogMock(existingRows: unknown[] = []) {
   });
 }
 
-function setupTransactionMock(fn: (tx: typeof mockDb) => Promise<unknown>) {
-  mockTransaction.mockImplementationOnce(async (cb: (tx: typeof mockDb) => Promise<unknown>) => {
-    await cb(mockDb);
-  });
+function setupTransactionMock(_fn: (tx: typeof mockDb) => Promise<unknown>) {
+  mockTransaction.mockImplementationOnce(
+    async (cb: (tx: typeof mockDb) => Promise<unknown>) => {
+      await cb(mockDb);
+    }
+  );
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -153,31 +177,38 @@ describe("reserve", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("Case 1: happy path — 1 SKU, 1 batch, sufficient stock → reservation created", async () => {
-    const { getCanonicalAvailability } = await import("./canonicalAvailability");
+    const { getCanonicalAvailability } = await import(
+      "./canonicalAvailability"
+    );
     vi.mocked(getCanonicalAvailability ?? (() => {}));
 
     vi.doMock("./canonicalAvailability", () => ({
-      getCanonicalAvailability: vi.fn().mockResolvedValue(
-        makeAvailability([{ id: 1, onHand: 10, expiryDate: "2026-12-01" }]),
-      ),
+      getCanonicalAvailability: vi
+        .fn()
+        .mockResolvedValue(
+          makeAvailability([{ id: 1, onHand: 10, expiryDate: "2026-12-01" }])
+        ),
       getMultiProductAvailability: vi.fn(),
     }));
 
     setupCommandLogMock();
-    setupTransactionMock(async (tx) => {
+    setupTransactionMock(async _tx => {
       mockInsert.mockReturnValue({ values: vi.fn().mockResolvedValue([]) });
-      mockUpdate.mockReturnValue({ set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([]) });
+      mockUpdate.mockReturnValue({
+        set: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([]),
+      });
     });
 
     // Re-import after mock
     const { reserve: reserveFn } = await import("./reservationLedger");
-    const result = await reserveFn(
+    const _result = await reserveFn(
       {
         storeId: STORE_ID,
         lines: [{ productId: PRODUCT_ID, quantity: 5 }],
         idempotencyKey: "test-reserve-1",
       },
-      CTX,
+      CTX
     ).catch(() => null);
 
     // If mock coordination works, result should be non-null
@@ -217,7 +248,11 @@ describe("ReservationExpiredError", () => {
 
 describe("IllegalReservationStateError", () => {
   it("carries state info", () => {
-    const err = new IllegalReservationStateError("res-789", "confirmed", "active");
+    const err = new IllegalReservationStateError(
+      "res-789",
+      "confirmed",
+      "active"
+    );
     expect(err.name).toBe("IllegalReservationStateError");
     expect(err.message).toContain("confirmed");
     expect(err.message).toContain("active");

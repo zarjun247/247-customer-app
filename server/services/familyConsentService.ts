@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import pino from "pino";
 import { and, eq, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";

@@ -192,7 +192,7 @@ export async function resolveStore(
 
 async function checkStoreHasStock(
   storeId: number,
-  skuIds: number[]
+  _skuIds: number[]
 ): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;

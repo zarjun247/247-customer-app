@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildRequestLogEntry, requestLoggerMiddleware } from "./middleware/requestLogger";
-import { createRequestId, redactObject, redactString, safeError, serializeSafeLog } from "./services/observability";
+import {
+  buildRequestLogEntry,
+  requestLoggerMiddleware,
+} from "./middleware/requestLogger";
+import {
+  createRequestId,
+  redactObject,
+  redactString,
+  safeError,
+  serializeSafeLog,
+} from "./services/observability";
 
 describe("production observability redaction", () => {
   it("redacts tokens, cookies, OTPs, passwords, payment signatures, DB URLs, AWS keys, and WhatsApp tokens", () => {
@@ -13,7 +22,11 @@ describe("production observability redaction", () => {
       DATABASE_URL: "mysql://user:pass@example.com:3306/prod",
       awsAccessKeyId: "AKIAABCDEFGHIJKLMNOP",
       whatsappAccessToken: "whatsapp-secret-token",
-      nested: { apiKey: "key", email: "patient@example.com", phone: "+919876543210" },
+      nested: {
+        apiKey: "key",
+        email: "patient@example.com",
+        phone: "+919876543210",
+      },
     }) as Record<string, unknown>;
 
     const serialized = JSON.stringify(redacted);
@@ -42,7 +55,11 @@ describe("production observability redaction", () => {
   });
 
   it("serializes errors safely without leaking secret-looking values", () => {
-    const error = safeError(new Error("failed token=abc123 database_url=mysql://u:p@host/db phone +919999999999"));
+    const error = safeError(
+      new Error(
+        "failed token=abc123 database_url=mysql://u:p@host/db phone +919999999999"
+      )
+    );
     const serialized = JSON.stringify(error);
     expect(serialized).not.toContain("abc123");
     expect(serialized).not.toContain("mysql://");
@@ -59,9 +76,15 @@ describe("production observability redaction", () => {
       method: "POST",
       path: "/api/prescriptions",
       requestId: "request_12345678",
-      body: { password: "secret", prescriptionImage: "data:image/png;base64," + "a".repeat(200) },
-    } as any;
-    const res = { statusCode: 200, locals: { requestId: "request_12345678" } } as any;
+      body: {
+        password: "secret",
+        prescriptionImage: "data:image/png;base64," + "a".repeat(200),
+      },
+    } as unknown;
+    const res = {
+      statusCode: 200,
+      locals: { requestId: "request_12345678" },
+    } as unknown;
     const entry = buildRequestLogEntry(req, res, process.hrtime.bigint());
     const serialized = serializeSafeLog(entry);
     expect(serialized).toContain("/api/prescriptions");
@@ -73,8 +96,21 @@ describe("production observability redaction", () => {
   it("request logger writes a safe serialized line", () => {
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const listeners: Record<string, () => void> = {};
-    const req = { method: "GET", path: "/healthz", header: () => undefined } as any;
-    const res = { locals: {}, statusCode: 200, setHeader: vi.fn(), on: (event: string, cb: () => void) => { listeners[event] = cb; } } as any;
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const req = {
+      method: "GET",
+      path: "/healthz",
+      header: () => undefined,
+    } as any;
+    const res = {
+      locals: {},
+      statusCode: 200,
+      setHeader: vi.fn(),
+      on: (event: string, cb: () => void) => {
+        listeners[event] = cb;
+      },
+    } as any;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     const next = vi.fn();
     requestLoggerMiddleware(logger)(req, res, next);
     listeners.finish();
@@ -83,6 +119,8 @@ describe("production observability redaction", () => {
   });
 
   it("redacts secret-looking strings directly", () => {
-    expect(redactString("Bearer abc.def.ghi mysql://u:p@host/db")).not.toContain("abc.def.ghi");
+    expect(
+      redactString("Bearer abc.def.ghi mysql://u:p@host/db")
+    ).not.toContain("abc.def.ghi");
   });
 });

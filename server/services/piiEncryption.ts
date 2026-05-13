@@ -1,9 +1,4 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-  createHash,
-} from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { randomUUID } from "crypto";
 import pino from "pino";
 import { eq, and, isNull, desc } from "drizzle-orm";
@@ -22,7 +17,7 @@ const WRAP_OVERHEAD = IV_LENGTH + AUTH_TAG_LENGTH;
 export class MasterKeyNotConfiguredError extends Error {
   constructor() {
     super(
-      "PII_ENCRYPTION_MASTER_KEY not configured. Production requires it; dev/test may operate in passthrough mode.",
+      "PII_ENCRYPTION_MASTER_KEY not configured. Production requires it; dev/test may operate in passthrough mode."
     );
     this.name = "MasterKeyNotConfiguredError";
   }
@@ -71,7 +66,9 @@ function unwrapDataKey(wrapped: Buffer, masterKey: Buffer): Buffer {
   try {
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
   } catch {
-    throw new DecryptionFailedError("Master key unwrap failed — wrong key or tampered data");
+    throw new DecryptionFailedError(
+      "Master key unwrap failed — wrong key or tampered data"
+    );
   }
 }
 
@@ -81,7 +78,7 @@ const warnedScopes = new Set<string>();
 
 async function getOrCreateDataKey(
   scope: string,
-  masterKey: Buffer,
+  masterKey: Buffer
 ): Promise<{ dataKey: Buffer; keyVersion: number }> {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable for PII key management");
@@ -89,7 +86,12 @@ async function getOrCreateDataKey(
   const [existing] = await db
     .select()
     .from(piiEncryptionKeys)
-    .where(and(eq(piiEncryptionKeys.scope, scope), isNull(piiEncryptionKeys.retiredAt)))
+    .where(
+      and(
+        eq(piiEncryptionKeys.scope, scope),
+        isNull(piiEncryptionKeys.retiredAt)
+      )
+    )
     .orderBy(desc(piiEncryptionKeys.keyVersion))
     .limit(1);
 
@@ -120,7 +122,7 @@ async function getOrCreateDataKey(
 async function getDataKeyByVersion(
   scope: string,
   keyVersion: number,
-  masterKey: Buffer,
+  masterKey: Buffer
 ): Promise<{ dataKey: Buffer; retired: boolean }> {
   const db = await getDb();
   if (!db) throw new DecryptionFailedError("DB unavailable for PII key lookup");
@@ -128,11 +130,18 @@ async function getDataKeyByVersion(
   const [row] = await db
     .select()
     .from(piiEncryptionKeys)
-    .where(and(eq(piiEncryptionKeys.scope, scope), eq(piiEncryptionKeys.keyVersion, keyVersion)))
+    .where(
+      and(
+        eq(piiEncryptionKeys.scope, scope),
+        eq(piiEncryptionKeys.keyVersion, keyVersion)
+      )
+    )
     .limit(1);
 
   if (!row) {
-    throw new DecryptionFailedError(`No encryption key found for scope=${scope}, version=${keyVersion}`);
+    throw new DecryptionFailedError(
+      `No encryption key found for scope=${scope}, version=${keyVersion}`
+    );
   }
 
   const wrapped = Buffer.from(row.wrappedDataKey, "base64");
@@ -142,7 +151,10 @@ async function getDataKeyByVersion(
 
 // ─── Public encrypt / decrypt API ────────────────────────────────────────────
 
-export async function encrypt(plaintext: string, scope: string): Promise<string> {
+export async function encrypt(
+  plaintext: string,
+  scope: string
+): Promise<string> {
   const masterKey = getMasterKey();
 
   if (!masterKey) {
@@ -150,7 +162,10 @@ export async function encrypt(plaintext: string, scope: string): Promise<string>
       throw new MasterKeyNotConfiguredError();
     }
     if (!warnedScopes.has(scope)) {
-      logger.warn({ scope, msg: "piiEncryption: PII_ENCRYPTION_MASTER_KEY not set; running in passthrough mode (dev/test only)" });
+      logger.warn({
+        scope,
+        msg: "piiEncryption: PII_ENCRYPTION_MASTER_KEY not set; running in passthrough mode (dev/test only)",
+      });
       warnedScopes.add(scope);
     }
     return plaintext;
@@ -159,7 +174,10 @@ export async function encrypt(plaintext: string, scope: string): Promise<string>
   const { dataKey, keyVersion } = await getOrCreateDataKey(scope, masterKey);
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, dataKey, iv);
-  const ciphertext = Buffer.concat([cipher.update(Buffer.from(plaintext, "utf8")), cipher.final()]);
+  const ciphertext = Buffer.concat([
+    cipher.update(Buffer.from(plaintext, "utf8")),
+    cipher.final(),
+  ]);
   const authTag = cipher.getAuthTag();
 
   return [
@@ -171,7 +189,10 @@ export async function encrypt(plaintext: string, scope: string): Promise<string>
   ].join(":");
 }
 
-export async function decrypt(ciphertext: string, scope: string): Promise<string> {
+export async function decrypt(
+  ciphertext: string,
+  scope: string
+): Promise<string> {
   if (!ciphertext.startsWith("v1:")) {
     // Passthrough mode or legacy plaintext — return as-is
     return ciphertext;
@@ -187,7 +208,9 @@ export async function decrypt(ciphertext: string, scope: string): Promise<string
 
   const parts = ciphertext.split(":");
   if (parts.length !== 5) {
-    throw new DecryptionFailedError("Malformed ciphertext format: expected v1:<keyVersion>:<iv>:<ct>:<authTag>");
+    throw new DecryptionFailedError(
+      "Malformed ciphertext format: expected v1:<keyVersion>:<iv>:<ct>:<authTag>"
+    );
   }
 
   const [, keyVersionStr, ivB64, ctB64, authTagB64] = parts;
@@ -196,10 +219,18 @@ export async function decrypt(ciphertext: string, scope: string): Promise<string
     throw new DecryptionFailedError(`Invalid key version: ${keyVersionStr}`);
   }
 
-  const { dataKey, retired } = await getDataKeyByVersion(scope, keyVersion, masterKey);
+  const { dataKey, retired } = await getDataKeyByVersion(
+    scope,
+    keyVersion,
+    masterKey
+  );
 
   if (retired) {
-    logger.warn({ scope, keyVersion, msg: "piiEncryption: decrypting with retired key — row should be re-encrypted after key rotation" });
+    logger.warn({
+      scope,
+      keyVersion,
+      msg: "piiEncryption: decrypting with retired key — row should be re-encrypted after key rotation",
+    });
   }
 
   try {
@@ -211,12 +242,14 @@ export async function decrypt(ciphertext: string, scope: string): Promise<string
     const plaintext = Buffer.concat([decipher.update(ct), decipher.final()]);
     return plaintext.toString("utf8");
   } catch {
-    throw new DecryptionFailedError("Decryption failed — ciphertext may be tampered or key mismatch");
+    throw new DecryptionFailedError(
+      "Decryption failed — ciphertext may be tampered or key mismatch"
+    );
   }
 }
 
 export async function rotateKey(
-  scope: string,
+  scope: string
 ): Promise<{ newKeyVersion: number; oldKeyVersion: number | null }> {
   const masterKey = getMasterKey();
   if (!masterKey) throw new MasterKeyNotConfiguredError();
@@ -227,7 +260,12 @@ export async function rotateKey(
   const [currentKey] = await db
     .select()
     .from(piiEncryptionKeys)
-    .where(and(eq(piiEncryptionKeys.scope, scope), isNull(piiEncryptionKeys.retiredAt)))
+    .where(
+      and(
+        eq(piiEncryptionKeys.scope, scope),
+        isNull(piiEncryptionKeys.retiredAt)
+      )
+    )
     .orderBy(desc(piiEncryptionKeys.keyVersion))
     .limit(1);
 
@@ -282,8 +320,8 @@ export async function getKeyStatus(): Promise<
   }
 
   return Array.from(byScope.entries()).map(([scope, scopeRows]) => {
-    const active = scopeRows.find((r) => r.retiredAt === null);
-    const retired = scopeRows.filter((r) => r.retiredAt !== null).length;
+    const active = scopeRows.find(r => r.retiredAt === null);
+    const retired = scopeRows.filter(r => r.retiredAt !== null).length;
     const oldest = scopeRows[0]?.createdAt ?? null;
     return {
       scope,

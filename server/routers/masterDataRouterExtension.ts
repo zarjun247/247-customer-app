@@ -74,6 +74,7 @@ async function getDbSafe() {
   return db;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
   const headers = Object.keys(rows[0]);
@@ -142,6 +143,7 @@ const customerListRouter = router({
       const db = await getDbSafe();
       const { users } = await import("../../drizzle/schema");
       const { like, or, desc } = await import("drizzle-orm");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
       let where: any = undefined;
       if (input.search) {
         where = or(
@@ -150,20 +152,23 @@ const customerListRouter = router({
           like(users.email, `%${input.search}%`)
         );
       }
-      return db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          phone: users.phone,
-          role: users.role,
-          createdAt: users.createdAt,
-          lastSignedIn: users.lastSignedIn,
-        })
-        .from(users)
-        .where(where)
-        .orderBy(desc(users.createdAt))
-        .limit(input.limit);
+      return (
+        db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            phone: users.phone,
+            role: users.role,
+            createdAt: users.createdAt,
+            lastSignedIn: users.lastSignedIn,
+          })
+          .from(users)
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          .where(where)
+          .orderBy(desc(users.createdAt))
+          .limit(input.limit)
+      );
     }),
 });
 

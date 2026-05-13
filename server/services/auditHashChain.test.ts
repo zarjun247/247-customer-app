@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createHash } from "crypto";
-import { canonicalize, appendChainedAudit, verifyChain, getChainStats } from "./auditHashChain";
+import {
+  canonicalize,
+  appendChainedAudit,
+  verifyChain,
+  getChainStats,
+} from "./auditHashChain";
 
 // ─── Mock DB ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +29,8 @@ function makeGenesisRow() {
     id: 0,
     auditLogId: null,
     sequenceNumber: 0,
-    prevHash: "0000000000000000000000000000000000000000000000000000000000000000",
+    prevHash:
+      "0000000000000000000000000000000000000000000000000000000000000000",
     rowHash: genesisHash,
     hashedPayload: { kind: "genesis", note: "chain start" },
     createdAt: new Date("2026-05-11T00:00:00Z"),
@@ -38,7 +44,9 @@ function mockDb() {
       return {
         limit: (n: number) => {
           const sorted = [...chainRows].sort((a, b) =>
-            isDesc ? b.sequenceNumber - a.sequenceNumber : a.sequenceNumber - b.sequenceNumber,
+            isDesc
+              ? b.sequenceNumber - a.sequenceNumber
+              : a.sequenceNumber - b.sequenceNumber
           );
           return Promise.resolve(sorted.slice(0, n));
         },
@@ -51,9 +59,18 @@ function mockDb() {
       from: (_table?: unknown) => selectChain,
     }),
     insert: (_table?: unknown) => ({
-      values: (row: { auditLogId: number | null; sequenceNumber: number; prevHash: string; rowHash: string; hashedPayload: unknown }) => {
-        if (chainRows.some((r) => r.sequenceNumber === row.sequenceNumber)) {
-          const err = new Error("Duplicate entry for key 'uq_audit_chain_sequence'");
+      values: (row: {
+        auditLogId: number | null;
+        sequenceNumber: number;
+        prevHash: string;
+        rowHash: string;
+        hashedPayload: unknown;
+      }) => {
+        if (chainRows.some(r => r.sequenceNumber === row.sequenceNumber)) {
+          const err = new Error(
+            "Duplicate entry for key 'uq_audit_chain_sequence'"
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (err as any).code = "ER_DUP_ENTRY";
           return Promise.reject(err);
         }
@@ -137,16 +154,25 @@ describe("appendChainedAudit", () => {
   it("second append: prev_hash = first append row_hash, sequence = 2", async () => {
     await appendChainedAudit({ action: "a1", entityType: "t", entityId: 1 });
     const firstRow = chainRows[1];
-    const result = await appendChainedAudit({ action: "a2", entityType: "t", entityId: 2 });
+    const result = await appendChainedAudit({
+      action: "a2",
+      entityType: "t",
+      entityId: 2,
+    });
     expect(result.sequenceNumber).toBe(2);
     expect(chainRows[2].prevHash).toBe(firstRow.rowHash);
   });
 
   it("row_hash is deterministic for same payload and prev_hash", async () => {
-    const r1 = await appendChainedAudit({ action: "x", entityType: "t", entityId: 1, ts: new Date("2026-01-01") });
-    const prevHash = chainRows[chainRows.length - 1].prevHash;
+    const r1 = await appendChainedAudit({
+      action: "x",
+      entityType: "t",
+      entityId: 1,
+      ts: new Date("2026-01-01"),
+    });
+    const _prevHash = chainRows[chainRows.length - 1].prevHash;
     const expectedHash = computeHash(
-      chainRows.find((r) => r.sequenceNumber === 0)!.rowHash,
+      chainRows.find(r => r.sequenceNumber === 0)!.rowHash,
       {
         auditLogId: null,
         action: "x",
@@ -156,13 +182,18 @@ describe("appendChainedAudit", () => {
         beforeJson: null,
         afterJson: null,
         ts: "2026-01-01T00:00:00.000Z",
-      },
+      }
     );
     expect(r1.rowHash).toBe(expectedHash);
   });
 
   it("same payload appended twice produces different row_hash because prev_hash differs", async () => {
-    const p = { action: "same", entityType: "t", entityId: 1, ts: new Date("2026-01-01") };
+    const p = {
+      action: "same",
+      entityType: "t",
+      entityId: 1,
+      ts: new Date("2026-01-01"),
+    };
     const r1 = await appendChainedAudit(p);
     const r2 = await appendChainedAudit(p);
     expect(r1.rowHash).not.toBe(r2.rowHash);
@@ -170,8 +201,12 @@ describe("appendChainedAudit", () => {
 
   it("returns sequenceNumber=-1 and rowHash='' when db returns null", async () => {
     const { getDb } = await import("../db");
-    vi.mocked(getDb).mockResolvedValueOnce(null as any);
-    const result = await appendChainedAudit({ action: "x", entityType: "t", entityId: 1 });
+    vi.mocked(getDb).mockResolvedValueOnce(null as unknown);
+    const result = await appendChainedAudit({
+      action: "x",
+      entityType: "t",
+      entityId: 1,
+    });
     expect(result.sequenceNumber).toBe(-1);
     expect(result.rowHash).toBe("");
   });
@@ -179,7 +214,9 @@ describe("appendChainedAudit", () => {
   it("does NOT throw when db is unavailable — returns failure sentinel", async () => {
     const { getDb } = await import("../db");
     vi.mocked(getDb).mockRejectedValueOnce(new Error("connection refused"));
-    await expect(appendChainedAudit({ action: "x", entityType: "t", entityId: 1 })).resolves.toEqual({
+    await expect(
+      appendChainedAudit({ action: "x", entityType: "t", entityId: 1 })
+    ).resolves.toEqual({
       sequenceNumber: -1,
       rowHash: "",
     });
@@ -198,18 +235,31 @@ describe("appendChainedAudit", () => {
           select: original.select,
           insert: () => ({
             values: () => {
-              const err = new Error("Duplicate entry for key 'uq_audit_chain_sequence'");
+              const err = new Error(
+                "Duplicate entry for key 'uq_audit_chain_sequence'"
+              );
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (err as any).code = "ER_DUP_ENTRY";
-              chainRows.push({ ...chainRows[0], id: 99, sequenceNumber: 1, rowHash: "conflicting" + chainRows[0].rowHash, createdAt: new Date() });
+              chainRows.push({
+                ...chainRows[0],
+                id: 99,
+                sequenceNumber: 1,
+                rowHash: "conflicting" + chainRows[0].rowHash,
+                createdAt: new Date(),
+              });
               return Promise.reject(err);
             },
           }),
-        } as any;
+        } as unknown;
       }
-      return original as any;
+      return original as unknown;
     });
 
-    const result = await appendChainedAudit({ action: "retry", entityType: "t", entityId: 1 });
+    const result = await appendChainedAudit({
+      action: "retry",
+      entityType: "t",
+      entityId: 1,
+    });
     expect(result.sequenceNumber).toBeGreaterThanOrEqual(2);
     vi.mocked(getDb).mockRestore();
   });
@@ -233,7 +283,8 @@ describe("verifyChain", () => {
   it("tampered row_hash detected: verified=false, firstBreakAt set", async () => {
     await appendChainedAudit({ action: "a", entityType: "t", entityId: 1 });
     await appendChainedAudit({ action: "b", entityType: "t", entityId: 2 });
-    chainRows[1].rowHash = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+    chainRows[1].rowHash =
+      "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     const result = await verifyChain();
     expect(result.verified).toBe(false);
     expect(result.firstBreakAt).toBeDefined();

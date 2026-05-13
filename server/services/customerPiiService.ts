@@ -3,22 +3,30 @@ import { encrypt, decrypt } from "./piiEncryption";
 // Transparent PII encrypt/decrypt for user fields.
 // In passthrough mode (no master key + not production), these are identity functions.
 
-export async function encryptUserPhone(phone: string | null | undefined): Promise<string | null> {
+export async function encryptUserPhone(
+  phone: string | null | undefined
+): Promise<string | null> {
   if (!phone) return phone ?? null;
   return encrypt(phone, "customer.phone");
 }
 
-export async function decryptUserPhone(stored: string | null | undefined): Promise<string | null> {
+export async function decryptUserPhone(
+  stored: string | null | undefined
+): Promise<string | null> {
   if (!stored) return stored ?? null;
   return decrypt(stored, "customer.phone");
 }
 
-export async function encryptUserEmail(email: string | null | undefined): Promise<string | null> {
+export async function encryptUserEmail(
+  email: string | null | undefined
+): Promise<string | null> {
   if (!email) return email ?? null;
   return encrypt(email, "customer.email");
 }
 
-export async function decryptUserEmail(stored: string | null | undefined): Promise<string | null> {
+export async function decryptUserEmail(
+  stored: string | null | undefined
+): Promise<string | null> {
   if (!stored) return stored ?? null;
   return decrypt(stored, "customer.email");
 }
@@ -28,7 +36,9 @@ export type UserPiiFields = {
   email?: string | null;
 };
 
-export async function encryptUserPii<T extends UserPiiFields>(user: T): Promise<T> {
+export async function encryptUserPii<T extends UserPiiFields>(
+  user: T
+): Promise<T> {
   return {
     ...user,
     phone: user.phone != null ? await encryptUserPhone(user.phone) : user.phone,
@@ -36,7 +46,9 @@ export async function encryptUserPii<T extends UserPiiFields>(user: T): Promise<
   };
 }
 
-export async function decryptUserPii<T extends UserPiiFields>(user: T): Promise<T> {
+export async function decryptUserPii<T extends UserPiiFields>(
+  user: T
+): Promise<T> {
   return {
     ...user,
     phone: user.phone != null ? await decryptUserPhone(user.phone) : user.phone,

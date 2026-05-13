@@ -1,6 +1,9 @@
 export type CommandState = "in_flight" | "completed" | "failed" | "compensated";
 
-export type CommandTransitionTrigger = "handler_success" | "handler_failure" | "compensation_run";
+export type CommandTransitionTrigger =
+  | "handler_success"
+  | "handler_failure"
+  | "compensation_run";
 
 export type CommandTransition = {
   from: CommandState;
@@ -15,31 +18,27 @@ const LEGAL_TRANSITIONS: ReadonlyArray<CommandTransition> = Object.freeze([
   { from: "failed", to: "compensated", trigger: "compensation_run" },
 ]);
 
-export const LEGAL_COMMAND_STATES: ReadonlySet<CommandState> = new Set<CommandState>([
-  "in_flight",
-  "completed",
-  "failed",
-  "compensated",
-]);
+export const LEGAL_COMMAND_STATES: ReadonlySet<CommandState> =
+  new Set<CommandState>(["in_flight", "completed", "failed", "compensated"]);
 
 export function canTransition(
   from: CommandState,
   to: CommandState,
-  trigger: CommandTransitionTrigger,
+  trigger: CommandTransitionTrigger
 ): boolean {
   return LEGAL_TRANSITIONS.some(
-    (t) => t.from === from && t.to === to && t.trigger === trigger,
+    t => t.from === from && t.to === to && t.trigger === trigger
   );
 }
 
 export function assertTransition(
   from: CommandState,
   to: CommandState,
-  trigger: CommandTransitionTrigger,
+  trigger: CommandTransitionTrigger
 ): void {
   if (!canTransition(from, to, trigger)) {
     throw new IllegalStateTransitionError(
-      `Illegal command state transition: ${from} → ${to} (trigger: ${trigger})`,
+      `Illegal command state transition: ${from} → ${to} (trigger: ${trigger})`
     );
   }
 }

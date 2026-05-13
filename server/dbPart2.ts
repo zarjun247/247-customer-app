@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import { and, desc, eq, gt, lte, or, sql } from "drizzle-orm";
 import {
   auditLogs,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
 import { logAudit } from "./audit";

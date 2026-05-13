@@ -100,7 +100,9 @@ describe("getCanonicalAvailability", () => {
     const batch = makeBatch({ id: 1, expiryDate: "2026-12-01", qtyOnHand: 10 });
     mockSelect
       .mockReturnValueOnce(makeSelectChainBatches([batch]))
-      .mockReturnValueOnce(makeSelectChainReserved([{ batchId: 1, reserved: 3 }]));
+      .mockReturnValueOnce(
+        makeSelectChainReserved([{ batchId: 1, reserved: 3 }])
+      );
 
     const result = await getCanonicalAvailability(PRODUCT_ID, STORE_ID);
 
@@ -138,14 +140,24 @@ describe("getCanonicalAvailability", () => {
   });
 
   it("Case 5: multiple batches with reservations → each batch computed independently", async () => {
-    const batch1 = makeBatch({ id: 1, expiryDate: "2026-06-01", qtyOnHand: 10 });
-    const batch2 = makeBatch({ id: 2, expiryDate: "2026-12-01", qtyOnHand: 10 });
+    const batch1 = makeBatch({
+      id: 1,
+      expiryDate: "2026-06-01",
+      qtyOnHand: 10,
+    });
+    const batch2 = makeBatch({
+      id: 2,
+      expiryDate: "2026-12-01",
+      qtyOnHand: 10,
+    });
     mockSelect
       .mockReturnValueOnce(makeSelectChainBatches([batch1, batch2]))
-      .mockReturnValueOnce(makeSelectChainReserved([
-        { batchId: 1, reserved: 3 },
-        { batchId: 2, reserved: 5 },
-      ]));
+      .mockReturnValueOnce(
+        makeSelectChainReserved([
+          { batchId: 1, reserved: 3 },
+          { batchId: 2, reserved: 5 },
+        ])
+      );
 
     const result = await getCanonicalAvailability(PRODUCT_ID, STORE_ID);
 
@@ -156,14 +168,20 @@ describe("getCanonicalAvailability", () => {
   });
 
   it("Case 6: sum totals equal sums of per-batch values", async () => {
-    const batch1 = makeBatch({ id: 1, expiryDate: "2026-06-01", qtyOnHand: 10 });
+    const batch1 = makeBatch({
+      id: 1,
+      expiryDate: "2026-06-01",
+      qtyOnHand: 10,
+    });
     const batch2 = makeBatch({ id: 2, expiryDate: "2026-12-01", qtyOnHand: 8 });
     mockSelect
       .mockReturnValueOnce(makeSelectChainBatches([batch1, batch2]))
-      .mockReturnValueOnce(makeSelectChainReserved([
-        { batchId: 1, reserved: 3 },
-        { batchId: 2, reserved: 2 },
-      ]));
+      .mockReturnValueOnce(
+        makeSelectChainReserved([
+          { batchId: 1, reserved: 3 },
+          { batchId: 2, reserved: 2 },
+        ])
+      );
 
     const result = await getCanonicalAvailability(PRODUCT_ID, STORE_ID);
 
@@ -214,7 +232,9 @@ describe("getCanonicalAvailability", () => {
     const batch = makeBatch({ id: 1, expiryDate: "2026-12-01", qtyOnHand: 3 });
     mockSelect
       .mockReturnValueOnce(makeSelectChainBatches([batch]))
-      .mockReturnValueOnce(makeSelectChainReserved([{ batchId: 1, reserved: 10 }]));
+      .mockReturnValueOnce(
+        makeSelectChainReserved([{ batchId: 1, reserved: 10 }])
+      );
 
     const result = await getCanonicalAvailability(PRODUCT_ID, STORE_ID);
     expect(result.batches[0]!.sellable).toBe(0);
@@ -228,10 +248,10 @@ describe("getCanonicalAvailability", () => {
     // Promise.all interleaves: both batch queries run before both reservation queries
     // because each coroutine suspends at its first await-boundary before the second's.
     mockSelect
-      .mockReturnValueOnce(makeSelectChainBatches([batch1]))  // p1: batch query
-      .mockReturnValueOnce(makeSelectChainBatches([batch2]))  // p2: batch query
-      .mockReturnValueOnce(makeSelectChainReserved([]))       // p1: reservation query
-      .mockReturnValueOnce(makeSelectChainReserved([]));      // p2: reservation query
+      .mockReturnValueOnce(makeSelectChainBatches([batch1])) // p1: batch query
+      .mockReturnValueOnce(makeSelectChainBatches([batch2])) // p2: batch query
+      .mockReturnValueOnce(makeSelectChainReserved([])) // p1: reservation query
+      .mockReturnValueOnce(makeSelectChainReserved([])); // p2: reservation query
 
     const results = await getMultiProductAvailability([
       { productId: 42, storeId: STORE_ID },

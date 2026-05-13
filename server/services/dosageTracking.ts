@@ -1,18 +1,211 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { and, eq, sql } from "drizzle-orm";
 import { dosageSchedules, doseLogs } from "../../drizzle/schema";
 import { getDb } from "../db";
 
-export async function createDosageSchedule(input: { customerId:number; productId?:number; unitsPerDay:number; totalUnits:number; source:"prescription"|"user"|"pharmacist"; familyMemberId?:number; prescriptionId?:number; medicineNameSnapshot?:string; startDate?:string }) {
-  const db = await getDb(); if(!db) throw new Error("DB unavailable");
-  const scheduleJson = JSON.stringify({ unitsPerDay: input.unitsPerDay, totalUnits: input.totalUnits });
-  const [res] = await db.insert(dosageSchedules).values({ userId: input.customerId, productId: input.productId ?? null, familyMemberId: input.familyMemberId ?? null, prescriptionId: input.prescriptionId ?? null, medicineNameSnapshot: input.medicineNameSnapshot ?? null, source: input.source, scheduleJson, startDate: input.startDate ? new Date(input.startDate) : new Date(), isActive: true }).$returningId();
+export async function createDosageSchedule(input: {
+  customerId: number;
+  productId?: number;
+  unitsPerDay: number;
+  totalUnits: number;
+  source: "prescription" | "user" | "pharmacist";
+  familyMemberId?: number;
+  prescriptionId?: number;
+  medicineNameSnapshot?: string;
+  startDate?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const scheduleJson = JSON.stringify({
+    unitsPerDay: input.unitsPerDay,
+    totalUnits: input.totalUnits,
+  });
+  const [res] = await db
+    .insert(dosageSchedules)
+    .values({
+      userId: input.customerId,
+      productId: input.productId ?? null,
+      familyMemberId: input.familyMemberId ?? null,
+      prescriptionId: input.prescriptionId ?? null,
+      medicineNameSnapshot: input.medicineNameSnapshot ?? null,
+      source: input.source,
+      scheduleJson,
+      startDate: input.startDate ? new Date(input.startDate) : new Date(),
+      isActive: true,
+    })
+    .$returningId();
   return { id: String(res.id), ...input };
 }
-export async function createScheduleFromPrescription(customerId:number, productId:number, unitsPerDay:number, totalUnits:number) { return createDosageSchedule({customerId, productId, unitsPerDay, totalUnits, source:"prescription"}); }
-export async function recordDoseTaken(userId:number, scheduleId:string, date:string) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const s=await db.select().from(dosageSchedules).where(eq(dosageSchedules.id, Number(scheduleId))).limit(1); if(!s[0] || s[0].userId!==userId) return false; await db.insert(doseLogs).values({ scheduleId: Number(scheduleId), userId: s[0].userId, scheduledAt: new Date(date), status:"taken" }); return true; }
-export async function recordDoseSkipped(userId:number, scheduleId:string, date:string) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const s=await db.select().from(dosageSchedules).where(eq(dosageSchedules.id, Number(scheduleId))).limit(1); if(!s[0] || s[0].userId!==userId) return false; await db.insert(doseLogs).values({ scheduleId: Number(scheduleId), userId: s[0].userId, scheduledAt: new Date(date), status:"skipped" }); return true; }
-export async function getTodayDosePlan(customerId:number, today:string) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const rows=await db.select().from(dosageSchedules).where(and(eq(dosageSchedules.userId,customerId),eq(dosageSchedules.isActive,true))); return rows.map(r=>({scheduleId:String(r.id), productId:r.productId, unitsPlanned: JSON.parse(r.scheduleJson).unitsPerDay, today})); }
-export async function estimateMedicationRemaining(userId:number, scheduleId:string) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const s=await db.select().from(dosageSchedules).where(eq(dosageSchedules.id, Number(scheduleId))).limit(1); if(!s[0] || s[0].userId!==userId) return null; const cfg=JSON.parse(s[0].scheduleJson); const [taken]=await db.select({count: sql<number>`count(*)`}).from(doseLogs).where(and(eq(doseLogs.scheduleId, Number(scheduleId)), eq(doseLogs.status,"taken"))); return Math.max(0, Number(cfg.totalUnits)-Number(taken?.count??0)); }
-export async function estimateRunoutDate(userId:number, scheduleId:string, startDateISO:string) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const s=await db.select().from(dosageSchedules).where(eq(dosageSchedules.id, Number(scheduleId))).limit(1); if(!s[0] || s[0].userId!==userId) return null; const cfg=JSON.parse(s[0].scheduleJson); const rem=await estimateMedicationRemaining(userId, scheduleId)??0; const days=Math.ceil(rem/Math.max(1,Number(cfg.unitsPerDay))); const dt=new Date(startDateISO); dt.setDate(dt.getDate()+days); return dt.toISOString().slice(0,10); }
-export async function shouldPromptReorder(userId:number, scheduleId:string, thresholdDays=5) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const s=await db.select().from(dosageSchedules).where(eq(dosageSchedules.id, Number(scheduleId))).limit(1); if(!s[0] || s[0].userId!==userId) return false; const cfg=JSON.parse(s[0].scheduleJson); const rem=await estimateMedicationRemaining(userId, scheduleId)??0; return rem/Math.max(1,Number(cfg.unitsPerDay))<=thresholdDays; }
-export async function getAdherenceSummary(userId:number, scheduleId:string) { const db=await getDb(); if(!db) throw new Error("DB unavailable"); const s=await db.select().from(dosageSchedules).where(eq(dosageSchedules.id, Number(scheduleId))).limit(1); if(!s[0] || s[0].userId!==userId) return { taken:0, skipped:0, adherencePct:0 }; const [taken]=await db.select({count: sql<number>`count(*)`}).from(doseLogs).where(and(eq(doseLogs.scheduleId, Number(scheduleId)), eq(doseLogs.status,"taken"))); const [skipped]=await db.select({count: sql<number>`count(*)`}).from(doseLogs).where(and(eq(doseLogs.scheduleId, Number(scheduleId)), eq(doseLogs.status,"skipped"))); const t=Number(taken?.count??0), skippedCount=Number(skipped?.count??0); return { taken:t, skipped:skippedCount, adherencePct:t+skippedCount===0?0:Math.round((t/(t+skippedCount))*100) }; }
+export async function createScheduleFromPrescription(
+  customerId: number,
+  productId: number,
+  unitsPerDay: number,
+  totalUnits: number
+) {
+  return createDosageSchedule({
+    customerId,
+    productId,
+    unitsPerDay,
+    totalUnits,
+    source: "prescription",
+  });
+}
+export async function recordDoseTaken(
+  userId: number,
+  scheduleId: string,
+  date: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const s = await db
+    .select()
+    .from(dosageSchedules)
+    .where(eq(dosageSchedules.id, Number(scheduleId)))
+    .limit(1);
+  if (!s[0] || s[0].userId !== userId) return false;
+  await db.insert(doseLogs).values({
+    scheduleId: Number(scheduleId),
+    userId: s[0].userId,
+    scheduledAt: new Date(date),
+    status: "taken",
+  });
+  return true;
+}
+export async function recordDoseSkipped(
+  userId: number,
+  scheduleId: string,
+  date: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const s = await db
+    .select()
+    .from(dosageSchedules)
+    .where(eq(dosageSchedules.id, Number(scheduleId)))
+    .limit(1);
+  if (!s[0] || s[0].userId !== userId) return false;
+  await db.insert(doseLogs).values({
+    scheduleId: Number(scheduleId),
+    userId: s[0].userId,
+    scheduledAt: new Date(date),
+    status: "skipped",
+  });
+  return true;
+}
+export async function getTodayDosePlan(customerId: number, today: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const rows = await db
+    .select()
+    .from(dosageSchedules)
+    .where(
+      and(
+        eq(dosageSchedules.userId, customerId),
+        eq(dosageSchedules.isActive, true)
+      )
+    );
+  return rows.map(r => ({
+    scheduleId: String(r.id),
+    productId: r.productId,
+    unitsPlanned: JSON.parse(r.scheduleJson).unitsPerDay,
+    today,
+  }));
+}
+export async function estimateMedicationRemaining(
+  userId: number,
+  scheduleId: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const s = await db
+    .select()
+    .from(dosageSchedules)
+    .where(eq(dosageSchedules.id, Number(scheduleId)))
+    .limit(1);
+  if (!s[0] || s[0].userId !== userId) return null;
+  const cfg = JSON.parse(s[0].scheduleJson);
+  const [taken] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(doseLogs)
+    .where(
+      and(
+        eq(doseLogs.scheduleId, Number(scheduleId)),
+        eq(doseLogs.status, "taken")
+      )
+    );
+  return Math.max(0, Number(cfg.totalUnits) - Number(taken?.count ?? 0));
+}
+export async function estimateRunoutDate(
+  userId: number,
+  scheduleId: string,
+  startDateISO: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const s = await db
+    .select()
+    .from(dosageSchedules)
+    .where(eq(dosageSchedules.id, Number(scheduleId)))
+    .limit(1);
+  if (!s[0] || s[0].userId !== userId) return null;
+  const cfg = JSON.parse(s[0].scheduleJson);
+  const rem = (await estimateMedicationRemaining(userId, scheduleId)) ?? 0;
+  const days = Math.ceil(rem / Math.max(1, Number(cfg.unitsPerDay)));
+  const dt = new Date(startDateISO);
+  dt.setDate(dt.getDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+export async function shouldPromptReorder(
+  userId: number,
+  scheduleId: string,
+  thresholdDays = 5
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const s = await db
+    .select()
+    .from(dosageSchedules)
+    .where(eq(dosageSchedules.id, Number(scheduleId)))
+    .limit(1);
+  if (!s[0] || s[0].userId !== userId) return false;
+  const cfg = JSON.parse(s[0].scheduleJson);
+  const rem = (await estimateMedicationRemaining(userId, scheduleId)) ?? 0;
+  return rem / Math.max(1, Number(cfg.unitsPerDay)) <= thresholdDays;
+}
+export async function getAdherenceSummary(userId: number, scheduleId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const s = await db
+    .select()
+    .from(dosageSchedules)
+    .where(eq(dosageSchedules.id, Number(scheduleId)))
+    .limit(1);
+  if (!s[0] || s[0].userId !== userId)
+    return { taken: 0, skipped: 0, adherencePct: 0 };
+  const [taken] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(doseLogs)
+    .where(
+      and(
+        eq(doseLogs.scheduleId, Number(scheduleId)),
+        eq(doseLogs.status, "taken")
+      )
+    );
+  const [skipped] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(doseLogs)
+    .where(
+      and(
+        eq(doseLogs.scheduleId, Number(scheduleId)),
+        eq(doseLogs.status, "skipped")
+      )
+    );
+  const t = Number(taken?.count ?? 0),
+    skippedCount = Number(skipped?.count ?? 0);
+  return {
+    taken: t,
+    skipped: skippedCount,
+    adherencePct:
+      t + skippedCount === 0 ? 0 : Math.round((t / (t + skippedCount)) * 100),
+  };
+}

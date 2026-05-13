@@ -7,7 +7,11 @@ import {
   getProviderReadiness,
   getWorkerQueueReadiness,
 } from "../services/deploymentRuntimeReadiness";
-import { getHealthReport, publicLiveness, publicReadiness } from "../services/healthcheck";
+import {
+  getHealthReport,
+  publicLiveness,
+  publicReadiness,
+} from "../services/healthcheck";
 
 export const deploymentReadinessRouter = router({
   liveness: staffProcedure.query(() => publicLiveness()),
@@ -17,6 +21,10 @@ export const deploymentReadinessRouter = router({
   degradedMode: staffProcedure.query(() => getDegradedModeStatus()),
   providers: staffProcedure.query(() => getProviderReadiness()),
   workerQueue: staffProcedure.query(() => getWorkerQueueReadiness()),
-  backupRestoreDrill: staffProcedure.query(() => getBackupRestoreDrillReadiness()),
-  failureExercises: staffProcedure.query(() => getOperationalFailureExerciseMatrix()),
+  backupRestoreDrill: staffProcedure.query(() =>
+    getBackupRestoreDrillReadiness()
+  ),
+  failureExercises: staffProcedure.query(() =>
+    getOperationalFailureExerciseMatrix()
+  ),
 });

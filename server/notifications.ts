@@ -83,9 +83,7 @@ export function tplRxRejected(params: {
   orderId?: number;
 }): NotificationPayload {
   const orderRef = params.orderId ? ` for order #${params.orderId}` : "";
-  const reasonText = params.reason
-    ? ` Reason: ${params.reason}.`
-    : "";
+  const reasonText = params.reason ? ` Reason: ${params.reason}.` : "";
   return {
     title: "Prescription could not be processed",
     content: `Hi ${params.customerName}, we were unable to process your prescription (Rx #${params.prescriptionId})${orderRef}.${reasonText} Please contact our pharmacist for assistance or upload a clearer image.`,
@@ -140,8 +138,8 @@ export function tplRefillReminder(params: {
     params.daysLeft <= 2
       ? "You're almost out"
       : params.daysLeft <= 5
-      ? "Running low"
-      : "Time to reorder";
+        ? "Running low"
+        : "Time to reorder";
   return {
     title: `${urgency}: ${params.productName}`,
     content: `Hi ${params.customerName}, you have approximately ${params.daysLeft} day(s) of ${params.productName} remaining. Tap to reorder now and ensure uninterrupted medication.`,

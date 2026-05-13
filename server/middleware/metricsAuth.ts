@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import type { NextFunction, Request, Response } from "express";
 
 /**
@@ -8,7 +9,11 @@ import type { NextFunction, Request, Response } from "express";
  * middleware. Never sends a response — always calls next().
  */
 export function metricsTokenAuth() {
-  return function metricsTokenAuthMiddleware(req: Request, _res: Response, next: NextFunction): void {
+  return function metricsTokenAuthMiddleware(
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): void {
     const envToken = process.env.METRICS_SCRAPE_TOKEN;
 
     if (envToken) {

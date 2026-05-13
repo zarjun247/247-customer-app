@@ -25,7 +25,7 @@
  */
 
 import { getDb } from "./db";
-import { ocrJobs, invoiceIngestions } from "../drizzle/schema";
+import { ocrJobs } from "../drizzle/schema";
 import { eq, and, lte } from "drizzle-orm";
 import { runOcrPipeline } from "./ingestion";
 import { metrics } from "./_core/observability";
@@ -55,10 +55,7 @@ export async function processQueue(): Promise<number> {
     })
     .from(ocrJobs)
     .where(
-      and(
-        eq(ocrJobs.status, "queued"),
-        lte(ocrJobs.attempts, MAX_ATTEMPTS - 1)
-      )
+      and(eq(ocrJobs.status, "queued"), lte(ocrJobs.attempts, MAX_ATTEMPTS - 1))
     )
     .limit(10); // process up to 10 jobs per pass
 
@@ -147,12 +144,12 @@ export function startWorker(intervalMs = 30_000): void {
   console.log(`[Worker] Starting with ${intervalMs}ms polling interval`);
 
   // Run immediately on start
-  processQueue().catch((err) =>
+  processQueue().catch(err =>
     console.error("[Worker] Initial pass failed:", err)
   );
 
   _workerTimer = setInterval(() => {
-    processQueue().catch((err) =>
+    processQueue().catch(err =>
       console.error("[Worker] Queue pass failed:", err)
     );
   }, intervalMs);
@@ -179,7 +176,7 @@ export function stopWorker(): void {
  *   PAGERDUTY_ROUTING_KEY — PagerDuty Events API v2 routing key
  *   SLACK_OPS_WEBHOOK_URL — Slack incoming webhook URL for ops channel
  */
-async function alertOps(title: string, detail: string): Promise<void> {
+function _alertOps(title: string, detail: string): void {
   console.error(`[OPS ALERT] ${title}: ${detail}`);
   // TODO: await fetch(process.env.SLACK_OPS_WEBHOOK_URL!, {
   //   method: "POST",

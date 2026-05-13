@@ -1,17 +1,30 @@
 import { eq } from "drizzle-orm";
-import { batches, productVariants, products, stores, storeSkus, users } from "../../drizzle/schema";
+import {
+  batches,
+  productVariants,
+  products,
+  stores,
+  storeSkus,
+  users,
+} from "../../drizzle/schema";
 import type { DbTestContext } from "./dbTestLifecycle";
 
 function insertedId(result: unknown): number {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const packet = Array.isArray(result) ? result[0] : result;
   const id = Number((packet as { insertId?: number }).insertId);
   if (!Number.isFinite(id) || id <= 0) {
-    throw new Error(`Expected MySQL insertId, received ${JSON.stringify(packet)}`);
+    throw new Error(
+      `Expected MySQL insertId, received ${JSON.stringify(packet)}`
+    );
   }
   return id;
 }
 
-export async function createDeterministicTestStore(ctx: DbTestContext, suffix = ctx.runId) {
+export async function createDeterministicTestStore(
+  ctx: DbTestContext,
+  suffix = ctx.runId
+) {
   const result = await ctx.db.insert(stores).values({
     name: `Test Store ${suffix}`,
     type: "in_building",
@@ -26,10 +39,15 @@ export async function createDeterministicTestStore(ctx: DbTestContext, suffix = 
   });
   const id = insertedId(result);
   ctx.created.storeIds.push(id);
-  return (await ctx.db.select().from(stores).where(eq(stores.id, id)).limit(1))[0];
+  return (
+    await ctx.db.select().from(stores).where(eq(stores.id, id)).limit(1)
+  )[0];
 }
 
-export async function createDeterministicTestCustomer(ctx: DbTestContext, suffix = ctx.runId) {
+export async function createDeterministicTestCustomer(
+  ctx: DbTestContext,
+  suffix = ctx.runId
+) {
   const result = await ctx.db.insert(users).values({
     openId: `test-customer-${suffix}`,
     name: "Test Customer",
@@ -42,10 +60,16 @@ export async function createDeterministicTestCustomer(ctx: DbTestContext, suffix
   });
   const id = insertedId(result);
   ctx.created.userIds.push(id);
-  return (await ctx.db.select().from(users).where(eq(users.id, id)).limit(1))[0];
+  return (
+    await ctx.db.select().from(users).where(eq(users.id, id)).limit(1)
+  )[0];
 }
 
-export async function createDeterministicTestStaff(ctx: DbTestContext, storeId: number, suffix = ctx.runId) {
+export async function createDeterministicTestStaff(
+  ctx: DbTestContext,
+  storeId: number,
+  suffix = ctx.runId
+) {
   const result = await ctx.db.insert(users).values({
     openId: `test-staff-${suffix}`,
     name: "Test Pharmacist",
@@ -58,10 +82,16 @@ export async function createDeterministicTestStaff(ctx: DbTestContext, storeId: 
   });
   const id = insertedId(result);
   ctx.created.userIds.push(id);
-  return (await ctx.db.select().from(users).where(eq(users.id, id)).limit(1))[0];
+  return (
+    await ctx.db.select().from(users).where(eq(users.id, id)).limit(1)
+  )[0];
 }
 
-export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext, storeId: number, suffix = ctx.runId) {
+export async function createDeterministicTestProductSkuBatch(
+  ctx: DbTestContext,
+  storeId: number,
+  suffix = ctx.runId
+) {
   const productResult = await ctx.db.insert(products).values({
     name: `Test Product ${suffix}`,
     brand: "Test Brand",
@@ -132,9 +162,33 @@ export async function createDeterministicTestProductSkuBatch(ctx: DbTestContext,
   ctx.created.batchIds.push(batchId);
 
   return {
-    product: (await ctx.db.select().from(products).where(eq(products.id, productId)).limit(1))[0],
-    variant: (await ctx.db.select().from(productVariants).where(eq(productVariants.id, variantId)).limit(1))[0],
-    storeSku: (await ctx.db.select().from(storeSkus).where(eq(storeSkus.id, storeSkuId)).limit(1))[0],
-    batch: (await ctx.db.select().from(batches).where(eq(batches.id, batchId)).limit(1))[0],
+    product: (
+      await ctx.db
+        .select()
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1)
+    )[0],
+    variant: (
+      await ctx.db
+        .select()
+        .from(productVariants)
+        .where(eq(productVariants.id, variantId))
+        .limit(1)
+    )[0],
+    storeSku: (
+      await ctx.db
+        .select()
+        .from(storeSkus)
+        .where(eq(storeSkus.id, storeSkuId))
+        .limit(1)
+    )[0],
+    batch: (
+      await ctx.db
+        .select()
+        .from(batches)
+        .where(eq(batches.id, batchId))
+        .limit(1)
+    )[0],
   };
 }

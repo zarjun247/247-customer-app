@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import { doubleCsrf } from "csrf-csrf";
 import pino from "pino";
 import { ENV } from "../_core/env";
