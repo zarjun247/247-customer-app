@@ -1,6 +1,20 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import crypto from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+import type { ResultSetHeader } from "mysql2";
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
+type TallyDb = DrizzleDb & {
+  insertTallyExportRun?: (v: unknown) => Promise<unknown>;
+  findTallyExportRun?: (v: unknown) => Promise<unknown>;
+};
 
 export type TallyExportStatus =
   | "pending"
@@ -20,7 +34,7 @@ export type TallyLedgerSourceRow = {
   debit?: number | string | null;
   credit?: number | string | null;
   narration?: string | null;
-  metadataJson?: any;
+  metadataJson?: Record<string, unknown> | null;
 };
 
 export type TallyCsvRow = {
@@ -49,18 +63,19 @@ const CSV_HEADERS: (keyof TallyCsvRow)[] = [
   "companyIdentifier",
 ];
 
-export function stableSerialize(value: any): string {
+export function stableSerialize(value: unknown): string {
   if (value instanceof Date) return JSON.stringify(value.toISOString());
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value))
     return `[${value.map(item => stableSerialize(item)).join(",")}]`;
-  return `{${Object.keys(value)
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
     .sort()
-    .map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
+    .map(key => `${JSON.stringify(key)}:${stableSerialize(obj[key])}`)
     .join(",")}}`;
 }
 
-export function deterministicSha256(value: any): string {
+export function deterministicSha256(value: unknown): string {
   return crypto
     .createHash("sha256")
     .update(stableSerialize(value))
@@ -166,7 +181,7 @@ export function buildTallyCsvRows(
   });
 }
 
-export function toCsv(rows: Record<string, any>[]) {
+export function toCsv(rows: Record<string, unknown>[]) {
   if (!rows.length) return "";
   const headers = Object.keys(rows[0]);
   return [
@@ -203,7 +218,7 @@ function buildDuplicateKey(input: {
 }
 
 async function findExistingRun(
-  db: any,
+  db: TallyDb,
   input: {
     storeId?: number | null;
     exportType: string;
@@ -211,23 +226,25 @@ async function findExistingRun(
     periodEnd?: Date | null;
     checksum: string;
   }
-) {
+): Promise<({ id: number } & Record<string, unknown>) | null> {
   const { tallyExportRuns } = await import("../../drizzle/schema");
-  if (typeof db.findTallyExportRun === "function")
-    return db.findTallyExportRun(input);
+  if (typeof db.findTallyExportRun === "function") {
+    const r = await db.findTallyExportRun(input);
+    return (r as { id: number } & Record<string, unknown>) ?? null;
+  }
   const conditions = [
     eq(tallyExportRuns.exportType, input.exportType),
     eq(tallyExportRuns.duplicateKey, buildDuplicateKey(input)),
   ];
   if (input.storeId === undefined || input.storeId === null)
-    conditions.push(eq(tallyExportRuns.storeId, null as any));
+    conditions.push(isNull(tallyExportRuns.storeId));
   else conditions.push(eq(tallyExportRuns.storeId, input.storeId));
-  conditions.push(
-    eq(tallyExportRuns.periodStart, input.periodStart ?? (null as any))
-  );
-  conditions.push(
-    eq(tallyExportRuns.periodEnd, input.periodEnd ?? (null as any))
-  );
+  if (input.periodStart == null)
+    conditions.push(isNull(tallyExportRuns.periodStart));
+  else conditions.push(eq(tallyExportRuns.periodStart, input.periodStart));
+  if (input.periodEnd == null)
+    conditions.push(isNull(tallyExportRuns.periodEnd));
+  else conditions.push(eq(tallyExportRuns.periodEnd, input.periodEnd));
   const [existing] = await db
     .select()
     .from(tallyExportRuns)
@@ -236,16 +253,24 @@ async function findExistingRun(
   return existing ?? null;
 }
 
-async function insertRun(db: any, values: any) {
+async function insertRun(
+  db: TallyDb,
+  values: Record<string, unknown>
+): Promise<{ id: number } & Record<string, unknown>> {
   const { tallyExportRuns } = await import("../../drizzle/schema");
-  if (typeof db.insertTallyExportRun === "function")
-    return db.insertTallyExportRun(values);
-  const [res] = await db.insert(tallyExportRuns).values(values);
-  return { id: res?.insertId ?? res?.id, ...values };
+  if (typeof db.insertTallyExportRun === "function") {
+    const r = await db.insertTallyExportRun(values);
+    return r as { id: number } & Record<string, unknown>;
+  }
+  const insertResult = await db
+    .insert(tallyExportRuns)
+    .values(values as unknown as typeof tallyExportRuns.$inferInsert);
+  const [header] = insertResult as unknown as [ResultSetHeader];
+  return { id: header.insertId, ...values };
 }
 
 export async function generateTallyCsvExport(
-  db: any,
+  db: TallyDb,
   input: {
     exportType: string;
     rows: TallyLedgerSourceRow[];
@@ -254,7 +279,7 @@ export async function generateTallyCsvExport(
     periodEnd?: Date | null;
     dateFrom?: Date | null;
     dateTo?: Date | null;
-    filters?: Record<string, any>;
+    filters?: Record<string, unknown>;
     generatedBy?: number | null;
     companyIdentifier?: string | null;
   }
@@ -330,8 +355,9 @@ export async function generateTallyCsvExport(
       imported: false,
       synced: false,
     };
-  } catch (error: any) {
-    const failureReason = error?.message ?? "Tally export generation failed";
+  } catch (error: unknown) {
+    const failureReason =
+      error instanceof Error ? error.message : "Tally export generation failed";
     const checksum = deterministicSha256({
       exportType: input.exportType,
       periodStart,
@@ -377,15 +403,15 @@ export async function generateTallyCsvExport(
   }
 }
 
-export async function getGstOutputSummary(db: any) {
+export async function getGstOutputSummary(db: TallyDb) {
   const { sales } = await import("../../drizzle/schema");
   return db.select().from(sales).limit(200);
 }
-export async function getGstInputSummary(db: any) {
+export async function getGstInputSummary(db: TallyDb) {
   const { purchaseInvoices } = await import("../../drizzle/schema");
   return db.select().from(purchaseInvoices).limit(200);
 }
-export async function getGstNetPosition(db: any) {
+export async function getGstNetPosition(db: TallyDb) {
   const out = await getGstOutputSummary(db);
   const inp = await getGstInputSummary(db);
   return {
@@ -404,11 +430,11 @@ export async function getGstNetPosition(db: any) {
     ],
   };
 }
-export async function getPaymentModeBreakdown(db: any) {
+export async function getPaymentModeBreakdown(db: TallyDb) {
   const { counterPayments } = await import("../../drizzle/schema");
   const rows = await db.select().from(counterPayments).limit(500);
   return { rows, totals: { count: rows.length }, csvData: rows };
 }
-export async function getSettlementSummary(db: any) {
+export async function getSettlementSummary(db: TallyDb) {
   return getPaymentModeBreakdown(db);
 }

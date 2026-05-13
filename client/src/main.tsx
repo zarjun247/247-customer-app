@@ -26,8 +26,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const error = event.query.state.error;
+    const error: unknown = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
     console.error("[API Query Error]", error);
   }
@@ -35,8 +34,7 @@ queryClient.getQueryCache().subscribe(event => {
 
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const error = event.mutation.state.error;
+    const error: unknown = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
     console.error("[API Mutation Error]", error);
   }

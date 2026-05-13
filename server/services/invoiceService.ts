@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { eq, and as _and, desc } from "drizzle-orm";
 export type InvoiceLineInput = {
   productName: string;
@@ -66,14 +65,38 @@ export function computeInvoiceTotals(
     netTotal: r2(t.net),
   };
 }
-export function validateInvoiceCompleteness(payload: any) {
+
+export type InvoiceLineValidatable = {
+  productName?: string | null;
+  hsnCode?: string | null;
+  gstRate?: number | null;
+  cgst?: number | null;
+  sgst?: number | null;
+  igst?: number | null;
+  totalGst?: number | null;
+};
+
+export type InvoicePayload = {
+  header?: {
+    invoiceNumber?: string | null;
+    storeName?: string | null;
+    storeAddress?: string | null;
+    storeGstin?: string | null;
+    storeDrugLicense?: string | null;
+  } | null;
+  lines?: InvoiceLineValidatable[];
+};
+
+export function validateInvoiceCompleteness(payload: InvoicePayload) {
   const missing: string[] = [];
   if (!payload?.header?.invoiceNumber) missing.push("invoiceNumber");
   if (!payload?.header?.storeName) missing.push("storeName");
   if (!payload?.header?.storeAddress) missing.push("storeAddress");
   if (!payload?.header?.storeGstin) missing.push("storeGstin");
   if (!payload?.header?.storeDrugLicense) missing.push("storeDrugLicense");
-  for (const [i, line] of (payload?.lines ?? []).entries()) {
+  const lines: InvoiceLineValidatable[] = payload?.lines ?? [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (!line.productName) missing.push(`lines[${i}].productName`);
     if (!line.hsnCode) missing.push(`lines[${i}].hsnCode`);
     if (line.gstRate === undefined || line.gstRate === null)
@@ -92,7 +115,14 @@ export function validateInvoiceCompleteness(payload: any) {
     status: missing.length === 0 ? "complete" : "incomplete",
   };
 }
-export function buildInvoiceForSale(input: any) {
+
+export type InvoiceBuildInput = {
+  header?: InvoicePayload["header"];
+  lines?: InvoiceLineInput[];
+  [key: string]: unknown;
+};
+
+export function buildInvoiceForSale(input: InvoiceBuildInput) {
   const lines = (input.lines ?? []).map(buildInvoiceLine);
   const totals = computeInvoiceTotals(lines);
   return {
@@ -102,10 +132,10 @@ export function buildInvoiceForSale(input: any) {
     completeness: validateInvoiceCompleteness({ header: input.header, lines }),
   };
 }
-export function buildInvoiceDocumentPayload(input: any) {
+export function buildInvoiceDocumentPayload(input: InvoiceBuildInput) {
   return buildInvoiceForSale(input);
 }
-export function buildInsurerReadyInvoiceSummary(input: any) {
+export function buildInsurerReadyInvoiceSummary(input: InvoiceBuildInput) {
   const base = buildInvoiceForSale(input);
   return {
     invoiceNumber: base.header?.invoiceNumber,
@@ -128,7 +158,13 @@ export function buildCreditNoteForReturn(input: {
     status: "foundation_only" as const,
   };
 }
-export async function getInvoiceBySale(db: any, saleId: string) {
+
+type DrizzleDb = Awaited<ReturnType<typeof import("../db").getDb>>;
+
+export async function getInvoiceBySale(
+  db: NonNullable<DrizzleDb>,
+  saleId: string
+) {
   const { sales, saleLines, products } = await import("../../drizzle/schema");
   const [sale] = await db
     .select()
@@ -142,7 +178,7 @@ export async function getInvoiceBySale(db: any, saleId: string) {
     .from(saleLines)
     .leftJoin(products, eq(saleLines.productId, products.id))
     .where(eq(saleLines.saleId, saleId));
-  const normalized = lines.map((x: any) =>
+  const normalized = lines.map(x =>
     buildInvoiceLine({
       productName: x.productName ?? "",
       batchNo: x.line.batchNo,
@@ -162,7 +198,7 @@ export async function getInvoiceBySale(db: any, saleId: string) {
     storeGstin: null,
     storeDrugLicense: null,
   };
-  const composed = { header, lines: normalized };
+  const composed: InvoiceBuildInput = { header, lines: normalized };
   return {
     found: true,
     saleId,
@@ -170,7 +206,10 @@ export async function getInvoiceBySale(db: any, saleId: string) {
     status: "incomplete_data_model",
   };
 }
-export async function getCustomerInvoiceSummary(db: any, userId: number) {
+export async function getCustomerInvoiceSummary(
+  db: NonNullable<DrizzleDb>,
+  userId: number
+) {
   const { sales } = await import("../../drizzle/schema");
   const rows = await db
     .select()
@@ -181,7 +220,7 @@ export async function getCustomerInvoiceSummary(db: any, userId: number) {
   return {
     status: "partial",
     scope: "created_by_only",
-    rows: rows.map((s: any) => ({
+    rows: rows.map(s => ({
       saleId: s.id,
       invoiceNumber: s.billNo,
       total: Number(s.total ?? 0),

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
@@ -146,13 +145,15 @@ export function sanitizeProviderWebhookPayload(payload: unknown) {
   return deepRedact(payload) as Record<string, unknown> | null;
 }
 
-function parseRawWebhookBody(rawBody: string | Buffer): Record<string, any> {
+function parseRawWebhookBody(
+  rawBody: string | Buffer
+): Record<string, unknown> {
   const text = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : rawBody;
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(text) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       throw new Error("Webhook payload must be a JSON object");
-    return parsed;
+    return parsed as Record<string, unknown>;
   } catch {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -161,28 +162,36 @@ function parseRawWebhookBody(rawBody: string | Buffer): Record<string, any> {
   }
 }
 
-function getNested(payload: Record<string, any>, path: string[]) {
-  return path.reduce<any>(
-    (acc, key) => (acc && typeof acc === "object" ? acc[key] : undefined),
+function getNested(payload: Record<string, unknown>, path: string[]): unknown {
+  return path.reduce<unknown>(
+    (acc, key) =>
+      acc && typeof acc === "object"
+        ? (acc as Record<string, unknown>)[key]
+        : undefined,
     payload
   );
 }
 
-export function extractProviderWebhookRefs(payload: Record<string, any>) {
+export function extractProviderWebhookRefs(payload: Record<string, unknown>) {
   const eventType =
     safeString(payload.event) ?? safeString(payload.type) ?? "unknown";
   const providerEventId =
     safeString(payload.id) ??
     safeString(payload.event_id) ??
     safeString(payload.eventId);
-  const paymentEntity =
-    getNested(payload, ["payload", "payment", "entity"]) ??
-    payload.payment ??
-    {};
-  const orderEntity =
-    getNested(payload, ["payload", "order", "entity"]) ?? payload.order ?? {};
-  const refundEntity =
-    getNested(payload, ["payload", "refund", "entity"]) ?? payload.refund ?? {};
+  const asObj = (v: unknown): Record<string, unknown> =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : {};
+  const paymentEntity = asObj(
+    getNested(payload, ["payload", "payment", "entity"]) ?? payload.payment
+  );
+  const orderEntity = asObj(
+    getNested(payload, ["payload", "order", "entity"]) ?? payload.order
+  );
+  const refundEntity = asObj(
+    getNested(payload, ["payload", "refund", "entity"]) ?? payload.refund
+  );
   const gatewayOrderId =
     safeString(paymentEntity.order_id) ??
     safeString(orderEntity.id) ??
@@ -200,9 +209,11 @@ export function extractProviderWebhookRefs(payload: Record<string, any>) {
     safeNumber(refundEntity.amount) ??
     safeNumber(payload.amountPaise) ??
     safeNumber(payload.amount);
+  const paymentNotes = asObj(paymentEntity.notes);
+  const orderNotes = asObj(orderEntity.notes);
   const orderId =
-    safeNumber(paymentEntity.notes?.orderId) ??
-    safeNumber(orderEntity.notes?.orderId) ??
+    safeNumber(paymentNotes.orderId) ??
+    safeNumber(orderNotes.orderId) ??
     safeNumber(payload.orderId);
   return {
     eventType,
@@ -663,8 +674,9 @@ export async function handleRazorpayWebhook(input: {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Webhook processing failed";
-    if (eventRowId) {
-      await scheduleProviderEventRetry(await getDb(), {
+    const dbForRetry = await getDb();
+    if (eventRowId && dbForRetry) {
+      await scheduleProviderEventRetry(dbForRetry, {
         providerEventRowId: eventRowId,
         reason: message,
       });

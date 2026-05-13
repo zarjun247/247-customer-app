@@ -2,9 +2,10 @@
  * masterDataPart3RouterExtension.ts — second half of masterDataPart3Router
  * Covers: buildingMasterRouter, printerMasterRouter, productMasterRouter
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import type { SQL } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 import { detectPotentialDuplicateProducts } from "../services/productNormalization";
@@ -130,8 +131,8 @@ export const buildingMasterRouter = router({
       requireAdmin(ctx.user.role);
       const db = await getDb();
       const { buildings } = await import("../../drizzle/schema");
-      const [r] = await db.insert(buildings).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(buildings).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -208,11 +209,13 @@ export const printerMasterRouter = router({
       const db = await getDb();
       const { printers } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(printers.printerName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(printers.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(printers)
@@ -253,8 +256,8 @@ export const printerMasterRouter = router({
         });
         return { id: input.id };
       }
-      const [r] = await db.insert(printers).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(printers).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -331,7 +334,14 @@ export const productMasterRouter = router({
       const db = await getDb();
       const { products } = await import("../../drizzle/schema");
       const { like, and, eq, or } = await import("drizzle-orm");
-      const conds: any[] = [];
+      type ProductCategoryEnum =
+        | "medicine"
+        | "devices"
+        | "baby"
+        | "nutrition"
+        | "fmcg"
+        | "wellness";
+      const conds: SQL<unknown>[] = [];
       if (input.search) {
         conds.push(
           or(
@@ -339,12 +349,16 @@ export const productMasterRouter = router({
             like(products.brand, `%${input.search}%`),
             like(products.genericName, `%${input.search}%`),
             like(products.companyName, `%${input.search}%`)
-          )
+          ) as SQL<unknown>
         );
       }
       if (input.category)
-        conds.push(eq(products.category, input.category as any));
-      const where = conds.length ? and(...conds) : undefined;
+        conds.push(
+          eq(products.category, input.category as ProductCategoryEnum)
+        );
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select({
           id: products.id,
@@ -447,8 +461,8 @@ export const productMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { products } = await import("../../drizzle/schema");
-      const [r] = await db.insert(products).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(products).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -599,8 +613,10 @@ export const productMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { productAliases } = await import("../../drizzle/schema");
-      const [r] = await db.insert(productAliases).values(input);
-      return { id: (r as any).insertId };
+      const insertResult = await db.insert(productAliases).values(input);
+      return {
+        id: (insertResult as unknown as [ResultSetHeader])[0].insertId,
+      };
     }),
   addBarcode: protectedProcedure
     .input(
@@ -617,8 +633,10 @@ export const productMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { productBarcodes } = await import("../../drizzle/schema");
-      const [r] = await db.insert(productBarcodes).values(input);
-      return { id: (r as any).insertId };
+      const insertResult = await db.insert(productBarcodes).values(input);
+      return {
+        id: (insertResult as unknown as [ResultSetHeader])[0].insertId,
+      };
     }),
   exportCsv: protectedProcedure
     .input(z.object({ category: z.string().optional() }))
@@ -627,8 +645,15 @@ export const productMasterRouter = router({
       const db = await getDb();
       const { products } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
+      type ProductCategoryEnum =
+        | "medicine"
+        | "devices"
+        | "baby"
+        | "nutrition"
+        | "fmcg"
+        | "wellness";
       const where = input.category
-        ? eq(products.category, input.category as any)
+        ? eq(products.category, input.category as ProductCategoryEnum)
         : undefined;
       const rows = await db
         .select({

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
@@ -59,7 +58,7 @@ export const complianceOpsRouter = router({
           LIMIT ${limit}
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = (result as unknown as [unknown[]])[0] ?? ([] as unknown[]);
       return redactReportPayload({
         rows,
         totals: { count: rows.length },
@@ -92,7 +91,7 @@ export const complianceOpsRouter = router({
           ORDER BY o.createdAt DESC
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = (result as unknown as [unknown[]])[0] ?? ([] as unknown[]);
       return redactReportPayload({
         rows,
         totals: { pending: rows.length },
@@ -128,7 +127,7 @@ export const complianceOpsRouter = router({
           LIMIT ${limit}
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = (result as unknown as [unknown[]])[0] ?? ([] as unknown[]);
       return redactReportPayload({
         rows,
         totals: { pending: rows.length },
@@ -159,7 +158,7 @@ export const complianceOpsRouter = router({
           ORDER BY totalApprovals DESC
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = (result as unknown as [unknown[]])[0] ?? ([] as unknown[]);
       return redactReportPayload({
         rows,
         totals: { pharmacists: rows.length },
@@ -193,7 +192,7 @@ export const complianceOpsRouter = router({
           ORDER BY totalQty DESC
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = (result as unknown as [unknown[]])[0] ?? ([] as unknown[]);
       return redactReportPayload({
         rows,
         totals: { exceptions: rows.length },
@@ -222,7 +221,7 @@ export const complianceOpsRouter = router({
           WHERE m.scheduleType IN ('H', 'H1', 'X')
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = (result as unknown as [unknown[]])[0] ?? ([] as unknown[]);
       const manifest =
         rows.length > 0
           ? rows[0]

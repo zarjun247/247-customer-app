@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+import type { ResultSetHeader } from "mysql2";
 import {
   and,
   desc,
@@ -6,6 +6,7 @@ import {
   gt,
   gte as _gte,
   ilike as _ilike,
+  type InferSelectModel,
   like,
   lt as _lt,
   lte as _lte,
@@ -47,8 +48,7 @@ import {
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// eslint-disable-next-line @typescript-eslint/require-await
-export async function getDb() {
+export function getDb(): Promise<ReturnType<typeof drizzle> | null> {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _db = drizzle(process.env.DATABASE_URL);
@@ -57,7 +57,7 @@ export async function getDb() {
       _db = null;
     }
   }
-  return _db;
+  return Promise.resolve(_db);
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -143,15 +143,14 @@ export async function upsertUserByPhone(
       .where(eq(users.id, existing.id));
     return { id: existing.id };
   }
-  const result = await db.insert(users).values({
+  const [header] = (await db.insert(users).values({
     openId: null, // nullable after migration
     phone: encryptedPhone ?? phone,
     name: extra?.name ?? null,
     loginMethod: extra?.loginMethod ?? "phone",
     lastSignedIn: new Date(),
-  });
-  const insertId = (result[0] as any).insertId as number;
-  return { id: insertId };
+  })) as unknown as [ResultSetHeader];
+  return { id: header.insertId };
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -282,7 +281,12 @@ export async function getCatalog(
     );
   }
   if (category && category !== "all") {
-    conditions.push(eq(products.category, category as any));
+    conditions.push(
+      eq(
+        products.category,
+        category as InferSelectModel<typeof products>["category"]
+      )
+    );
   }
   return db
     .select({
@@ -511,7 +515,7 @@ export async function createOrder(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [result] = await db.insert(orders).values({
+  const [result] = (await db.insert(orders).values({
     userId: data.userId,
     storeId: data.storeId,
     prescriptionId: data.prescriptionId,
@@ -523,8 +527,8 @@ export async function createOrder(data: {
     buildingId: data.buildingId,
     source: data.source ?? "app",
     status: "created",
-  });
-  const orderId = (result as any).insertId as number;
+  })) as unknown as [ResultSetHeader];
+  const orderId = result.insertId;
   for (const item of data.items) {
     await db.insert(orderItems).values({
       orderId,
@@ -552,7 +556,13 @@ export async function getAllOrders(opts?: { status?: string; limit?: number }) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
-  if (opts?.status) conditions.push(eq(orders.status, opts.status as any));
+  if (opts?.status)
+    conditions.push(
+      eq(
+        orders.status,
+        opts.status as InferSelectModel<typeof orders>["status"]
+      )
+    );
   const q = db.select().from(orders);
   if (conditions.length > 0) q.where(and(...conditions));
   return q.orderBy(desc(orders.createdAt)).limit(opts?.limit ?? 200);
@@ -644,7 +654,7 @@ export async function createPrescription(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [r] = await db.insert(prescriptions).values({
+  const [r] = (await db.insert(prescriptions).values({
     userId,
     storeId,
     imageUrl,
@@ -663,8 +673,8 @@ export async function createPrescription(
       ? JSON.stringify(metadata.linkedProductIds)
       : undefined,
     source: metadata?.source ?? "upload",
-  });
-  return (r as any).insertId as number;
+  })) as unknown as [ResultSetHeader];
+  return r.insertId;
 }
 
 export async function getPrescriptionsByUser(userId: number) {
@@ -707,7 +717,7 @@ export async function getPrescriptionVault(userId: number) {
       )
     )
     .orderBy(desc(prescriptions.createdAt));
-  return rows.map((rx: any) => ({
+  return rows.map((rx: (typeof rows)[number]) => ({
     ...rx,
     activeOnFile:
       rx.status === "on_file" &&
@@ -748,14 +758,14 @@ export async function createPriorApproval(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [r] = await db.insert(rxPriorApprovals).values({
+  const [r] = (await db.insert(rxPriorApprovals).values({
     rxId,
     approvedByPharmacistId: pharmacistId,
     validUntil,
     linkedProductIds: JSON.stringify(linkedProductIds),
     notes,
-  });
-  return (r as any).insertId as number;
+  })) as unknown as [ResultSetHeader];
+  return r.insertId;
 }
 /** Gets valid prior approvals for a user */
 export async function getActivePriorApprovals(userId: number) {

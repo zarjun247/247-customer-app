@@ -1,7 +1,20 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any, @typescript-eslint/require-await */
 import { TRPCError } from "@trpc/server";
 import { and as _and, desc, eq, sql } from "drizzle-orm";
 import { logAudit } from "./audit";
+import type { CtxLike } from "./audit";
+
+interface SaleLine {
+  productId: string | number;
+  batchLedgerId?: string | number | null;
+  saleRate: string | number;
+  qty: string | number;
+  discountAmount?: string | number | null;
+}
+interface SaleLike {
+  subtotal?: string | number | null;
+  gstAmount?: string | number | null;
+  notes?: string | null;
+}
 
 async function getDb() {
   const { getDb } = await import("../db");
@@ -38,10 +51,10 @@ export async function getLineCostBasis(
     .limit(1);
   return Number(m?.lastPurchaseRate ?? 0);
 }
-export async function calculateLineGrossMargin(line: any) {
+export async function calculateLineGrossMargin(line: SaleLine) {
   const cost = await getLineCostBasis(
     String(line.productId),
-    line.batchLedgerId
+    line.batchLedgerId != null ? String(line.batchLedgerId) : null
   );
   const revenue =
     Number(line.saleRate) * Number(line.qty) - Number(line.discountAmount ?? 0);
@@ -50,7 +63,7 @@ export async function calculateLineGrossMargin(line: any) {
   const marginPct = revenue > 0 ? (marginAmt / revenue) * 100 : 0;
   return { costPerUnit: cost, revenue, cogs, marginAmt, marginPct };
 }
-export async function calculateSaleMargin(lines: any[]) {
+export async function calculateSaleMargin(lines: SaleLine[]) {
   const vals = await Promise.all(lines.map(calculateLineGrossMargin));
   const revenue = vals.reduce((a, v) => a + v.revenue, 0);
   const cogs = vals.reduce((a, v) => a + v.cogs, 0);
@@ -63,7 +76,7 @@ export async function calculateSaleMargin(lines: any[]) {
   };
 }
 
-export async function validateDiscountCode(code: string, sale: any) {
+export async function validateDiscountCode(code: string, sale: SaleLike) {
   const db = await getDb();
   const { discountCodes } = await import("../../drizzle/schema");
   const [dc] = await db
@@ -92,7 +105,7 @@ export async function validateDiscountCode(code: string, sale: any) {
 export async function applyDiscountCode(
   saleId: string,
   code: string,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const db = await getDb();
   const { sales, discountCodes: _discountCodes } = await import(
@@ -157,7 +170,7 @@ export async function applyDiscountCode(
 export async function recordDiscountCodeUsage(
   codeId: number,
   saleId: string,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const db = await getDb();
   const { discountCodes } = await import("../../drizzle/schema");
@@ -177,7 +190,7 @@ export async function recordDiscountCodeUsage(
   );
 }
 
-export async function assertDiscountWithinCaps(
+export function assertDiscountWithinCaps(
   discountAmount: number,
   subtotal: number,
   maxPct = 22
@@ -198,7 +211,7 @@ export function requiresMarginOverrideApproval(
 export async function recordMarginOverrideRequest(
   saleId: string,
   reason: string,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   await logAudit(
     {
@@ -216,7 +229,7 @@ export async function approveMarginOverride(
   saleId: string,
   approvedBy: number,
   reason: string,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   await logAudit(
     {
@@ -234,7 +247,7 @@ export async function approveMarginOverride(
 export async function assertNoLossWithoutApproval(
   saleId: string,
   role?: string | null,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const db = await getDb();
   const { saleLines } = await import("../../drizzle/schema");

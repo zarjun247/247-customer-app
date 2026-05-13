@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
@@ -24,6 +23,10 @@ export type SessionPayload = {
   appId: string;
   name: string;
 };
+
+/** Raw API response shape — includes `platforms` not present in the typed interface */
+type UserInfoRaw = GetUserInfoResponse & { platforms?: unknown };
+type UserInfoWithJwtRaw = GetUserInfoWithJwtResponse & { platforms?: unknown };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
@@ -135,15 +138,16 @@ class SDKServer {
     const data = await this.oauthService.getUserInfoByToken({
       accessToken,
     } as ExchangeTokenResponse);
+    const raw = data as UserInfoRaw;
     const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
+      raw.platforms,
+      raw.platform ?? null
     );
     return {
-      ...(data as any),
+      ...raw,
       platform: loginMethod,
       loginMethod,
-    } as GetUserInfoResponse;
+    };
   }
 
   private parseCookies(cookieHeader: string | undefined) {
@@ -242,15 +246,16 @@ class SDKServer {
       payload
     );
 
+    const raw = data as UserInfoWithJwtRaw;
     const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
+      raw.platforms,
+      raw.platform ?? null
     );
     return {
-      ...(data as any),
+      ...raw,
       platform: loginMethod,
       loginMethod,
-    } as GetUserInfoWithJwtResponse;
+    };
   }
 
   async authenticateRequest(req: Request): Promise<User> {

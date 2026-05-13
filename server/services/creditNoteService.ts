@@ -1,9 +1,21 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { getDb } from "../db";
 import { creditNotes, orders, saleReturns, sales } from "../../drizzle/schema";
+import type { Sale, SaleReturn } from "../../drizzle/schema";
+import type { Order } from "../../drizzle/schema";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 
 export type CreditNoteStatus = "draft" | "issued" | "cancelled" | "failed";
@@ -34,9 +46,9 @@ export type CreditNoteDraftInput = {
 };
 
 export type CreditNoteInvoiceTruth = {
-  sale?: any;
-  order?: any;
-  saleReturn?: any;
+  sale?: Sale | null;
+  order?: Order | null;
+  saleReturn?: SaleReturn | null;
 };
 
 const paise = (value: unknown) => Math.round(Number(value ?? 0) * 100);
@@ -117,16 +129,24 @@ export function assertCreditNoteAmountAllowed(input: {
   return { invoiceAmountPaise, existingIssuedCreditNotePaise, refundablePaise };
 }
 
-export function deriveCreditNoteSummaryFromReturn(ret: any, lines: any[] = []) {
+export function deriveCreditNoteSummaryFromReturn(
+  ret: SaleReturn | null | undefined,
+  lines: {
+    saleLineId?: string | number | null;
+    productId?: string | number | null;
+    gstReversal?: string | number | null;
+    refundAmount?: string | number | null;
+  }[] = []
+) {
   const gstAmountPaise = paise(ret?.gstReversal);
   const amountPaise = paise(ret?.totalRefund);
   const taxableAmountPaise = Math.max(0, amountPaise - gstAmountPaise);
   const lineSplits: CreditNoteLineSplit[] = lines.map(line => {
-    const lineGst = paise(line?.gstReversal);
-    const lineGross = paise(line?.refundAmount);
+    const lineGst = paise(line.gstReversal);
+    const lineGross = paise(line.refundAmount);
     return {
-      saleLineId: line?.saleLineId ?? null,
-      productId: line?.productId ?? null,
+      saleLineId: line.saleLineId != null ? String(line.saleLineId) : null,
+      productId: line.productId != null ? String(line.productId) : null,
       taxableAmountPaise: Math.max(0, lineGross - lineGst),
       gstAmountPaise: lineGst,
       grossAmountPaise: lineGross,
@@ -145,7 +165,7 @@ export function assertNoFakeRefundLedgerLink(refundId?: string | null) {
   }
 }
 
-async function getDbOrThrow(dbOverride?: any) {
+async function getDbOrThrow(dbOverride?: DrizzleDb) {
   if (dbOverride) return dbOverride;
   const db = await getDb();
   if (!db)
@@ -157,7 +177,7 @@ async function getDbOrThrow(dbOverride?: any) {
 }
 
 async function loadInvoiceTruth(
-  db: any,
+  db: DrizzleDb,
   input: Pick<CreditNoteDraftInput, "saleId" | "orderId" | "saleReturnId">
 ): Promise<CreditNoteInvoiceTruth> {
   const truth: CreditNoteInvoiceTruth = {};
@@ -246,40 +266,33 @@ export function assertValidOriginalInvoice(
 }
 
 async function sumIssuedCreditNotes(
-  db: any,
+  db: DrizzleDb,
   input: Pick<CreditNoteDraftInput, "saleId" | "orderId" | "originalInvoiceNo">
 ) {
-  const filters: any[] = [eq(creditNotes.status, "issued")];
+  const filters: SQL<unknown>[] = [eq(creditNotes.status, "issued")];
   if (input.saleId) filters.push(eq(creditNotes.saleId, input.saleId));
   else if (input.orderId) filters.push(eq(creditNotes.orderId, input.orderId));
   else if (input.originalInvoiceNo)
     filters.push(eq(creditNotes.originalInvoiceNo, input.originalInvoiceNo));
   else return 0;
-  const queryResult = await db
+  const rows = await db
     .select()
     .from(creditNotes)
     .where(and(...filters));
-  const rows = Array.isArray(queryResult)
-    ? queryResult
-    : ((await queryResult.limit?.(1000)) ?? []);
   return rows
-    .filter((row: any) => row.status === "issued")
-    .filter((row: any) => !input.saleId || row.saleId === input.saleId)
-    .filter((row: any) => !input.orderId || row.orderId === input.orderId)
+    .filter(row => row.status === "issued")
+    .filter(row => !input.saleId || row.saleId === input.saleId)
+    .filter(row => !input.orderId || row.orderId === input.orderId)
     .filter(
-      (row: any) =>
+      row =>
         !input.originalInvoiceNo ||
         row.originalInvoiceNo === input.originalInvoiceNo
     )
-    .reduce(
-      (sum: number, row: any) =>
-        sum + Number(row.amountPaise ?? row.amount_paise ?? 0),
-      0
-    );
+    .reduce((sum: number, row) => sum + Number(row.amountPaise ?? 0), 0);
 }
 
 async function assertUniqueCreditNoteNo(
-  db: any,
+  db: DrizzleDb,
   creditNoteNo: string,
   exceptId?: string
 ) {
@@ -288,7 +301,7 @@ async function assertUniqueCreditNoteNo(
     .from(creditNotes)
     .where(eq(creditNotes.creditNoteNo, creditNoteNo))
     .limit(2);
-  const duplicate = rows.find((row: any) => row.id !== exceptId);
+  const duplicate = rows.find(row => row.id !== exceptId);
   if (duplicate)
     throw new TRPCError({
       code: "CONFLICT",
@@ -338,7 +351,7 @@ function resolveOriginalInvoiceNo(
 
 export async function createCreditNoteDraft(
   input: CreditNoteDraftInput,
-  dbOverride?: any
+  dbOverride?: DrizzleDb
 ) {
   assertNoFakeRefundLedgerLink(input.refundId);
   assertCreditNoteSplitPreserved(input);
@@ -394,7 +407,7 @@ export async function createCreditNoteDraft(
 
 export async function issueCreditNote(
   input: { creditNoteId: string; creditNoteNo?: string; issuedBy: string },
-  dbOverride?: any
+  dbOverride?: DrizzleDb
 ) {
   const db = await getDbOrThrow(dbOverride);
   const [draft] = await db
@@ -478,7 +491,7 @@ export async function issueCreditNote(
 
 export async function cancelCreditNote(
   input: { creditNoteId: string; reason: string; actorId: string },
-  dbOverride?: any
+  dbOverride?: DrizzleDb
 ) {
   const db = await getDbOrThrow(dbOverride);
   const [note] = await db
@@ -531,14 +544,17 @@ export async function cancelCreditNote(
   };
 }
 
-export async function getCreditNotesForSale(saleId: string, dbOverride?: any) {
+export async function getCreditNotesForSale(
+  saleId: string,
+  dbOverride?: DrizzleDb
+) {
   const db = await getDbOrThrow(dbOverride);
   return db.select().from(creditNotes).where(eq(creditNotes.saleId, saleId));
 }
 
 export async function getCreditNotesForOrder(
   orderId: number,
-  dbOverride?: any
+  dbOverride?: DrizzleDb
 ) {
   const db = await getDbOrThrow(dbOverride);
   return db.select().from(creditNotes).where(eq(creditNotes.orderId, orderId));

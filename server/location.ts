@@ -91,8 +91,7 @@ export function parseOpeningHours(
 ): OpeningHourSlot[] | null {
   if (!raw) return null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return null;
     return parsed as OpeningHourSlot[];
   } catch {

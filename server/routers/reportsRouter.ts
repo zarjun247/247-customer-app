@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 /**
  * reportsRouter.ts
  * Modular reports engine: daily sale, daily purchase, GST summary,
@@ -7,8 +6,13 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
+import {
+  requireStoreAccess,
+  requireStaffStore,
+  type AccessUser,
+} from "../_core/rbac";
 import { router, protectedProcedure } from "../_core/trpc";
+import type { ResultSetHeader } from "mysql2";
 import {
   buildDailyGstReport,
   buildH1CompletenessReport,
@@ -46,14 +50,14 @@ function requireStaff(role: string) {
 }
 
 function resolveScopedStoreId(
-  user: any,
+  user: AccessUser | null | undefined,
   inputStoreId?: number
 ): number | undefined {
   if (inputStoreId !== undefined) {
     requireStoreAccess(user, inputStoreId);
     return inputStoreId;
   }
-  if (["super_admin", "admin", "ops_admin"].includes(user.role))
+  if (user && ["super_admin", "admin", "ops_admin"].includes(user.role ?? ""))
     return undefined;
   return requireStaffStore(user);
 }
@@ -73,7 +77,7 @@ function dateBounds(input: { fromDate: string; toDate: string }) {
 
 function resultRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) {
-    const [rows] = result;
+    const rows: unknown = result[0];
     return Array.isArray(rows) ? (rows as T[]) : (result as T[]);
   }
   return [];
@@ -714,13 +718,14 @@ export const reportsRouter = router({
       const variance = (
         parseFloat(input.actualCash) - parseFloat(expectedCash)
       ).toFixed(2);
-      const [result] = await db.insert(shiftClosings).values({
+      const insertResult = await db.insert(shiftClosings).values({
         ...input,
         expectedCash,
         variance,
         cashierId: ctx.user.id,
         status: "submitted",
       });
-      return { id: (result as { insertId: number }).insertId };
+      const [header] = insertResult as unknown as [ResultSetHeader];
+      return { id: header.insertId };
     }),
 });

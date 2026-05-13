@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import { createHash } from "crypto";
 import pino from "pino";
 import { and, eq, isNull, lte, or, gt } from "drizzle-orm";
@@ -54,7 +53,7 @@ export async function publishNotice(input: {
     publishedByUserId: input.publishedByUserId,
   });
 
-  const id = Number((result as any).insertId ?? 0);
+  const id = Number((result as { insertId?: number }).insertId ?? 0);
   logger.info(
     { noticeKind: input.noticeKind, version: input.version, id },
     "consentNoticeRegistry: notice published"

@@ -1,8 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
 import { and, eq, lt, ne, or, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "./audit";
+import type { CtxLike } from "./audit";
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
+import type { getDb } from "../db";
+import type { ResultSetHeader } from "mysql2";
+
+type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 const ACTIVE_RESERVATION_STATUS = "active" as const;
 const _TERMINAL_RESERVATION_STATUSES = [
@@ -12,6 +19,26 @@ const _TERMINAL_RESERVATION_STATUSES = [
   "cancelled",
 ] as const;
 type ReservationReleaseStatus = (typeof _TERMINAL_RESERVATION_STATUSES)[number];
+
+type ReservationCtx = CtxLike & { requestId?: string | null };
+
+interface ReservationInput {
+  qty?: number | null;
+  expiresAt?: Date | null;
+  batchId?: number | null;
+  orderId?: number | null;
+  cartId?: string | number | null;
+  productId?: number | null;
+  variantId?: number | null;
+  skuId?: number | null;
+  storeId?: number | null;
+  releaseReason?: string | null;
+  ctx?: ReservationCtx | null;
+  actorId?: number | null;
+  idempotencyKey?: string | null;
+  correlationId?: string | null;
+  id?: number | null;
+}
 
 export function computeAvailableQty(input: {
   onHandQty: number;
@@ -29,7 +56,9 @@ export function computeAvailableQty(input: {
   );
 }
 
-export function explainAvailability(input: any) {
+export function explainAvailability(
+  input: Parameters<typeof computeAvailableQty>[0]
+) {
   const available = computeAvailableQty(input);
   return {
     ...input,
@@ -51,8 +80,11 @@ async function requireDb() {
   return db;
 }
 
-function variantFilter(table: any, variantId?: number | null) {
-  return variantId == null ? sql`1=1` : eq(table.variantId, variantId);
+function variantFilter(
+  variantIdCol: AnyMySqlColumn,
+  variantId?: number | null
+): SQL<unknown> {
+  return variantId == null ? sql`1=1` : eq(variantIdCol, variantId);
 }
 
 export async function getCanonicalStockAggregate(
@@ -72,7 +104,7 @@ export async function getCanonicalStockAggregate(
       and(
         eq(storeSkus.storeId, storeId),
         eq(storeSkus.productId, productId),
-        variantFilter(storeSkus, variantId)
+        variantFilter(storeSkus.variantId, variantId)
       )
     )
     .limit(1);
@@ -88,7 +120,7 @@ export async function getCanonicalStockAggregate(
       and(
         eq(batchLedger.storeId, storeId),
         eq(batchLedger.productId, productId),
-        variantFilter(batchLedger, variantId),
+        variantFilter(batchLedger.variantId, variantId),
         eq(batchLedger.status, "active")
       )
     );
@@ -101,7 +133,7 @@ export async function getCanonicalStockAggregate(
       and(
         eq(stockReservations.storeId, storeId),
         eq(stockReservations.productId, productId),
-        variantFilter(stockReservations, variantId),
+        variantFilter(stockReservations.variantId, variantId),
         eq(stockReservations.status, ACTIVE_RESERVATION_STATUS),
         or(
           sql`${stockReservations.expiresAt} IS NULL`,
@@ -138,7 +170,7 @@ export async function syncStoreSkuAggregate(input: {
       and(
         eq(storeSkus.storeId, input.storeId),
         eq(storeSkus.productId, input.productId),
-        variantFilter(storeSkus, input.variantId)
+        variantFilter(storeSkus.variantId, input.variantId)
       )
     )
     .limit(1);
@@ -190,7 +222,7 @@ export async function assertAvailableForReservation(input: {
   return c;
 }
 
-export async function reserveBatchAtomic(input: any) {
+export async function reserveBatchAtomic(input: ReservationInput) {
   const db = await requireDb();
   const { batchLedger, stockReservations, stockMovements } = await import(
     "../../drizzle/schema"
@@ -202,11 +234,11 @@ export async function reserveBatchAtomic(input: any) {
       message: "Reservation quantity must be positive",
     });
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000);
-  const result = await db.transaction(async (tx: any) => {
+  const result = await db.transaction(async (tx: DbTx) => {
     const [batch] = await tx
       .select()
       .from(batchLedger)
-      .where(eq(batchLedger.id, input.batchId))
+      .where(eq(batchLedger.id, input.batchId!))
       .for("update")
       .limit(1);
     if (!batch)
@@ -223,24 +255,26 @@ export async function reserveBatchAtomic(input: any) {
       });
     const beforeReserved = Number(batch.qtyReserved ?? 0);
     const afterReserved = beforeReserved + qty;
-    const [claim] = await tx
+    const claimResult = await tx
       .update(batchLedger)
       .set({ qtyReserved: afterReserved })
       .where(
         and(
-          eq(batchLedger.id, input.batchId),
+          eq(batchLedger.id, input.batchId!),
           sql`${batchLedger.qtyOnHand} - ${batchLedger.qtyReserved} - ${batchLedger.qtyQuarantined} - ${batchLedger.qtyExpired} >= ${qty}`
         )
       );
-    if (Number((claim as { affectedRows?: number }).affectedRows ?? 0) !== 1)
+    const [claimHeader] = claimResult as unknown as [ResultSetHeader];
+    if (Number(claimHeader.affectedRows ?? 0) !== 1)
       throw new TRPCError({
         code: "CONFLICT",
         message: "Reservation race lost",
       });
-    const [row] = await tx.insert(stockReservations).values({
-      batchId: input.batchId,
+    type StockReservationInsert = typeof stockReservations.$inferInsert;
+    const insertRes = await tx.insert(stockReservations).values({
+      batchId: input.batchId ?? null,
       orderId: input.orderId ?? null,
-      cartId: input.cartId ?? null,
+      cartId: input.cartId != null ? Number(input.cartId) : null,
       productId: input.productId ?? batch.productId,
       variantId: input.variantId ?? batch.variantId ?? null,
       skuId: input.skuId ?? null,
@@ -249,10 +283,12 @@ export async function reserveBatchAtomic(input: any) {
       qtyReserved: qty,
       status: ACTIVE_RESERVATION_STATUS,
       expiresAt,
-    });
-    const reservationId = row?.insertId;
+    } as unknown as StockReservationInsert);
+    const [insertHeader] = insertRes as unknown as [ResultSetHeader];
+    const reservationId = insertHeader.insertId;
+    type StockMovementInsert = typeof stockMovements.$inferInsert;
     await tx.insert(stockMovements).values({
-      batchId: input.batchId,
+      batchId: input.batchId!,
       storeId: input.storeId ?? batch.storeId,
       movementType: "sale_reserve",
       qty,
@@ -262,7 +298,7 @@ export async function reserveBatchAtomic(input: any) {
       referenceId: reservationId ?? null,
       reason: input.releaseReason ?? "reservation_created",
       performedBy: input.ctx?.user?.id ?? input.actorId ?? 0,
-    });
+    } as unknown as StockMovementInsert);
     return { reservationId, batch, beforeReserved, afterReserved, expiresAt };
   });
   await logAudit(
@@ -273,7 +309,7 @@ export async function reserveBatchAtomic(input: any) {
       beforeJson: { qtyReserved: result.beforeReserved },
       afterJson: { ...input, expiresAt, qtyReserved: result.afterReserved },
     },
-    input.ctx
+    input.ctx ?? undefined
   );
   await appendCommercialEventBestEffort({
     aggregateType: "reservation",
@@ -311,26 +347,33 @@ export async function reserveBatchAtomic(input: any) {
   };
 }
 
-export async function reserveStockForOrder(input: any) {
+export async function reserveStockForOrder(input: ReservationInput) {
   if (input.batchId) return reserveBatchAtomic(input);
   const db = await requireDb();
   const { stockReservations } = await import("../../drizzle/schema");
-  await assertAvailableForReservation(input);
+  await assertAvailableForReservation({
+    storeId: input.storeId!,
+    productId: input.productId!,
+    variantId: input.variantId ?? null,
+    qty: input.qty!,
+  });
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000);
-  const [row] = await db.insert(stockReservations).values({
+  type StockReservationInsert = typeof stockReservations.$inferInsert;
+  const insertRes = await db.insert(stockReservations).values({
     batchId: null,
     orderId: input.orderId ?? null,
-    cartId: input.cartId ?? null,
-    productId: input.productId,
+    cartId: input.cartId != null ? Number(input.cartId) : null,
+    productId: input.productId!,
     variantId: input.variantId ?? null,
     skuId: input.skuId ?? null,
-    storeId: input.storeId,
-    qty: input.qty,
-    qtyReserved: input.qty,
+    storeId: input.storeId!,
+    qty: input.qty!,
+    qtyReserved: input.qty!,
     status: ACTIVE_RESERVATION_STATUS,
     expiresAt,
-  });
-  const reservationId = (row as any)?.insertId;
+  } as unknown as StockReservationInsert);
+  const [insertHeader] = insertRes as unknown as [ResultSetHeader];
+  const reservationId = insertHeader.insertId;
   await logAudit(
     {
       action: "reservation.created",
@@ -338,7 +381,7 @@ export async function reserveStockForOrder(input: any) {
       entityId: reservationId ?? Number(input.orderId ?? 0),
       afterJson: { ...input, expiresAt },
     },
-    input.ctx
+    input.ctx ?? undefined
   );
   return {
     id: reservationId,
@@ -349,7 +392,7 @@ export async function reserveStockForOrder(input: any) {
 }
 
 async function applyReservationTerminalAtomic(
-  input: any,
+  input: ReservationInput,
   status: ReservationReleaseStatus,
   defaultReason: string
 ) {
@@ -358,12 +401,13 @@ async function applyReservationTerminalAtomic(
     "../../drizzle/schema"
   );
   const releaseReason = input.releaseReason ?? defaultReason;
-  const result = await db.transaction(async (tx: any) => {
+  const result = await db.transaction(async (tx: DbTx) => {
     const conds = [eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)];
     if (input.id) conds.push(eq(stockReservations.id, input.id));
     if (input.batchId) conds.push(eq(stockReservations.batchId, input.batchId));
     if (input.orderId) conds.push(eq(stockReservations.orderId, input.orderId));
-    if (input.cartId) conds.push(eq(stockReservations.cartId, input.cartId));
+    if (input.cartId)
+      conds.push(eq(stockReservations.cartId, Number(input.cartId)));
     if (input.storeId) conds.push(eq(stockReservations.storeId, input.storeId));
     if (input.productId)
       conds.push(eq(stockReservations.productId, input.productId));
@@ -458,7 +502,7 @@ async function applyReservationTerminalAtomic(
       entityId: Number(input.id ?? input.orderId ?? 0),
       afterJson: { ...input, status, releaseReason, touched: result.touched },
     },
-    input.ctx
+    input.ctx ?? undefined
   );
   const eventType =
     status === "consumed"
@@ -484,14 +528,14 @@ async function applyReservationTerminalAtomic(
   return { status, releaseReason, won: result.won };
 }
 
-export function releaseReservationAtomic(input: any) {
+export function releaseReservationAtomic(input: ReservationInput) {
   return applyReservationTerminalAtomic(
     input,
     "released",
     input.releaseReason ?? "manual_release"
   );
 }
-export function consumeReservationAtomic(input: any) {
+export function consumeReservationAtomic(input: ReservationInput) {
   return applyReservationTerminalAtomic(
     input,
     "consumed",
@@ -500,7 +544,7 @@ export function consumeReservationAtomic(input: any) {
 }
 
 async function updateReservationStatus(
-  input: any,
+  input: ReservationInput,
   status: ReservationReleaseStatus,
   defaultReason: string
 ) {
@@ -517,35 +561,35 @@ export async function claimReservationTerminalState(input: {
     input.releaseReason ?? input.terminalStatus
   );
 }
-export function releaseReservation(input: any) {
+export function releaseReservation(input: ReservationInput) {
   return updateReservationStatus(
     input,
     "released",
     input.releaseReason ?? "manual_release"
   );
 }
-export function expireReservation(input: any) {
+export function expireReservation(input: ReservationInput) {
   return updateReservationStatus(
     input,
     "expired",
     input.releaseReason ?? "reservation_expired"
   );
 }
-export function releaseReservationOnPaymentFailure(input: any) {
+export function releaseReservationOnPaymentFailure(input: ReservationInput) {
   return updateReservationStatus(
     input,
     "released",
     input.releaseReason ?? "payment_failed"
   );
 }
-export function releaseReservationOnRxReject(input: any) {
+export function releaseReservationOnRxReject(input: ReservationInput) {
   return updateReservationStatus(
     input,
     "released",
     input.releaseReason ?? "rx_rejected"
   );
 }
-export function releaseReservationOnOrderCancel(input: any) {
+export function releaseReservationOnOrderCancel(input: ReservationInput) {
   return updateReservationStatus(
     input,
     "cancelled",
@@ -568,13 +612,16 @@ export async function expireStaleReservations(now = new Date()) {
   return { status: "expired" };
 }
 
-export async function getReservationStatus(input: any) {
+export async function getReservationStatus(
+  input: Pick<ReservationInput, "id" | "orderId" | "cartId">
+) {
   const db = await requireDb();
   const { stockReservations } = await import("../../drizzle/schema");
   const conds = [];
   if (input.id) conds.push(eq(stockReservations.id, input.id));
   if (input.orderId) conds.push(eq(stockReservations.orderId, input.orderId));
-  if (input.cartId) conds.push(eq(stockReservations.cartId, input.cartId));
+  if (input.cartId)
+    conds.push(eq(stockReservations.cartId, Number(input.cartId)));
   const rows = await db
     .select()
     .from(stockReservations)

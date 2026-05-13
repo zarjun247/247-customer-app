@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access */
 import { and, eq } from "drizzle-orm";
 import { orderRatings } from "../../drizzle/schema";
 import { getDb } from "../db";
@@ -43,20 +42,30 @@ export async function createOrderRating(input: {
     .$returningId();
   return { id: r.id, ...input };
 }
+
+export type OrderRatingUpdate = {
+  overall?: number;
+  delivery?: number;
+  packaging?: number;
+  pharmacistSupport?: number;
+  availability?: number;
+  issueTags?: string[];
+  comment?: string;
+};
+
 export async function updateOrderRating(
   orderId: number,
   customerId: number,
-  updates: any
+  updates: OrderRatingUpdate
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
+  const { issueTags, ...rest } = updates;
   await db
     .update(orderRatings)
     .set({
-      ...updates,
-      issueTagsJson: updates.issueTags
-        ? JSON.stringify(updates.issueTags)
-        : undefined,
+      ...rest,
+      issueTagsJson: issueTags ? JSON.stringify(issueTags) : undefined,
     })
     .where(
       and(

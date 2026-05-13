@@ -4,8 +4,7 @@
  * Contains: handoffRouter, messageRouter, cartRouter, adminRouter
  * These are spread into whatsappFullRouter in whatsappRouter.ts.
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-
+import type { ResultSetHeader } from "mysql2";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
@@ -145,7 +144,7 @@ async function _createRegulatedIntentHandoff(input: {
     /\b(emergency|side\s*effects?|adverse|allergy|breath|swelling|chest\s*pain)\b/i.test(
       input.message
     );
-  const [r] = await db.insert(staffHandoffs).values({
+  const handoffInsert = await db.insert(staffHandoffs).values({
     phone: input.phone,
     userId: input.userId,
     sessionId: input.sessionId ?? null,
@@ -154,7 +153,8 @@ async function _createRegulatedIntentHandoff(input: {
     status: "open",
     priority: urgent ? "urgent" : "high",
   });
-  const handoffId = (r as any).insertId as number;
+  const [handoffHeader] = handoffInsert as unknown as [ResultSetHeader];
+  const handoffId = handoffHeader.insertId;
   await writeAuditLog({
     actor: { id: input.userId ?? null, type: "whatsapp" },
     action: "whatsapp.regulated_intent.escalated",
@@ -165,7 +165,14 @@ async function _createRegulatedIntentHandoff(input: {
   return handoffId;
 }
 
-function _formatCart(lines: any[]): string {
+function _formatCart(
+  lines: {
+    productName?: string | null;
+    productId: string | number;
+    qty: number;
+    lineTotal: string;
+  }[]
+): string {
   if (!lines.length) return "Your cart is empty.\n\nReply *hi* for main menu.";
   const items = lines.map(
     (l, i) =>
@@ -193,7 +200,7 @@ const handoffRouter = router({
     .query(async ({ input }) => {
       const db = await getDbSafe();
       const offset = (input.page - 1) * input.limit;
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (input.status !== "all")
         conditions.push(eq(staffHandoffs.status, input.status));
       const rows = await db
@@ -295,7 +302,7 @@ const messageRouter = router({
     .query(async ({ input }) => {
       const db = await getDbSafe();
       const offset = (input.page - 1) * input.limit;
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (input.phone)
         conditions.push(like(whatsappMessages.phone, `%${input.phone}%`));
       if (input.direction !== "all")
@@ -378,15 +385,16 @@ const cartRouter = router({
 
       const userId = await resolveUserId(input.phone);
       if (!cart) {
-        const [r] = await db.insert(whatsappCarts).values({
+        const cartInsert = await db.insert(whatsappCarts).values({
           phone: input.phone,
           userId: userId ?? null,
           storeId: null,
           status: "active",
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
-        const cartId = (r as any).insertId as number;
-        cart = { id: cartId } as any;
+        const [cartHeader] = cartInsert as unknown as [ResultSetHeader];
+        const cartId = cartHeader.insertId;
+        cart = { id: cartId } as typeof cart;
       }
 
       const sku = await db

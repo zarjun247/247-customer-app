@@ -4,17 +4,18 @@
  * Contains: transferRouter, auditSessionRouter, quarantineRouter, expiryActionsRouter
  * These are spread into inventoryLedgerRouter in inventoryRouter.ts.
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import type { ResultSetHeader } from "mysql2";
 import {
   isAdmin,
   isSuperAdmin,
   requireStaffStore,
   requireStoreAccess,
 } from "../_core/rbac";
+import type { AccessUser } from "../_core/rbac";
 import { logAudit } from "../services/audit";
 import {
   applyStockAuditCorrection,
@@ -23,7 +24,7 @@ import {
 import { resolveBarcodeForStockAudit } from "../services/barcodeService";
 import { reserveBatchAtomic } from "../services/reservationService";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
-import { eq, and, or, gt, desc, asc } from "drizzle-orm";
+import { eq, and, or, gt, desc, asc, type SQL } from "drizzle-orm";
 
 // ─── DB helper ────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ function assertManagerRole(role: string | null | undefined) {
 }
 
 function requireStoreScopedFilter(
-  user: any,
+  user: AccessUser,
   requestedStoreId?: number
 ): number | undefined {
   if (requestedStoreId !== undefined) {
@@ -86,7 +87,7 @@ function requireStoreScopedFilter(
 }
 
 function requireTransferEndpointAccess(
-  user: any,
+  user: AccessUser,
   transfer: { fromStoreId: number; toStoreId: number },
   endpoint: "initiate" | "receive" | "read"
 ): void {
@@ -126,14 +127,14 @@ const transferRouter = router({
       const db = await getDb();
       const { stockTransfers, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
-      const conds: ReturnType<typeof eq>[] = [];
-      if (visibleStoreId)
-        conds.push(
-          or(
-            eq(stockTransfers.fromStoreId, visibleStoreId),
-            eq(stockTransfers.toStoreId, visibleStoreId)
-          ) as any
+      const conds: SQL[] = [];
+      if (visibleStoreId) {
+        const orCond = or(
+          eq(stockTransfers.fromStoreId, visibleStoreId),
+          eq(stockTransfers.toStoreId, visibleStoreId)
         );
+        if (orCond) conds.push(orCond);
+      }
       if (input.status) conds.push(eq(stockTransfers.status, input.status));
 
       const rows = await db
@@ -211,7 +212,7 @@ const transferRouter = router({
         releaseReason: "transfer_initiated",
         ctx,
       });
-      const [result] = await db.insert(stockTransfers).values({
+      const transferInsert = await db.insert(stockTransfers).values({
         fromStoreId: input.fromStoreId,
         toStoreId: input.toStoreId,
         batchId: input.batchId,
@@ -221,11 +222,12 @@ const transferRouter = router({
         initiatedBy: ctx.user.id,
         note: input.note,
       });
+      const [transferHeader] = transferInsert as unknown as [ResultSetHeader];
       try {
         await logAudit({
           actorId: ctx.user.id,
           entityType: "stock_transfer",
-          entityId: result.insertId,
+          entityId: transferHeader.insertId,
           action: "inventory.initiate",
           afterJson: input,
           source: "admin",
@@ -233,7 +235,7 @@ const transferRouter = router({
       } catch {
         /* non-critical */
       }
-      return { transferId: result.insertId };
+      return { transferId: transferHeader.insertId };
     }),
 
   receive: protectedProcedure
@@ -308,7 +310,7 @@ const auditSessionRouter = router({
       const visibleStoreId = requireStoreScopedFilter(ctx.user, input.storeId);
       const db = await getDb();
       const { stockAudits } = await schema();
-      const conds: ReturnType<typeof eq>[] = [];
+      const conds: SQL[] = [];
       if (visibleStoreId) conds.push(eq(stockAudits.storeId, visibleStoreId));
       if (input.status) conds.push(eq(stockAudits.status, input.status));
       return db
@@ -333,13 +335,14 @@ const auditSessionRouter = router({
       });
       const db = await getDb();
       const { stockAudits, stockAuditLines, batchLedger } = await schema();
-      const [result] = await db.insert(stockAudits).values({
+      const auditInsert = await db.insert(stockAudits).values({
         storeId: input.storeId,
         auditType: input.auditType,
         status: "draft",
         startedBy: ctx.user.id,
         note: input.note,
       });
+      const [auditHeader] = auditInsert as unknown as [ResultSetHeader];
       const batches = await db
         .select()
         .from(batchLedger)
@@ -353,7 +356,7 @@ const auditSessionRouter = router({
       if (batches.length > 0) {
         await db.insert(stockAuditLines).values(
           batches.map(b => ({
-            auditId: result.insertId,
+            auditId: auditHeader.insertId,
             batchId: b.id,
             productId: b.productId,
             systemQty: b.qtyOnHand,
@@ -365,7 +368,7 @@ const auditSessionRouter = router({
         await logAudit({
           actorId: ctx.user.id,
           entityType: "stock_audit",
-          entityId: result.insertId,
+          entityId: auditHeader.insertId,
           action: "inventory.create",
           afterJson: { ...input, lineCount: batches.length },
           source: "admin",
@@ -373,7 +376,7 @@ const auditSessionRouter = router({
       } catch {
         /* non-critical */
       }
-      return { auditId: result.insertId, lineCount: batches.length };
+      return { auditId: auditHeader.insertId, lineCount: batches.length };
     }),
 
   getLines: protectedProcedure
@@ -529,12 +532,12 @@ const quarantineRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { batchQuarantineLogs, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
-      const conds: ReturnType<typeof eq>[] = [];
+      const conds: SQL[] = [];
       if (input.storeId)
         conds.push(eq(batchQuarantineLogs.storeId, input.storeId));
       if (input.status)
@@ -578,12 +581,12 @@ const expiryActionsRouter = router({
     )
     .query(async ({ ctx, input }) => {
       assertInventoryRole(ctx.user.role);
-      if ((input as any).storeId !== undefined)
-        requireStoreAccess(ctx.user, Number((input as any).storeId));
+      if (input.storeId !== undefined)
+        requireStoreAccess(ctx.user, input.storeId);
       const db = await getDb();
       const { expiryActions, batchLedger, products } = await schema();
       const offset = (input.page - 1) * input.pageSize;
-      const conds: ReturnType<typeof eq>[] = [];
+      const conds: SQL[] = [];
       if (input.storeId) conds.push(eq(expiryActions.storeId, input.storeId));
       if (input.expiryBucket)
         conds.push(eq(expiryActions.expiryBucket, input.expiryBucket));
@@ -635,7 +638,7 @@ const expiryActionsRouter = router({
       await requireStoreAccessForEntity("batch", input.batchId, ctx);
       const db = await getDb();
       const { expiryActions } = await schema();
-      const [result] = await db.insert(expiryActions).values({
+      const expiryInsert = await db.insert(expiryActions).values({
         batchId: input.batchId,
         productId: input.productId,
         storeId: input.storeId,
@@ -646,7 +649,8 @@ const expiryActionsRouter = router({
         note: input.note,
         actionBy: ctx.user.id,
       });
-      return { id: result.insertId };
+      const [expiryHeader] = expiryInsert as unknown as [ResultSetHeader];
+      return { id: expiryHeader.insertId };
     }),
 });
 

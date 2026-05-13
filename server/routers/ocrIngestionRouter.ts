@@ -1,13 +1,12 @@
 /**
  * ocrIngestionRouter — PART 6: AI OCR Bill Ingestion V1
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
-import { eq, and, desc, like, or as _or, inArray } from "drizzle-orm";
+import { eq, and, desc, like, or as _or, inArray, type SQL } from "drizzle-orm";
 import { ocrIngestionRouterExtension } from "./ocrAdminRouter";
 import {
   approvalStatusForException,
@@ -25,6 +24,8 @@ import {
   isUnsafeOcrEvidenceUrl,
   parseManualCsvImport,
 } from "../services/ocrProductionSafety";
+import type { getDb as _getDbType } from "../db";
+type OcrDb = NonNullable<Awaited<ReturnType<typeof _getDbType>>>;
 
 async function getDb() {
   const { getDb: _getDb } = await import("../db");
@@ -69,7 +70,7 @@ function decideMatchStatus(
 }
 
 async function matchProduct(
-  db: any,
+  db: OcrDb,
   line: {
     itemName: string;
     manufacturer?: string;
@@ -101,7 +102,7 @@ async function matchProduct(
       details: `Exact: "${m.name}"`,
     });
   if (candidates.length === 0 && name.length >= 4) {
-    const words = name.split(/\s+/).filter((w: string) => w.length >= 3);
+    const words = name.split(/\s+/).filter(w => w.length >= 3);
     for (const word of words.slice(0, 2)) {
       const fuzzy = await db
         .select({ id: products.id, name: products.name })
@@ -109,11 +110,11 @@ async function matchProduct(
         .where(like(products.name, `%${word}%`))
         .limit(5);
       for (const m of fuzzy) {
-        if (!candidates.find((c: any) => c.productId === m.id)) {
+        if (!candidates.find(c => c.productId === m.id)) {
           const pw = m.name.toLowerCase().split(/\s+/);
           const iw = name.split(/\s+/);
-          const overlap = iw.filter((w: string) =>
-            pw.some((p: string) => p.includes(w) || w.includes(p))
+          const overlap = iw.filter(w =>
+            pw.some(p => p.includes(w) || w.includes(p))
           ).length;
           const score = Math.min(
             90,
@@ -141,7 +142,7 @@ async function matchProduct(
       )
       .limit(3);
     for (const m of hsnMatches) {
-      if (!candidates.find((c: any) => c.productId === m.id))
+      if (!candidates.find(c => c.productId === m.id))
         candidates.push({
           productId: m.id,
           score: 65,
@@ -312,7 +313,7 @@ export const ocrIngestionRouter = router({
                     type: "image_url",
                     image_url: { url: job.fileUrl, detail: "high" },
                   },
-                ] as any,
+                ] as unknown as string,
               },
             ],
           });
@@ -321,8 +322,12 @@ export const ocrIngestionRouter = router({
             throw new Error(
               "manual_required: OCR provider returned no parse payload"
             );
-          const providerParsed =
-            typeof raw === "string" ? JSON.parse(raw) : raw;
+          const providerParsed = (
+            typeof raw === "string" ? JSON.parse(raw) : raw
+          ) as {
+            header?: Record<string, unknown> & { confidence?: number };
+            lines?: unknown[];
+          };
           parsed = {
             header: {
               ...providerParsed.header,
@@ -405,7 +410,14 @@ export const ocrIngestionRouter = router({
               ocrLineId: lineId,
               productId: candidate.productId,
               matchScore: String(candidate.score),
-              matchMethod: candidate.method as any,
+              matchMethod: candidate.method as
+                | "barcode"
+                | "exact_name"
+                | "fuzzy_name"
+                | "hsn_gst"
+                | "supplier_alias"
+                | "previous_mapping"
+                | "manufacturer_strength",
               matchDetails: candidate.details,
               isSelected: false,
             });
@@ -541,14 +553,15 @@ export const ocrIngestionRouter = router({
             : reviewRequired,
           unknownSku,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : "Processing failed";
         await db
           .update(ingestionJobs)
-          .set({ status: "failed", errorMessage: err.message })
+          .set({ status: "failed", errorMessage: errMsg })
           .where(eq(ingestionJobs.id, input.jobId));
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: err.message,
+          message: errMsg,
         });
       }
     }),
@@ -575,7 +588,7 @@ export const ocrIngestionRouter = router({
       requirePurchaseRole(ctx.user.role);
       const db = await getDb();
       const { ingestionJobs } = await import("../../drizzle/schema");
-      const conditions: any[] = [];
+      const conditions: SQL[] = [];
       if (input.storeId)
         conditions.push(eq(ingestionJobs.storeId, input.storeId));
       if (input.status) conditions.push(eq(ingestionJobs.status, input.status));
@@ -637,7 +650,7 @@ export const ocrIngestionRouter = router({
       const { ocrExtractedLines, ocrMatchCandidates, products } = await import(
         "../../drizzle/schema"
       );
-      const conditions: any[] = [
+      const conditions: SQL[] = [
         eq(ocrExtractedLines.ingestionJobId, input.jobId),
       ];
       if (input.matchStatus)
@@ -647,7 +660,7 @@ export const ocrIngestionRouter = router({
         .from(ocrExtractedLines)
         .where(and(...conditions))
         .orderBy(ocrExtractedLines.lineNo);
-      const lineIds = lines.map((l: any) => l.id);
+      const lineIds = lines.map(l => l.id);
       const candidates =
         lineIds.length > 0
           ? await db
@@ -666,9 +679,9 @@ export const ocrIngestionRouter = router({
               .where(inArray(ocrMatchCandidates.ocrLineId, lineIds))
           : [];
       return {
-        lines: lines.map((line: any) => ({
+        lines: lines.map(line => ({
           ...line,
-          candidates: candidates.filter((c: any) => c.ocrLineId === line.id),
+          candidates: candidates.filter(c => c.ocrLineId === line.id),
         })),
       };
     }),
@@ -708,7 +721,10 @@ export const ocrIngestionRouter = router({
         .where(eq(ocrExtractedLines.id, input.lineId))
         .limit(1);
       if (!line) throw new TRPCError({ code: "NOT_FOUND" });
-      const u: any = { reviewedBy: ctx.user.id, reviewedAt: new Date() };
+      const u: Record<string, unknown> = {
+        reviewedBy: ctx.user.id,
+        reviewedAt: new Date(),
+      };
       if (input.action === "approve") {
         u.matchStatus = "auto_matched";
         u.approvalStatus = "approved";
@@ -767,11 +783,10 @@ export const ocrIngestionRouter = router({
       if (input.correctionNotes !== undefined)
         u.correctionNotes = input.correctionNotes;
       if (input.action === "approve" || input.action === "reassign") {
-        const productId =
-          u.mappedProductId ??
+        const productId = (u.mappedProductId ??
           u.matchedProductId ??
           line.mappedProductId ??
-          line.matchedProductId;
+          line.matchedProductId) as number | null | undefined;
         const [product] = productId
           ? await db
               .select()
@@ -779,17 +794,18 @@ export const ocrIngestionRouter = router({
               .where(eq(products.id, productId))
               .limit(1)
           : [];
-        const mergedLine = { ...line, ...u };
+        const mergedLine = { ...line, ...u } as typeof line &
+          Record<string, unknown>;
         assertRuntimeGate(
           validatePurchaseLineMaster({
             product: product ? productToMasterLike(product) : null,
             productId,
-            batchNo: mergedLine.batchNo,
-            expiryDate: mergedLine.expiryDate,
-            mrp: mergedLine.mrp,
-            purchaseRate: mergedLine.purchaseRate,
-            hsnCode: mergedLine.hsnCode,
-            gstRate: mergedLine.gstRate,
+            batchNo: mergedLine.batchNo ?? null,
+            expiryDate: mergedLine.expiryDate ?? null,
+            mrp: mergedLine.mrp ?? null,
+            purchaseRate: mergedLine.purchaseRate ?? null,
+            hsnCode: mergedLine.hsnCode ?? null,
+            gstRate: mergedLine.gstRate ?? null,
           }),
           "OCR line has incomplete product master or purchase metadata"
         );
@@ -842,7 +858,7 @@ export const ocrIngestionRouter = router({
       requirePurchaseRole(ctx.user.role);
       const db = await getDb();
       const { ocrExtractedHeaders } = await import("../../drizzle/schema");
-      const u: any = {
+      const u: Record<string, unknown> = {
         reviewStatus: input.action === "approve" ? "approved" : "rejected",
         reviewedBy: ctx.user.id,
         reviewedAt: new Date(),
@@ -882,7 +898,7 @@ export const ocrIngestionRouter = router({
       requirePurchaseRole(ctx.user.role);
       const db = await getDb();
       const { ocrReviewTasks } = await import("../../drizzle/schema");
-      const conditions: any[] = [];
+      const conditions: SQL[] = [];
       if (input.jobId)
         conditions.push(eq(ocrReviewTasks.ingestionJobId, input.jobId));
       if (input.taskType)

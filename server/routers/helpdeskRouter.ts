@@ -6,7 +6,7 @@
  * Admins can view all tickets and resolve them.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+import type { ResultSetHeader } from "mysql2";
 import {
   router,
   protectedProcedure,
@@ -63,7 +63,8 @@ export const helpdeskRouter = router({
         status: "open",
       });
 
-      const ticketId = (result as any).insertId as number;
+      const [header] = result as unknown as [ResultSetHeader];
+      const ticketId = header.insertId;
 
       // Notify owner of new ticket
       await notifyOwner({

@@ -1019,8 +1019,6 @@ const prescriptionRouter = router({
         )
       );
     }
-    // getPrescriptionVault returns any[] because of a pre-existing any cast in db.ts
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return rows;
   }),
   /** Mark an approved prescription as permanently on-file */

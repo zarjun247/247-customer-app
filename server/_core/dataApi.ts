@@ -57,8 +57,9 @@ export async function callDataApi(
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const payload = await response.json().catch(() => ({}));
+  const payload: unknown = await (response.json() as Promise<unknown>).catch(
+    () => ({})
+  );
   if (payload && typeof payload === "object" && "jsonData" in payload) {
     try {
       return JSON.parse((payload as Record<string, string>).jsonData ?? "{}");

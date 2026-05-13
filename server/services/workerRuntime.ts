@@ -233,7 +233,7 @@ export async function executeJob(
   if (metadata.governanceBoundary) assertAITaskAllowed(job.jobType);
   const handler = input.handler ?? handlers.get(job.jobType);
   if (!handler) {
-    const dead = await deadLetterJob(job.id, {
+    const dead = deadLetterJob(job.id, {
       reason: `No explicit handler registered for ${job.jobType}`,
       deadLetterClass: "non_retryable",
       actor: input.workerId,
@@ -241,8 +241,8 @@ export async function executeJob(
     return { status: "dead_letter", job: dead };
   }
 
-  await markJobRunning(job.id, input.workerId);
-  await heartbeatJob(job.id, { workerId: input.workerId });
+  markJobRunning(job.id, input.workerId);
+  heartbeatJob(job.id, { workerId: input.workerId });
 
   try {
     const result = await withTimeout(
@@ -265,7 +265,7 @@ export async function executeJob(
           governanceError instanceof Error
             ? governanceError.message
             : String(governanceError);
-        const dead = await deadLetterJob(job.id, {
+        const dead = deadLetterJob(job.id, {
           reason,
           deadLetterClass: "non_retryable",
           actor: input.workerId,
@@ -274,21 +274,21 @@ export async function executeJob(
       }
     }
     if (isUnsafeProviderSuccess(result)) {
-      const dead = await deadLetterJob(job.id, {
+      const dead = deadLetterJob(job.id, {
         reason: `Unsafe provider result cannot be treated as success: ${JSON.stringify(result)}`,
         deadLetterClass: "provider_unavailable",
         actor: input.workerId,
       });
       return { status: "dead_letter", job: dead };
     }
-    const completed = await completeJob(job.id, {
+    const completed = completeJob(job.id, {
       workerId: input.workerId,
       result: result && typeof result === "object" ? result : {},
     });
     return { status: "completed", job: completed };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    const failed = await failJob(job.id, {
+    const failed = failJob(job.id, {
       reason,
       retryable: metadata.retryable,
       workerId: input.workerId,
@@ -306,7 +306,7 @@ export async function runWorkerOnce(
     workerId: "worker",
   }
 ): Promise<{ processed: number; job?: WorkerJob; status?: string }> {
-  const job = await reserveJob({
+  const job = reserveJob({
     queueName: input.queueName,
     workerId: input.workerId,
   });

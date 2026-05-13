@@ -26,6 +26,5 @@ export function redactSensitive(input: string): string {
 }
 
 export function redactObject<T>(obj: T): T {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  return JSON.parse(redactSensitive(JSON.stringify(obj)));
+  return JSON.parse(redactSensitive(JSON.stringify(obj))) as T;
 }

@@ -1,8 +1,21 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { and, asc, eq } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db";
-import { commercialEvents } from "../../drizzle/schema";
+import {
+  commercialEvents,
+  type NewCommercialEvent,
+} from "../../drizzle/schema";
 
 export const COMMERCIAL_LIFECYCLE_CONCEPTS = [
   "cart",
@@ -315,11 +328,11 @@ async function appendCommercialEventToDatabase(
       .limit(1);
     if (existing) return fromDbEvent(existing, true);
   }
-  await db.insert(commercialEvents).values({
+  const insertRow: NewCommercialEvent = {
     eventId: event.eventId,
-    aggregateType: event.aggregateType,
-    aggregateId: event.aggregateId,
-    eventType: event.eventType,
+    aggregateType: String(event.aggregateType),
+    aggregateId: String(event.aggregateId),
+    eventType: String(event.eventType),
     eventVersion: event.eventVersion,
     actorType: event.actorType,
     actorId: event.actorId,
@@ -334,7 +347,8 @@ async function appendCommercialEventToDatabase(
     occurredAt: event.occurredAt,
     idempotencyKey: event.idempotencyKey,
     correlationId: event.correlationId,
-  } as any);
+  };
+  await db.insert(commercialEvents).values(insertRow);
   return event;
 }
 
@@ -343,7 +357,7 @@ async function appendCommercialEventToDatabase(
 // commercial event inside the same transactional boundary. tx must implement the same
 // query interface as the Drizzle DB client (select/insert/update)
 export async function appendCommercialEventWithDb(
-  db: any,
+  db: DrizzleDb,
   input: CommercialEventInput
 ): Promise<CommercialEventRecord> {
   const event = normalizeCommercialEvent(input);
@@ -356,11 +370,11 @@ export async function appendCommercialEventWithDb(
       .limit(1);
     if (existing) return fromDbEvent(existing, true);
   }
-  await db.insert(commercialEvents).values({
+  const insertRow2: NewCommercialEvent = {
     eventId: event.eventId,
-    aggregateType: event.aggregateType,
-    aggregateId: event.aggregateId,
-    eventType: event.eventType,
+    aggregateType: String(event.aggregateType),
+    aggregateId: String(event.aggregateId),
+    eventType: String(event.eventType),
     eventVersion: event.eventVersion,
     actorType: event.actorType,
     actorId: event.actorId,
@@ -375,43 +389,59 @@ export async function appendCommercialEventWithDb(
     occurredAt: event.occurredAt,
     idempotencyKey: event.idempotencyKey,
     correlationId: event.correlationId,
-  } as any);
+  };
+  await db.insert(commercialEvents).values(insertRow2);
   return event;
 }
 
-function fromDbEvent(row: any, duplicate = false): CommercialEventRecord {
+function prim(v: unknown, fallback = ""): string {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return fallback;
+}
+
+function primOrNull(v: unknown): string | null {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return null;
+}
+
+function fromDbEvent(
+  row: Record<string, unknown>,
+  duplicate = false
+): CommercialEventRecord {
   let payload: Record<string, unknown> = {};
   if (typeof row.eventPayload === "string" && row.eventPayload) {
     try {
-      payload = JSON.parse(row.eventPayload);
+      payload = JSON.parse(row.eventPayload) as Record<string, unknown>;
     } catch {
       payload = { parseError: true };
     }
   } else if (row.eventPayload && typeof row.eventPayload === "object") {
-    payload = row.eventPayload;
+    payload = row.eventPayload as Record<string, unknown>;
   }
   return {
-    eventId: row.eventId,
-    aggregateType: row.aggregateType,
-    aggregateId: row.aggregateId,
-    eventType: row.eventType,
+    eventId: prim(row.eventId),
+    aggregateType: prim(row.aggregateType),
+    aggregateId: prim(row.aggregateId),
+    eventType: prim(row.eventType),
     eventVersion: Number(row.eventVersion ?? 1),
-    actorType: row.actorType ?? "system",
-    actorId: row.actorId ?? null,
-    storeId: row.storeId ?? null,
-    orderId: row.orderId ?? null,
-    saleId: row.saleId ?? null,
-    invoiceId: row.invoiceId ?? null,
-    reservationId: row.reservationId ?? null,
-    paymentId: row.paymentId ?? null,
-    refundId: row.refundId ?? null,
+    actorType: prim(row.actorType, "system"),
+    actorId: primOrNull(row.actorId),
+    storeId: primOrNull(row.storeId),
+    orderId: primOrNull(row.orderId),
+    saleId: primOrNull(row.saleId),
+    invoiceId: primOrNull(row.invoiceId),
+    reservationId: primOrNull(row.reservationId),
+    paymentId: primOrNull(row.paymentId),
+    refundId: primOrNull(row.refundId),
     eventPayload: payload,
     occurredAt:
       row.occurredAt instanceof Date
         ? row.occurredAt
-        : new Date(row.occurredAt),
-    idempotencyKey: row.idempotencyKey ?? null,
-    correlationId: row.correlationId ?? null,
+        : new Date(prim(row.occurredAt)),
+    idempotencyKey: primOrNull(row.idempotencyKey),
+    correlationId: primOrNull(row.correlationId),
     duplicate,
   };
 }
@@ -421,7 +451,7 @@ async function getDatabaseTimeline(
 ): Promise<CommercialEventRecord[]> {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable for commercial timeline");
-  const conditions: any[] = [];
+  const conditions: SQL<unknown>[] = [];
   if (filter.aggregateType)
     conditions.push(
       eq(commercialEvents.aggregateType, String(filter.aggregateType))
@@ -448,7 +478,7 @@ async function getDatabaseTimeline(
   const rows = await (
     conditions.length ? query.where(and(...conditions)) : query
   ).orderBy(asc(commercialEvents.occurredAt), asc(commercialEvents.eventId));
-  return rows.map((row: any) => fromDbEvent(row));
+  return rows.map(row => fromDbEvent(row as Record<string, unknown>));
 }
 
 export async function appendCommercialEvent(

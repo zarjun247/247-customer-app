@@ -1,10 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { eq } from "drizzle-orm";
 import {
   providerDeadLetters,
   providerWebhookEvents,
   type ProviderWebhookEvent,
 } from "../../drizzle/schema";
+import type { ResultSetHeader } from "mysql2";
+import type { getDb } from "../db";
+
+type DrizzleDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
 export type ProviderRetryStatus =
   | "received"
@@ -42,12 +45,13 @@ const DEAD_LETTER_DUPLICATE_CODE = new Set([
   "SQLITE_CONSTRAINT_UNIQUE",
 ]);
 
-function errorHasDuplicateCode(error: any): boolean {
+function errorHasDuplicateCode(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  if (DEAD_LETTER_DUPLICATE_CODE.has(error.code)) return true;
+  const e = error as Record<string, unknown>;
+  if (typeof e.code === "string" && DEAD_LETTER_DUPLICATE_CODE.has(e.code))
+    return true;
   return (
-    errorHasDuplicateCode(error.cause) ||
-    errorHasDuplicateCode(error.originalError)
+    errorHasDuplicateCode(e.cause) || errorHasDuplicateCode(e.originalError)
   );
 }
 
@@ -99,7 +103,7 @@ export function deadLetterProviderEventInMemory(
 }
 
 export async function scheduleProviderEventRetry(
-  db: any,
+  db: DrizzleDb,
   input: {
     providerEventRowId: number;
     reason: string;
@@ -166,7 +170,7 @@ export async function scheduleProviderEventRetry(
 }
 
 export async function moveProviderEventToDeadLetterOnce(
-  db: any,
+  db: DrizzleDb,
   input: {
     providerEvent: ProviderWebhookEvent;
     reason: string;
@@ -215,13 +219,13 @@ export async function moveProviderEventToDeadLetterOnce(
       .where(eq(providerWebhookEvents.id, input.providerEvent.id));
     return {
       deadLetter: {
-        id: Number((result as { insertId?: number }).insertId),
+        id: Number((result as unknown as [ResultSetHeader])[0].insertId),
         providerEventId: input.providerEvent.id,
       },
       duplicate: false,
       emittedSuccess: false as const,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (!errorHasDuplicateCode(error)) throw error;
     const [duplicate] = await db
       .select()

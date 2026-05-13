@@ -3,9 +3,10 @@
  * PART 3 — Master Data Part B + Upgraded Product Master
  * Covers: Doctor (upgraded), PatientCategory, Staff, Store, Building, Printer (upgraded), Product
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import type { SQL } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
@@ -102,11 +103,13 @@ export const doctorMasterRouter = router({
       const db = await getDb();
       const { doctors } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(doctors.doctorName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(doctors.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(doctors)
@@ -135,8 +138,8 @@ export const doctorMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { doctors } = await import("../../drizzle/schema");
-      const [r] = await db.insert(doctors).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(doctors).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -254,11 +257,13 @@ export const patientCategoryRouter = router({
       const db = await getDb();
       const { patientCategories } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(patientCategories.categoryName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(patientCategories.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(patientCategories)
@@ -277,8 +282,8 @@ export const patientCategoryRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { patientCategories } = await import("../../drizzle/schema");
-      const [r] = await db.insert(patientCategories).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(patientCategories).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -390,18 +395,30 @@ export const staffMasterRouter = router({
       const db = await getDb();
       const { staffMaster } = await import("../../drizzle/schema");
       const { like, and, eq, or } = await import("drizzle-orm");
-      const conds: any[] = [];
+      type StaffRoleEnum =
+        | "pharmacist"
+        | "salesman"
+        | "cashier"
+        | "store_manager"
+        | "purchase_manager"
+        | "delivery_rider"
+        | "admin"
+        | "other";
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(
           or(
             like(staffMaster.name, `%${input.search}%`),
             like(staffMaster.phone, `%${input.search}%`)
-          )
+          ) as SQL<unknown>
         );
       if (input.activeOnly) conds.push(eq(staffMaster.isActive, true));
       if (input.storeId) conds.push(eq(staffMaster.storeId, input.storeId));
-      if (input.role) conds.push(eq(staffMaster.role, input.role as any));
-      const where = conds.length ? and(...conds) : undefined;
+      if (input.role)
+        conds.push(eq(staffMaster.role, input.role as StaffRoleEnum));
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(staffMaster)
@@ -441,8 +458,8 @@ export const staffMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { staffMaster } = await import("../../drizzle/schema");
-      const [r] = await db.insert(staffMaster).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(staffMaster).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -577,10 +594,12 @@ export const storeMasterRouter = router({
       const db = await getDb();
       const { stores } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search) conds.push(like(stores.name, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(stores.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(stores)
@@ -610,8 +629,8 @@ export const storeMasterRouter = router({
       requireAdmin(ctx.user.role);
       const db = await getDb();
       const { stores } = await import("../../drizzle/schema");
-      const [r] = await db.insert(stores).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(stores).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",

@@ -3,10 +3,10 @@
  * CRUD procedures for all Pharmacy OS master data tables.
  * Access: store_manager | admin | super_admin | purchase_manager (varies by master)
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import type { SQL } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
@@ -107,11 +107,12 @@ const supplierRouter = router({
       const db = await getDbSafe();
       const { suppliers } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(suppliers.supplierName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(suppliers.isActive, true));
-      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const where: SQL<unknown> | undefined =
+        conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db
         .select()
         .from(suppliers)
@@ -157,10 +158,10 @@ const supplierRouter = router({
       requireManager(ctx.user.role);
       const db = await getDbSafe();
       const { suppliers } = await import("../../drizzle/schema");
-      const [result] = await db
+      const insertResult = await db
         .insert(suppliers)
         .values({ ...input, isActive: true });
-      const id = (result as { insertId: number }).insertId;
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit(
         {
           actorId: ctx.user.id,
@@ -311,11 +312,12 @@ const manufacturerRouter = router({
       const db = await getDbSafe();
       const { manufacturers } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(manufacturers.companyName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(manufacturers.isActive, true));
-      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const where: SQL<unknown> | undefined =
+        conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db
         .select()
         .from(manufacturers)
@@ -352,10 +354,10 @@ const manufacturerRouter = router({
       requireManager(ctx.user.role);
       const db = await getDbSafe();
       const { manufacturers } = await import("../../drizzle/schema");
-      const [result] = await db
+      const insertResult = await db
         .insert(manufacturers)
         .values({ ...input, isActive: true });
-      const id = (result as { insertId: number }).insertId;
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit(
         {
           actorId: ctx.user.id,
@@ -501,11 +503,12 @@ const categoryRouter = router({
       const db = await getDbSafe();
       const { drugCategories } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(drugCategories.categoryName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(drugCategories.isActive, true));
-      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const where: SQL<unknown> | undefined =
+        conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db
         .select()
         .from(drugCategories)
@@ -528,10 +531,10 @@ const categoryRouter = router({
       requireManager(ctx.user.role);
       const db = await getDbSafe();
       const { drugCategories } = await import("../../drizzle/schema");
-      const [result] = await db
+      const insertResult = await db
         .insert(drugCategories)
         .values({ ...input, isActive: true });
-      const id = (result as { insertId: number }).insertId;
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit(
         {
           actorId: ctx.user.id,
@@ -678,11 +681,12 @@ const genericRouter = router({
       const db = await getDbSafe();
       const { generics } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(generics.genericName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(generics.isActive, true));
-      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const where: SQL<unknown> | undefined =
+        conds.length > 1 ? and(...conds) : conds[0];
       const rows = await db
         .select()
         .from(generics)
@@ -704,10 +708,10 @@ const genericRouter = router({
       requireManager(ctx.user.role);
       const db = await getDbSafe();
       const { generics } = await import("../../drizzle/schema");
-      const [result] = await db
+      const insertResult = await db
         .insert(generics)
         .values({ ...input, isActive: true });
-      const id = (result as { insertId: number }).insertId;
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit(
         {
           actorId: ctx.user.id,
@@ -875,8 +879,8 @@ const doctorRouter = router({
       requireManager(ctx.user.role);
       const db = await getDbSafe();
       const { doctors } = await import("../../drizzle/schema");
-      const [result] = await db.insert(doctors).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const insertResult = await db.insert(doctors).values(input);
+      return { id: (insertResult as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   update: protectedProcedure
@@ -940,8 +944,8 @@ const scheduleRouter = router({
           .where(eq(scheduleMaster.id, input.id));
         return { id: input.id };
       }
-      const [result] = await db.insert(scheduleMaster).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const insertResult = await db.insert(scheduleMaster).values(input);
+      return { id: (insertResult as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   deactivate: protectedProcedure
@@ -987,11 +991,12 @@ const discountCategoryRouter = router({
       const db = await getDbSafe();
       const { discountCategories } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(discountCategories.categoryName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(discountCategories.isActive, true));
-      const where = conds.length > 1 ? and(...conds) : conds[0];
+      const where: SQL<unknown> | undefined =
+        conds.length > 1 ? and(...conds) : conds[0];
       return db
         .select()
         .from(discountCategories)
@@ -1022,8 +1027,8 @@ const discountCategoryRouter = router({
           .where(eq(discountCategories.id, id));
         return { id };
       }
-      const [result] = await db.insert(discountCategories).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const insertResult = await db.insert(discountCategories).values(input);
+      return { id: (insertResult as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   deactivate: protectedProcedure
@@ -1113,8 +1118,8 @@ const messageTemplateRouter = router({
           .where(eq(messageTemplates.id, input.id));
         return { id: input.id };
       }
-      const [result] = await db.insert(messageTemplates).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const insertResult = await db.insert(messageTemplates).values(input);
+      return { id: (insertResult as unknown as [ResultSetHeader])[0].insertId };
     }),
 });
 
@@ -1149,8 +1154,8 @@ const financialYearRouter = router({
       }
       const db = await getDbSafe();
       const { financialYears } = await import("../../drizzle/schema");
-      const [result] = await db.insert(financialYears).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const insertResult = await db.insert(financialYears).values(input);
+      return { id: (insertResult as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   lock: protectedProcedure
@@ -1200,8 +1205,8 @@ const stateRouter = router({
         await db.update(states).set(input).where(eq(states.id, input.id));
         return { id: input.id };
       }
-      const [result] = await db.insert(states).values(input);
-      return { id: (result as { insertId: number }).insertId };
+      const insertResult = await db.insert(states).values(input);
+      return { id: (insertResult as unknown as [ResultSetHeader])[0].insertId };
     }),
 });
 

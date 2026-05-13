@@ -1,35 +1,35 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any, @typescript-eslint/require-await */
-import { computeOrderSla } from "./slaService";
-export async function assignDelivery(_input: any) {
+import { computeOrderSla, type Timeline } from "./slaService";
+
+export function assignDelivery(_input: unknown) {
   return { ok: true };
 }
-export async function acceptDelivery(_input: any) {
+export function acceptDelivery(_input: unknown) {
   return { ok: true };
 }
-export async function markPickedUp(_input: any) {
+export function markPickedUp(_input: unknown) {
   return { ok: true };
 }
-export async function markOutForDelivery(_input: any) {
+export function markOutForDelivery(_input: unknown) {
   return { ok: true, complianceGuard: "required" };
 }
-export async function markDelivered(_input: any) {
+export function markDelivered(_input: unknown) {
   return { ok: true, complianceGuard: "required" };
 }
-export async function markFailed(_input: any) {
+export function markFailed(_input: unknown) {
   return { ok: true };
 }
-export async function reassignDelivery(_input: any) {
+export function reassignDelivery(_input: unknown) {
   return { ok: true };
 }
-export async function getDeliveryStatus(_input: any) {
+export function getDeliveryStatus(_input: unknown) {
   return { ok: true };
 }
-export async function getRiderQueue() {
+export function getRiderQueue() {
   return { rows: [] };
 }
-export async function computeDeliverySla(t: any) {
+export function computeDeliverySla(t: Timeline) {
   return computeOrderSla(t);
 }
-export async function recordDeliveryEvent(_input: any) {
+export function recordDeliveryEvent(_input: unknown) {
   return { ok: true };
 }

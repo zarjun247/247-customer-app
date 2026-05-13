@@ -22,7 +22,7 @@
  *  - Admin: message queue, linked customers, handoffs, recent WA orders, templates
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+import type { ResultSetHeader } from "mysql2";
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -186,7 +186,11 @@ export function validateWebhookSignature(
 }
 
 /** Format order status for WhatsApp message */
-function formatOrderStatus(order: any): string {
+function formatOrderStatus(order: {
+  id: number | string;
+  status: string;
+  total: string | number;
+}): string {
   const labels: Record<string, string> = {
     created: "Order Received ✓",
     pharmacist_reviewing: "Pharmacist Reviewing 🔬",
@@ -200,7 +204,16 @@ function formatOrderStatus(order: any): string {
 }
 
 /** Format search results for WhatsApp */
-function formatSearchResults(results: any[]): string {
+function formatSearchResults(
+  results: {
+    availableQty?: number | null;
+    requiresPrescription?: boolean | null;
+    name: string;
+    strength?: string | null;
+    form?: string | null;
+    sellingPrice: string | number;
+  }[]
+): string {
   if (!results.length)
     return "No medicines found. Try a different name.\n\nReply *hi* for main menu.";
   const lines = results.slice(0, 5).map((r, i) => {
@@ -212,7 +225,14 @@ function formatSearchResults(results: any[]): string {
 }
 
 /** Format cart for WhatsApp */
-function formatCart(lines: any[]): string {
+function formatCart(
+  lines: {
+    productName?: string | null;
+    productId: string | number;
+    qty: number;
+    lineTotal: string;
+  }[]
+): string {
   if (!lines.length) return "Your cart is empty.\n\nReply *hi* for main menu.";
   const items = lines.map(
     (l, i) =>
@@ -312,7 +332,7 @@ async function createRegulatedIntentHandoff(input: {
     /\b(emergency|side\s*effects?|adverse|allergy|breath|swelling|chest\s*pain)\b/i.test(
       input.message
     );
-  const [r] = await db.insert(staffHandoffs).values({
+  const handoffInsert = await db.insert(staffHandoffs).values({
     phone: input.phone,
     userId: input.userId,
     sessionId: input.sessionId ?? null,
@@ -321,7 +341,8 @@ async function createRegulatedIntentHandoff(input: {
     status: "open",
     priority: urgent ? "urgent" : "high",
   });
-  const handoffId = (r as any).insertId as number;
+  const [handoffHeader] = handoffInsert as unknown as [ResultSetHeader];
+  const handoffId = handoffHeader.insertId;
   await writeAuditLog({
     actor: { id: input.userId ?? null, type: "whatsapp" },
     action: "whatsapp.regulated_intent.escalated",
@@ -460,10 +481,13 @@ const templateRouter = router({
     )
     .query(async ({ input }) => {
       const db = await getDbSafe();
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (input.category)
         conditions.push(
-          eq(wabaMessageTemplates.category, input.category as any)
+          eq(
+            wabaMessageTemplates.category,
+            input.category as typeof wabaMessageTemplates.category._.data
+          )
         );
       if (input.isActive !== undefined)
         conditions.push(eq(wabaMessageTemplates.isActive, input.isActive));
@@ -502,7 +526,7 @@ const templateRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbSafe();
-      const [r] = await db.insert(wabaMessageTemplates).values({
+      const templateInsert = await db.insert(wabaMessageTemplates).values({
         name: input.name,
         category: input.category,
         language: input.language,
@@ -521,7 +545,8 @@ const templateRouter = router({
         isActive: true,
         createdBy: ctx.user.id,
       });
-      return { id: (r as any).insertId as number };
+      const [templateHeader] = templateInsert as unknown as [ResultSetHeader];
+      return { id: templateHeader.insertId };
     }),
 
   update: protectedProcedure
@@ -541,7 +566,14 @@ const templateRouter = router({
     .mutation(async ({ input, ctx }) => {
       assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
-      const update: any = {};
+      const update: Partial<{
+        body: string;
+        headerText: string;
+        footerText: string;
+        wabaTemplateId: string;
+        wabaStatus: "draft" | "pending" | "approved" | "rejected";
+        isActive: boolean;
+      }> = {};
       if (input.body !== undefined) update.body = input.body;
       if (input.headerText !== undefined) update.headerText = input.headerText;
       if (input.footerText !== undefined) update.footerText = input.footerText;
@@ -683,14 +715,15 @@ const webhookRouter = router({
     .mutation(async ({ input, ctx }) => {
       assertWhatsappWebhookGuard(ctx);
       const db = await getDbSafe();
-      const [r] = await db.insert(whatsappWebhookLog).values({
+      const webhookInsert = await db.insert(whatsappWebhookLog).values({
         source: input.source,
         payload: input.payload,
         signature: input.signature ?? null,
         signatureValid: input.signatureValid ?? null,
         processedAt: new Date(),
       });
-      return { id: (r as any).insertId as number };
+      const [webhookHeader] = webhookInsert as unknown as [ResultSetHeader];
+      return { id: webhookHeader.insertId };
     }),
 
   /**
@@ -715,8 +748,8 @@ const webhookRouter = router({
       const phone = normalizeWhatsAppPhone(input.phone);
       const session = await getWhatsappSession(phone);
       const flow = session?.currentFlow ?? "menu";
-      const state: any = session?.flowState
-        ? JSON.parse(session.flowState)
+      const state: Record<string, unknown> = session?.flowState
+        ? (JSON.parse(session.flowState) as Record<string, unknown>)
         : {};
       const userId = await resolveUserId(phone);
 
@@ -735,7 +768,7 @@ const webhookRouter = router({
 
       let response = "";
       let nextFlow = flow;
-      let nextState: any = state;
+      let nextState: Record<string, unknown> = state;
 
       const msg = input.message.trim().toLowerCase();
       const isGreeting =
@@ -815,7 +848,10 @@ const webhookRouter = router({
         // ── SEARCH RESULTS — add to cart ──────────────────────────────────────────
       } else if (flow === "search_results") {
         const idx = parseInt(input.message.trim()) - 1;
-        const results: any[] = state.searchResults ?? [];
+        const results =
+          (state.searchResults as
+            | { skuId: number; name: string; price: string | number }[]
+            | undefined) ?? [];
         if (!isNaN(idx) && idx >= 0 && idx < results.length) {
           const item = results[idx];
           // Add to WhatsApp cart
@@ -834,13 +870,16 @@ const webhookRouter = router({
                 .limit(1)
             )[0];
             if (!cart) {
-              const [r] = await db.insert(whatsappCarts).values({
+              const newCartInsert = await db.insert(whatsappCarts).values({
                 phone: input.phone,
                 userId: userId ?? null,
                 status: "active",
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
               });
-              cart = { id: (r as any).insertId } as any;
+              const [newCartHeader] = newCartInsert as unknown as [
+                ResultSetHeader,
+              ];
+              cart = { id: newCartHeader.insertId } as typeof cart;
             }
             const sku = await db
               .select()
@@ -942,14 +981,18 @@ const webhookRouter = router({
           // Supplier bill via WhatsApp — trigger OCR ingestion
           const db = await getDb();
           if (db) {
-            const [r] = await db.insert(ingestionJobs).values({
-              status: "pending",
+            const ingestionInsert = await db.insert(ingestionJobs).values({
+              storeId: 1, // default store; updated downstream when storeId is known
               sourceType: "whatsapp",
               supplierHint: `WhatsApp upload from ${input.phone}`,
-              rawFileUrl: input.documentUrl,
-              rawFileKey: `whatsapp-bill/${input.phone}-${Date.now()}.pdf`,
-            } as any);
-            const jobId = (r as any).insertId as number;
+              fileUrl: input.documentUrl,
+              fileKey: `whatsapp-bill/${input.phone}-${Date.now()}.pdf`,
+              createdBy: userId ?? 0,
+            });
+            const [ingestionHeader] = ingestionInsert as unknown as [
+              ResultSetHeader,
+            ];
+            const jobId = ingestionHeader.insertId;
             response = `📄 Supplier bill received! (Job #${jobId})\nOur team will process and import it.\n\nReply *hi* for main menu.`;
             await writeAuditLog({
               actor: { id: userId ?? null, type: "whatsapp" },
@@ -990,8 +1033,7 @@ const webhookRouter = router({
             const itemList = items
               .slice(0, 5)
               .map(
-                i =>
-                  `• ${(i as any).name ?? `Product #${i.productId}`} × ${i.quantity}`
+                i => `• ${i.name ?? `Product #${i.productId}`} × ${i.quantity}`
               )
               .join("\n");
             response = `*Reorder from Order #${lastOrder.id}:*\n${itemList}\n\nTotal was: ₹${lastOrder.total}\n\nReply *yes* to reorder, or *hi* to cancel.`;
@@ -1000,7 +1042,7 @@ const webhookRouter = router({
           }
         } else if (state.awaitingConfirm && (msg === "yes" || msg === "y")) {
           // Rebuild cart from last order
-          const items = await getOrderItemsForReorder(state.orderId);
+          const items = await getOrderItemsForReorder(state.orderId as number);
           const db = await getDb();
           if (db && items.length) {
             // Clear existing active cart
@@ -1026,16 +1068,18 @@ const webhookRouter = router({
                 .where(eq(whatsappCarts.id, existingCart.id));
             }
             // Create new cart
-            const [r] = await db.insert(whatsappCarts).values({
+            const reorderCartInsert = await db.insert(whatsappCarts).values({
               phone: input.phone,
               userId: userId ?? null,
               status: "active",
               expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
             });
-            const cartId = (r as any).insertId as number;
+            const [reorderCartHeader] = reorderCartInsert as unknown as [
+              ResultSetHeader,
+            ];
+            const cartId = reorderCartHeader.insertId;
             for (const item of items) {
               if (item.storeSkuId) {
-                const ia = item as any;
                 // unitPrice/lineTotal may not be on getOrderItemsForReorder — fetch from orderItems
                 const skuRow = await db
                   .select({ sellingPrice: storeSkus.sellingPrice })
@@ -1049,7 +1093,7 @@ const webhookRouter = router({
                 await db.insert(whatsappCartLines).values({
                   cartId,
                   productId: item.productId,
-                  variantId: ia.variantId ?? null,
+                  variantId: null,
                   storeSkuId: item.storeSkuId,
                   qty: item.quantity,
                   unitPrice,
@@ -1058,7 +1102,7 @@ const webhookRouter = router({
                 });
               }
             }
-            response = `✓ Cart loaded with ${items.length} item(s) from Order #${state.orderId}.\n\nReply *cart* to review, or *confirm* to place order.`;
+            response = `✓ Cart loaded with ${items.length} item(s) from Order #${state.orderId as number}.\n\nReply *cart* to review, or *confirm* to place order.`;
           } else {
             response =
               "Could not load items. Please try again.\n\nReply *hi* for main menu.";
@@ -1129,7 +1173,7 @@ const webhookRouter = router({
       ) {
         const db = await getDb();
         if (db) {
-          const [r] = await db.insert(staffHandoffs).values({
+          const staffHandoffInsert = await db.insert(staffHandoffs).values({
             phone: input.phone,
             userId: userId ?? null,
             sessionId: session?.id ?? null,
@@ -1137,7 +1181,10 @@ const webhookRouter = router({
             status: "open",
             priority: "normal",
           });
-          const handoffId = (r as any).insertId as number;
+          const [staffHandoffHeader] = staffHandoffInsert as unknown as [
+            ResultSetHeader,
+          ];
+          const handoffId = staffHandoffHeader.insertId;
           response = `👋 You're now in the staff queue.\nRef: #${handoffId}\n\nA team member will respond shortly. Please describe your query and we'll assist you.\n\nReply *hi* to return to bot menu.`;
           await writeAuditLog({
             actor: { id: userId ?? null, type: "whatsapp" },
@@ -1367,7 +1414,7 @@ const webhookRouter = router({
       ) {
         const db = await getDb();
         if (db) {
-          const [r] = await db.insert(staffHandoffs).values({
+          const deliveryExInsert = await db.insert(staffHandoffs).values({
             phone: input.phone,
             userId: userId ?? null,
             sessionId: session?.id ?? null,
@@ -1376,7 +1423,10 @@ const webhookRouter = router({
             status: "open",
             priority: "high",
           });
-          const handoffId = (r as any).insertId as number;
+          const [deliveryExHeader] = deliveryExInsert as unknown as [
+            ResultSetHeader,
+          ];
+          const handoffId = deliveryExHeader.insertId;
           response = `⚠️ Delivery issue reported. Ref: #${handoffId}\n\nOur team will contact you within 15 minutes.\n\nReply *hi* for main menu.`;
         } else {
           response =

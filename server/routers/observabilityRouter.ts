@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 import type { Express } from "express";
 import fs from "fs/promises";
 import path from "path";
@@ -9,7 +8,7 @@ import {
   getProviderVisibilitySummary,
 } from "../services/operationalVisibility";
 
-export async function loadDashboardDefinitions() {
+export async function loadDashboardDefinitions(): Promise<unknown[]> {
   const dashDir = path.join(process.cwd(), "docs", "dashboards");
   const files = await fs.readdir(dashDir);
   return Promise.all(
@@ -18,7 +17,7 @@ export async function loadDashboardDefinitions() {
       .sort()
       .map(async f => {
         const raw = await fs.readFile(path.join(dashDir, f), "utf-8");
-        return JSON.parse(raw);
+        return JSON.parse(raw) as unknown;
       })
   );
 }

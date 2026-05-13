@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import pino from "pino";
 import {
   collectDefaultMetrics,
@@ -18,6 +17,12 @@ import {
   safeMetadata,
 } from "../services/observability";
 import { getProviderVisibilitySummary } from "../services/operationalVisibility";
+
+type RequestWithTrace = Request & {
+  traceId?: string;
+  correlationId?: string;
+  log?: pino.Logger;
+};
 
 /** Returns the active OTel trace/span IDs, or null when no span is active. */
 export function getCurrentTraceContext(): {
@@ -101,14 +106,15 @@ export function buildHttpRequestLog(
   res: Response,
   latency: number
 ) {
+  const typedReq = req as RequestWithTrace;
   return safeMetadata({
     event: "http_request",
     method: req.method,
     route: redactString(req.path),
     status: res.statusCode,
     latency,
-    traceId: (req as any).traceId,
-    correlationId: (req as any).correlationId,
+    traceId: typedReq.traceId,
+    correlationId: typedReq.correlationId,
   });
 }
 
@@ -125,19 +131,20 @@ export async function refreshOperationalMetrics() {
 
 export function initObservability(app: Express) {
   app.use((req: Request, res: Response, next: NextFunction) => {
+    const typedReq = req as RequestWithTrace;
     const traceId = createRequestId(req.headers["x-trace-id"]);
     const correlationId = createRequestId(req.headers["x-correlation-id"]);
-    (req as any).traceId = traceId;
-    (req as any).correlationId = correlationId;
+    typedReq.traceId = traceId;
+    typedReq.correlationId = correlationId;
     res.setHeader("x-trace-id", traceId);
     res.setHeader("x-correlation-id", correlationId);
-    (req as any).log = logger.child({ traceId, correlationId });
+    typedReq.log = logger.child({ traceId, correlationId });
 
     const start = Date.now();
     res.on("finish", () => {
       const latency = (Date.now() - start) / 1000;
       apiLatency.observe(latency);
-      (req as any).log.info(
+      typedReq.log?.info(
         buildHttpRequestLog(req, res, latency),
         "http_request"
       );

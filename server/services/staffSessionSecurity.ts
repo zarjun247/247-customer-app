@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/require-await */
 import { and, desc, eq } from "drizzle-orm";
 import {
   staffAcknowledgements,
@@ -70,18 +69,18 @@ export class InMemoryStaffSecurityStore {
   readonly sessions: StaffDeviceSessionRecord[] = [];
   readonly audits: Array<{ action: string; afterJson: unknown }> = [];
 
-  async insertAcknowledgement(record: StaffAcknowledgementRecord) {
+  insertAcknowledgement(record: StaffAcknowledgementRecord) {
     const saved = { ...record, id: this.nextAckId++, createdAt: new Date() };
     this.acknowledgements.push(saved);
-    return saved;
+    return Promise.resolve(saved);
   }
 
-  async latestAcknowledgement(
+  latestAcknowledgement(
     staffId: number,
     acknowledgementType: StaffAcknowledgementType,
     version: string
   ) {
-    return (
+    return Promise.resolve(
       this.acknowledgements
         .filter(
           ack =>
@@ -90,11 +89,11 @@ export class InMemoryStaffSecurityStore {
             ack.version === version
         )
         .sort((a, b) => b.acceptedAt.getTime() - a.acceptedAt.getTime())[0] ??
-      null
+        null
     );
   }
 
-  async upsertSession(
+  upsertSession(
     record: Omit<StaffDeviceSessionRecord, "id" | "createdAt" | "updatedAt">
   ) {
     const existing = this.sessions.find(
@@ -105,7 +104,7 @@ export class InMemoryStaffSecurityStore {
     const now = new Date();
     if (existing) {
       Object.assign(existing, record, { updatedAt: now });
-      return existing;
+      return Promise.resolve(existing);
     }
     const saved = {
       ...record,
@@ -114,30 +113,33 @@ export class InMemoryStaffSecurityStore {
       updatedAt: now,
     };
     this.sessions.push(saved);
-    return saved;
+    return Promise.resolve(saved);
   }
 
-  async activeSessions(staffId?: number) {
-    return this.sessions.filter(
-      session =>
-        session.status === "active" &&
-        (staffId == null || session.staffId === staffId)
+  activeSessions(staffId?: number) {
+    return Promise.resolve(
+      this.sessions.filter(
+        session =>
+          session.status === "active" &&
+          (staffId == null || session.staffId === staffId)
+      )
     );
   }
 
-  async revokeSession(sessionId: string, revokedBy: number, reason?: string) {
+  revokeSession(sessionId: string, revokedBy: number, reason?: string) {
     const session = this.sessions.find(row => row.sessionId === sessionId);
-    if (!session) return null;
+    if (!session) return Promise.resolve(null);
     session.status = "revoked";
     session.revokedAt = new Date();
     session.revokedBy = revokedBy;
     session.revokeReason = reason ?? null;
     session.updatedAt = new Date();
-    return session;
+    return Promise.resolve(session);
   }
 
-  async audit(action: string, afterJson: unknown) {
+  audit(action: string, afterJson: unknown) {
     this.audits.push({ action, afterJson: redactSensitiveForLogs(afterJson) });
+    return Promise.resolve();
   }
 }
 
@@ -236,7 +238,7 @@ export async function listActiveStaffSessions(
   if (store) return store.activeSessions(staffId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const filters = [eq(staffDeviceSessions.status, "active" as any)];
+  const filters = [eq(staffDeviceSessions.status, "active")];
   if (staffId != null) filters.push(eq(staffDeviceSessions.staffId, staffId));
   return db
     .select()
@@ -307,10 +309,16 @@ async function upsertDbSession(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
+  type SessionInsert = typeof staffDeviceSessions.$inferInsert;
   await db
     .insert(staffDeviceSessions)
-    .values(record as any)
-    .onDuplicateKeyUpdate({ set: { ...record, updatedAt: new Date() } as any });
+    .values(record as unknown as SessionInsert)
+    .onDuplicateKeyUpdate({
+      set: {
+        ...(record as unknown as Partial<SessionInsert>),
+        updatedAt: new Date(),
+      },
+    });
   const rows = await db
     .select()
     .from(staffDeviceSessions)

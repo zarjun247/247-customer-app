@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -15,6 +14,9 @@ import { isProviderEnabled } from "../_core/env";
 import { redactObject } from "../_core/redact";
 import { paymentRecords } from "../../drizzle/schema";
 import { appendCommercialEventWithDb } from "./commercialLifecycle";
+
+type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 export type PaymentVerificationStatus =
   | "verified"
@@ -156,7 +158,13 @@ export function verifyGatewayWebhookSignature(
   return crypto.timingSafeEqual(expected, actual);
 }
 
-export function normalizeGatewayPaymentEvent(event: any) {
+export type GatewayEventRaw = {
+  id?: string;
+  event?: string;
+  payload?: unknown;
+};
+
+export function normalizeGatewayPaymentEvent(event: GatewayEventRaw) {
   return {
     id: event?.id ?? null,
     type: event?.event ?? "unknown",
@@ -180,7 +188,7 @@ export async function recordPaymentAttempt(input: {
       code: "INTERNAL_SERVER_ERROR",
       message: "DB unavailable",
     });
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: DbTx) => {
     const [payment] = await tx
       .select()
       .from(paymentRecords)
@@ -227,7 +235,7 @@ export async function markPaymentAuthorized(input: {
       code: "INTERNAL_SERVER_ERROR",
       message: "DB unavailable",
     });
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: DbTx) => {
     const [payment] = await tx
       .select()
       .from(paymentRecords)
@@ -297,7 +305,7 @@ export async function markPaymentRefunded(input: {
       code: "INTERNAL_SERVER_ERROR",
       message: "DB unavailable",
     });
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: DbTx) => {
     const [payment] = await tx
       .select()
       .from(paymentRecords)

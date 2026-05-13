@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 /**
  * commandCenterRouterExtension — second half of commandCenter procedures
  * (ocrQueue through snapshot)
@@ -50,8 +49,9 @@ const ADMIN_ROLES = [
   "ops_admin",
   "store_manager",
 ] as const;
+type AdminRole = (typeof ADMIN_ROLES)[number];
 function assertAdmin(role: string) {
-  if (!ADMIN_ROLES.includes(role as any)) {
+  if (!ADMIN_ROLES.includes(role as AdminRole)) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Admin access required",
@@ -139,7 +139,10 @@ const importHealthCard = protectedProcedure.query(async ({ ctx }) => {
     .select({ count: sql<number>`COUNT(*)` })
     .from(ingestionJobs)
     .where(
-      inArray(ingestionJobs.status, ["ocr_complete", "under_review"] as any)
+      inArray(ingestionJobs.status, [
+        "ocr_complete",
+        "under_review",
+      ] as (typeof ingestionJobs.status.enumValues)[number][])
     );
   return {
     lastImport: lastImport[0] ?? null,
@@ -166,11 +169,8 @@ const refillPipelineCard = protectedProcedure.query(async ({ ctx }) => {
       .where(
         and(
           eq(refillPlans.status, "active"),
-          gte(refillPlans.nextDueDate, today.toISOString().slice(0, 10) as any),
-          lte(
-            refillPlans.nextDueDate,
-            in7Days.toISOString().slice(0, 10) as any
-          )
+          gte(refillPlans.nextDueDate, today),
+          lte(refillPlans.nextDueDate, in7Days)
         )
       ),
     db
@@ -179,7 +179,7 @@ const refillPipelineCard = protectedProcedure.query(async ({ ctx }) => {
       .where(
         and(
           eq(refillPlans.status, "active"),
-          lt(refillPlans.nextDueDate, today.toISOString().slice(0, 10) as any)
+          lt(refillPlans.nextDueDate, today)
         )
       ),
     db
@@ -540,10 +540,9 @@ const refillDashboard = protectedProcedure
         missed: 0,
       };
     const since = nowMinus(input.days * DAY);
-    const today = new Date().toISOString().slice(0, 10);
-    const in7 = nowPlus(7 * DAY)
-      .toISOString()
-      .slice(0, 10);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const in7Date = nowPlus(7 * DAY);
     const [active, dueNext7, missed, reminders, reorders] = await Promise.all([
       db
         .select({ count: sql<number>`COUNT(*)` })
@@ -555,8 +554,8 @@ const refillDashboard = protectedProcedure
         .where(
           and(
             eq(refillPlans.status, "active"),
-            gte(refillPlans.nextDueDate, today as any),
-            lte(refillPlans.nextDueDate, in7 as any)
+            gte(refillPlans.nextDueDate, todayDate),
+            lte(refillPlans.nextDueDate, in7Date)
           )
         ),
       db
@@ -565,7 +564,7 @@ const refillDashboard = protectedProcedure
         .where(
           and(
             eq(refillPlans.status, "active"),
-            lt(refillPlans.nextDueDate, today as any)
+            lt(refillPlans.nextDueDate, todayDate)
           )
         ),
       db
@@ -577,7 +576,7 @@ const refillDashboard = protectedProcedure
               "reminder_sent_app",
               "reminder_sent_whatsapp",
               "reminder_sent_sms",
-            ] as any),
+            ] as (typeof refillEvents.eventType.enumValues)[number][]),
             gte(refillEvents.createdAt, since)
           )
         ),
@@ -687,7 +686,10 @@ const recentEvents = protectedProcedure
       .where(
         and(
           input.eventType
-            ? eq(systemEvents.eventType, input.eventType as any)
+            ? eq(
+                systemEvents.eventType,
+                input.eventType as (typeof systemEvents.eventType.enumValues)[number]
+              )
             : undefined,
           input.severity
             ? eq(systemEvents.severity, input.severity)
@@ -713,10 +715,7 @@ async function runAllCards(
   today.setHours(0, 0, 0, 0);
   const cut60 = nowPlus(60 * DAY);
   const cut90 = nowPlus(90 * DAY);
-  const todayStr = today.toISOString().slice(0, 10);
-  const in7Str = nowPlus(7 * DAY)
-    .toISOString()
-    .slice(0, 10);
+  const in7Date = nowPlus(7 * DAY);
   if (!db) return null;
   const storeFilter = storeId ? eq(orders.storeId, storeId) : undefined;
   const riderStoreFilter = storeId ? eq(riders.storeId, storeId) : undefined;
@@ -769,7 +768,7 @@ async function runAllCards(
             "assigned_to_rider",
             "out_for_delivery",
             "delivery_exception",
-          ] as any),
+          ] as (typeof orders.status.enumValues)[number][]),
           storeFilter
         )
       )
@@ -813,13 +812,18 @@ async function runAllCards(
           "pending_pharmacist",
           "quick_verify",
           "additional_verification",
-        ] as any)
+        ] as (typeof prescriptions.status.enumValues)[number][])
       ),
     // 8 whatsapp handoffs
     db
       .select({ count: sql<number>`COUNT(*)` })
       .from(staffHandoffs)
-      .where(inArray(staffHandoffs.status, ["open", "assigned"] as any)),
+      .where(
+        inArray(staffHandoffs.status, [
+          "open",
+          "assigned",
+        ] as (typeof staffHandoffs.status.enumValues)[number][])
+      ),
     // 9 app queue
     db
       .select({ count: sql<number>`COUNT(*)` })
@@ -830,7 +834,7 @@ async function runAllCards(
             "awaiting_pharmacist_review",
             "awaiting_allocation",
             "reserved",
-          ] as any),
+          ] as (typeof orders.status.enumValues)[number][]),
           eq(orders.source, "app"),
           storeFilter
         )
@@ -895,7 +899,10 @@ async function runAllCards(
       .select({ count: sql<number>`COUNT(*)` })
       .from(ingestionJobs)
       .where(
-        inArray(ingestionJobs.status, ["ocr_complete", "under_review"] as any)
+        inArray(ingestionJobs.status, [
+          "ocr_complete",
+          "under_review",
+        ] as (typeof ingestionJobs.status.enumValues)[number][])
       ),
     // 17 refill active
     db
@@ -909,8 +916,8 @@ async function runAllCards(
       .where(
         and(
           eq(refillPlans.status, "active"),
-          gte(refillPlans.nextDueDate, todayStr as any),
-          lte(refillPlans.nextDueDate, in7Str as any)
+          gte(refillPlans.nextDueDate, today),
+          lte(refillPlans.nextDueDate, in7Date)
         )
       ),
     // 17 refill missed
@@ -920,7 +927,7 @@ async function runAllCards(
       .where(
         and(
           eq(refillPlans.status, "active"),
-          lt(refillPlans.nextDueDate, todayStr as any)
+          lt(refillPlans.nextDueDate, today)
         )
       ),
     // 17 needs fresh rx

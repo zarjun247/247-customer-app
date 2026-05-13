@@ -1,13 +1,12 @@
 /**
  * ocrIngestionRouterExtension — second half of ocrIngestionRouter procedures
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "../services/audit";
 import { protectedProcedure } from "../_core/trpc";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, type SQL } from "drizzle-orm";
 import {
   assertOcrDraftApprovedForHandoff,
   buildOcrExceptionReport,
@@ -57,7 +56,7 @@ export const ocrIngestionRouterExtension = {
       requirePurchaseRole(ctx.user.role);
       const db = await getDb();
       const { skuCreationDrafts } = await import("../../drizzle/schema");
-      const conditions: any[] = [];
+      const conditions: SQL[] = [];
       if (input.jobId)
         conditions.push(eq(skuCreationDrafts.ingestionJobId, input.jobId));
       if (input.status)
@@ -221,7 +220,7 @@ export const ocrIngestionRouterExtension = {
       requirePurchaseRole(ctx.user.role);
       const db = await getDb();
       const { purchaseDrafts } = await import("../../drizzle/schema");
-      const conditions: any[] = [];
+      const conditions: SQL[] = [];
       if (input.status)
         conditions.push(eq(purchaseDrafts.status, input.status));
       const rows = await db
@@ -334,7 +333,7 @@ export const ocrIngestionRouterExtension = {
       const db = await getDb();
       const { purchaseDraftLines } = await import("../../drizzle/schema");
       const { lineId, ...fields } = input;
-      const u: any = {};
+      const u: Record<string, unknown> = {};
       if (fields.productId !== undefined) {
         u.productId = fields.productId;
         u.mappedProductId = fields.productId;
@@ -421,7 +420,7 @@ export const ocrIngestionRouterExtension = {
         .from(purchaseDraftLines)
         .where(eq(purchaseDraftLines.purchaseDraftId, input.draftId));
       const unsafe = lines.find(
-        (line: any) =>
+        line =>
           line.approvalStatus !== "approved" ||
           line.status !== "approved" ||
           line.exceptionReason
@@ -584,7 +583,7 @@ export const ocrIngestionRouterExtension = {
           rawLineText: line.rawLineText ?? null,
           confidence: line.confidence ?? null,
           reviewerId: line.approvedBy ?? ctx.user.id,
-        } as any);
+        } as unknown as typeof purchaseLines.$inferInsert);
       }
       await db
         .update(purchaseDrafts)
@@ -640,7 +639,7 @@ export const ocrIngestionRouterExtension = {
       const { ocrExtractedLines, products } = await import(
         "../../drizzle/schema"
       );
-      const conditions: any[] = [];
+      const conditions: SQL[] = [];
       if (input.jobId)
         conditions.push(eq(ocrExtractedLines.ingestionJobId, input.jobId));
       if (input.approvalStatus)
@@ -680,7 +679,7 @@ export const ocrIngestionRouterExtension = {
         .orderBy(desc(ocrExtractedLines.createdAt))
         .limit(500);
       const totals = buildOcrExceptionReport(rows);
-      const csvData = rows.map((row: any) => ({ ...row }));
+      const csvData = rows.map(row => ({ ...row }));
       return { rows, totals, csvData };
     }),
 

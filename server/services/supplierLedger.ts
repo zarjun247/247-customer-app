@@ -1,7 +1,19 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "./audit";
+import type { CtxLike } from "./audit";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+import type { ResultSetHeader } from "mysql2";
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 
 export type SupplierAllocationType =
   | "invoice_payment"
@@ -193,7 +205,9 @@ export function buildSupplierReconciliationReport(input: {
   for (const invoice of input.invoices) {
     if (
       invoice.status &&
-      !OPEN_PURCHASE_STATUSES.includes(invoice.status as any)
+      !(OPEN_PURCHASE_STATUSES as readonly string[]).includes(
+        invoice.status ?? ""
+      )
     )
       continue;
     const invoiceAllocations = allocationsByInvoice.get(invoice.id) ?? [];
@@ -349,7 +363,7 @@ export function buildSupplierReconciliationReport(input: {
 }
 
 export async function recordSupplierPayable(
-  db: any,
+  db: DrizzleDb,
   input: {
     supplierId: number;
     purchaseInvoiceId: number;
@@ -359,7 +373,7 @@ export async function recordSupplierPayable(
     actorRole: string;
     source: string;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const { supplierPayments } = await import("../../drizzle/schema");
   const [existing] = await db
@@ -368,12 +382,12 @@ export async function recordSupplierPayable(
     .where(
       and(
         eq(supplierPayments.purchaseInvoiceId, input.purchaseInvoiceId),
-        eq(supplierPayments.paymentMode, "credit" as any)
+        eq(supplierPayments.paymentMode, "credit")
       )
     )
     .limit(1);
   if (existing) return { idempotent: true, paymentId: existing.id };
-  const [res] = await db.insert(supplierPayments).values({
+  const insertResult = await db.insert(supplierPayments).values({
     supplierId: input.supplierId,
     purchaseInvoiceId: input.purchaseInvoiceId,
     storeId: input.storeId,
@@ -383,7 +397,8 @@ export async function recordSupplierPayable(
     notes: "Auto payable entry",
     createdBy: input.actorId,
   });
-  const id = res.insertId;
+  const [header] = insertResult as unknown as [ResultSetHeader];
+  const id = header.insertId;
   await logAudit(
     {
       action: "supplier.payable.created",
@@ -396,10 +411,18 @@ export async function recordSupplierPayable(
   return { success: true, paymentId: id };
 }
 
-export async function recordSupplierPayment(db: any, input: any, ctx?: any) {
+export async function recordSupplierPayment(
+  db: DrizzleDb,
+  input: Record<string, unknown>,
+  ctx?: CtxLike
+) {
   const { supplierPayments } = await import("../../drizzle/schema");
-  const [res] = await db.insert(supplierPayments).values(input);
-  const id = res.insertId;
+  type SupplierPaymentInsert = typeof supplierPayments.$inferInsert;
+  const insertResult = await db
+    .insert(supplierPayments)
+    .values(input as unknown as SupplierPaymentInsert);
+  const [header] = insertResult as unknown as [ResultSetHeader];
+  const id = header.insertId;
   await logAudit(
     {
       action: "supplier.payment.recorded",
@@ -413,7 +436,7 @@ export async function recordSupplierPayment(db: any, input: any, ctx?: any) {
 }
 
 export async function allocatePaymentToInvoice(
-  db: any,
+  db: DrizzleDb,
   input: {
     supplierPaymentId: number;
     purchaseInvoiceId?: number;
@@ -423,7 +446,7 @@ export async function allocatePaymentToInvoice(
     allocatedBy?: number;
     createdBy?: number;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   if (input.amount <= 0)
     throw new TRPCError({
@@ -452,7 +475,7 @@ export async function allocatePaymentToInvoice(
     )
     .limit(1);
   if (existing) return { idempotent: true, allocationId: existing.id };
-  const values: any = {
+  const insertResult2 = await db.insert(supplierPaymentAllocations).values({
     supplierPaymentId: input.supplierPaymentId,
     purchaseInvoiceId: input.purchaseInvoiceId ?? null,
     purchaseReturnId: input.purchaseReturnId ?? null,
@@ -460,9 +483,9 @@ export async function allocatePaymentToInvoice(
     allocationType: input.allocationType,
     createdBy: actorId,
     allocatedBy: actorId,
-  };
-  const [res] = await db.insert(supplierPaymentAllocations).values(values);
-  const id = res.insertId;
+  });
+  const [allocationHeader] = insertResult2 as unknown as [ResultSetHeader];
+  const id = allocationHeader.insertId;
   await logAudit(
     {
       action: "supplier.payment.allocated",
@@ -475,15 +498,17 @@ export async function allocatePaymentToInvoice(
   return { success: true, allocationId: id };
 }
 
+type AllocationResult = Awaited<ReturnType<typeof allocatePaymentToInvoice>>;
+
 export async function allocateSupplierPayment(
-  db: any,
+  db: DrizzleDb,
   input: {
     supplierPaymentId: number;
     supplierId: number;
     invoiceIds?: number[];
     createdBy?: number;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const { purchaseInvoices, supplierPayments } = await import(
     "../../drizzle/schema"
@@ -519,7 +544,9 @@ export async function allocateSupplierPayment(
     db,
     input.supplierPaymentId
   );
-  const allocations = [] as any[];
+  const allocations: Array<
+    { invoiceId: number; amount: number } & AllocationResult
+  > = [];
   for (const inv of invoices) {
     if (remaining <= 0) break;
     const out = await getInvoiceOutstanding(db, inv.id);
@@ -546,7 +573,7 @@ export async function allocateSupplierPayment(
 }
 
 export async function recordSupplierAdvance(
-  db: any,
+  db: DrizzleDb,
   input: {
     supplierId: number;
     storeId: number;
@@ -554,7 +581,7 @@ export async function recordSupplierAdvance(
     createdBy: number;
     referenceNo?: string;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const payment = await recordSupplierPayment(
     db,
@@ -574,7 +601,7 @@ export async function recordSupplierAdvance(
 }
 
 export async function applySupplierDebitNote(
-  db: any,
+  db: DrizzleDb,
   input: {
     supplierId: number;
     purchaseInvoiceId?: number;
@@ -583,7 +610,7 @@ export async function applySupplierDebitNote(
     createdBy: number;
     reason?: string;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const payment = await recordSupplierPayment(
     db,
@@ -613,7 +640,7 @@ export async function applySupplierDebitNote(
 }
 
 export async function applyPurchaseReturnCredit(
-  db: any,
+  db: DrizzleDb,
   input: {
     supplierId: number;
     purchaseInvoiceId: number;
@@ -622,7 +649,7 @@ export async function applyPurchaseReturnCredit(
     amount: number;
     createdBy: number;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const payment = await recordSupplierPayment(
     db,
@@ -653,7 +680,7 @@ export async function applyPurchaseReturnCredit(
 }
 
 export async function getUnallocatedPaymentAmount(
-  db: any,
+  db: DrizzleDb,
   supplierPaymentId: number
 ) {
   const { supplierPayments, supplierPaymentAllocations } = await import(
@@ -674,7 +701,7 @@ export async function getUnallocatedPaymentAmount(
 }
 
 export async function getInvoiceOutstanding(
-  db: any,
+  db: DrizzleDb,
   purchaseInvoiceId: number
 ) {
   const { purchaseInvoices, supplierPaymentAllocations, purchaseReturns } =
@@ -696,21 +723,15 @@ export async function getInvoiceOutstanding(
     .where(
       and(
         eq(purchaseReturns.purchaseInvoiceId, purchaseInvoiceId),
-        eq(purchaseReturns.status, "committed" as any)
+        eq(purchaseReturns.status, "committed")
       )
     );
   const nonReturnAllocated = allocations
-    .filter((allocation: any) => allocation.allocationType !== "return_credit")
-    .reduce(
-      (sum: number, allocation: any) => sum + toMoney(allocation.amount),
-      0
-    );
+    .filter(allocation => allocation.allocationType !== "return_credit")
+    .reduce((sum: number, allocation) => sum + toMoney(allocation.amount), 0);
   const allocatedReturnCredit = allocations
-    .filter((allocation: any) => allocation.allocationType === "return_credit")
-    .reduce(
-      (sum: number, allocation: any) => sum + toMoney(allocation.amount),
-      0
-    );
+    .filter(allocation => allocation.allocationType === "return_credit")
+    .reduce((sum: number, allocation) => sum + toMoney(allocation.amount), 0);
   const allocated = roundMoney(
     nonReturnAllocated + Math.max(allocatedReturnCredit, toMoney(r?.returned))
   );
@@ -718,7 +739,7 @@ export async function getInvoiceOutstanding(
 }
 
 export async function getSupplierOutstanding(
-  db: any,
+  db: DrizzleDb,
   supplierId: number,
   storeId?: number
 ) {
@@ -734,13 +755,13 @@ export async function getSupplierOutstanding(
   };
 }
 
-export async function getSupplierLedger(db: any, supplierId: number) {
+export async function getSupplierLedger(db: DrizzleDb, supplierId: number) {
   const { supplierPayments } = await import("../../drizzle/schema");
   const rows = await db
     .select()
     .from(supplierPayments)
     .where(eq(supplierPayments.supplierId, supplierId));
-  return rows.map((r: any) => ({
+  return rows.map(r => ({
     ...r,
     transactionType:
       r.paymentMode === "credit" ? "invoice_payable" : r.paymentMode,
@@ -748,7 +769,7 @@ export async function getSupplierLedger(db: any, supplierId: number) {
 }
 
 async function loadSupplierReconciliationInputs(
-  db: any,
+  db: DrizzleDb,
   filters: SupplierReconciliationFilters
 ) {
   const {
@@ -758,8 +779,8 @@ async function loadSupplierReconciliationInputs(
     purchaseReturns,
     suppliers,
   } = await import("../../drizzle/schema");
-  const invoiceConds: any[] = [
-    inArray(purchaseInvoices.status, OPEN_PURCHASE_STATUSES as any),
+  const invoiceConds: SQL<unknown>[] = [
+    inArray(purchaseInvoices.status, [...OPEN_PURCHASE_STATUSES]),
   ];
   if (filters.supplierId)
     invoiceConds.push(eq(purchaseInvoices.supplierId, filters.supplierId));
@@ -772,9 +793,10 @@ async function loadSupplierReconciliationInputs(
     .leftJoin(suppliers, eq(purchaseInvoices.supplierId, suppliers.id))
     .where(and(...invoiceConds));
 
-  const invoices: SupplierLedgerInvoiceInput[] = invoiceRows.map(
-    (row: any) => ({ ...row.invoice, supplierName: row.supplierName ?? null })
-  );
+  const invoices: SupplierLedgerInvoiceInput[] = invoiceRows.map(row => ({
+    ...row.invoice,
+    supplierName: row.supplierName ?? null,
+  }));
   const invoiceIds = invoices.map(invoice => invoice.id);
   if (!invoiceIds.length)
     return { invoices, allocations: [], purchaseReturns: [], advances: [] };
@@ -784,9 +806,9 @@ async function loadSupplierReconciliationInputs(
     .from(supplierPaymentAllocations)
     .where(inArray(supplierPaymentAllocations.purchaseInvoiceId, invoiceIds));
 
-  const returnConds: any[] = [
+  const returnConds: SQL<unknown>[] = [
     inArray(purchaseReturns.purchaseInvoiceId, invoiceIds),
-    eq(purchaseReturns.status, "committed" as any),
+    eq(purchaseReturns.status, "committed"),
   ];
   if (filters.supplierId)
     returnConds.push(eq(purchaseReturns.supplierId, filters.supplierId));
@@ -797,8 +819,8 @@ async function loadSupplierReconciliationInputs(
     .from(purchaseReturns)
     .where(and(...returnConds));
 
-  const advanceConds: any[] = [
-    eq(supplierPayments.paymentMode, "advance" as any),
+  const advanceConds: SQL<unknown>[] = [
+    eq(supplierPayments.paymentMode, "advance"),
   ];
   if (filters.supplierId)
     advanceConds.push(eq(supplierPayments.supplierId, filters.supplierId));
@@ -819,9 +841,9 @@ async function loadSupplierReconciliationInputs(
 
   return {
     invoices,
-    allocations: allocations.map((row: any) => row.allocation),
+    allocations: allocations.map(row => row.allocation),
     purchaseReturns: returnRows,
-    advances: advanceRows.map((row: any) => ({
+    advances: advanceRows.map(row => ({
       ...row.payment,
       allocatedAmount: row.allocatedAmount,
     })),
@@ -829,7 +851,7 @@ async function loadSupplierReconciliationInputs(
 }
 
 export async function getSupplierAgeing(
-  db: any,
+  db: DrizzleDb,
   filters: number | SupplierReconciliationFilters
 ) {
   const normalized =
@@ -846,7 +868,7 @@ export async function getSupplierAgeing(
 }
 
 export async function getSupplierReconciliationReport(
-  db: any,
+  db: DrizzleDb,
   filters: SupplierReconciliationFilters = {}
 ) {
   const loaded = await loadSupplierReconciliationInputs(db, filters);
@@ -857,7 +879,7 @@ export async function getSupplierReconciliationReport(
 }
 
 export async function reconcileSupplierBalance(
-  db: any,
+  db: DrizzleDb,
   supplierId: number,
   storeId?: number
 ) {
@@ -865,7 +887,7 @@ export async function reconcileSupplierBalance(
 }
 
 export async function markInvoicePaidIfSettled(
-  db: any,
+  db: DrizzleDb,
   purchaseInvoiceId: number
 ) {
   const { purchaseInvoices } = await import("../../drizzle/schema");

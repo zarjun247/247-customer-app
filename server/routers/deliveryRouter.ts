@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 /**
  * PART 11 — Delivery & Rider Router
  *
@@ -34,6 +33,9 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import type { ResultSetHeader } from "mysql2";
+import type { AccessUser } from "../_core/rbac";
+import type { CtxLike } from "../services/audit";
 import {
   orders,
   riders,
@@ -73,11 +75,11 @@ function assertRole(role: string, allowed: readonly string[], label: string) {
     });
 }
 
-function getStoreId(user: any): number {
+function getStoreId(user: AccessUser): number {
   return requireStaffStore(user);
 }
 
-async function assertRegulatedDeliveryAllowed(orderId: number, ctx: any) {
+async function assertRegulatedDeliveryAllowed(orderId: number, ctx: CtxLike) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
   const { orderItems, products, prescriptions } = await import(
@@ -238,7 +240,7 @@ const routingRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { storeId, licenceExpiryDate, ...rest } = input;
-      const values: any = { storeId, ...rest };
+      const values: Record<string, unknown> = { storeId, ...rest };
       if (licenceExpiryDate)
         values.licenceExpiryDate = new Date(licenceExpiryDate);
 
@@ -254,7 +256,9 @@ const routingRouter = router({
           .set(values)
           .where(eq(storeCapabilities.storeId, storeId));
       } else {
-        await db.insert(storeCapabilities).values(values);
+        await db
+          .insert(storeCapabilities)
+          .values(values as unknown as typeof storeCapabilities.$inferInsert);
       }
       return { ok: true };
     }),
@@ -302,10 +306,11 @@ const riderRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const storeId = input.storeId ?? getStoreId(ctx.user);
       requireStoreAccess(ctx.user, storeId);
-      const r = await db
+      const riderInsert = await db
         .insert(riders)
         .values({ name: input.name, phone: input.phone, storeId });
-      return { id: (r as any).insertId, ok: true };
+      const [riderHeader] = riderInsert as unknown as [ResultSetHeader];
+      return { id: riderHeader.insertId, ok: true };
     }),
 
   update: protectedProcedure
@@ -410,7 +415,7 @@ const taskRouter = router({
       requireStoreAccess(ctx.user, storeId);
 
       // Create delivery task
-      const r = await db.insert(deliveryTasks).values({
+      const taskInsert = await db.insert(deliveryTasks).values({
         orderId: input.orderId,
         riderId: input.riderId,
         storeId,
@@ -418,7 +423,8 @@ const taskRouter = router({
         isCod: input.isCod,
         codAmount: input.codAmount ?? null,
       });
-      const taskId = (r as any).insertId as number;
+      const [taskHeader] = taskInsert as unknown as [ResultSetHeader];
+      const taskId = taskHeader.insertId;
 
       // Update order status + riderId
       await db

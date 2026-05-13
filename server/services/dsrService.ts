@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import { randomUUID } from "crypto";
 import { randomBytes } from "crypto";
 import pino from "pino";
@@ -84,9 +83,9 @@ async function assembleAccessPayload(
       createdAt: rx.createdAt,
     })),
     orders: orderRows.map(o => ({
-      id: (o as any).id,
-      status: (o as any).status,
-      createdAt: (o as any).createdAt,
+      id: o.id,
+      status: o.status,
+      createdAt: o.createdAt,
     })),
     consents: consentRows.map(c => ({
       consentType: c.consentType,

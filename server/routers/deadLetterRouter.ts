@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 import { z } from "zod";
 import { adminProcedure, router, capabilityProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { getDb, writeAuditLog } from "../db";
 import { providerDeadLetters } from "../../drizzle/schema";
 import { escalate } from "../services/onCallRota";
@@ -23,31 +22,27 @@ export const deadLetterRouter = router({
       const db = await getDb();
       if (!db) return { rows: [], count: 0 };
 
-      const conditions = [
+      const conditions: (SQLWrapper | undefined)[] = [
         input.providerType
           ? eq(providerDeadLetters.provider, input.providerType)
           : undefined,
         input.reviewStatus
           ? eq(providerDeadLetters.reviewStatus, input.reviewStatus)
           : undefined,
-      ].filter(Boolean);
+      ];
 
       const [rows, countRows] = await Promise.all([
         db
           .select()
           .from(providerDeadLetters)
-          .where(
-            conditions.length > 0 ? and(...(conditions as any[])) : undefined
-          )
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
           .orderBy(desc(providerDeadLetters.createdAt))
           .limit(input.limit)
           .offset(input.offset),
         db
           .select({ count: sql<number>`COUNT(*)` })
           .from(providerDeadLetters)
-          .where(
-            conditions.length > 0 ? and(...(conditions as any[])) : undefined
-          ),
+          .where(conditions.length > 0 ? and(...conditions) : undefined),
       ]);
 
       return { rows, count: Number(countRows[0]?.count ?? 0) };

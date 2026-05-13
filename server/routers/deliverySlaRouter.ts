@@ -21,11 +21,11 @@ function assertRole(role: string, allowed: readonly string[], label: string) {
     });
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
-function getStoreId(user: any): number {
+import type { AccessUser } from "../_core/rbac";
+
+function getStoreId(user: AccessUser): number {
   return requireStaffStore(user);
 }
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 
 // ─── SLA sub-router ───────────────────────────────────────────────────────────
 

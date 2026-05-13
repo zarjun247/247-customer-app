@@ -9,12 +9,6 @@ import { requireStoreAccess } from "../_core/rbac";
 import { eq, and, sql, like, or, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { logAudit } from "../services/audit";
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import {
-  decreaseStockForSaleConfirmation,
-  reverseStockForSaleReturn,
-} from "../services/stockInvariant";
-/* eslint-enable @typescript-eslint/no-unused-vars */
 import * as commercialTruthSeams from "../services/commercialTruthSeams";
 import {
   assertCanConfirmSale,
@@ -34,7 +28,6 @@ import { assertConsentForScheduleSale } from "../services/familyConsentService";
 import {
   buildIdempotencyKey,
   getRequestIdFromContext,
-  withIdempotency, // eslint-disable-line @typescript-eslint/no-unused-vars
 } from "../services/idempotencyService";
 import { getCanonicalAvailability } from "../services/reservationService";
 import { buildDraftBillNumber } from "../services/invoiceNumbering";
@@ -643,7 +636,7 @@ export const salesRouter = router({
                   input.discountCode,
                   ctx
                 );
-                await assertDiscountWithinCaps(
+                assertDiscountWithinCaps(
                   applied.discountAmount,
                   Number(sale.subtotal ?? 0)
                 );

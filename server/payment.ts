@@ -3,9 +3,11 @@
  * Payment record helpers and SLA event management.
  * Works alongside connectors.ts (Razorpay SDK) and routers.ts (tRPC procedures).
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
-
+import type { ResultSetHeader } from "mysql2";
 import { getDb } from "./db";
+
+type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 import {
   paymentRecords,
   slaEvents,
@@ -29,7 +31,7 @@ export async function createPaymentRecord(params: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [result] = await db.insert(paymentRecords).values({
+  const result = await db.insert(paymentRecords).values({
     orderId: params.orderId,
     userId: params.userId,
     gatewayOrderId: params.gatewayOrderId,
@@ -37,7 +39,8 @@ export async function createPaymentRecord(params: {
     currency: params.currency ?? "INR",
     status: "pending",
   });
-  return (result as { insertId: number }).insertId;
+  const [header] = result as unknown as [ResultSetHeader];
+  return header.insertId;
 }
 
 export async function confirmPaymentRecord(params: {
@@ -49,7 +52,7 @@ export async function confirmPaymentRecord(params: {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   // Ensure update and canonical commercial event write happen in same transactional boundary
-  await db.transaction(async (tx: any) => {
+  await db.transaction(async (tx: DbTx) => {
     await tx
       .update(paymentRecords)
       .set({

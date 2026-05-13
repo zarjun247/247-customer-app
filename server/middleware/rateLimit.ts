@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import type { NextFunction, Request, Response } from "express";
 import { TRPCError } from "@trpc/server";
 import {
@@ -26,7 +25,10 @@ export function expressAbuseRateLimit(options: AbuseRateLimitOptions) {
       actor: {
         ip: req.ip,
         userId: (req as Request & { user?: { id?: number | string } }).user?.id,
-        phone: typeof req.body?.phone === "string" ? req.body.phone : undefined,
+        phone:
+          typeof (req.body as Record<string, unknown>)?.phone === "string"
+            ? String((req.body as Record<string, unknown>).phone)
+            : undefined,
         deviceId: req.header("x-device-id") ?? undefined,
         sessionId: req.header("x-session-id") ?? undefined,
         route: options.route ?? req.path,

@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { ENV } from "./env";
 import {
   canAccessStorageKey,
@@ -9,8 +8,7 @@ import {
 import { sdk } from "./sdk";
 
 export function registerStorageProxy(app: Express) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  app.get("/manus-storage/*", (req: any, res) => {
+  app.get("/manus-storage/*", (req: Request<Record<string, string>>, res) => {
     void (async () => {
       const key: string = req.params["0"] ?? "";
       if (!key) return void res.status(400).send("Missing storage key");

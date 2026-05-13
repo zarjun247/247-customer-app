@@ -1,7 +1,7 @@
 import { writeAuditLog } from "../db";
 import { redactObject, redactString } from "./observability";
 
-type CtxLike = {
+export type CtxLike = {
   user?: { id?: number; role?: string | null };
   req?: {
     headers?: Record<string, string | string[] | undefined>;

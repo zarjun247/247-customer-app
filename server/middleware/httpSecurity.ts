@@ -1,4 +1,4 @@
-import type { RequestHandler } from "express";
+import type { Application, RequestHandler } from "express";
 import express from "express";
 import helmet from "helmet";
 import { isSafeRequestId } from "../services/observability";
@@ -155,8 +155,7 @@ export const errorAccessLogMiddleware = requestErrorLoggerMiddleware;
 export const buildAccessLogEntry = buildRequestLogEntry;
 export { isSafeRequestId, requestIdMiddleware };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type MiddlewareRegistrar = { use: (...args: any[]) => unknown };
+type MiddlewareRegistrar = Pick<Application, "use">;
 
 export function registerRawWebhookParsers(app: MiddlewareRegistrar) {
   app.use(

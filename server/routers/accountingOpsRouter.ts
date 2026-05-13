@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
@@ -61,7 +60,9 @@ export const accountingOpsRouter = router({
         LEFT JOIN order_items oi ON oi.orderId = o.id
         WHERE o.createdAt >= ${from} AND o.createdAt <= ${to} AND o.status = 'delivered'
       `);
-      const data = (result as any)?.[0]?.[0] ?? {
+      const data = (
+        result as unknown as [Record<string, unknown>[], unknown]
+      )[0]?.[0] ?? {
         orderCount: 0,
         totalRevenue: 0,
         totalUnits: 0,
@@ -93,7 +94,8 @@ export const accountingOpsRouter = router({
         SELECT 'card', COALESCE(SUM(amount),0) FROM payment_records 
         WHERE status = 'paid' AND method = 'card' AND createdAt >= ${from} AND createdAt <= ${to}
       `);
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows =
+        (result as unknown as [Record<string, unknown>[], unknown])[0] ?? [];
       return redactReportPayload({
         rows,
         totals: { rowCount: rows.length },
@@ -125,7 +127,8 @@ export const accountingOpsRouter = router({
         WHERE pi.status IN ('committed', 'partially_returned')
         GROUP BY pi.supplierId
       `);
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows =
+        (result as unknown as [Record<string, unknown>[], unknown])[0] ?? [];
       return redactReportPayload({
         rows,
         totals: { rowCount: rows.length },
@@ -157,7 +160,8 @@ export const accountingOpsRouter = router({
         WHERE o.createdAt >= ${from} AND o.createdAt <= ${to} AND o.status IN ('delivered','closed')
         GROUP BY p.id, p.name
       `);
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows =
+        (result as unknown as [Record<string, unknown>[], unknown])[0] ?? [];
       return redactReportPayload({
         rows,
         totals: { rowCount: rows.length },

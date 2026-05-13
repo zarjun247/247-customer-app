@@ -5,7 +5,7 @@
  * All procedures require admin, store_manager, or inventory_operator role.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+import type { ResultSetHeader } from "mysql2";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -89,7 +89,8 @@ export const ingestionRouter = router({
         notes: input.notes ?? null,
       });
 
-      const ingestionId = (ingestionResult as any).insertId as number;
+      const [ingHeader] = ingestionResult as unknown as [ResultSetHeader];
+      const ingestionId = ingHeader.insertId;
 
       const readiness = getOcrProviderReadiness();
       await db.insert(ocrJobs).values({

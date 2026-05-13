@@ -3,7 +3,6 @@
  * All 21 live card data procedures + 4 sub-dashboard procedures.
  * All queries run against real tables — no shadow data.
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -57,8 +56,9 @@ const ADMIN_ROLES = [
   "ops_admin",
   "store_manager",
 ] as const;
+type AdminRole = (typeof ADMIN_ROLES)[number];
 function assertAdmin(role: string) {
-  if (!ADMIN_ROLES.includes(role as any)) {
+  if (!ADMIN_ROLES.includes(role as AdminRole)) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Admin access required",
@@ -82,7 +82,7 @@ const liveOrdersCard = protectedProcedure
     assertAdmin(ctx.user.role);
     const db = await getDb();
     if (!db) return { byStatus: [], total: 0 };
-    const activeStatuses = [
+    const activeStatuses: (typeof orders.status.enumValues)[number][] = [
       "awaiting_prescription",
       "awaiting_pharmacist_review",
       "clarification_needed",
@@ -103,7 +103,7 @@ const liveOrdersCard = protectedProcedure
       .from(orders)
       .where(
         and(
-          inArray(orders.status, activeStatuses as any),
+          inArray(orders.status, activeStatuses),
           input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )
       )
@@ -136,7 +136,7 @@ const orderAgeingCard = protectedProcedure
             "packed",
             "assigned_to_rider",
             "out_for_delivery",
-          ] as any),
+          ] as (typeof orders.status.enumValues)[number][]),
           input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )
       )
@@ -364,7 +364,12 @@ const whatsappQueueCard = protectedProcedure.query(async ({ ctx }) => {
     db
       .select({ count: sql<number>`COUNT(*)` })
       .from(staffHandoffs)
-      .where(inArray(staffHandoffs.status, ["open", "assigned"] as any)),
+      .where(
+        inArray(staffHandoffs.status, [
+          "open",
+          "assigned",
+        ] as (typeof staffHandoffs.status.enumValues)[number][])
+      ),
     db
       .select({
         id: whatsappMessages.id,
@@ -400,7 +405,7 @@ const appQueueCard = protectedProcedure
             "awaiting_pharmacist_review",
             "awaiting_allocation",
             "reserved",
-          ] as any),
+          ] as (typeof orders.status.enumValues)[number][]),
           eq(orders.source, "app"),
           input.storeId ? eq(orders.storeId, input.storeId) : undefined
         )

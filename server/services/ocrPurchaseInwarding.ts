@@ -1,10 +1,21 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { and, eq, ilike, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { logAudit } from "./audit";
+import type { CtxLike } from "./audit";
 import { recordSupplierPayable } from "./supplierLedger";
 import { normalizeProductName } from "./productNormalization";
 import { getOcrProviderReadiness } from "./ocrProductionSafety";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+import type { ResultSetHeader } from "mysql2";
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 
 export const OCR_CONFIDENCE_REVIEW_THRESHOLD = 70;
 export const SUPPLIER_SKU_CONFIDENCE_THRESHOLD = 95;
@@ -202,7 +213,7 @@ export function buildOcrExceptionReport(
 }
 
 export async function createOcrJob(
-  db: any,
+  db: DrizzleDb,
   payload: {
     storeId: number;
     fileUrl: string;
@@ -213,16 +224,18 @@ export async function createOcrJob(
     createdBy: number;
     supplierHint?: string | null;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const { ingestionJobs } = await import("../../drizzle/schema");
+  type IngestionJobInsert = typeof ingestionJobs.$inferInsert;
   const [job] = await db
     .insert(ingestionJobs)
     .values({
       ...payload,
-      sourceType: payload.sourceType ?? "upload",
-      jobType: "purchase_bill",
-      status: "queued",
+      sourceType: (payload.sourceType ??
+        "upload") as IngestionJobInsert["sourceType"],
+      jobType: "purchase_bill" as IngestionJobInsert["jobType"],
+      status: "queued" as IngestionJobInsert["status"],
     })
     .$returningId();
   await logAudit(
@@ -261,7 +274,7 @@ export function parseSupplierBill(rawText?: string) {
 }
 
 export async function matchSupplier(
-  db: any,
+  db: DrizzleDb,
   supplierName?: string | null,
   supplierGstin?: string | null
 ) {
@@ -286,7 +299,7 @@ export async function matchSupplier(
 }
 
 export async function matchProductOrCreateDraft(
-  db: any,
+  db: DrizzleDb,
   line: OcrLineInput,
   supplierId?: number | null
 ): Promise<OcrMatchResult> {
@@ -366,7 +379,7 @@ export async function matchProductOrCreateDraft(
 }
 
 export async function detectPriceChange(
-  db: any,
+  db: DrizzleDb,
   productId: number,
   nextPurchaseRate: number
 ) {
@@ -382,15 +395,19 @@ export async function detectPriceChange(
 }
 
 export async function createPurchaseDraftFromOcr(
-  db: any,
-  payload: any,
-  ctx?: any
+  db: DrizzleDb,
+  payload: Record<string, unknown>,
+  ctx?: CtxLike
 ) {
   const { purchaseInvoices } = await import("../../drizzle/schema");
-  const [res] = await db
-    .insert(purchaseInvoices)
-    .values({ ...payload, sourceType: "ocr", status: "draft" });
-  const id = res.insertId;
+  type InvoiceInsert = typeof purchaseInvoices.$inferInsert;
+  const insertResult = await db.insert(purchaseInvoices).values({
+    ...payload,
+    sourceType: "ocr",
+    status: "draft",
+  } as unknown as InvoiceInsert);
+  const [header] = insertResult as unknown as [ResultSetHeader];
+  const id = header.insertId;
   await logAudit(
     {
       action: "ocr.purchase_draft_created",
@@ -403,13 +420,31 @@ export async function createPurchaseDraftFromOcr(
   return id;
 }
 
+interface OcrLineUpdate {
+  approvalDecision?: string | null;
+  approvalStatus?: string | null;
+  approvedAt?: Date | null;
+  confidence?: number | string | null;
+  productId?: number | null;
+  batchNo?: string | null;
+  expiryDate?: string | null;
+  qty?: number | null;
+  mrp?: string | number | null;
+  purchaseRate?: string | number | null;
+  hsnCode?: string | null;
+  gstRate?: string | number | null;
+  schedule?: string | null;
+  exceptionReason?: string | null;
+}
+
 export async function reviewOcrLine(
-  db: any,
+  db: DrizzleDb,
   lineId: number,
-  updates: any,
-  ctx?: any
+  updates: OcrLineUpdate,
+  ctx?: CtxLike
 ) {
   const { ocrExtractedLines } = await import("../../drizzle/schema");
+  type OcrLineSet = typeof ocrExtractedLines.$inferInsert;
   const decision =
     updates.approvalDecision ??
     (updates.approvalStatus === "approved"
@@ -424,7 +459,7 @@ export async function reviewOcrLine(
       approvalDecision: decision,
       reviewedAt: new Date(),
       approvedAt: updates.approvedAt ?? new Date(),
-    })
+    } as unknown as OcrLineSet)
     .where(eq(ocrExtractedLines.id, lineId));
   await logAudit(
     {
@@ -437,7 +472,7 @@ export async function reviewOcrLine(
   );
 }
 
-export async function approveOcrDraft(db: any, jobId: number) {
+export async function approveOcrDraft(db: DrizzleDb, jobId: number) {
   const { ingestionJobs } = await import("../../drizzle/schema");
   await db
     .update(ingestionJobs)
@@ -445,7 +480,7 @@ export async function approveOcrDraft(db: any, jobId: number) {
     .where(eq(ingestionJobs.id, jobId));
 }
 
-export async function rejectOcrDraft(db: any, jobId: number) {
+export async function rejectOcrDraft(db: DrizzleDb, jobId: number) {
   const { ingestionJobs } = await import("../../drizzle/schema");
   await db
     .update(ingestionJobs)
@@ -454,7 +489,7 @@ export async function rejectOcrDraft(db: any, jobId: number) {
 }
 
 export async function commitReviewedPurchaseDraft(
-  db: any,
+  db: DrizzleDb,
   input: {
     invoiceId: number;
     supplierId: number;
@@ -462,7 +497,7 @@ export async function commitReviewedPurchaseDraft(
     actorRole: string;
     source?: string;
   },
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const { purchaseInvoices } = await import("../../drizzle/schema");
   const [inv] = await db

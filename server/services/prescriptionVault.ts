@@ -1,6 +1,16 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { and, eq } from "drizzle-orm";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
 import { prescriptionAccessLog, prescriptions } from "../../drizzle/schema";
+
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 
 type PrescriptionStatus =
   | "pending_ocr"
@@ -87,7 +97,7 @@ export function assertPrescriptionUsableForCustomer(
 }
 
 export async function markPrescriptionOnFileWithConsent(
-  db: any,
+  db: DrizzleDb,
   params: {
     prescriptionId: number;
     customerId: number;
@@ -118,7 +128,7 @@ export async function markPrescriptionOnFileWithConsent(
 }
 
 export async function logPrescriptionVaultAccess(
-  db: any,
+  db: DrizzleDb,
   params: {
     actorId: number | null;
     actorRole: VaultActorRole;

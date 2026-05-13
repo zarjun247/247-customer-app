@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/require-await */
 import crypto from "crypto";
 
 export type WorkerJobStatus =
@@ -193,7 +192,9 @@ export function resetJobQueueForTests(): void {
 function cloneJob(job: WorkerJob): WorkerJob {
   return {
     ...job,
-    payloadJson: JSON.parse(JSON.stringify(job.payloadJson)),
+    payloadJson: JSON.parse(
+      JSON.stringify(job.payloadJson)
+    ) as WorkerJobPayload,
     auditTrail: job.auditTrail.map(entry => ({
       ...entry,
       details: entry.details ? { ...entry.details } : undefined,
@@ -217,9 +218,7 @@ function findDuplicate(
   });
 }
 
-export async function enqueueJob(
-  input: EnqueueJobInput
-): Promise<EnqueueJobResult> {
+export function enqueueJob(input: EnqueueJobInput): EnqueueJobResult {
   if (!input.idempotencyKey || input.idempotencyKey.trim().length === 0) {
     throw new Error("idempotencyKey is required for worker jobs");
   }
@@ -286,11 +285,11 @@ export async function enqueueJob(
   return { job: cloneJob(job), duplicate: false, alreadyCompleted: false };
 }
 
-export async function reserveJob(input: {
+export function reserveJob(input: {
   queueName?: string;
   workerId: string;
   now?: Date;
-}): Promise<WorkerJob | null> {
+}): WorkerJob | null {
   const current = input.now ?? now();
   const candidates = Array.from(memoryJobs.values())
     .filter(job => {
@@ -320,10 +319,10 @@ export async function reserveJob(input: {
   return cloneJob(job);
 }
 
-export async function completeJob(
+export function completeJob(
   jobId: number,
   input: { workerId?: string; result?: Record<string, unknown> } = {}
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (job.status === "completed") return cloneJob(job);
   if (!["reserved", "running"].includes(job.status))
@@ -352,7 +351,7 @@ export async function completeJob(
   return cloneJob(job);
 }
 
-export async function failJob(
+export function failJob(
   jobId: number,
   input: {
     reason: string;
@@ -361,7 +360,7 @@ export async function failJob(
     retryDelayMs?: number;
     deadLetterClass?: DeadLetterClass;
   }
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (["completed", "dead_letter", "cancelled"].includes(job.status))
     return cloneJob(job);
@@ -386,12 +385,12 @@ export async function failJob(
   });
 }
 
-export async function retryJob(
+export function retryJob(
   jobId: number,
   input: { reason: string; workerId?: string; delayMs?: number } = {
     reason: "retry requested",
   }
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (["completed", "dead_letter", "cancelled"].includes(job.status))
     return cloneJob(job);
@@ -419,10 +418,10 @@ export async function retryJob(
   return cloneJob(job);
 }
 
-export async function deadLetterJob(
+export function deadLetterJob(
   jobId: number,
   input: { reason: string; deadLetterClass?: DeadLetterClass; actor?: string }
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (job.status === "completed") return cloneJob(job);
   const from = job.status;
@@ -447,10 +446,10 @@ export async function deadLetterJob(
   return cloneJob(job);
 }
 
-export async function cancelJob(
+export function cancelJob(
   jobId: number,
   input: { reason: string; actor: string }
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (["completed", "dead_letter"].includes(job.status)) return cloneJob(job);
   const from = job.status;
@@ -463,10 +462,10 @@ export async function cancelJob(
   return cloneJob(job);
 }
 
-export async function heartbeatJob(
+export function heartbeatJob(
   jobId: number,
   input: { workerId: string; at?: Date }
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (!["reserved", "running"].includes(job.status))
     throw new Error(`Cannot heartbeat job ${jobId} from status ${job.status}`);
@@ -479,10 +478,7 @@ export async function heartbeatJob(
   return cloneJob(job);
 }
 
-export async function markJobRunning(
-  jobId: number,
-  workerId: string
-): Promise<WorkerJob> {
+export function markJobRunning(jobId: number, workerId: string): WorkerJob {
   const job = requireJob(jobId);
   if (job.status === "completed") return cloneJob(job);
   if (job.status !== "reserved")
@@ -497,9 +493,9 @@ export async function markJobRunning(
   return cloneJob(job);
 }
 
-export async function listDeadLetterJobs(
+export function listDeadLetterJobs(
   input: { queueName?: string; unresolvedOnly?: boolean } = {}
-): Promise<WorkerJob[]> {
+): WorkerJob[] {
   return Array.from(memoryJobs.values())
     .filter(job => job.status === "dead_letter")
     .filter(job => !input.queueName || job.queueName === input.queueName)
@@ -507,10 +503,10 @@ export async function listDeadLetterJobs(
     .map(cloneJob);
 }
 
-export async function replayDeadLetterJob(
+export function replayDeadLetterJob(
   jobId: number,
   input: { actor: string; reason: string; newIdempotencyKey?: string }
-): Promise<EnqueueJobResult> {
+): EnqueueJobResult {
   const job = requireJob(jobId);
   if (job.status !== "dead_letter")
     throw new Error(`Job ${jobId} is not dead-lettered`);
@@ -538,10 +534,10 @@ export async function replayDeadLetterJob(
   });
 }
 
-export async function markDeadLetterResolved(
+export function markDeadLetterResolved(
   jobId: number,
   input: { actor: string; note: string }
-): Promise<WorkerJob> {
+): WorkerJob {
   const job = requireJob(jobId);
   if (job.status !== "dead_letter")
     throw new Error(`Job ${jobId} is not dead-lettered`);
@@ -561,11 +557,11 @@ export async function markDeadLetterResolved(
   return cloneJob(job);
 }
 
-export async function detectStaleRunningJobs(input: {
+export function detectStaleRunningJobs(input: {
   staleAfterMs: number;
   now?: Date;
   queueName?: string;
-}): Promise<StaleJob[]> {
+}): StaleJob[] {
   const current = input.now ?? now();
   return Array.from(memoryJobs.values())
     .filter(job => ["reserved", "running"].includes(job.status))
@@ -580,10 +576,10 @@ export async function detectStaleRunningJobs(input: {
     .map(({ job, age }) => ({ ...cloneJob(job), staleForMs: age }));
 }
 
-export async function classifyOrphanedJob(
+export function classifyOrphanedJob(
   jobId: number,
   input: { actor: string; reason: string }
-): Promise<WorkerJob> {
+): WorkerJob {
   return deadLetterJob(jobId, {
     reason: input.reason,
     deadLetterClass: "stale_orphaned",
@@ -591,9 +587,9 @@ export async function classifyOrphanedJob(
   });
 }
 
-export async function getQueueStats(
+export function getQueueStats(
   input: { queueName?: string; staleAfterMs?: number; now?: Date } = {}
-): Promise<QueueStats> {
+): QueueStats {
   const current = input.now ?? now();
   const jobs = Array.from(memoryJobs.values()).filter(
     job => !input.queueName || job.queueName === input.queueName
@@ -608,7 +604,7 @@ export async function getQueueStats(
         (a.nextRetryAt ?? a.updatedAt).getTime() -
         (b.nextRetryAt ?? b.updatedAt).getTime()
     )[0];
-  const staleRunning = await detectStaleRunningJobs({
+  const staleRunning = detectStaleRunningJobs({
     staleAfterMs: input.staleAfterMs ?? 5 * 60_000,
     now: current,
     queueName: input.queueName,

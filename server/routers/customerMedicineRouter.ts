@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
+import type { ResultSetHeader } from "mysql2";
 import {
   router,
   protectedProcedure,
@@ -85,7 +85,7 @@ const familyMemberRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDbSafe();
       const { familyMembers } = await import("../../drizzle/schema");
-      const [result] = await db.insert(familyMembers).values({
+      const result = await db.insert(familyMembers).values({
         userId: ctx.user.id,
         name: input.name,
         relation: input.relation ?? null,
@@ -99,7 +99,7 @@ const familyMemberRouter = router({
         allergies: input.allergies ? JSON.stringify(input.allergies) : null,
         bloodGroup: input.bloodGroup ?? null,
       });
-      return { id: (result as any).insertId };
+      return { id: (result as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   update: protectedProcedure
@@ -275,7 +275,7 @@ const medicineRecordRouter = router({
     .mutation(async ({ ctx: _ctx, input }) => {
       const db = await getDbSafe();
       const { customerMedicineRecords } = await import("../../drizzle/schema");
-      const [result] = await db.insert(customerMedicineRecords).values({
+      const result = await db.insert(customerMedicineRecords).values({
         userId: input.userId,
         familyMemberId: input.familyMemberId ?? null,
         productId: input.productId,
@@ -293,7 +293,7 @@ const medicineRecordRouter = router({
         discontinued: false,
         pharmacistNote: input.pharmacistNote ?? null,
       });
-      return { id: (result as any).insertId };
+      return { id: (result as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   /** Mark a medicine as discontinued */
@@ -420,7 +420,7 @@ const refillPlanRouter = router({
       const nextDueDate = new Date(startDate);
       nextDueDate.setDate(nextDueDate.getDate() + input.frequencyDays);
 
-      const [result] = await db.insert(refillPlans).values({
+      const result = await db.insert(refillPlans).values({
         userId,
         familyMemberId: input.familyMemberId ?? null,
         productId: input.productId,
@@ -439,7 +439,7 @@ const refillPlanRouter = router({
           : null,
         createdBy: ctx.user.id,
       });
-      return { id: (result as any).insertId };
+      return { id: (result as unknown as [ResultSetHeader])[0].insertId };
     }),
 
   update: protectedProcedure
