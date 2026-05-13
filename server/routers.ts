@@ -1544,6 +1544,13 @@ const consultRouter = router({
       );
       return { ok: true };
     }),
+
+  // Option B (SM-LM Phase 10): return external telemedicine URL configured via DOCTOR_CONSULT_URL.
+  // Returns empty string when not configured — frontend hides the button in that case.
+  getRedirectUrl: publicProcedure.query(() => ({
+    url: ENV.doctorConsultUrl,
+    enabled: Boolean(ENV.doctorConsultUrl),
+  })),
 });
 
 export const appRouter = router({

@@ -202,6 +202,10 @@ export const ENV = {
   releaseChannel: (process.env.RELEASE_CHANNEL ?? "staging") as
     | "staging"
     | "production",
+  // SM-LM Phase 10 (Option B): DOCTOR_CONSULT_URL — external telemedicine redirect URL.
+  // When set, the "Consult a Doctor" button deep-links here. Default empty = button hidden.
+  // Never add to assertProductionEnvSafe() — optional feature.
+  doctorConsultUrl: process.env.DOCTOR_CONSULT_URL ?? "",
 };
 
 assertProductionEnvSafe();
