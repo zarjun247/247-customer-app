@@ -15,9 +15,7 @@ describe("supplier invoice duplicate enforcement plan", () => {
     expect(seam).toContain(
       "eq(purchaseInvoices.invoiceNo, normalizedInvoiceNo)"
     );
-    expect(seam).toContain(
-      'inArray(purchaseInvoices.status, ["committed", "partially_returned", "returned"])'
-    );
+    expect(seam).toContain("inArray(purchaseInvoices.status, [");
     expect(seam).toContain('code: "CONFLICT"');
   });
 

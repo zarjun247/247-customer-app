@@ -33,7 +33,7 @@ describe("refund accounting reversal proof", () => {
       .map(f => fs.readFileSync(`drizzle/schema/${f}`, "utf8"))
       .join("\n");
     expect(service).toContain("postBalancedJournalBatch(tx");
-    expect(service).toContain("createRefundJournalBatch({ refundId");
+    expect(service).toContain("createRefundJournalBatch({");
     expect(service).toContain("paymentId: payment.id");
     expect(service).toContain("orderId: payment.orderId");
     expect(service).toContain("refundId,");
