@@ -7,6 +7,14 @@ This directory contains ADRs documenting significant architectural decisions for
 | ID | Title | Status | Date |
 |----|-------|--------|------|
 | 0001 | Collapse 149 root markdown files into 5 living documents | Accepted | 2026-05-11 |
+| 0002 | executeCommand as the command bus for state-mutating operations | Accepted | 2026-05-13 |
+| 0003 | Extract role definitions to _core/roles.ts | Accepted | 2026-05-13 |
+| 0004 | Emergency stop via DB-backed feature flag | Accepted | 2026-05-13 |
+| 0005 | Custom migration runner over drizzle-kit migrate | Accepted | 2026-05-13 |
+| 0006 | Dual reservation system — stockReservations retained alongside reservation_ledger | Accepted (transitional) | 2026-05-13 |
+| 0007 | CSRF two-phase rollout — log_only before enforce | Accepted (Phase 1 pending) | 2026-05-13 |
+| 0008 | AI features are assistive-only — no regulated mutation authority | Accepted | 2026-05-13 |
+| 0009 | File-size splitting via barrel re-export pattern | Accepted (legacy pattern) | 2026-05-13 |
 
 ## Template
 

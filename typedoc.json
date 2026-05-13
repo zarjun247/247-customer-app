@@ -1,0 +1,34 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "server/_core/trpc.ts",
+    "server/_core/rbac.ts",
+    "server/_core/roles.ts",
+    "server/services/executeCommand.ts",
+    "server/services/stockInvariant.ts",
+    "server/services/reservationLedger.ts",
+    "server/services/aiGovernance.ts",
+    "server/services/capabilityGrantService.ts",
+    "server/services/auditHashChain.ts",
+    "server/services/sloService.ts",
+    "server/services/emergencyStopService.ts",
+    "server/services/commandStateMachine.ts"
+  ],
+  "out": "docs/api",
+  "name": "247 Customer App — API Reference",
+  "readme": "none",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "cleanOutputDir": true,
+  "plugin": [],
+  "tsconfig": "tsconfig.json",
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Core",
+    "Services",
+    "Guards",
+    "*"
+  ]
+}
