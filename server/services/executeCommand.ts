@@ -31,7 +31,7 @@ export type CommandResult<TOutput> = {
 
 export type CommandHandler<TInput, TOutput> = (
   input: TInput,
-  tx: DbTx,
+  tx: DbInstance,
   ctx: CommandContext
 ) => Promise<CommandResult<TOutput>>;
 
@@ -160,7 +160,11 @@ export async function executeCommand<TInput, TOutput>(
     let handlerResult!: CommandResult<TOutput>;
 
     await db.transaction(async (tx: DbTx) => {
-      handlerResult = await options.handler(options.input, tx, options.context);
+      handlerResult = await options.handler(
+        options.input,
+        tx as unknown as DbInstance,
+        options.context
+      );
 
       for (const se of handlerResult.sideEffects) {
         await tx.insert(commandOutbox).values({
