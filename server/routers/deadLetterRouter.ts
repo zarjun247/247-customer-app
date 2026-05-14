@@ -48,6 +48,19 @@ export const deadLetterRouter = router({
       return { rows, count: Number(countRows[0]?.count ?? 0) };
     }),
 
+  /**
+   * TRIAGE SIGNAL — NOT AUTOMATED REPLAY.
+   *
+   * This procedure marks the dead-letter row `reviewStatus = 'replayed'` and stamps
+   * the reviewing operator. It does NOT re-enqueue the original payload or re-execute
+   * the provider handler. Automated replay is deferred to Phase 2 (see ADR-0011).
+   *
+   * After pressing "Retry", the operator must manually re-trigger the affected action
+   * using the `paymentId` / `orderId` on the dead-letter row via the normal admin flows.
+   *
+   * The procedure name (`retry`) is misleading and will be renamed to `markForFollowup`
+   * in Phase 2 when the API rename can be coordinated with client callers.
+   */
   retry: adminProcedure
     .input(z.object({ deadLetterId: z.number().int() }))
     .mutation(async ({ ctx, input }) => {

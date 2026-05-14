@@ -58,13 +58,13 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 
 **On-call rota** — JSON-backed (`server/data/oncall-rota.json`). Must migrate to DB table before multi-node deployment. PagerDuty integration is fire-and-forget with no retry.
 
-**Dead-letter retry** — marks `reviewStatus="replayed"` but does not re-enqueue original payload. Actual replay requires worker reading `rawPayload`.
+**Dead-letter retry** — marks `reviewStatus="replayed"` but does not re-enqueue original payload. Automated replay deferred to Phase 2 per [ADR-0011](docs/adr/0011-dead-letter-replay-deferred.md): prerequisites (outbox dispatcher running, handler registry, status-reset idempotency) are not yet in place. Operators must manually remediate via `paymentId`/`orderId` context on the dead-letter row. The `retry` procedure name is misleading (rename to `markForFollowup` deferred to Phase 2 to avoid breaking client callers).
 
 **CSP mode** — set `CSP_MODE=report_only` in staging before `enforce`. Tighten `unsafe-inline` directives once Vite nonce injection is confirmed.
 
 **Rate limit store** — in-memory; not shared across nodes. Set `API_RATE_LIMIT_BACKEND=redis` before multi-node production.
 
-**Capability grants** — ~~`capability_grants` empty at first boot~~ — by design (SM-Ω Phase 1): `CAPABILITY_ROLE_DEFAULTS` in `capabilityGrantService.ts` (sealed) provides comprehensive role-based defaults. The system is fully operational without seeding any DB grants; `capabilityProcedure` already consults defaults before the DB. Explicit grants via `security.grantCapability` are only needed for per-user overrides beyond role defaults.
+**Capability grants** — ~~`capability_grants` empty at first boot~~ — by design (SM-Ω Phase 1): `CAPABILITY_ROLE_DEFAULTS` in `capabilityGrantService.ts` (sealed) provides comprehensive role-based defaults. The system is fully operational without seeding any DB grants; `capabilityProcedure` already consults defaults before the DB. Explicit grants via `security.grantCapability` are only needed for per-user overrides beyond role defaults. Documented in [ADR-0012](docs/adr/0012-capability-grants-role-default-mode.md).
 
 **Intelligence — stockoutForecast** — requires `numericStoreId` for accurate live stock data; defaults to 0 otherwise.
 
@@ -77,6 +77,8 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 **`OTEL_*` env vars undocumented** — four optional OTel keys typed in `server/_core/env.ts` but no `.env.example` or `docs/ENVIRONMENT.md` exists yet.
 
 **`ONCALL_ALERT_EMAIL`** — captured in ENV, not yet wired to SMTP/SES fallback.
+
+**SBOM components array empty** — `sbom.cyclonedx.json` committed to repo has `"components": []`. Root cause: `scripts/sbom-generate.mjs` calls `@cyclonedx/cyclonedx-npm` which fails silently with pnpm v10 (`pnpm ls --all` unsupported) and falls back to a minimal stub. The CI workflow (`sbom.yml`) correctly uses `pnpm dlx @cyclonedx/cdxgen@latest -t pnpm` which populates the full component list. Fix requires two steps: (1) update `sbom-generate.mjs` to call `cdxgen` locally (matching CI); (2) add `sbom.cyclonedx.json` to `.gitignore` — it is a CI-generated artifact and should not be committed (the committed copy is always the empty fallback, which is misleading). Deferred to a dedicated SBOM PR.
 
 ---
 
@@ -134,12 +136,12 @@ apply and verification paths now consistently use the SM-K runner ledger.
 - PII write paths fully wired: `prescriptions.patientPhone` and `pharmacistNote` encrypt on write, decrypt on read; `getUserByPhone` uses HMAC-SHA256 `phoneHash` index for correctness under AES-GCM.
 - Column widths fixed: `users.phone` and `prescriptions.patientPhone` widened to VARCHAR(500) via migrations 0075/0076.
 - PII backfill script added: `scripts/pii-backfill.ts` handles users + prescriptions in batches.
-- Capability grants: documented as by-design; `CAPABILITY_ROLE_DEFAULTS` provides full boot-time coverage.
+- Capability grants: documented as by-design in [ADR-0012](docs/adr/0012-capability-grants-role-default-mode.md); `CAPABILITY_ROLE_DEFAULTS` provides full boot-time coverage.
 
 ### Closed by SM-N
 
 - CSRF client wiring (P0): Client now sends `x-csrf-token` header on every tRPC call via `httpBatchLink.headers`. Cookie name: `__Host-csrf`. CSRF enforcement can now be promoted from `log_only` to `enforce` in production.
-- Emergency stop middleware applied to `/api/trpc`: `createEmergencyStopMiddleware` inserted before tRPC mount; `readFlag()` blocks customer mutations when active; fails open if DB unreachable.
+- Emergency stop middleware applied to `/api/trpc`: `createEmergencyStopMiddleware` inserted before tRPC mount; `readFlag()` blocks customer mutations when active; fails open if DB unreachable. Fail-open posture affirmed by [ADR-0010](docs/adr/0010-emergency-stop-fail-open-affirmed.md) (SM-Ω Phase 1 cleanup) — see ADR for rationale and Phase 2 upgrade path.
 
 ### Closed by SM-E (this PR)
 
