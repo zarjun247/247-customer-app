@@ -4,7 +4,7 @@ This document is the canonical "where are we now" reference. Update it after eac
 
 ---
 
-## Score: ~9.65 / 10 (as of 2026-05-12, post SM-E)
+## Score: ~9.0 / 10 on pure-code axis (as of 2026-05-14, post SM-Ω Phase 1)
 
 A score of **9.5/10** (controlled-production rating) requires all P0 blockers closed with evidence. The current score reflects strong software foundations but missing operational evidence. See §Score history below.
 
@@ -16,6 +16,7 @@ A score of **9.5/10** (controlled-production rating) requires all P0 blockers cl
 
 | PR / MP | What shipped | Key code artifacts |
 |---------|-------------|-------------------|
+| SM-Ω Phase 1 — Correctness & coverage | PII correctness bugs fixed: `users.phone` widened to VARCHAR(500) + HMAC-SHA256 `phoneHash` index added for deterministic encrypted lookup (migration 0075). `prescriptions.patientPhone` widened (migration 0076). All prescription PII write paths now encrypt; all read paths decrypt. `@vitest/coverage-v8` installed; real floor anchored in `vitest.config.ts`. PII backfill script `scripts/pii-backfill.ts` added. `.nvmrc` added (node 24). OPEN_BLOCKERS.md updated. | `drizzle/0075_users_phone_pii.sql`, `drizzle/0076_prescriptions_patientphone_pii.sql`, `server/db.ts`, `server/services/customerPiiService.ts`, `server/routers/prescriptionGovRouter.ts`, `server/routers/prescriptionReviewRouter.ts`, `server/pharmacy.ts`, `scripts/pii-backfill.ts`, `vitest.config.ts` |
 | SM-E — Final score lift | Schema split (system.ts → 3 domain files). Migrations 0064-0066 (user DOB, DSR SLA log, app phase flags). APP_PHASE gating (pilot/scaled/full). CSRF wired. Retention worker + DSR SLA monitor started at boot. Breach dispatcher wired. Phase gates on intelligence/AI eval ledger. Stale files deleted. Docs rewritten. | `server/services/featureFlags.ts`, `client/src/lib/featureFlags.tsx`, `drizzle/schema/system_ops.ts`, `system_comms.ts`, `system_consumer.ts` |
 | PR #157 — PR 4.1: OTel end-to-end instrumentation | OpenTelemetry SDK initialized before Express. OTLP trace export via 4 optional env vars. prom-client Prometheus metrics at `/metrics` (staff/admin gated). Pino structured logging with PHI/PII redaction. Dashboard definitions cleaned of unbacked capabilities. | `server/_core/telemetry.ts`, `server/_core/observability.ts` |
 | PR #156 — MP1: Runtime incident command (wire real endpoints to frontend) | AdminCommandCenter and AdminRuntimeIncident wired to real tRPC endpoints. Staff/admin gated. Incident creation and status tracking from admin UI. | `client/src/pages/admin/AdminCommandCenter.tsx`, `server/routers/commandCenterRouter.ts` |

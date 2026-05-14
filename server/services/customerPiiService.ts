@@ -1,4 +1,5 @@
-import { encrypt, decrypt } from "./piiEncryption";
+import { createHmac } from "crypto";
+import { encrypt, decrypt, getMasterKey } from "./piiEncryption";
 
 // Transparent PII encrypt/decrypt for user fields.
 // In passthrough mode (no master key + not production), these are identity functions.
@@ -29,6 +30,24 @@ export async function decryptUserEmail(
 ): Promise<string | null> {
   if (!stored) return stored ?? null;
   return decrypt(stored, "customer.email");
+}
+
+/**
+ * Compute a deterministic HMAC-SHA256 hash of a phone number for indexed lookup.
+ *
+ * When PII_ENCRYPTION_MASTER_KEY is set (production), phone values are stored
+ * as AES-GCM ciphertexts with a random IV — non-deterministic, cannot be searched.
+ * This hash uses the same master key (first 32 bytes) as the HMAC secret so we
+ * don't introduce a second secret, while still being distinct from the encryption
+ * (HMAC ≠ encryption and doesn't leak the plaintext).
+ *
+ * Returns null when no master key is configured — in that mode phones are stored
+ * as plaintext and the direct eq() lookup in getUserByPhone still works.
+ */
+export function computePhoneHash(phone: string): string | null {
+  const masterKey = getMasterKey();
+  if (!masterKey) return null;
+  return createHmac("sha256", masterKey).update(phone, "utf8").digest("hex");
 }
 
 export type UserPiiFields = {

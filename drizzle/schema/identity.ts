@@ -18,7 +18,8 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   dateOfBirth: date("date_of_birth"),
-  phone: varchar("phone", { length: 20 }),
+  phone: varchar("phone", { length: 500 }), // widened from 20: AES-GCM envelope needs ~67 chars
+  phoneHash: varchar("phone_hash", { length: 64 }).unique(), // HMAC-SHA256 for deterministic lookup
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", [
     "user",

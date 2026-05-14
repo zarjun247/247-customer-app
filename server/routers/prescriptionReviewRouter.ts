@@ -12,6 +12,10 @@ import {
   requirePermission as _requirePermission,
 } from "../services/rbacPolicy";
 import {
+  encryptPharmacistNote,
+  decryptPrescriptionPii,
+} from "../services/prescriptionPiiService";
+import {
   canUsePrescriptionOnFile,
   isPrescriptionExpired,
   logPrescriptionVaultAccess,
@@ -97,7 +101,9 @@ export const prescriptionGovRouterExtension = {
         .update(prescriptions)
         .set({
           status: input.decision,
-          pharmacistNote: input.pharmacistNote ?? null,
+          pharmacistNote: await encryptPharmacistNote(
+            input.pharmacistNote ?? null
+          ),
           pharmacistId: ctx.user.id,
           reviewedAt: new Date(),
           linkedSaleId: input.linkedSaleId ?? rx.linkedSaleId,
@@ -522,7 +528,10 @@ export const prescriptionGovRouterExtension = {
         .from(prescriptions)
         .where(where);
 
-      return { rows, total: Number(countRow?.count ?? 0) };
+      const decryptedRows = await Promise.all(
+        rows.map(r => decryptPrescriptionPii(r))
+      );
+      return { rows: decryptedRows, total: Number(countRow?.count ?? 0) };
     }),
 
   /**

@@ -13,6 +13,11 @@ import {
   requirePermission,
 } from "../services/rbacPolicy";
 import { logPrescriptionVaultAccess } from "../services/prescriptionVault";
+import {
+  encryptPharmacistNote,
+  encryptPatientPhone,
+  decryptPrescriptionPii,
+} from "../services/prescriptionPiiService";
 import { eq, and, desc, sql, like, or } from "drizzle-orm";
 import { prescriptionGovRouterExtension } from "./prescriptionReviewRouter";
 
@@ -162,8 +167,11 @@ export const prescriptionGovRouter = router({
         .from(prescriptions)
         .where(where);
 
+      const decryptedRows = await Promise.all(
+        rows.map(r => decryptPrescriptionPii(r))
+      );
       return {
-        rows,
+        rows: decryptedRows,
         total: Number(countRow?.count ?? 0),
         page: input.page,
         pageSize: input.pageSize,
@@ -211,7 +219,16 @@ export const prescriptionGovRouter = router({
         "admin"
       );
 
-      return { prescription: rx, lines };
+      const decryptedLines = await Promise.all(
+        lines.map(l => decryptPrescriptionPii(l))
+      );
+      return {
+        prescription: {
+          ...rx,
+          prescriptions: await decryptPrescriptionPii(rx.prescriptions),
+        },
+        lines: decryptedLines,
+      };
     }),
 
   // ── Update prescription metadata (patient/doctor details) ─────────────────
@@ -257,7 +274,7 @@ export const prescriptionGovRouter = router({
       if (input.patientName !== undefined)
         updateData.patientName = input.patientName;
       if (input.patientPhone !== undefined)
-        updateData.patientPhone = input.patientPhone;
+        updateData.patientPhone = await encryptPatientPhone(input.patientPhone);
       if (input.patientAddress !== undefined)
         updateData.patientAddress = input.patientAddress;
       if (input.doctorName !== undefined)
@@ -397,7 +414,9 @@ export const prescriptionGovRouter = router({
         .update(prescriptionLines)
         .set({
           status: "approved",
-          pharmacistNote: input.pharmacistNote ?? null,
+          pharmacistNote: await encryptPharmacistNote(
+            input.pharmacistNote ?? null
+          ),
           reviewedBy: ctx.user.id,
           reviewedAt: new Date(),
           linkedProductId: input.linkedProductId ?? line.linkedProductId,
@@ -441,7 +460,7 @@ export const prescriptionGovRouter = router({
         .update(prescriptionLines)
         .set({
           status: "rejected",
-          pharmacistNote: input.pharmacistNote,
+          pharmacistNote: await encryptPharmacistNote(input.pharmacistNote),
           reviewedBy: ctx.user.id,
           reviewedAt: new Date(),
         })
