@@ -58,7 +58,7 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 
 **On-call rota** — JSON-backed (`server/data/oncall-rota.json`). Must migrate to DB table before multi-node deployment. PagerDuty integration is fire-and-forget with no retry.
 
-**Dead-letter retry** — marks `reviewStatus="replayed"` but does not re-enqueue original payload. Actual replay requires worker reading `rawPayload`.
+**Dead-letter retry** — marks `reviewStatus="replayed"` but does not re-enqueue original payload. Automated replay deferred to Phase 2 per [ADR-0011](docs/adr/0011-dead-letter-replay-deferred.md): prerequisites (outbox dispatcher running, handler registry, status-reset idempotency) are not yet in place. Operators must manually remediate via `paymentId`/`orderId` context on the dead-letter row. The `retry` procedure name is misleading (rename to `markForFollowup` deferred to Phase 2 to avoid breaking client callers).
 
 **CSP mode** — set `CSP_MODE=report_only` in staging before `enforce`. Tighten `unsafe-inline` directives once Vite nonce injection is confirmed.
 
