@@ -85,7 +85,7 @@ export const prescriptions = mysqlTable("prescriptions", {
   retainUntil: timestamp("retainUntil"),
   // Patient details
   patientName: varchar("patientName", { length: 300 }),
-  patientPhone: varchar("patientPhone", { length: 20 }),
+  patientPhone: varchar("patientPhone", { length: 500 }), // widened: AES-GCM envelope needs ~67 chars
   patientAddress: text("patientAddress"),
   // Clarification workflow
   clarificationNote: text("clarificationNote"),

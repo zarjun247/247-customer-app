@@ -10,6 +10,7 @@
  */
 
 import { getDb } from "./db";
+import { encryptPharmacistNote } from "./services/prescriptionPiiService";
 import {
   prescriptions,
   rxComplianceLog,
@@ -205,7 +206,7 @@ export async function quickVerifyRx(
       reviewedAt: new Date(),
       dispensingPharmacistId: pharmacistId,
       retainUntil: fiveYearsFromNow(),
-      pharmacistNote: note ?? "Quick verified",
+      pharmacistNote: await encryptPharmacistNote(note ?? "Quick verified"),
     })
     .where(eq(prescriptions.id, rxId));
 
@@ -248,7 +249,7 @@ export async function approveRx(
       reviewedAt: new Date(),
       dispensingPharmacistId: pharmacistId,
       retainUntil: fiveYearsFromNow(),
-      pharmacistNote: note ?? "Approved",
+      pharmacistNote: await encryptPharmacistNote(note ?? "Approved"),
     })
     .where(eq(prescriptions.id, rxId));
 
@@ -284,7 +285,7 @@ export async function rejectRx(
       status: "rejected",
       pharmacistId,
       reviewedAt: new Date(),
-      pharmacistNote: note,
+      pharmacistNote: await encryptPharmacistNote(note),
     })
     .where(eq(prescriptions.id, rxId));
 
@@ -319,7 +320,9 @@ export async function manualReviewRx(
     .set({
       status: "additional_verification",
       pharmacistId,
-      pharmacistNote: note ?? "Sent for manual review",
+      pharmacistNote: await encryptPharmacistNote(
+        note ?? "Sent for manual review"
+      ),
     })
     .where(eq(prescriptions.id, rxId));
 

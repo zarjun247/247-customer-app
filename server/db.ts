@@ -41,6 +41,7 @@ import { createOrderInvoiceSnapshot as _createOrderInvoiceSnapshot } from "./ser
 import {
   encryptUserPii,
   encryptUserPhone,
+  computePhoneHash,
 } from "./services/customerPiiService";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -79,6 +80,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (user.phone !== undefined) {
     values.phone = encrypted.phone;
     updateSet.phone = encrypted.phone;
+    const hash = user.phone ? computePhoneHash(user.phone) : null;
+    if (hash) {
+      (values as Record<string, unknown>).phoneHash = hash;
+      updateSet.phoneHash = hash;
+    }
   }
   if (user.email !== undefined) {
     values.email = encrypted.email;
@@ -102,10 +108,22 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
 /**
  * Get a user by phone number (used for phone/OTP login).
+ * When PII encryption is active, phone values are stored as non-deterministic
+ * AES-GCM ciphertexts. In that case we look up by phoneHash (HMAC-SHA256)
+ * instead of the encrypted value; falls back to direct eq() in passthrough mode.
  */
 export async function getUserByPhone(phone: string) {
   const db = await getDb();
   if (!db) return undefined;
+  const hash = computePhoneHash(phone);
+  if (hash) {
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.phoneHash, hash))
+      .limit(1);
+    return result[0];
+  }
   const result = await db
     .select()
     .from(users)
@@ -129,6 +147,7 @@ export async function upsertUserByPhone(
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const encryptedPhone = await encryptUserPhone(phone);
+  const phoneHash = computePhoneHash(phone);
   const existing = await getUserByPhone(phone);
   if (existing) {
     await db
@@ -136,6 +155,7 @@ export async function upsertUserByPhone(
       .set({
         lastSignedIn: new Date(),
         ...(extra?.name ? { name: extra.name } : {}),
+        ...(phoneHash && !existing.phoneHash ? { phoneHash } : {}),
       })
       .where(eq(users.id, existing.id));
     return { id: existing.id };
@@ -143,6 +163,7 @@ export async function upsertUserByPhone(
   const [header] = (await db.insert(users).values({
     openId: null, // nullable after migration
     phone: encryptedPhone ?? phone,
+    ...(phoneHash ? { phoneHash } : {}),
     name: extra?.name ?? null,
     loginMethod: extra?.loginMethod ?? "phone",
     lastSignedIn: new Date(),
