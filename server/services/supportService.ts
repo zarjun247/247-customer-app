@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any, @typescript-eslint/require-await */
 import { getDb } from "../db";
 import { helpdeskTickets } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { logAudit } from "./audit";
+import type { ResultSetHeader } from "mysql2";
 
 export type SupportIssueType =
   | "order_status"
@@ -32,11 +32,29 @@ export function triageSupportIssue(text: string, issueType?: SupportIssueType) {
   };
 }
 
-export async function createSupportTicket(input: any) {
+type TicketPriority = "low" | "normal" | "high" | "urgent";
+
+interface CreateSupportTicketInput {
+  userId: number;
+  subject: string;
+  description: string;
+  issueType?: SupportIssueType | null;
+  priority?: TicketPriority | null;
+  orderId?: number | null;
+}
+interface TicketLike {
+  createdAt: Date | string;
+  status?: string | null;
+}
+
+export async function createSupportTicket(input: CreateSupportTicketInput) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const triage = triageSupportIssue(input.description, input.issueType);
-  const [r] = await db.insert(helpdeskTickets).values({
+  const triage = triageSupportIssue(
+    input.description,
+    input.issueType ?? undefined
+  );
+  const insertResult = await db.insert(helpdeskTickets).values({
     userId: input.userId,
     subject: input.subject,
     description: input.description,
@@ -45,7 +63,8 @@ export async function createSupportTicket(input: any) {
     status: "open",
     orderId: input.orderId ?? null,
   });
-  const ticketId = (r as any).insertId as number;
+  const [header] = insertResult as unknown as [ResultSetHeader];
+  const ticketId = header.insertId;
   await logAudit({
     actorType: "user",
     actorId: input.userId,
@@ -137,7 +156,7 @@ export async function getSupportQueue() {
     .orderBy(desc(helpdeskTickets.createdAt))
     .limit(100);
 }
-export async function getSupportSlaStatus(ticket: any) {
+export function getSupportSlaStatus(ticket: TicketLike) {
   const created = new Date(ticket.createdAt);
   const mins = Math.round((Date.now() - created.getTime()) / 60000);
   return {

@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
-import { createHash } from "crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql, type InferSelectModel } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import {
   counterPayments,
   invoiceSnapshots,
@@ -13,6 +12,29 @@ import {
   users,
 } from "../../drizzle/schema";
 import { buildInvoiceLine, computeInvoiceTotals } from "./invoiceService";
+import {
+  r2,
+  toNumber,
+  toIso,
+  normalizeEmpty,
+  computeSnapshotHash,
+  evaluateStatutoryCompleteness,
+  buildInsurerReadyInvoicePackage,
+  assertCustomerCanAccessInvoiceSnapshot,
+  type InsurerSnapshotInput,
+} from "./invoiceSnapshotHelpers";
+
+export type {
+  StatutoryPayload,
+  InsurerSnapshotInput,
+} from "./invoiceSnapshotHelpers";
+export {
+  stableSerialize,
+  computeSnapshotHash,
+  evaluateStatutoryCompleteness,
+  buildInsurerReadyInvoicePackage,
+  assertCustomerCanAccessInvoiceSnapshot,
+} from "./invoiceSnapshotHelpers";
 
 export type InvoiceSnapshotStatus =
   | "generated"
@@ -20,123 +42,49 @@ export type InvoiceSnapshotStatus =
   | "failed"
   | "cancelled";
 
-type AnyRecord = Record<string, any>;
+type DrizzleDb = Awaited<ReturnType<typeof import("../db").getDb>>;
 
-const CRITICAL_STORE_FIELDS = [
-  "storeGSTIN",
-  "storeDrugLicense",
-  "storeAddress",
-] as const;
-
-function r2(n: number) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-function toNumber(value: unknown): number {
-  if (value === null || value === undefined || value === "") return 0;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function toIso(value: unknown): string | null {
-  if (!value) return null;
-  const d = value instanceof Date ? value : new Date(value as any);
-  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-  if (typeof value === "object") return JSON.stringify(value);
-  const prim = value as string | number | boolean | bigint;
-  return String(prim);
-}
-
-function normalizeEmpty(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  let s: string;
-  if (typeof value === "object") {
-    s = JSON.stringify(value);
-  } else {
-    const prim = value as string | number | boolean | bigint;
-    s = String(prim);
-  }
-  const trimmed = s.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-export function stableSerialize(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
-  const object = value as AnyRecord;
-  return `{${Object.keys(object)
-    .sort()
-    .map(key => `${JSON.stringify(key)}:${stableSerialize(object[key])}`)
-    .join(",")}}`;
-}
-
-export function computeSnapshotHash(snapshotJson: unknown): string {
-  return createHash("sha256")
-    .update(stableSerialize(snapshotJson))
-    .digest("hex");
-}
-
-export function evaluateStatutoryCompleteness(payload: AnyRecord) {
-  const missingFields: string[] = [];
-  if (!payload.billNo) missingFields.push("billNo");
-  if (!payload.invoiceDate) missingFields.push("invoiceDate");
-  if (!payload.storeName) missingFields.push("storeName");
-  for (const field of CRITICAL_STORE_FIELDS) {
-    if (!payload[field]) missingFields.push(field);
-  }
-  for (const [i, line] of (payload.lineItems ?? []).entries()) {
-    if (!line.productName) missingFields.push(`lineItems[${i}].productName`);
-    if (!line.hsnCode) missingFields.push(`lineItems[${i}].hsnCode`);
-    if (line.gstRate === null || line.gstRate === undefined)
-      missingFields.push(`lineItems[${i}].gstRate`);
-    if (line.mrp === null || line.mrp === undefined)
-      missingFields.push(`lineItems[${i}].mrp`);
-    if (line.taxableValue === null || line.taxableValue === undefined)
-      missingFields.push(`lineItems[${i}].taxableValue`);
-  }
-
-  const productionCriticalMissing =
-    process.env.NODE_ENV === "production"
-      ? missingFields.filter(field =>
-          CRITICAL_STORE_FIELDS.includes(field as any)
-        )
-      : [];
-
-  return {
-    complete: missingFields.length === 0,
-    status: missingFields.length === 0 ? "complete" : "warning",
-    missingFields,
-    productionCriticalMissing,
-  };
-}
+type SaleRecord = typeof sales.$inferSelect;
+type SaleLineRecord = typeof saleLines.$inferSelect;
+type StoreRecord = typeof stores.$inferSelect;
+type CounterPaymentRecord = typeof counterPayments.$inferSelect;
+type OrderRecord = typeof orders.$inferSelect;
+type UserRecord = typeof users.$inferSelect;
 
 export function buildSaleInvoiceSnapshotPayload(input: {
-  sale: AnyRecord;
+  sale: SaleRecord;
   lines: Array<{
-    line: AnyRecord;
+    line: SaleLineRecord;
     productName?: string | null;
     productHsnCode?: string | null;
   }>;
-  store?: AnyRecord | null;
-  payment?: AnyRecord | null;
+  store?:
+    | (StoreRecord & { gstin?: string | null; drugLicense?: string | null })
+    | null;
+  payment?: CounterPaymentRecord | null;
   generatedAt?: Date;
 }) {
   const sale = input.sale;
   const generatedAt = input.generatedAt ?? new Date();
-  const lineItems = input.lines.map(({ line, productName, productHsnCode }) => {
-    const invoiceLine = buildInvoiceLine({
-      productName: normalizeEmpty(productName) ?? `PRODUCT-${line.productId}`,
-      batchNo: normalizeEmpty(line.batchNo),
-      expiryDate: toIso(line.expiryDate),
-      quantity: toNumber(line.qty),
-      mrp: toNumber(line.mrp),
-      sellingPrice: toNumber(line.saleRate),
-      discountAmount: toNumber(line.discountAmount),
-      gstRate: toNumber(line.gstRate),
-      hsnCode: normalizeEmpty(line.hsnCode) ?? normalizeEmpty(productHsnCode),
-    });
+  const invoiceLines = input.lines.map(
+    ({ line, productName, productHsnCode }) =>
+      buildInvoiceLine({
+        productName: normalizeEmpty(productName) ?? `PRODUCT-${line.productId}`,
+        batchNo: normalizeEmpty(line.batchNo),
+        expiryDate: toIso(line.expiryDate),
+        quantity: toNumber(line.qty),
+        mrp: toNumber(line.mrp),
+        sellingPrice: toNumber(line.saleRate),
+        discountAmount: toNumber(line.discountAmount),
+        gstRate: toNumber(line.gstRate),
+        hsnCode: normalizeEmpty(line.hsnCode) ?? normalizeEmpty(productHsnCode),
+      })
+  );
+  const totals = computeInvoiceTotals(invoiceLines);
+  const lineItems = input.lines.map(({ line }, idx) => {
+    const invoiceLine = invoiceLines[idx];
     return {
-      productId: line.productId ?? null,
+      productId: line.productId,
       productName: invoiceLine.productName,
       batchNo: invoiceLine.batchNo ?? null,
       expiry: invoiceLine.expiryDate ?? null,
@@ -154,8 +102,7 @@ export function buildSaleInvoiceSnapshotPayload(input: {
       lineTotal: invoiceLine.lineTotal,
     };
   });
-  const totals = computeInvoiceTotals(lineItems as any);
-  const payload: AnyRecord = {
+  const payload = {
     type: "sale_invoice_snapshot",
     billNo: sale.billNo,
     invoiceDate: sale.confirmedAt
@@ -164,14 +111,8 @@ export function buildSaleInvoiceSnapshotPayload(input: {
     storeId: sale.storeId,
     storeName: normalizeEmpty(input.store?.name) ?? `STORE-${sale.storeId}`,
     storeAddress: normalizeEmpty(input.store?.address),
-    storeGSTIN: normalizeEmpty(
-      input.store?.gstin ?? input.store?.gstIn ?? input.store?.gstNumber
-    ),
-    storeDrugLicense: normalizeEmpty(
-      input.store?.drugLicense ??
-        input.store?.drugLicenseNo ??
-        input.store?.licenseNo
-    ),
+    storeGSTIN: normalizeEmpty(input.store?.gstin),
+    storeDrugLicense: normalizeEmpty(input.store?.drugLicense),
     pharmacistName: normalizeEmpty(sale.pharmacistName),
     pharmacistLicense: normalizeEmpty(
       sale.pharmacistRegNo ?? sale.pharmacistCode
@@ -179,7 +120,7 @@ export function buildSaleInvoiceSnapshotPayload(input: {
     customerId: sale.customerId ?? null,
     customerName: normalizeEmpty(sale.customerName),
     customerPhone: normalizeEmpty(sale.customerMobile),
-    customerAddress: normalizeEmpty(sale.customerAddress),
+    customerAddress: null,
     lineItems,
     subtotal: r2(toNumber(sale.subtotal)),
     totalDiscount: r2(toNumber(sale.discountAmount)),
@@ -211,39 +152,16 @@ export function buildSaleInvoiceSnapshotPayload(input: {
       createdBy: sale.createdBy ?? null,
     },
     generatedAt: generatedAt.toISOString(),
+    statutoryCompleteness: null as ReturnType<
+      typeof evaluateStatutoryCompleteness
+    > | null,
   };
   payload.statutoryCompleteness = evaluateStatutoryCompleteness(payload);
   return payload;
 }
 
-export function buildInsurerReadyInvoicePackage(snapshot: AnyRecord) {
-  const payload = snapshot.snapshotJson ?? snapshot;
-  return {
-    invoiceSnapshot: payload,
-    prescriptionReference: payload.prescriptionReference ?? null,
-    paymentReference: payload.paymentReference ?? null,
-    orderReference: payload.orderReference ?? null,
-    saleReference: payload.saleReference ?? null,
-    medicineSummary: (payload.lineItems ?? []).map((line: AnyRecord) => ({
-      productName: line.productName,
-      batchNo: line.batchNo ?? null,
-      expiry: line.expiry ?? null,
-      hsnCode: line.hsnCode ?? null,
-      qty: line.qty,
-      mrp: line.mrp,
-      sellingPrice: line.sellingPrice,
-      discount: line.discount,
-      taxableValue: line.taxableValue,
-      gstRate: line.gstRate,
-      gstTotal: line.gstTotal,
-      lineTotal: line.lineTotal,
-    })),
-    insurerSubmissionReady: payload.statutoryCompleteness?.complete === true,
-  };
-}
-
 export async function createSaleInvoiceSnapshot(
-  db: any,
+  db: NonNullable<DrizzleDb>,
   saleId: string,
   opts: {
     generatedBy?: string | number | null;
@@ -252,13 +170,15 @@ export async function createSaleInvoiceSnapshot(
     failureReason?: string | null;
   } = {}
 ) {
+  const snapshotStatus: InferSelectModel<typeof invoiceSnapshots>["status"] =
+    "generated";
   const existing = await db
     .select()
     .from(invoiceSnapshots)
     .where(
       and(
         eq(invoiceSnapshots.saleId, saleId),
-        eq(invoiceSnapshots.status, "generated" as any)
+        eq(invoiceSnapshots.status, snapshotStatus)
       )
     )
     .orderBy(desc(invoiceSnapshots.generatedAt))
@@ -277,12 +197,12 @@ export async function createSaleInvoiceSnapshot(
       productHsnCode: products.hsnCode,
     })
     .from(saleLines)
-    .leftJoin(products, eq(saleLines.productId as any, products.id as any))
+    .leftJoin(products, sql`${saleLines.productId} = ${products.id}`)
     .where(eq(saleLines.saleId, saleId));
   const [store] = await db
     .select()
     .from(stores)
-    .where(eq(stores.id as any, Number(sale.storeId) as any))
+    .where(eq(stores.id, Number(sale.storeId)))
     .limit(1);
   const [payment] = await db
     .select()
@@ -293,15 +213,15 @@ export async function createSaleInvoiceSnapshot(
   const snapshotJson = buildSaleInvoiceSnapshotPayload({
     sale,
     lines: lineRows,
-    store,
-    payment,
+    store: store ?? null,
+    payment: payment ?? null,
   });
   const status: InvoiceSnapshotStatus = opts.failureReason
     ? "failed"
     : opts.pdfFileKey && opts.pdfFileUrl
       ? "pdf_generated"
       : "generated";
-  const [inserted] = await db.insert(invoiceSnapshots).values({
+  const [inserted] = (await db.insert(invoiceSnapshots).values({
     saleId,
     orderId: null,
     billNo: sale.billNo,
@@ -318,7 +238,7 @@ export async function createSaleInvoiceSnapshot(
         ? null
         : String(opts.generatedBy),
     generatedAt: new Date(),
-  });
+  })) as unknown as [ResultSetHeader];
   const insertId = inserted?.insertId;
   if (!insertId)
     return {
@@ -336,31 +256,8 @@ export async function createSaleInvoiceSnapshot(
   return row;
 }
 
-export function assertCustomerCanAccessInvoiceSnapshot(
-  snapshot: AnyRecord,
-  user: { id: number | string; role?: string | null }
-) {
-  const staffRoles = new Set([
-    "admin",
-    "super_admin",
-    "store_manager",
-    "pharmacist",
-    "salesman",
-    "cashier",
-    "accountant",
-    "auditor",
-  ]);
-  if (user.role && staffRoles.has(user.role)) return true;
-  const uid = String(user.id);
-  const payload = snapshot.snapshotJson ?? snapshot;
-  if (String(snapshot.customerId ?? payload.customerId ?? "") === uid)
-    return true;
-  if (String(payload.saleReference?.createdBy ?? "") === uid) return true;
-  return false;
-}
-
 export async function getInvoiceSnapshotPackageForSale(
-  db: any,
+  db: NonNullable<DrizzleDb>,
   saleId: string,
   user: { id: number | string; role?: string | null }
 ) {
@@ -372,40 +269,64 @@ export async function getInvoiceSnapshotPackageForSale(
     .limit(1);
   const snapshot = rows[0];
   if (!snapshot) return null;
-  if (!assertCustomerCanAccessInvoiceSnapshot(snapshot, user)) {
-    const error = new Error("invoice_snapshot_forbidden");
-    (error as any).code = "FORBIDDEN";
+  if (
+    !assertCustomerCanAccessInvoiceSnapshot(
+      snapshot as unknown as InsurerSnapshotInput & {
+        customerId?: string | null;
+      },
+      user
+    )
+  ) {
+    const error: Error & { code?: string } = new Error(
+      "invoice_snapshot_forbidden"
+    );
+    error.code = "FORBIDDEN";
     throw error;
   }
-  return buildInsurerReadyInvoicePackage(snapshot);
+  return buildInsurerReadyInvoicePackage(
+    snapshot as unknown as InsurerSnapshotInput
+  );
 }
 
+type OrderItemRow = {
+  productId: number | null;
+  quantity: number;
+  unitPrice: string;
+  lineTotal: string;
+  name: string | null;
+  hsnCode: string | null;
+  gstRate: string | null;
+};
+
 export function buildOrderInvoiceSnapshotPayload(input: {
-  order: AnyRecord;
-  items: AnyRecord[];
-  store?: AnyRecord | null;
-  customer?: AnyRecord | null;
+  order: OrderRecord;
+  items: OrderItemRow[];
+  store?: StoreRecord | null;
+  customer?: UserRecord | null;
   generatedAt?: Date;
 }) {
   const order = input.order;
   const generatedAt = input.generatedAt ?? new Date();
-  const lineItems = input.items.map(item => {
+  const invoiceLines = input.items.map(item => {
     const unitPrice =
-      toNumber(item.unitPrice ?? item.sellingPrice ?? item.lineTotal) /
+      toNumber(item.unitPrice ?? item.lineTotal) /
       Math.max(1, toNumber(item.quantity) || 1);
-    const invoiceLine = buildInvoiceLine({
+    return buildInvoiceLine({
       productName:
-        normalizeEmpty(item.name ?? item.productName) ??
-        `PRODUCT-${item.productId}`,
-      batchNo: normalizeEmpty(item.batchNo),
-      expiryDate: toIso(item.expiryDate),
+        normalizeEmpty(item.name) ?? `PRODUCT-${item.productId ?? "?"}`,
+      batchNo: null,
+      expiryDate: null,
       quantity: toNumber(item.quantity),
-      mrp: toNumber(item.mrp ?? unitPrice),
+      mrp: unitPrice,
       sellingPrice: unitPrice,
-      discountAmount: toNumber(item.discountAmount),
+      discountAmount: 0,
       gstRate: toNumber(item.gstRate),
       hsnCode: normalizeEmpty(item.hsnCode),
     });
+  });
+  const totals = computeInvoiceTotals(invoiceLines);
+  const lineItems = input.items.map((item, idx) => {
+    const invoiceLine = invoiceLines[idx];
     return {
       productId: item.productId ?? null,
       productName: invoiceLine.productName,
@@ -425,8 +346,7 @@ export function buildOrderInvoiceSnapshotPayload(input: {
       lineTotal: invoiceLine.lineTotal,
     };
   });
-  const totals = computeInvoiceTotals(lineItems as any);
-  const payload: AnyRecord = {
+  const payload = {
     type: "order_invoice_snapshot",
     billNo: `ORDER-${order.id}`,
     invoiceDate: order.deliveredAt
@@ -435,14 +355,8 @@ export function buildOrderInvoiceSnapshotPayload(input: {
     storeId: String(order.storeId),
     storeName: normalizeEmpty(input.store?.name) ?? `STORE-${order.storeId}`,
     storeAddress: normalizeEmpty(input.store?.address),
-    storeGSTIN: normalizeEmpty(
-      input.store?.gstin ?? input.store?.gstIn ?? input.store?.gstNumber
-    ),
-    storeDrugLicense: normalizeEmpty(
-      input.store?.drugLicense ??
-        input.store?.drugLicenseNo ??
-        input.store?.licenseNo
-    ),
+    storeGSTIN: null,
+    storeDrugLicense: null,
     pharmacistName: null,
     pharmacistLicense: null,
     customerId: String(order.userId),
@@ -464,13 +378,16 @@ export function buildOrderInvoiceSnapshotPayload(input: {
     orderReference: { orderId: order.id, status: order.status },
     saleReference: null,
     generatedAt: generatedAt.toISOString(),
+    statutoryCompleteness: null as ReturnType<
+      typeof evaluateStatutoryCompleteness
+    > | null,
   };
   payload.statutoryCompleteness = evaluateStatutoryCompleteness(payload);
   return payload;
 }
 
 export async function createOrderInvoiceSnapshot(
-  db: any,
+  db: NonNullable<DrizzleDb>,
   orderId: number,
   opts: {
     generatedBy?: string | number | null;
@@ -496,12 +413,12 @@ export async function createOrderInvoiceSnapshot(
       gstRate: products.gstRate,
     })
     .from(orderItems)
-    .leftJoin(products, eq(orderItems.productId as any, products.id as any))
+    .leftJoin(products, eq(orderItems.productId, products.id))
     .where(eq(orderItems.orderId, orderId));
   const [store] = await db
     .select()
     .from(stores)
-    .where(eq(stores.id as any, Number(order.storeId) as any))
+    .where(eq(stores.id, Number(order.storeId)))
     .limit(1);
   const [customer] = await db
     .select()
@@ -511,15 +428,15 @@ export async function createOrderInvoiceSnapshot(
   const snapshotJson = buildOrderInvoiceSnapshotPayload({
     order,
     items: itemRows,
-    store,
-    customer,
+    store: store ?? null,
+    customer: customer ?? null,
   });
   const status: InvoiceSnapshotStatus = opts.failureReason
     ? "failed"
     : opts.pdfFileKey && opts.pdfFileUrl
       ? "pdf_generated"
       : "generated";
-  const [inserted] = await db.insert(invoiceSnapshots).values({
+  const [inserted] = (await db.insert(invoiceSnapshots).values({
     saleId: null,
     orderId,
     billNo: snapshotJson.billNo,
@@ -536,7 +453,7 @@ export async function createOrderInvoiceSnapshot(
         ? null
         : String(opts.generatedBy),
     generatedAt: new Date(),
-  });
+  })) as unknown as [ResultSetHeader];
   const insertId = inserted?.insertId;
   if (!insertId)
     return {

@@ -64,7 +64,8 @@ describe("multi-store runtime isolation hardening", () => {
   it("non-admin transfer and stock audit list paths fail closed to the caller store when no storeId filter is provided", () => {
     const src =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
-      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
+      fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/inventoryBatchRouter.ts", "utf8");
     const matches =
       src.match(/requireStoreScopedFilter\(ctx\.user, input\.storeId\)/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(3);

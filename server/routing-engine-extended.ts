@@ -1,5 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 import { getDb } from "./db";
+import type { ResultSetHeader } from "mysql2";
+
+type DrizzleDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
 import {
   buildings,
   stores,
@@ -31,7 +34,7 @@ function formatEtaText(mins: number): string {
 }
 
 async function calculateEta(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   buildingId: number | undefined,
   steps: StepResult[]
@@ -94,7 +97,7 @@ async function calculateEta(
 }
 
 async function runAllChecks(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   ctx: NodeResolutionContext,
   steps: StepResult[]
@@ -126,7 +129,7 @@ async function runAllChecks(
 }
 
 async function logDecision(
-  db: any,
+  db: DrizzleDb,
   ctx: NodeResolutionContext,
   result: Omit<NodeResolutionResult, "decisionId">,
   primaryStoreId: number | null,
@@ -157,7 +160,8 @@ async function logDecision(
       triggeredBy: ctx.triggeredBy ?? "checkout",
       triggeredByUserId: ctx.triggeredByUserId ?? null,
     });
-    return r.insertId as number;
+    const [header] = r as unknown as [ResultSetHeader];
+    return header.insertId;
   } catch (e) {
     console.error("[RoutingEngine] Failed to log decision:", e);
     return undefined;
@@ -357,7 +361,7 @@ export async function resolveNode(
     .where(eq(stores.isActive, true));
 
   let candidates = ctx.pincode
-    ? allStores.filter((s: any) => s.pincode === ctx.pincode)
+    ? allStores.filter(s => s.pincode === ctx.pincode)
     : allStores;
 
   if (!candidates.length) candidates = allStores;
@@ -372,9 +376,9 @@ export async function resolveNode(
       const bLat = parseFloat(String(building.lat));
       const bLng = parseFloat(String(building.lng));
       candidates = candidates
-        .filter((s: any) => s.lat && s.lng)
+        .filter(s => s.lat && s.lng)
         .sort(
-          (a: any, b: any) =>
+          (a, b) =>
             haversineMetres(
               bLat,
               bLng,

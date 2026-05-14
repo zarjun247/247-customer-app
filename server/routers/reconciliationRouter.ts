@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
@@ -58,7 +57,10 @@ export const reconciliationRouter = router({
           LIMIT ${limit}
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = ((result as unknown[])[0] ?? []) as Record<
+        string,
+        unknown
+      >[];
       return redactReportPayload({
         rows,
         totals: { mismatches: rows.length },
@@ -88,11 +90,14 @@ export const reconciliationRouter = router({
           WHERE r.status IN ('completed', 'cancelled')
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = ((result as unknown[])[0] ?? []) as Record<
+        string,
+        unknown
+      >[];
       const mismatches = rows.filter(
-        (r: any) =>
+        r =>
           (r.status === "completed" && r.reversalCount === 0) ||
-          (r.status === "cancelled" && r.reversalCount > 0)
+          (r.status === "cancelled" && Number(r.reversalCount) > 0)
       );
       return redactReportPayload({
         rows,
@@ -131,7 +136,10 @@ export const reconciliationRouter = router({
           LIMIT ${limit}
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = ((result as unknown[])[0] ?? []) as Record<
+        string,
+        unknown
+      >[];
       return redactReportPayload({
         rows,
         totals: { mismatches: rows.length },
@@ -162,7 +170,10 @@ export const reconciliationRouter = router({
           ORDER BY duplicateCount DESC
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = ((result as unknown[])[0] ?? []) as Record<
+        string,
+        unknown
+      >[];
       return redactReportPayload({
         rows,
         totals: {
@@ -193,7 +204,10 @@ export const reconciliationRouter = router({
           ORDER BY invoiceCount DESC
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = ((result as unknown[])[0] ?? []) as Record<
+        string,
+        unknown
+      >[];
       return redactReportPayload({
         rows,
         totals: { statusCount: rows.length },
@@ -227,7 +241,10 @@ export const reconciliationRouter = router({
           LIMIT ${limit}
         `
       );
-      const rows = ((result as any)?.[0] ?? []) as any[];
+      const rows = ((result as unknown[])[0] ?? []) as Record<
+        string,
+        unknown
+      >[];
       return redactReportPayload({
         rows,
         totals: { medicines: rows.length },

@@ -3,10 +3,13 @@ import { readFileSync } from "node:fs";
 
 const purchaseRouter =
   readFileSync("server/routers/purchaseRouter.ts", "utf8") +
-  readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8");
+  readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8") +
+  readFileSync("server/services/commercialTruthSeams.ts", "utf8");
 const salesRouter =
   readFileSync("server/routers/salesRouter.ts", "utf8") +
-  readFileSync("server/routers/salesReportsRouter.ts", "utf8");
+  readFileSync("server/routers/salesReportsRouter.ts", "utf8") +
+  readFileSync("server/routers/salesOpsExtension.ts", "utf8") +
+  readFileSync("server/services/commercialTruthSeams.ts", "utf8");
 const reportsRouter = readFileSync("server/routers/reportsRouter.ts", "utf8");
 const complianceGate = readFileSync(
   "server/services/complianceGate.ts",
@@ -33,12 +36,9 @@ describe("commercial flow integration posture (service/router level)", () => {
   });
 
   it("barcode lookup is mutation-free until confirmation", () => {
-    const scanBlock = salesRouter.slice(
-      salesRouter.indexOf("scanBarcode"),
-      salesRouter.indexOf("confirmSale")
-    );
-    expect(scanBlock).toContain("resolveBarcodeForSale");
-    expect(scanBlock).not.toContain("stockMovements");
+    const scanExt = readFileSync("server/routers/salesOpsExtension.ts", "utf8");
+    expect(scanExt).toContain("resolveBarcodeForSale");
+    expect(scanExt).not.toContain("stockMovements");
   });
 
   it("report contracts retain normalized shape", () => {

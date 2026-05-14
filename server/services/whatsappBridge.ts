@@ -12,8 +12,7 @@ export function normalizeInboundWhatsappMessage(input: {
     escalateToHuman: triage.needsHuman,
   };
 }
-// eslint-disable-next-line @typescript-eslint/require-await
-export async function processWhatsappInbound(input: {
+export function processWhatsappInbound(input: {
   phone: string;
   body?: string;
 }) {

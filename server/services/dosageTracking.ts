@@ -1,7 +1,11 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { and, eq, sql } from "drizzle-orm";
 import { dosageSchedules, doseLogs } from "../../drizzle/schema";
 import { getDb } from "../db";
+
+interface ScheduleConfig {
+  unitsPerDay: number;
+  totalUnits?: number;
+}
 
 export async function createDosageSchedule(input: {
   customerId: number;
@@ -107,7 +111,7 @@ export async function getTodayDosePlan(customerId: number, today: string) {
   return rows.map(r => ({
     scheduleId: String(r.id),
     productId: r.productId,
-    unitsPlanned: JSON.parse(r.scheduleJson).unitsPerDay,
+    unitsPlanned: (JSON.parse(r.scheduleJson) as ScheduleConfig).unitsPerDay,
     today,
   }));
 }
@@ -123,7 +127,7 @@ export async function estimateMedicationRemaining(
     .where(eq(dosageSchedules.id, Number(scheduleId)))
     .limit(1);
   if (!s[0] || s[0].userId !== userId) return null;
-  const cfg = JSON.parse(s[0].scheduleJson);
+  const cfg = JSON.parse(s[0].scheduleJson) as ScheduleConfig;
   const [taken] = await db
     .select({ count: sql<number>`count(*)` })
     .from(doseLogs)
@@ -148,7 +152,7 @@ export async function estimateRunoutDate(
     .where(eq(dosageSchedules.id, Number(scheduleId)))
     .limit(1);
   if (!s[0] || s[0].userId !== userId) return null;
-  const cfg = JSON.parse(s[0].scheduleJson);
+  const cfg = JSON.parse(s[0].scheduleJson) as ScheduleConfig;
   const rem = (await estimateMedicationRemaining(userId, scheduleId)) ?? 0;
   const days = Math.ceil(rem / Math.max(1, Number(cfg.unitsPerDay)));
   const dt = new Date(startDateISO);
@@ -168,7 +172,7 @@ export async function shouldPromptReorder(
     .where(eq(dosageSchedules.id, Number(scheduleId)))
     .limit(1);
   if (!s[0] || s[0].userId !== userId) return false;
-  const cfg = JSON.parse(s[0].scheduleJson);
+  const cfg = JSON.parse(s[0].scheduleJson) as ScheduleConfig;
   const rem = (await estimateMedicationRemaining(userId, scheduleId)) ?? 0;
   return rem / Math.max(1, Number(cfg.unitsPerDay)) <= thresholdDays;
 }

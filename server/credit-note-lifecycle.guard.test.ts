@@ -15,18 +15,27 @@ function makeDb(state: {
   notes?: unknown[];
 }) {
   const notes = state.notes ?? [];
+  function makeSelectResult(rows: unknown[]) {
+    const promise = Promise.resolve(rows) as Promise<unknown[]> & {
+      limit: (n: number) => Promise<unknown[]>;
+      where: () => ReturnType<typeof makeSelectResult>;
+    };
+    promise.limit = async () => rows;
+    promise.where = () => makeSelectResult(rows);
+    return promise;
+  }
   return {
     select: () => ({
       from: (table: unknown) => ({
-        where: () => ({
-          limit: async () => {
-            if (table === sales) return state.sale ? [state.sale] : [];
-            if (table === saleReturns)
-              return state.saleReturn ? [state.saleReturn] : [];
-            if (table === creditNotes) return notes;
-            return [];
-          },
-        }),
+        where: () => {
+          let rows: unknown[];
+          if (table === sales) rows = state.sale ? [state.sale] : [];
+          else if (table === saleReturns)
+            rows = state.saleReturn ? [state.saleReturn] : [];
+          else if (table === creditNotes) rows = notes;
+          else rows = [];
+          return makeSelectResult(rows);
+        },
       }),
     }),
     insert: (table: unknown) => ({

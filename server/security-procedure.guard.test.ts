@@ -18,7 +18,9 @@ describe("publicProcedure guard", () => {
   });
 
   it("requires whatsapp webhook fail-closed guard", () => {
-    const src = fs.readFileSync("server/routers/whatsappRouter.ts", "utf8");
+    const src =
+      fs.readFileSync("server/routers/whatsappRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/whatsappHelpers.ts", "utf8");
     expect(src).toContain("assertWhatsappWebhookGuard");
     expect(src).toContain("Webhook verification required");
   });

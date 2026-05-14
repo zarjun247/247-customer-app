@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
+import type { ResultSetHeader } from "mysql2";
 import { and, desc, eq, gt, lte, or, sql } from "drizzle-orm";
 import {
   auditLogs,
@@ -472,15 +472,15 @@ export async function createWhatsappPrescription(
     );
     return null;
   }
-  const [r] = await db.insert(prescriptions).values({
+  const [r] = (await db.insert(prescriptions).values({
     userId,
     storeId: undefined,
     imageUrl,
     imageKey,
     status: "pending_pharmacist",
     source: "whatsapp",
-  });
-  return (r as any).insertId as number;
+  })) as unknown as [ResultSetHeader];
+  return r.insertId;
 }
 
 export async function generateAndStoreInvoice(

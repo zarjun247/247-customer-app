@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "../db";
@@ -6,16 +5,19 @@ import { paymentRecords, refunds } from "../../drizzle/schema";
 import { paymentConnector } from "../connectors";
 import { logAudit } from "./audit";
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
+import type { CtxLike } from "./audit";
+import type { ResultSetHeader } from "mysql2";
+import {
+  normalizeAmountPaise,
+  calculateRefundAvailability,
+  REFUND_CONSUMING_STATUSES,
+  type RefundProviderState,
+  type RefundLedgerStatus,
+} from "./refundHelpers";
 
-export type RefundProviderState =
-  | "pending_provider"
-  | "provider_not_configured"
-  | "manual_required"
-  | "succeeded"
-  | "failed";
-export type RefundLedgerStatus = "pending" | "success" | "failed" | "cancelled";
+export type { RefundProviderState, RefundLedgerStatus } from "./refundHelpers";
+export { calculateRefundAvailability } from "./refundHelpers";
 
-const REFUND_CONSUMING_STATUSES: RefundLedgerStatus[] = ["pending", "success"];
 const DEFAULT_REFUND_PROVIDER = "razorpay";
 
 async function getPaymentByGatewayOrderId(gatewayOrderId: string) {
@@ -32,43 +34,6 @@ async function getPaymentByGatewayOrderId(gatewayOrderId: string) {
       message: "Payment record not found",
     });
   return row;
-}
-
-function normalizeAmountPaise(amountPaise: number) {
-  if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Refund amount must be a positive paise integer",
-    });
-  }
-  return amountPaise;
-}
-
-export function calculateRefundAvailability(input: {
-  paidPaise: number;
-  amountPaise?: number;
-  existingRefunds: Array<{
-    amountPaise: number | string | null;
-    status: string;
-  }>;
-}) {
-  const paidPaise = Number(input.paidPaise ?? 0);
-  const consumedPaise = input.existingRefunds
-    .filter(refund =>
-      REFUND_CONSUMING_STATUSES.includes(refund.status as RefundLedgerStatus)
-    )
-    .reduce((total, refund) => total + Number(refund.amountPaise ?? 0), 0);
-  const availablePaise = Math.max(0, paidPaise - consumedPaise);
-  if (
-    input.amountPaise !== undefined &&
-    normalizeAmountPaise(input.amountPaise) > availablePaise
-  ) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Refund exceeds available paid amount",
-    });
-  }
-  return { availablePaise, paidPaise, alreadyRefundedPaise: consumedPaise };
 }
 
 export async function getRefundLedger(orderId: number) {
@@ -118,7 +83,7 @@ export async function assertRefundIdempotent(input: {
   gatewayOrderId: string;
   refundId: string;
   provider?: string;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -198,7 +163,7 @@ export async function createRefundRecord(input: {
   initiatedBy?: number | null;
   saleId?: number | null;
   status?: RefundLedgerStatus;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -209,7 +174,7 @@ export async function createRefundRecord(input: {
       provider,
       providerRefundId: input.providerRefundId,
     });
-  const [result] = await db.insert(refunds).values({
+  const insertResult = await db.insert(refunds).values({
     paymentId: payment.id,
     orderId: payment.orderId,
     saleId: input.saleId ?? null,
@@ -221,7 +186,8 @@ export async function createRefundRecord(input: {
     creditNoteId: input.creditNoteId ?? null,
     initiatedBy: input.initiatedBy ?? null,
   });
-  return { refundId: (result as { insertId: number }).insertId, payment };
+  const [header] = insertResult as unknown as [ResultSetHeader];
+  return { refundId: header.insertId, payment };
 }
 
 export async function initiateRefundRecord(input: {
@@ -233,7 +199,7 @@ export async function initiateRefundRecord(input: {
   creditNoteId?: number | null;
   initiatedBy?: number | null;
   saleId?: number | null;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   await assertRefundAmountAllowed({
     gatewayOrderId: input.gatewayOrderId,
@@ -280,7 +246,7 @@ export async function markRefundSuccess(input: {
   refundId: number;
   providerRefundId?: string | null;
   provider?: string;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -365,7 +331,7 @@ export async function markRefundFailedRecord(input: {
   reason: string;
   providerRefundId?: string | null;
   provider?: string;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -402,7 +368,7 @@ export async function initiateRefund(input: {
   amountPaise: number;
   reason?: string;
   creditNoteId?: number;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   if (input.refundId)
     await assertRefundIdempotent({
@@ -550,7 +516,7 @@ export async function recordRefund(input: {
 export async function markRefundSucceeded(input: {
   gatewayOrderId: string;
   refundId: string;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -587,7 +553,7 @@ export async function markRefundFailed(input: {
   gatewayOrderId: string;
   reason: string;
   refundId?: string;
-  ctx?: any;
+  ctx?: CtxLike;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");

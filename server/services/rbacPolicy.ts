@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { staffDeviceSessions } from "../../drizzle/schema";
@@ -377,7 +376,7 @@ export async function requireActiveStaffSession(
       code: "FORBIDDEN",
       message: "Active staff session required",
     });
-  if ((session as any).suspicious || (session as any).requiresReauth)
+  if (session.suspicious || session.requiresReauth)
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Staff re-authentication required",
@@ -468,7 +467,14 @@ async function auditSensitiveDecision(
       reason,
       source: "rbac",
     },
-    ctx as any
+    {
+      user:
+        ctx.user?.id != null
+          ? { id: ctx.user.id, role: ctx.user.role ?? null }
+          : undefined,
+      req: ctx.req,
+      session: ctx.session?.id != null ? { id: ctx.session.id } : undefined,
+    }
   );
 }
 

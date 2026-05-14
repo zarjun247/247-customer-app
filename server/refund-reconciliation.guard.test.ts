@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import fs from "fs";
 
 describe("refund reconciliation safety guards", () => {
-  const source = fs.readFileSync("server/services/refundService.ts", "utf8");
+  const source =
+    fs.readFileSync("server/services/refundService.ts", "utf8") +
+    fs.readFileSync("server/services/refundHelpers.ts", "utf8");
 
   it("contains provider pending/manual statuses and avoids fake success in initiate flow", () => {
     expect(source).toContain("pending_provider");

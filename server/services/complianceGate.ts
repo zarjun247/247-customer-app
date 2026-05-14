@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
 import { logAudit } from "./audit";
+import type { CtxLike } from "./audit";
 
 export type ProductScheduleFlags = {
   schedule: string;
@@ -173,7 +173,7 @@ export async function validateSaleCompliance(saleId: string) {
 export async function createOrVerifyH1RegisterEntry(
   saleId: string,
   pharmacistId: number,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const db = await getDb();
   const { saleLines, sales, products, h1Register } = await import(
@@ -345,7 +345,7 @@ export async function createOrVerifyH1RegisterEntry(
   }
 }
 
-export async function assertCanConfirmSale(saleId: string, ctx?: any) {
+export async function assertCanConfirmSale(saleId: string, ctx?: CtxLike) {
   const result = await validateSaleCompliance(saleId);
   await logAudit(
     {
@@ -386,7 +386,7 @@ export async function assertCanConfirmSale(saleId: string, ctx?: any) {
 export async function assertCanPickPackDeliver(
   saleId: string,
   _nextStatus: string,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   await assertCanConfirmSale(saleId, ctx);
 }

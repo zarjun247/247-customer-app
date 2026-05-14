@@ -30,10 +30,9 @@ function formatDate(d: Date): string {
     .replace(/\.\d{3}Z$/, " UTC");
 }
 
-// eslint-disable-next-line @typescript-eslint/require-await
-export async function generateBreachNotification(
+export function generateBreachNotification(
   input: BreachNotificationInput
-): Promise<BreachNotificationResult> {
+): BreachNotificationResult {
   const deadline = new Date(input.detectedAt.getTime() + 72 * 60 * 60 * 1000);
   const dpoEmail = ENV.dpoEmail;
 

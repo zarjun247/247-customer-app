@@ -10,8 +10,7 @@ import {
 import type { DbTestContext } from "./dbTestLifecycle";
 
 function insertedId(result: unknown): number {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const packet = Array.isArray(result) ? result[0] : result;
+  const packet: unknown = Array.isArray(result) ? result[0] : result;
   const id = Number((packet as { insertId?: number }).insertId);
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error(

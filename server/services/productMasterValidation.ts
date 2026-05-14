@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 import { TRPCError } from "@trpc/server";
 import {
   assertProductMasterCompleteness,
@@ -45,24 +44,31 @@ export function isRegulatedSchedule(schedule?: string | null) {
   return REGULATED_SCHEDULES.has(normalizeScheduleCode(schedule));
 }
 
-export function productToMasterLike(row: any): ProductMasterLike {
+export function productToMasterLike(
+  row: Record<string, unknown>
+): ProductMasterLike {
+  const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+  const numOrStr = (v: unknown) =>
+    typeof v === "number" || typeof v === "string" ? v : undefined;
+  const bool = (v: unknown) =>
+    typeof v === "boolean" || typeof v === "number" ? v : undefined;
   return {
-    id: row?.id,
-    name: row?.name,
-    brand: row?.brand,
-    brandName: row?.brandName ?? row?.brand,
-    genericName: row?.genericName,
-    strength: row?.strength,
-    dosageForm: row?.dosageForm ?? row?.form,
-    form: row?.form,
-    packSize: row?.packSize,
-    manufacturer: row?.manufacturer ?? row?.companyName,
-    companyName: row?.companyName,
-    hsnCode: row?.hsnCode,
-    gstRate: row?.gstRate,
-    schedule: row?.schedule ?? row?.scheduleCode,
-    requiresPrescription: row?.requiresPrescription,
-    barcode: row?.barcode,
+    id: numOrStr(row.id),
+    name: str(row.name),
+    brand: str(row.brand),
+    brandName: str(row.brandName) ?? str(row.brand),
+    genericName: str(row.genericName),
+    strength: str(row.strength),
+    dosageForm: str(row.dosageForm) ?? str(row.form),
+    form: str(row.form),
+    packSize: str(row.packSize),
+    manufacturer: str(row.manufacturer) ?? str(row.companyName),
+    companyName: str(row.companyName),
+    hsnCode: str(row.hsnCode),
+    gstRate: numOrStr(row.gstRate),
+    schedule: str(row.schedule) ?? str(row.scheduleCode),
+    requiresPrescription: bool(row.requiresPrescription),
+    barcode: str(row.barcode),
   };
 }
 

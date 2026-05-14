@@ -18,8 +18,17 @@
  * Every resolution is logged to routing_decisions.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { getDb as _getDb } from "./db";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 import {
   buildings as _buildings,
   stores,
@@ -90,7 +99,7 @@ export interface NodeResolutionContext {
 // ─── Step helpers ─────────────────────────────────────────────────────────────
 
 export async function checkNodeActive(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   steps: StepResult[]
 ): Promise<boolean> {
@@ -109,7 +118,7 @@ export async function checkNodeActive(
 }
 
 export async function checkLicenceService(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   steps: StepResult[]
 ): Promise<boolean> {
@@ -148,7 +157,7 @@ export async function checkLicenceService(
 }
 
 export async function checkPharmacistCoverage(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   steps: StepResult[]
 ): Promise<boolean> {
@@ -167,7 +176,7 @@ export async function checkPharmacistCoverage(
 }
 
 export async function checkStock(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   requiredSkuIds: number[],
   steps: StepResult[]
@@ -186,20 +195,20 @@ export async function checkStock(
     .where(
       and(eq(storeSkus.storeId, storeId), inArray(storeSkus.id, requiredSkuIds))
     );
-  const outOfStock = skuRows.filter((r: any) => (r.stockQty ?? 0) <= 0);
+  const outOfStock = skuRows.filter(r => (r.stockQty ?? 0) <= 0);
   const passed = outOfStock.length === 0;
   steps.push({
     step: "stock_check",
     passed,
     reason: passed
       ? undefined
-      : `${outOfStock.length} SKU(s) out of stock: ${outOfStock.map((r: any) => r.id).join(", ")}`,
+      : `${outOfStock.length} SKU(s) out of stock: ${outOfStock.map(r => r.id).join(", ")}`,
   });
   return passed;
 }
 
 export async function checkBatchEligibility(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   requiredSkuIds: number[],
   steps: StepResult[]
@@ -232,7 +241,7 @@ export async function checkBatchEligibility(
         gt(batches.qtyOnHand, 0)
       )
     );
-  const coveredSkus = new Set(skuRows.map((r: any) => r.storeSkuId));
+  const coveredSkus = new Set(skuRows.map(r => r.storeSkuId));
   const missing = requiredSkuIds.filter(id => !coveredSkus.has(id));
   const passed = missing.length === 0;
   steps.push({
@@ -246,7 +255,7 @@ export async function checkBatchEligibility(
 }
 
 export async function checkColdChain(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   required: boolean,
   steps: StepResult[]
@@ -270,7 +279,7 @@ export async function checkColdChain(
 }
 
 export async function checkControlledDrug(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   required: boolean,
   steps: StepResult[]
@@ -298,7 +307,7 @@ export async function checkControlledDrug(
 }
 
 export async function checkRiderCapacity(
-  db: any,
+  db: DrizzleDb,
   storeId: number,
   steps: StepResult[]
 ): Promise<boolean> {

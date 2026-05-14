@@ -55,8 +55,7 @@ export function buildRequestLogEntry(
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
   return {
     event: err ? "http_request_error" : "http_request",
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    requestId: req.requestId ?? res.locals.requestId,
+    requestId: req.requestId ?? (res.locals.requestId as string | undefined),
     method: req.method,
     path: req.path,
     status: res.statusCode,

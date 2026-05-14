@@ -1,5 +1,31 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any */
 import { eq, sql, and, gte, lte, isNull, ne } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import type { MySqlDatabase } from "drizzle-orm/mysql-core";
+import type {
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+} from "drizzle-orm/mysql2";
+import type { ResultSetHeader } from "mysql2";
+import type { BalancedJournalBatchInput } from "./accountingLedgerHelpers";
+
+export type {
+  JournalLineInput,
+  BalancedJournalBatchInput,
+} from "./accountingLedgerHelpers";
+export {
+  createSaleJournalBatch,
+  createPurchaseJournalBatch,
+  createPaymentJournalBatch,
+  createRefundJournalBatch,
+  createSaleReturnJournalBatch,
+  createPurchaseReturnJournalBatch,
+} from "./accountingLedgerHelpers";
+
+type DrizzleDb = MySqlDatabase<
+  MySql2QueryResultHKT,
+  MySql2PreparedQueryHKT,
+  Record<string, unknown>
+>;
 
 type EntryInput = {
   storeId?: number | null;
@@ -11,32 +37,11 @@ type EntryInput = {
   debit?: number;
   credit?: number;
   narration?: string;
-  metadataJson?: any;
+  metadataJson?: unknown;
   journalBatchId?: number | null;
 };
 
 export type JournalBatchStatus = "draft" | "posted" | "reversed" | "failed";
-
-export type JournalLineInput = {
-  accountCode: string;
-  accountName: string;
-  debit?: number;
-  credit?: number;
-  narration?: string;
-  metadataJson?: any;
-};
-
-export type BalancedJournalBatchInput = {
-  sourceType: string;
-  sourceRef: string;
-  sourceId?: number;
-  storeId?: number | null;
-  entryDate?: Date;
-  postedBy?: number | null;
-  narration?: string;
-  metadataJson?: any;
-  lines: JournalLineInput[];
-};
 
 const MONEY_EPSILON = 0.005;
 
@@ -96,7 +101,7 @@ export function assertBalancedJournalBatch(input: BalancedJournalBatchInput) {
 }
 
 export async function createJournalBatch(
-  db: any,
+  db: DrizzleDb,
   input: Omit<BalancedJournalBatchInput, "lines"> & {
     status?: JournalBatchStatus;
     failureReason?: string | null;
@@ -105,7 +110,7 @@ export async function createJournalBatch(
   }
 ) {
   const { accountingJournalBatches } = await import("../../drizzle/schema");
-  const [res] = await db.insert(accountingJournalBatches).values({
+  const insertResult = await db.insert(accountingJournalBatches).values({
     sourceType: input.sourceType,
     sourceRef: input.sourceRef,
     storeId: input.storeId ?? null,
@@ -116,11 +121,12 @@ export async function createJournalBatch(
     postedAt: input.status === "posted" ? new Date() : null,
     failureReason: input.failureReason ?? null,
   });
+  const [res] = insertResult as unknown as [ResultSetHeader];
   return { id: res.insertId, status: input.status ?? "draft", persisted: true };
 }
 
 export async function postBalancedJournalBatch(
-  db: any,
+  db: DrizzleDb,
   input: BalancedJournalBatchInput
 ) {
   const { accountingJournalBatches, accountingJournalEntries } = await import(
@@ -135,8 +141,10 @@ export async function postBalancedJournalBatch(
   let totals;
   try {
     totals = assertBalancedJournalBatch(input);
-  } catch (error: any) {
-    const failureReason = error?.message ?? "journal batch validation failed";
+  } catch (error: unknown) {
+    const failureReason =
+      (error instanceof Error ? error.message : null) ??
+      "journal batch validation failed";
     await db.insert(accountingJournalBatches).values({
       sourceType: input.sourceType || "invalid",
       sourceRef: input.sourceRef || "invalid",
@@ -151,7 +159,7 @@ export async function postBalancedJournalBatch(
     throw error;
   }
 
-  const [batchRes] = await db.insert(accountingJournalBatches).values({
+  const batchInsertResult = await db.insert(accountingJournalBatches).values({
     sourceType: input.sourceType,
     sourceRef: input.sourceRef,
     storeId: input.storeId ?? null,
@@ -162,6 +170,7 @@ export async function postBalancedJournalBatch(
     postedAt: new Date(),
     failureReason: null,
   });
+  const [batchRes] = batchInsertResult as unknown as [ResultSetHeader];
   const journalBatchId = batchRes.insertId;
 
   await db.insert(accountingJournalEntries).values(
@@ -190,7 +199,7 @@ export async function postBalancedJournalBatch(
 }
 
 export async function reverseJournalBatch(
-  db: any,
+  db: DrizzleDb,
   input: {
     journalBatchId: number;
     sourceRef: string;
@@ -220,7 +229,7 @@ export async function reverseJournalBatch(
     postedBy: input.postedBy ?? null,
     narration:
       input.reason ?? `reversal of journal batch ${input.journalBatchId}`,
-    lines: rows.map((row: any) => ({
+    lines: rows.map(row => ({
       accountCode: row.accountCode,
       accountName: row.accountName,
       debit: Number(row.credit ?? 0),
@@ -235,257 +244,9 @@ export async function reverseJournalBatch(
   return reversal;
 }
 
-export function createSaleJournalBatch(input: {
-  saleId: number;
-  storeId?: number | null;
-  total: number;
-  gstAmount?: number;
-  paymentAccountCode?: string;
-  paymentAccountName?: string;
-  postedBy?: number | null;
-}) {
-  const gst = money(input.gstAmount);
-  const total = money(input.total);
-  const revenue = money(total - gst);
-  if (revenue < 0) throw new Error("sale GST cannot exceed sale total");
-  return {
-    sourceType: "sale",
-    sourceRef: String(input.saleId),
-    sourceId: input.saleId,
-    storeId: input.storeId ?? null,
-    postedBy: input.postedBy ?? null,
-    lines: [
-      {
-        accountCode: input.paymentAccountCode ?? "1000",
-        accountName: input.paymentAccountName ?? "Cash / Receivable",
-        debit: total,
-        credit: 0,
-      },
-      ...(revenue > 0
-        ? [
-            {
-              accountCode: "4000",
-              accountName: "Sales Revenue",
-              debit: 0,
-              credit: revenue,
-            },
-          ]
-        : []),
-      ...(gst > 0
-        ? [
-            {
-              accountCode: "2400",
-              accountName: "Output GST",
-              debit: 0,
-              credit: gst,
-            },
-          ]
-        : []),
-    ],
-  } satisfies BalancedJournalBatchInput;
-}
-
-export function createPurchaseJournalBatch(input: {
-  purchaseInvoiceId: number;
-  storeId?: number | null;
-  netAmount: number;
-  totalGst?: number;
-  postedBy?: number | null;
-}) {
-  const gst = money(input.totalGst);
-  const net = money(input.netAmount);
-  const purchases = money(net - gst);
-  if (purchases < 0)
-    throw new Error("purchase GST cannot exceed purchase net amount");
-  return {
-    sourceType: "purchase",
-    sourceRef: String(input.purchaseInvoiceId),
-    sourceId: input.purchaseInvoiceId,
-    storeId: input.storeId ?? null,
-    postedBy: input.postedBy ?? null,
-    lines: [
-      ...(purchases > 0
-        ? [
-            {
-              accountCode: "5000",
-              accountName: "Purchases",
-              debit: purchases,
-              credit: 0,
-            },
-          ]
-        : []),
-      ...(gst > 0
-        ? [
-            {
-              accountCode: "1400",
-              accountName: "Input GST",
-              debit: gst,
-              credit: 0,
-            },
-          ]
-        : []),
-      {
-        accountCode: "2100",
-        accountName: "Supplier Payable",
-        debit: 0,
-        credit: net,
-      },
-    ],
-  } satisfies BalancedJournalBatchInput;
-}
-
-export function createPaymentJournalBatch(input: {
-  paymentId: number;
-  storeId?: number | null;
-  amount: number;
-  postedBy?: number | null;
-  settlementAccountCode?: string;
-  settlementAccountName?: string;
-}) {
-  const amount = money(input.amount);
-  return {
-    sourceType: "payment",
-    sourceRef: String(input.paymentId),
-    sourceId: input.paymentId,
-    storeId: input.storeId ?? null,
-    postedBy: input.postedBy ?? null,
-    lines: [
-      {
-        accountCode: input.settlementAccountCode ?? "1000",
-        accountName: input.settlementAccountName ?? "Cash / Bank",
-        debit: amount,
-        credit: 0,
-      },
-      {
-        accountCode: "1100",
-        accountName: "Customer Receivable",
-        debit: 0,
-        credit: amount,
-      },
-    ],
-  } satisfies BalancedJournalBatchInput;
-}
-
-export function createRefundJournalBatch(input: {
-  refundId: number;
-  storeId?: number | null;
-  amount: number;
-  gstAmount?: number;
-  postedBy?: number | null;
-}) {
-  const gst = money(input.gstAmount);
-  const amount = money(input.amount);
-  const salesReturn = money(amount - gst);
-  if (salesReturn < 0)
-    throw new Error("refund GST cannot exceed refund amount");
-  return {
-    sourceType: "refund",
-    sourceRef: String(input.refundId),
-    sourceId: input.refundId,
-    storeId: input.storeId ?? null,
-    postedBy: input.postedBy ?? null,
-    lines: [
-      ...(salesReturn > 0
-        ? [
-            {
-              accountCode: "4100",
-              accountName: "Sales Returns",
-              debit: salesReturn,
-              credit: 0,
-            },
-          ]
-        : []),
-      ...(gst > 0
-        ? [
-            {
-              accountCode: "2400",
-              accountName: "Output GST Reversal",
-              debit: gst,
-              credit: 0,
-            },
-          ]
-        : []),
-      {
-        accountCode: "1000",
-        accountName: "Cash / Bank",
-        debit: 0,
-        credit: amount,
-      },
-    ],
-  } satisfies BalancedJournalBatchInput;
-}
-
-export function createSaleReturnJournalBatch(input: {
-  saleReturnId: number;
-  storeId?: number | null;
-  totalRefund: number;
-  gstReversal?: number;
-  postedBy?: number | null;
-}) {
-  return {
-    ...createRefundJournalBatch({
-      refundId: input.saleReturnId,
-      storeId: input.storeId,
-      amount: input.totalRefund,
-      gstAmount: input.gstReversal,
-      postedBy: input.postedBy,
-    }),
-    sourceType: "sale_return",
-  } satisfies BalancedJournalBatchInput;
-}
-
-export function createPurchaseReturnJournalBatch(input: {
-  purchaseReturnId: number;
-  storeId?: number | null;
-  totalAmount: number;
-  gstReversal?: number;
-  postedBy?: number | null;
-}) {
-  const gst = money(input.gstReversal);
-  const total = money(input.totalAmount);
-  const purchaseReturn = money(total - gst);
-  if (purchaseReturn < 0)
-    throw new Error("purchase return GST cannot exceed return amount");
-  return {
-    sourceType: "purchase_return",
-    sourceRef: String(input.purchaseReturnId),
-    sourceId: input.purchaseReturnId,
-    storeId: input.storeId ?? null,
-    postedBy: input.postedBy ?? null,
-    lines: [
-      {
-        accountCode: "2100",
-        accountName: "Supplier Payable",
-        debit: total,
-        credit: 0,
-      },
-      ...(purchaseReturn > 0
-        ? [
-            {
-              accountCode: "5100",
-              accountName: "Purchase Returns",
-              debit: 0,
-              credit: purchaseReturn,
-            },
-          ]
-        : []),
-      ...(gst > 0
-        ? [
-            {
-              accountCode: "1400",
-              accountName: "Input GST Reversal",
-              debit: 0,
-              credit: gst,
-            },
-          ]
-        : []),
-    ],
-  } satisfies BalancedJournalBatchInput;
-}
-
-export async function recordJournalEntry(db: any, input: EntryInput) {
+export async function recordJournalEntry(db: DrizzleDb, input: EntryInput) {
   const { accountingJournalEntries } = await import("../../drizzle/schema");
-  const [res] = await db.insert(accountingJournalEntries).values({
+  const entryInsertResult = await db.insert(accountingJournalEntries).values({
     journalBatchId: input.journalBatchId ?? null,
     storeId: input.storeId ?? null,
     sourceType: input.sourceType,
@@ -498,54 +259,55 @@ export async function recordJournalEntry(db: any, input: EntryInput) {
     narration: input.narration ?? null,
     metadataJson: input.metadataJson ?? null,
   });
+  const [res] = entryInsertResult as unknown as [ResultSetHeader];
   return { id: res.insertId, persisted: true };
 }
 
 export const recordSalesJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "sale" });
 export const recordPurchaseJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "purchase" });
 export const recordPaymentJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "payment" });
 export const recordRefundJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "refund" });
 export const recordSupplierPayableJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "supplier_payable" });
 export const recordSupplierPaymentJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "supplier_payment" });
 export const recordPurchaseReturnJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "purchase_return" });
 export const recordGstInputJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "gst_input" });
 export const recordGstOutputJournal = (
-  db: any,
+  db: DrizzleDb,
   input: Omit<EntryInput, "sourceType">
 ) => recordJournalEntry(db, { ...input, sourceType: "gst_output" });
 
 export async function getTrialBalanceLite(
-  db: any,
+  db: DrizzleDb,
   input: { storeId?: number; fromDate?: Date; toDate?: Date } = {}
 ) {
   const { accountingJournalEntries, accountingJournalBatches } = await import(
     "../../drizzle/schema"
   );
-  const conds = [eq(accountingJournalBatches.status, "posted")] as any[];
+  const conds: SQL<unknown>[] = [eq(accountingJournalBatches.status, "posted")];
   if (input.storeId !== undefined)
     conds.push(eq(accountingJournalEntries.storeId, input.storeId));
   if (input.fromDate)
@@ -570,7 +332,7 @@ export async function getTrialBalanceLite(
       accountingJournalEntries.accountName
     );
   const totals = rows.reduce(
-    (acc: any, row: any) => ({
+    (acc: { debit: number; credit: number }, row) => ({
       debit: money(acc.debit + Number(row.debit ?? 0)),
       credit: money(acc.credit + Number(row.credit ?? 0)),
     }),
@@ -583,7 +345,7 @@ export async function getTrialBalanceLite(
   };
 }
 
-export async function getJournalBatchMismatches(db: any) {
+export async function getJournalBatchMismatches(db: DrizzleDb) {
   const { accountingJournalEntries, accountingJournalBatches } = await import(
     "../../drizzle/schema"
   );
@@ -610,13 +372,13 @@ export async function getJournalBatchMismatches(db: any) {
 }
 
 export async function getJournalExportRows(
-  db: any,
+  db: DrizzleDb,
   input: { storeId?: number; fromDate?: Date; toDate?: Date } = {}
 ) {
   const { accountingJournalEntries, accountingJournalBatches } = await import(
     "../../drizzle/schema"
   );
-  const conds = [eq(accountingJournalBatches.status, "posted")] as any[];
+  const conds: SQL<unknown>[] = [eq(accountingJournalBatches.status, "posted")];
   if (input.storeId !== undefined)
     conds.push(eq(accountingJournalEntries.storeId, input.storeId));
   if (input.fromDate)

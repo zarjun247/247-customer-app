@@ -25,7 +25,9 @@ const schema = readdirSync("drizzle/schema")
   .filter(f => f.endsWith(".ts") && f !== "index.ts")
   .map(f => readFileSync(`drizzle/schema/${f}`, "utf8"))
   .join("\n");
-const router = normalizeCode(readFileSync("server/routers.ts", "utf8"));
+const router = normalizeCode(
+  readFileSync("server/routers/prescriptionRouter.ts", "utf8")
+);
 const govRouter =
   readFileSync("server/routers/prescriptionGovRouter.ts", "utf8") +
   readFileSync("server/routers/prescriptionReviewRouter.ts", "utf8");

@@ -178,3 +178,7 @@ apply and verification paths now consistently use the SM-K runner ledger.
 - AI assistive-only boundary — no regulated mutation authority
 - PHI/PII/secret redaction, staff/admin gating for sensitive surfaces
 - Migration safety: no destructive migrations without review and rollback proof
+
+## Lesson: do not use feature branches for branch-protection rule tests (logged 2026-05-11)
+
+Commits `e902ffc` and `cf4c3f0` ('test: branch protection check (will revert)') are now permanent in main's history after being pushed to test GitHub branch-protection rules. They are harmless (empty README edits) but create noise in `git log`. Future branch-protection or CI rule validation should use a dedicated throwaway branch (e.g. `chore/protection-test-YYYYMMDD`) that is deleted after the check, never a roadmap or feature branch that will be merged to main.

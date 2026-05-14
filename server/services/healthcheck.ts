@@ -222,14 +222,14 @@ export function checkProviders(
   return Object.fromEntries(entries);
 }
 
-export async function checkWorkerQueue(): Promise<HealthComponent> {
+export function checkWorkerQueue(): Promise<HealthComponent> {
   try {
-    const stats = await getQueueStats();
+    const stats = getQueueStats();
     const status: HealthStatus =
       stats.deadLetterCount > 0 || stats.staleRunningCount > 0
         ? "degraded"
         : "configured";
-    return {
+    return Promise.resolve({
       status,
       details: safeMetadata({
         queuedCount: stats.queuedCount,
@@ -241,9 +241,9 @@ export async function checkWorkerQueue(): Promise<HealthComponent> {
         oldestRetryAgeMs: stats.oldestRetryAgeMs,
         generatedAt: stats.generatedAt,
       }) as Record<string, unknown>,
-    };
+    });
   } catch (error) {
-    return { status: "unknown", message: safeFailure(error) };
+    return Promise.resolve({ status: "unknown", message: safeFailure(error) });
   }
 }
 

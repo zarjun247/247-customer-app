@@ -3,9 +3,10 @@
  * PART 3 — Master Data Part B + Upgraded Product Master
  * Covers: Doctor (upgraded), PatientCategory, Staff, Store, Building, Printer (upgraded), Product
  */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import type { SQL } from "drizzle-orm";
+import type { ResultSetHeader } from "mysql2";
 import { logAudit } from "../services/audit";
 import { router, protectedProcedure } from "../_core/trpc";
 
@@ -14,6 +15,8 @@ export {
   printerMasterRouter,
   productMasterRouter,
 } from "./masterDataCatalogExtRouter";
+
+export { storeMasterRouter } from "./masterDataCatalogOpsRouter";
 
 function requireStaff(role: string) {
   const STAFF = [
@@ -44,13 +47,6 @@ function requireManager(role: string) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Manager access required.",
-    });
-}
-function requireAdmin(role: string) {
-  if (!["admin", "super_admin"].includes(role))
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Admin access required.",
     });
 }
 async function getDb() {
@@ -88,6 +84,7 @@ function toCsv(rows: Record<string, unknown>[]): string {
 
 // ─── Doctor Master (upgraded) ─────────────────────────────────────────────────
 export const doctorMasterRouter = router({
+  /** Returns a paginated, filterable list of doctor records. */
   list: protectedProcedure
     .input(
       z.object({
@@ -102,11 +99,13 @@ export const doctorMasterRouter = router({
       const db = await getDb();
       const { doctors } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(doctors.doctorName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(doctors.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(doctors)
@@ -120,6 +119,7 @@ export const doctorMasterRouter = router({
         .where(where);
       return { rows, total };
     }),
+  /** Creates a new doctor record and writes an audit log entry. */
   create: protectedProcedure
     .input(
       z.object({
@@ -135,8 +135,8 @@ export const doctorMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { doctors } = await import("../../drizzle/schema");
-      const [r] = await db.insert(doctors).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(doctors).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -149,6 +149,7 @@ export const doctorMasterRouter = router({
       });
       return { id };
     }),
+  /** Updates editable fields on an existing doctor record and writes an audit log entry. */
   update: protectedProcedure
     .input(
       z.object({
@@ -184,6 +185,7 @@ export const doctorMasterRouter = router({
       });
       return { success: true };
     }),
+  /** Soft-deletes a doctor by setting isActive to false and records the reason in the audit log. */
   deactivate: protectedProcedure
     .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -208,6 +210,7 @@ export const doctorMasterRouter = router({
       });
       return { success: true };
     }),
+  /** Restores a previously deactivated doctor record by setting isActive to true. */
   reactivate: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -229,6 +232,7 @@ export const doctorMasterRouter = router({
       });
       return { success: true };
     }),
+  /** Exports the full doctor list as a CSV string, ordered by name. */
   exportCsv: protectedProcedure
     .input(z.object({}))
     .mutation(async ({ ctx }) => {
@@ -242,6 +246,7 @@ export const doctorMasterRouter = router({
 
 // ─── Patient Category Master ──────────────────────────────────────────────────
 export const patientCategoryRouter = router({
+  /** Returns all patient category records, optionally filtered by name search or active status. */
   list: protectedProcedure
     .input(
       z.object({
@@ -254,11 +259,13 @@ export const patientCategoryRouter = router({
       const db = await getDb();
       const { patientCategories } = await import("../../drizzle/schema");
       const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(like(patientCategories.categoryName, `%${input.search}%`));
       if (input.activeOnly) conds.push(eq(patientCategories.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(patientCategories)
@@ -266,6 +273,7 @@ export const patientCategoryRouter = router({
         .orderBy(patientCategories.categoryName);
       return { rows, total: rows.length };
     }),
+  /** Creates a new patient category and writes an audit log entry. */
   create: protectedProcedure
     .input(
       z.object({
@@ -277,8 +285,8 @@ export const patientCategoryRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { patientCategories } = await import("../../drizzle/schema");
-      const [r] = await db.insert(patientCategories).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(patientCategories).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -291,6 +299,7 @@ export const patientCategoryRouter = router({
       });
       return { id };
     }),
+  /** Updates the name or description of an existing patient category and writes an audit log entry. */
   update: protectedProcedure
     .input(
       z.object({
@@ -325,6 +334,7 @@ export const patientCategoryRouter = router({
       });
       return { success: true };
     }),
+  /** Soft-deletes a patient category by setting isActive to false and records the reason in the audit log. */
   deactivate: protectedProcedure
     .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -349,6 +359,7 @@ export const patientCategoryRouter = router({
       });
       return { success: true };
     }),
+  /** Restores a previously deactivated patient category by setting isActive to true. */
   reactivate: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -374,6 +385,7 @@ export const patientCategoryRouter = router({
 
 // ─── Staff Master ─────────────────────────────────────────────────────────────
 export const staffMasterRouter = router({
+  /** Returns a paginated, filterable list of staff records, optionally scoped to a store or role. */
   list: protectedProcedure
     .input(
       z.object({
@@ -390,18 +402,30 @@ export const staffMasterRouter = router({
       const db = await getDb();
       const { staffMaster } = await import("../../drizzle/schema");
       const { like, and, eq, or } = await import("drizzle-orm");
-      const conds: any[] = [];
+      type StaffRoleEnum =
+        | "pharmacist"
+        | "salesman"
+        | "cashier"
+        | "store_manager"
+        | "purchase_manager"
+        | "delivery_rider"
+        | "admin"
+        | "other";
+      const conds: SQL<unknown>[] = [];
       if (input.search)
         conds.push(
           or(
             like(staffMaster.name, `%${input.search}%`),
             like(staffMaster.phone, `%${input.search}%`)
-          )
+          ) as SQL<unknown>
         );
       if (input.activeOnly) conds.push(eq(staffMaster.isActive, true));
       if (input.storeId) conds.push(eq(staffMaster.storeId, input.storeId));
-      if (input.role) conds.push(eq(staffMaster.role, input.role as any));
-      const where = conds.length ? and(...conds) : undefined;
+      if (input.role)
+        conds.push(eq(staffMaster.role, input.role as StaffRoleEnum));
+      const where: SQL<unknown> | undefined = conds.length
+        ? and(...conds)
+        : undefined;
       const rows = await db
         .select()
         .from(staffMaster)
@@ -415,6 +439,7 @@ export const staffMasterRouter = router({
         .where(where);
       return { rows, total };
     }),
+  /** Creates a new staff member record and writes an audit log entry. */
   create: protectedProcedure
     .input(
       z.object({
@@ -441,8 +466,8 @@ export const staffMasterRouter = router({
       requireManager(ctx.user.role);
       const db = await getDb();
       const { staffMaster } = await import("../../drizzle/schema");
-      const [r] = await db.insert(staffMaster).values(input);
-      const id = (r as any).insertId;
+      const insertResult = await db.insert(staffMaster).values(input);
+      const id = (insertResult as unknown as [ResultSetHeader])[0].insertId;
       await logAudit({
         actorId: ctx.user.id,
         actorType: "user",
@@ -455,6 +480,7 @@ export const staffMasterRouter = router({
       });
       return { id };
     }),
+  /** Updates editable fields on an existing staff member record and writes an audit log entry. */
   update: protectedProcedure
     .input(
       z.object({
@@ -503,6 +529,7 @@ export const staffMasterRouter = router({
       });
       return { success: true };
     }),
+  /** Soft-deletes a staff member by setting isActive to false and records the reason in the audit log. */
   deactivate: protectedProcedure
     .input(z.object({ id: z.number(), reason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -527,6 +554,7 @@ export const staffMasterRouter = router({
       });
       return { success: true };
     }),
+  /** Restores a previously deactivated staff member by setting isActive to true. */
   reactivate: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -548,6 +576,7 @@ export const staffMasterRouter = router({
       });
       return { success: true };
     }),
+  /** Exports the full staff list as a CSV string, ordered by name. */
   exportCsv: protectedProcedure
     .input(z.object({}))
     .mutation(async ({ ctx }) => {
@@ -558,162 +587,6 @@ export const staffMasterRouter = router({
         .select()
         .from(staffMaster)
         .orderBy(staffMaster.name);
-      return toCsv(rows);
-    }),
-});
-
-// ─── Store / Location Master ──────────────────────────────────────────────────
-export const storeMasterRouter = router({
-  list: protectedProcedure
-    .input(
-      z.object({
-        search: z.string().optional(),
-        activeOnly: z.boolean().default(true),
-        limit: z.number().default(100),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      requireStaff(ctx.user.role);
-      const db = await getDb();
-      const { stores } = await import("../../drizzle/schema");
-      const { like, and, eq } = await import("drizzle-orm");
-      const conds: any[] = [];
-      if (input.search) conds.push(like(stores.name, `%${input.search}%`));
-      if (input.activeOnly) conds.push(eq(stores.isActive, true));
-      const where = conds.length ? and(...conds) : undefined;
-      const rows = await db
-        .select()
-        .from(stores)
-        .where(where)
-        .orderBy(stores.name)
-        .limit(input.limit);
-      return { rows, total: rows.length };
-    }),
-  create: protectedProcedure
-    .input(
-      z.object({
-        name: z.string().min(1),
-        type: z.enum(["in_building", "cluster_hub"]).default("in_building"),
-        address: z.string().optional(),
-        pincode: z.string().optional(),
-        phone: z.string().optional(),
-        slaMins: z.number().default(20),
-        lat: z.string().optional(),
-        lng: z.string().optional(),
-        serviceRadius: z.number().default(3000),
-        openingHours: z.string().optional(),
-        priority: z.number().default(10),
-        isPrimary: z.boolean().default(false),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      requireAdmin(ctx.user.role);
-      const db = await getDb();
-      const { stores } = await import("../../drizzle/schema");
-      const [r] = await db.insert(stores).values(input);
-      const id = (r as any).insertId;
-      await logAudit({
-        actorId: ctx.user.id,
-        actorType: "user",
-        action: "master.store.create",
-        entityType: "store",
-        entityId: id,
-        beforeJson: null,
-        afterJson: input,
-        source: "admin",
-      });
-      return { id };
-    }),
-  update: protectedProcedure
-    .input(
-      z.object({
-        id: z.number(),
-        name: z.string().optional(),
-        type: z.enum(["in_building", "cluster_hub"]).optional(),
-        address: z.string().optional(),
-        pincode: z.string().optional(),
-        phone: z.string().optional(),
-        slaMins: z.number().optional(),
-        lat: z.string().optional(),
-        lng: z.string().optional(),
-        serviceRadius: z.number().optional(),
-        openingHours: z.string().optional(),
-        priority: z.number().optional(),
-        isPrimary: z.boolean().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      requireAdmin(ctx.user.role);
-      const db = await getDb();
-      const { stores } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const { id, ...data } = input;
-      const [before] = await db.select().from(stores).where(eq(stores.id, id));
-      await db.update(stores).set(data).where(eq(stores.id, id));
-      await logAudit({
-        actorId: ctx.user.id,
-        actorType: "user",
-        action: "master.store.update",
-        entityType: "store",
-        entityId: id,
-        beforeJson: before,
-        afterJson: data,
-        source: "admin",
-      });
-      return { success: true };
-    }),
-  deactivate: protectedProcedure
-    .input(z.object({ id: z.number(), reason: z.string().optional() }))
-    .mutation(async ({ ctx, input }) => {
-      requireAdmin(ctx.user.role);
-      const db = await getDb();
-      const { stores } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      await db
-        .update(stores)
-        .set({ isActive: false })
-        .where(eq(stores.id, input.id));
-      await logAudit({
-        actorId: ctx.user.id,
-        actorType: "user",
-        action: "master.store.deactivate",
-        entityType: "store",
-        entityId: input.id,
-        beforeJson: null,
-        afterJson: null,
-        reason: input.reason,
-        source: "admin",
-      });
-      return { success: true };
-    }),
-  reactivate: protectedProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      requireAdmin(ctx.user.role);
-      const db = await getDb();
-      const { stores } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      await db
-        .update(stores)
-        .set({ isActive: true })
-        .where(eq(stores.id, input.id));
-      await logAudit({
-        actorId: ctx.user.id,
-        actorType: "user",
-        action: "master.store.reactivate",
-        entityType: "store",
-        entityId: input.id,
-        source: "admin",
-      });
-      return { success: true };
-    }),
-  exportCsv: protectedProcedure
-    .input(z.object({}))
-    .mutation(async ({ ctx }) => {
-      requireManager(ctx.user.role);
-      const db = await getDb();
-      const { stores } = await import("../../drizzle/schema");
-      const rows = await db.select().from(stores).orderBy(stores.name);
       return toCsv(rows);
     }),
 });

@@ -3,10 +3,13 @@ import { readFileSync } from "node:fs";
 
 const purchaseRouter =
   readFileSync("server/routers/purchaseRouter.ts", "utf8") +
-  readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8");
+  readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8") +
+  readFileSync("server/services/commercialTruthSeams.ts", "utf8");
 const salesRouter =
   readFileSync("server/routers/salesRouter.ts", "utf8") +
-  readFileSync("server/routers/salesReportsRouter.ts", "utf8");
+  readFileSync("server/routers/salesReportsRouter.ts", "utf8") +
+  readFileSync("server/routers/salesOpsExtension.ts", "utf8") +
+  readFileSync("server/services/commercialTruthSeams.ts", "utf8");
 const paymentRouter = readFileSync("server/routers/paymentRouter.ts", "utf8");
 const inventoryRouter =
   readFileSync("server/routers/inventoryRouter.ts", "utf8") +
@@ -34,13 +37,10 @@ describe("commercial flow static guards", () => {
   });
 
   it("barcode scan route is lookup-only before sale confirm", () => {
-    const scanBlock = salesRouter.slice(
-      salesRouter.indexOf("scanBarcode"),
-      salesRouter.indexOf("confirmSale")
-    );
-    expect(scanBlock).toContain("resolveBarcodeForSale");
-    expect(scanBlock).not.toContain("stockMovements");
-    expect(scanBlock).not.toContain("decreaseStockForSaleConfirmation");
+    const scanExt = readFileSync("server/routers/salesOpsExtension.ts", "utf8");
+    expect(scanExt).toContain("resolveBarcodeForSale");
+    expect(scanExt).not.toContain("stockMovements");
+    expect(scanExt).not.toContain("decreaseStockForSaleConfirmation");
   });
 
   it("stock audit completion has duplicate guard", () => {

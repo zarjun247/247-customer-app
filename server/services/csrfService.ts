@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import { doubleCsrf } from "csrf-csrf";
 import pino from "pino";
 import { ENV } from "../_core/env";
@@ -28,7 +27,7 @@ export const {
   // We derive it from the session cookie or IP as a fallback.
   getSessionIdentifier: req => {
     const cookie = (req.cookies as Record<string, string> | undefined) ?? {};
-    return cookie["app_session"] ?? (req as any).ip ?? "anon";
+    return cookie["app_session"] ?? req.ip ?? "anon";
   },
   cookieName: "__Host-csrf",
   cookieOptions: {

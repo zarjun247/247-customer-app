@@ -1,13 +1,15 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { eq } from "drizzle-orm";
 import { providerWebhookEvents } from "../../drizzle/schema";
 import {
   moveProviderEventToDeadLetterOnce,
   scheduleProviderEventRetry,
 } from "./providerEventsService";
+import type { getDb } from "../db";
+
+type DrizzleDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
 export async function recordProviderFailureForRetry(
-  db: any,
+  db: DrizzleDb,
   input: {
     providerEventRowId: number;
     reason: string;
@@ -19,7 +21,7 @@ export async function recordProviderFailureForRetry(
 }
 
 export async function exhaustProviderEventToDeadLetter(
-  db: any,
+  db: DrizzleDb,
   input: {
     providerEventRowId: number;
     reason: string;

@@ -1,5 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import type { NextFunction, Request, Response } from "express";
+
+type RequestWithMetricsAuth = Request & { metricsTokenAuthenticated?: boolean };
 
 /**
  * Alternative /metrics auth path for Prometheus scrapers.
@@ -21,7 +22,7 @@ export function metricsTokenAuth() {
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const providedToken = authHeader.slice("Bearer ".length);
         if (providedToken === envToken) {
-          (req as any).metricsTokenAuthenticated = true;
+          (req as RequestWithMetricsAuth).metricsTokenAuthenticated = true;
         }
       }
     }

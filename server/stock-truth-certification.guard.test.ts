@@ -21,7 +21,10 @@ const ocrService = readFileSync(
 const purchaseRouter =
   readFileSync("server/routers/purchaseRouter.ts", "utf8") +
   readFileSync("server/routers/purchaseReturnsRouter.ts", "utf8");
-const salesRouter = readFileSync("server/routers/salesRouter.ts", "utf8");
+const salesRouter =
+  readFileSync("server/routers/salesRouter.ts", "utf8") +
+  readFileSync("server/routers/salesOpsExtension.ts", "utf8") +
+  readFileSync("server/services/commercialTruthSeams.ts", "utf8");
 const stockInvariant = readFileSync(
   "server/services/stockInvariant.ts",
   "utf8"

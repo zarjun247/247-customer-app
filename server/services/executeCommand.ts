@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { createHash, randomUUID } from "crypto";
 import pino from "pino";
 import { and, eq } from "drizzle-orm";
@@ -10,6 +9,7 @@ import { assertTransition } from "./commandStateMachine";
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
 type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 export type CommandContext = {
   actorUserId: string | null;
@@ -159,15 +159,19 @@ export async function executeCommand<TInput, TOutput>(
   try {
     let handlerResult!: CommandResult<TOutput>;
 
-    await db.transaction(async (tx: any) => {
-      handlerResult = await options.handler(options.input, tx, options.context);
+    await db.transaction(async (tx: DbTx) => {
+      handlerResult = await options.handler(
+        options.input,
+        tx as unknown as DbInstance,
+        options.context
+      );
 
       for (const se of handlerResult.sideEffects) {
         await tx.insert(commandOutbox).values({
           id: randomUUID(),
           commandLogId: commandId,
           sideEffectKind: se.kind,
-          sideEffectPayload: se.payload as Record<string, unknown>,
+          sideEffectPayload: se.payload,
           maxAttempts:
             se.maxAttempts ?? Number(process.env.OUTBOX_MAX_ATTEMPTS ?? "5"),
         });
@@ -180,7 +184,7 @@ export async function executeCommand<TInput, TOutput>(
         .update(commandLog)
         .set({
           state: "completed",
-          outputPayload: handlerResult.output as Record<string, unknown>,
+          outputPayload: handlerResult.output,
           completedAt: new Date(),
           durationMs: duration,
         })
@@ -199,7 +203,9 @@ export async function executeCommand<TInput, TOutput>(
           commandName: options.name,
           idempotencyKey: options.idempotencyKey,
         },
-      }).catch(err => logger.warn({ err }, "SLO emission failed (non-fatal)"));
+      }).catch((err: unknown) =>
+        logger.warn({ err }, "SLO emission failed (non-fatal)")
+      );
     }
 
     return handlerResult.output;
@@ -220,7 +226,7 @@ export async function executeCommand<TInput, TOutput>(
         durationMs: duration,
       })
       .where(eq(commandLog.id, commandId))
-      .catch(updateErr => {
+      .catch((updateErr: unknown) => {
         logger.error(
           { updateErr },
           "Failed to mark command as failed in command_log"

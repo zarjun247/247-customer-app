@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -13,11 +12,16 @@ import {
   sales,
 } from "../../drizzle/schema";
 import { getDb } from "../db";
+
+type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
+
 import { reserveInvoiceNumber } from "./invoiceNumbering";
 import {
   createMutationFingerprint,
   withIdempotency,
 } from "./idempotencyService";
+import { calcPurchaseGst, duplicateResult } from "./commercialSeamsHelpers";
 import {
   createBatchWithOpeningStock,
   decreaseStockForSaleConfirmation,
@@ -43,34 +47,8 @@ function requireDb(db: Awaited<ReturnType<typeof getDb>>) {
   return db;
 }
 
-function calcPurchaseGst(
-  purchaseRate: number,
-  gstRate: number,
-  qty: number,
-  schemeDiscount: number,
-  cashDiscount: number
-) {
-  const baseAmount = purchaseRate * qty;
-  const schemeDis = baseAmount * (schemeDiscount / 100);
-  const cashDis = (baseAmount - schemeDis) * (cashDiscount / 100);
-  const taxableAmount = baseAmount - schemeDis - cashDis;
-  const gstAmount = taxableAmount * (gstRate / 100);
-  return { taxableAmount, gstAmount };
-}
-
-function duplicateResult<T extends Record<string, unknown>>(
-  result: T
-): T & { idempotent: true; duplicate: true; status: "already_processed" } {
-  return {
-    ...result,
-    idempotent: true,
-    duplicate: true,
-    status: "already_processed",
-  };
-}
-
 async function assertNoCommittedSupplierInvoiceDuplicate(
-  db: any,
+  db: DbTx,
   invoice: {
     id: number;
     supplierId: number;
@@ -135,7 +113,7 @@ export async function commitPurchaseInvoiceExactlyOnce(input: {
       requestHash: createMutationFingerprint({ invoiceId: input.invoiceId }),
     },
     async () => {
-      const txResult = await db.transaction(async (tx: any) => {
+      const txResult = await db.transaction(async (tx: DbTx) => {
         const [invoice] = await tx
           .select()
           .from(purchaseInvoices)
@@ -154,7 +132,7 @@ export async function commitPurchaseInvoiceExactlyOnce(input: {
               invoiceId: input.invoiceId,
               committed: false,
             }),
-            _storeId: invoice.storeId as number,
+            _storeId: invoice.storeId,
             _invoiceNo: null as string | null,
             _skuProducts: [] as Array<{ storeId: number; productId: number }>,
           };
@@ -188,7 +166,7 @@ export async function commitPurchaseInvoiceExactlyOnce(input: {
               invoiceId: input.invoiceId,
               committed: false,
             }),
-            _storeId: invoice.storeId as number,
+            _storeId: invoice.storeId,
             _invoiceNo: null as string | null,
             _skuProducts: [] as Array<{ storeId: number; productId: number }>,
           };
@@ -309,8 +287,8 @@ export async function commitPurchaseInvoiceExactlyOnce(input: {
           committed: true,
           gstSummary,
           status: "processed" as const,
-          _storeId: invoice.storeId as number,
-          _invoiceNo: invoice.invoiceNo as string,
+          _storeId: invoice.storeId,
+          _invoiceNo: invoice.invoiceNo,
           _skuProducts: skuProducts,
         };
       });
@@ -381,7 +359,7 @@ export async function confirmSaleExactlyOnce(input: {
       }),
     },
     async () => {
-      const txResult = await db.transaction(async (tx: any) => {
+      const txResult = await db.transaction(async (tx: DbTx) => {
         const [sale] = await tx
           .select()
           .from(sales)
@@ -398,7 +376,7 @@ export async function confirmSaleExactlyOnce(input: {
               billNo: sale.billNo,
               confirmed: false,
             }),
-            _storeId: sale.storeId as number,
+            _storeId: Number(sale.storeId),
           };
         if (sale.status !== "draft")
           throw new TRPCError({
@@ -434,7 +412,7 @@ export async function confirmSaleExactlyOnce(input: {
               billNo: current?.billNo ?? finalBillNo,
               confirmed: false,
             }),
-            _storeId: sale.storeId as number,
+            _storeId: Number(sale.storeId),
           };
         }
         const lines = await tx
@@ -475,7 +453,7 @@ export async function confirmSaleExactlyOnce(input: {
           billNo: finalBillNo,
           confirmed: true,
           status: "processed" as const,
-          _storeId: sale.storeId as number,
+          _storeId: Number(sale.storeId),
         };
       });
       // appendCommercialEventBestEffort is intentionally outside the transaction — it's best-effort.

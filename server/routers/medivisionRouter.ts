@@ -316,8 +316,7 @@ export const medivisionRouter = router({
   /**
    * Health check — confirms the router is reachable.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
-  healthCheck: protectedProcedure.query(async ({ ctx }) => {
+  healthCheck: protectedProcedure.query(({ ctx }) => {
     assertRole(ctx.user.role);
     return {
       status: "ok",

@@ -26,6 +26,7 @@ try {
 const results = JSON.parse(raw || "[]");
 const regressions = [];
 let totalErrors = 0;
+let totalWarnings = 0;
 
 for (const r of results) {
   if (!r.errorCount && !r.warningCount) continue;
@@ -33,26 +34,37 @@ for (const r of results) {
     .replace(process.cwd().replace(/\\/g, "/") + "/", "")
     .replace(/\\/g, "/");
   const isTestFile = rel.endsWith(".test.ts") || rel.endsWith(".test.tsx");
-  const current = r.errorCount;
-  totalErrors += current;
+  const currentErrors = r.errorCount;
+  const currentWarnings = r.warningCount;
+  totalErrors += currentErrors;
+  totalWarnings += currentWarnings;
 
   if (isTestFile) {
     // Per-file ratchet for test files only
     const allowed = (baseline[rel] ?? { errors: 0 }).errors;
-    if (current > allowed) {
-      regressions.push({ file: rel, allowed, current });
+    if (currentErrors > allowed) {
+      regressions.push({ file: rel, allowed, current: currentErrors });
     }
-  } else if (current > 0) {
-    // Hard zero for all non-test source files
-    regressions.push({ file: rel, allowed: 0, current });
+  } else if (currentErrors > 0) {
+    // Hard zero errors for all non-test source files
+    regressions.push({ file: rel, allowed: 0, current: currentErrors });
+  } else if (currentWarnings > 0) {
+    // Hard zero warnings for all non-test source files
+    regressions.push({
+      file: rel,
+      allowed: 0,
+      current: currentWarnings,
+      kind: "warnings",
+    });
   }
 }
 
 if (regressions.length) {
-  console.error("Lint errors found. Run pnpm run lint to see details.");
-  for (const { file, allowed, current } of regressions) {
-    console.error(`  ${file}: ${current} errors (baseline: ${allowed})`);
+  console.error("Lint issues found. Run pnpm run lint to see details.");
+  for (const { file, allowed, current, kind } of regressions) {
+    const label = kind === "warnings" ? "warnings" : "errors";
+    console.error(`  ${file}: ${current} ${label} (baseline: ${allowed})`);
   }
   process.exit(1);
 }
-console.log(`Lint gate OK: ${totalErrors} total errors`);
+console.log(`Lint gate OK: ${totalErrors} errors, ${totalWarnings} warnings`);

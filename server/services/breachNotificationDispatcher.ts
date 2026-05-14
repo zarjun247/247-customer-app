@@ -4,7 +4,7 @@ import { ENV } from "../_core/env";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
-export async function dispatchBreachNotification(input: {
+export function dispatchBreachNotification(input: {
   incidentId: string;
   affectedCustomerCount: number;
   dataCategories: string[];
@@ -13,7 +13,7 @@ export async function dispatchBreachNotification(input: {
   rootCause: string;
   mitigationActions: string[];
 }): Promise<{ ok: true; sentAt: Date; recipients: string[] }> {
-  const notification = await generateBreachNotification(input);
+  const notification = generateBreachNotification(input);
   const recipient = ENV.breachNotifyRecipientEmail;
 
   if (!recipient) {
@@ -21,7 +21,7 @@ export async function dispatchBreachNotification(input: {
       { incidentId: input.incidentId },
       "breachNotification: dispatch skipped — BREACH_NOTIFY_RECIPIENT_EMAIL not set"
     );
-    return { ok: true, sentAt: new Date(), recipients: [] };
+    return Promise.resolve({ ok: true, sentAt: new Date(), recipients: [] });
   }
 
   // TBD humans-must-do: integrate SMTP/SES. See SCORECARD item for full dispatch.
@@ -34,5 +34,9 @@ export async function dispatchBreachNotification(input: {
     "breachNotification: READY TO DISPATCH — wire SMTP/SES before production use"
   );
 
-  return { ok: true, sentAt: new Date(), recipients: [recipient] };
+  return Promise.resolve({
+    ok: true,
+    sentAt: new Date(),
+    recipients: [recipient],
+  });
 }

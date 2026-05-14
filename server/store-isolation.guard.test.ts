@@ -75,7 +75,7 @@ describe("store isolation static guards", () => {
     const bad: string[] = [];
     for (const t of targets) {
       const content = fs.existsSync(t) ? fs.readFileSync(t, "utf8") : "";
-      const hasImport = /import[^\n]*requireStoreAccess/.test(content);
+      const hasImport = /import[\s\S]*?requireStoreAccess/.test(content);
       const hasCall = /requireStoreAccess\(/.test(content);
       if (!(hasImport && hasCall)) bad.push(t);
     }

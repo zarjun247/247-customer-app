@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
 import { getDb } from "../db";
@@ -25,47 +23,28 @@ import { settleProviderRefundExactlyOnce } from "./commercialTruthSeams";
 import { scheduleProviderEventRetry } from "./providerEventsService";
 import { logAudit } from "./audit";
 import { redactObject } from "../_core/redact";
-
-export type ProviderWebhookProcessingStatus =
-  | "received"
-  | "verified"
-  | "ignored_duplicate"
-  | "processed"
-  | "failed"
-  | "retry_scheduled"
-  | "dead_letter"
-  | "rejected_signature"
-  | "unsupported_event";
-
-export type PaymentLifecycleTransition =
-  | "attempt_created"
-  | "authorized"
-  | "captured"
-  | "failed"
-  | "refunded"
-  | "partially_refunded"
-  | "cancelled"
-  | "expired";
-
-export type ProviderWebhookResult = {
-  ok: boolean;
-  status: ProviderWebhookProcessingStatus;
-  eventType: string;
-  providerEventId: string | null;
-  idempotent?: boolean;
-  paymentLifecycle?: PaymentLifecycleTransition;
-  message?: string;
-};
+export type {
+  ProviderWebhookProcessingStatus,
+  PaymentLifecycleTransition,
+  ProviderWebhookResult,
+} from "./paymentWebhookHelpers";
+export {
+  hashRawPayload,
+  sanitizeProviderWebhookPayload,
+  extractProviderWebhookRefs,
+} from "./paymentWebhookHelpers";
+import {
+  extractProviderWebhookRefs,
+  hashRawPayload,
+  sanitizeProviderWebhookPayload,
+} from "./paymentWebhookHelpers";
+import type {
+  ProviderWebhookProcessingStatus,
+  PaymentLifecycleTransition,
+  ProviderWebhookResult,
+} from "./paymentWebhookHelpers";
 
 const PROVIDER = "razorpay";
-const SIGNATURE_FIELDS = new Set([
-  "signature",
-  "x-razorpay-signature",
-  "razorpay_signature",
-  "token",
-  "secret",
-  "authorization",
-]);
 const PAYMENT_CAPTURED_EVENTS = new Set(["payment.captured", "order.paid"]);
 const PAYMENT_FAILED_EVENTS = new Set(["payment.failed"]);
 const PAYMENT_CANCELLED_EVENTS = new Set([
@@ -92,127 +71,21 @@ function runtimeIsProduction() {
   return process.env.NODE_ENV === "production";
 }
 
-export function hashRawPayload(rawBody: string | Buffer) {
-  return crypto.createHash("sha256").update(rawBody).digest("hex");
-}
-
-function safeString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-function safeNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
-  return null;
-}
-
-function deepRedact(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(deepRedact);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(
-      value as Record<string, unknown>
-    )) {
-      const lowered = key.toLowerCase();
-      if (
-        SIGNATURE_FIELDS.has(lowered) ||
-        lowered.includes("signature") ||
-        lowered.includes("token") ||
-        lowered.includes("secret")
-      ) {
-        out[key] = "[REDACTED]";
-      } else if (
-        [
-          "card",
-          "bank_account",
-          "vpa",
-          "contact",
-          "email",
-          "notes",
-          "prescription",
-        ].includes(lowered)
-      ) {
-        out[key] = "[REDACTED]";
-      } else {
-        out[key] = deepRedact(child);
-      }
-    }
-    return redactObject(out);
-  }
-  return value;
-}
-
-export function sanitizeProviderWebhookPayload(payload: unknown) {
-  return deepRedact(payload) as Record<string, unknown> | null;
-}
-
-function parseRawWebhookBody(rawBody: string | Buffer): Record<string, any> {
+function parseRawWebhookBody(
+  rawBody: string | Buffer
+): Record<string, unknown> {
   const text = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : rawBody;
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(text) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       throw new Error("Webhook payload must be a JSON object");
-    return parsed;
+    return parsed as Record<string, unknown>;
   } catch {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Malformed webhook payload",
     });
   }
-}
-
-function getNested(payload: Record<string, any>, path: string[]) {
-  return path.reduce<any>(
-    (acc, key) => (acc && typeof acc === "object" ? acc[key] : undefined),
-    payload
-  );
-}
-
-export function extractProviderWebhookRefs(payload: Record<string, any>) {
-  const eventType =
-    safeString(payload.event) ?? safeString(payload.type) ?? "unknown";
-  const providerEventId =
-    safeString(payload.id) ??
-    safeString(payload.event_id) ??
-    safeString(payload.eventId);
-  const paymentEntity =
-    getNested(payload, ["payload", "payment", "entity"]) ??
-    payload.payment ??
-    {};
-  const orderEntity =
-    getNested(payload, ["payload", "order", "entity"]) ?? payload.order ?? {};
-  const refundEntity =
-    getNested(payload, ["payload", "refund", "entity"]) ?? payload.refund ?? {};
-  const gatewayOrderId =
-    safeString(paymentEntity.order_id) ??
-    safeString(orderEntity.id) ??
-    safeString(payload.gatewayOrderId) ??
-    safeString(payload.order_id);
-  const gatewayPaymentId =
-    safeString(paymentEntity.id) ??
-    safeString(payload.gatewayPaymentId) ??
-    safeString(payload.payment_id);
-  const providerRefundId =
-    safeString(refundEntity.id) ??
-    safeString(payload.refundId) ??
-    safeString(payload.refund_id);
-  const refundAmountPaise =
-    safeNumber(refundEntity.amount) ??
-    safeNumber(payload.amountPaise) ??
-    safeNumber(payload.amount);
-  const orderId =
-    safeNumber(paymentEntity.notes?.orderId) ??
-    safeNumber(orderEntity.notes?.orderId) ??
-    safeNumber(payload.orderId);
-  return {
-    eventType,
-    providerEventId,
-    gatewayOrderId,
-    gatewayPaymentId,
-    providerRefundId,
-    refundAmountPaise,
-    orderId,
-  };
 }
 
 function idempotencyKeyFor(
@@ -663,8 +536,9 @@ export async function handleRazorpayWebhook(input: {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Webhook processing failed";
-    if (eventRowId) {
-      await scheduleProviderEventRetry(await getDb(), {
+    const dbForRetry = await getDb();
+    if (eventRowId && dbForRetry) {
+      await scheduleProviderEventRetry(dbForRetry, {
         providerEventRowId: eventRowId,
         reason: message,
       });

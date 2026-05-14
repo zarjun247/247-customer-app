@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 
 describe("delivery regulated release guard", () => {
-  const source = fs.readFileSync("server/routers/deliveryRouter.ts", "utf8");
+  const source =
+    fs.readFileSync("server/routers/deliveryRouter.ts", "utf8") +
+    fs.readFileSync("server/routers/deliveryTaskRouter.ts", "utf8") +
+    fs.readFileSync("server/routers/deliveryHelpers.ts", "utf8") +
+    fs.readFileSync("server/routers/deliveryTaskPodRouter.ts", "utf8");
   it("has regulated delivery guard helper and audits", () => {
     expect(source).toContain("assertRegulatedDeliveryAllowed");
     expect(source).toContain("delivery.regulated_release_blocked");

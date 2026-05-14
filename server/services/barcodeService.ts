@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { and, asc, eq, or, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import { getDb } from "../db";
@@ -55,7 +54,7 @@ export async function registerBarcodeAlias(input: {
   batchId?: number;
   storeId?: number;
   aliasType: "manufacturer" | "internal" | "batch" | "shelf" | "legacy";
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }) {
   const db = await getDb();
   if (!db)
@@ -180,7 +179,7 @@ export async function createLabelPrintJob(input: {
   batchId?: number | null;
   storeId?: number | null;
   labelType: "batch" | "shelf" | "mrp" | "return" | "audit";
-  payloadJson: any;
+  payloadJson: Record<string, unknown>;
   printerName?: string | null;
   requestedBy?: number | null;
 }) {

@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createHash } from "node:crypto";
 import { logAudit } from "./audit";
+import type { CtxLike } from "./audit";
 
 export type IdempotencyStatus = "started" | "completed" | "failed";
 
@@ -14,6 +14,33 @@ type IdempotencyRow = {
   resultJson?: unknown;
   errorJson?: unknown;
   __created?: boolean;
+};
+
+type RequestCtx = {
+  req?: { headers?: Record<string, string | string[] | undefined> };
+  requestId?: string | null;
+};
+
+type IdempotentOperationInput = {
+  key: string;
+  scope: string;
+  operationType: string;
+  actorId?: number | null;
+  storeId?: number | null;
+  entityType?: string | null;
+  entityId?: string | number | null;
+  requestHash?: string | null;
+  expiresAt?: Date | null;
+  ctx?: CtxLike;
+};
+
+type WithIdempotencyParams = IdempotentOperationInput & {
+  key: string;
+  scope: string;
+  requestHash?: string | null;
+  entityId?: string | number | null;
+  entityType?: string | null;
+  ctx?: CtxLike;
 };
 
 export function buildIdempotencyKey(
@@ -47,7 +74,7 @@ export function canonicalJson(payload: unknown) {
 export function createMutationFingerprint(payload: unknown) {
   return createHash("sha256").update(canonicalJson(payload)).digest("hex");
 }
-export function getRequestIdFromContext(ctx: any) {
+export function getRequestIdFromContext(ctx: RequestCtx | null | undefined) {
   return ctx?.req?.headers?.["x-request-id"] ?? ctx?.requestId ?? null;
 }
 
@@ -75,7 +102,15 @@ async function getDb() {
   return getDb();
 }
 
-async function fetchOperation(db: any, table: any, key: string, scope: string) {
+type IdempotencyTable = Awaited<ReturnType<typeof getTable>>;
+type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function fetchOperation(
+  db: DbInstance,
+  table: IdempotencyTable,
+  key: string,
+  scope: string
+) {
   const [row] = await db
     .select()
     .from(table)
@@ -84,7 +119,9 @@ async function fetchOperation(db: any, table: any, key: string, scope: string) {
   return row ?? null;
 }
 
-export async function beginIdempotentOperation(input: any) {
+export async function beginIdempotentOperation(
+  input: IdempotentOperationInput
+) {
   const db = await getDb();
   const table = await getTable();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -133,7 +170,7 @@ export async function completeIdempotentOperation(
   key: string,
   scope: string,
   resultJson: unknown,
-  ctx?: any
+  ctx?: CtxLike
 ) {
   const db = await getDb();
   const table = await getTable();
@@ -195,7 +232,7 @@ function assertRequestHashMatches(
 }
 
 export async function withIdempotency<T>(
-  params: any,
+  params: WithIdempotencyParams,
   fn: () => Promise<T>
 ): Promise<T> {
   assertIdempotencyKeyPresent(params.key);
@@ -240,10 +277,10 @@ export async function withIdempotency<T>(
       params.ctx
     );
     return result;
-  } catch (e: any) {
-    await failIdempotentOperation(params.key, params.scope, {
-      message: e?.message ?? "error",
-    });
+  } catch (e: unknown) {
+    const message =
+      e instanceof Error ? e.message : typeof e === "string" ? e : "error";
+    await failIdempotentOperation(params.key, params.scope, { message });
     throw e;
   }
 }

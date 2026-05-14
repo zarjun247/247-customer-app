@@ -32,7 +32,7 @@ export async function assertIndiaRegionStorage(): Promise<void> {
   }
 
   await assertS3Region(normalizedRequired);
-  await assertDbRegion(normalizedRequired);
+  assertDbRegion(normalizedRequired);
 
   logger.info(
     { region: normalizedRequired },
@@ -87,8 +87,7 @@ async function assertS3Region(requiredRegion: string): Promise<void> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/require-await
-async function assertDbRegion(requiredRegion: string): Promise<void> {
+function assertDbRegion(requiredRegion: string): void {
   const dbUrl = (process.env.DATABASE_URL ?? "").trim();
   if (!dbUrl) return;
 

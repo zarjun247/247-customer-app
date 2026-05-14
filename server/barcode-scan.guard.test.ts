@@ -23,21 +23,30 @@ describe("barcode scan guards", () => {
     expect(payload.patientName).toBeUndefined();
   });
   it("scan routes do not call stockInvariant mutation directly", () => {
-    const sales = fs.readFileSync("server/routers/salesRouter.ts", "utf8");
+    const sales =
+      fs.readFileSync("server/routers/salesRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/salesOpsExtension.ts", "utf8");
     expect(sales).toContain("scanBarcodeForSale");
     expect(
-      sales.includes("decreaseStockForSaleConfirmation") &&
-        sales.includes("confirmSale")
+      sales.includes("decreaseStockForSaleConfirmation") ||
+        fs
+          .readFileSync("server/services/commercialTruthSeams.ts", "utf8")
+          .includes("decreaseStockForSaleConfirmation")
     ).toBe(true);
+    expect(sales.includes("confirmSale")).toBe(true);
   });
   it("scan routes mention compliance/margin checks remain at confirm", () => {
-    const sales = fs.readFileSync("server/routers/salesRouter.ts", "utf8");
+    const sales =
+      fs.readFileSync("server/routers/salesRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/salesOpsExtension.ts", "utf8");
     expect(sales).toContain('complianceGate: "checked_at_confirm"');
     expect(sales).toContain('marginGuard: "checked_at_confirm"');
   });
 
   it("scan route bodies are lookup-only and do not mutate stock", () => {
-    const sales = fs.readFileSync("server/routers/salesRouter.ts", "utf8");
+    const sales =
+      fs.readFileSync("server/routers/salesRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/salesOpsExtension.ts", "utf8");
     const inventory =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
       fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");
