@@ -114,3 +114,6 @@ client/public/__manus__/version.json
 
 MP_EXECUTION_MAP.md
 PARALLEL_PROMPT_TEMPLATES.md
+
+# Claude Code local config (per-developer permissions cache)
+.claude/settings.local.json
