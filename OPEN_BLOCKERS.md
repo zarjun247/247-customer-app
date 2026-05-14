@@ -78,6 +78,8 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 
 **`ONCALL_ALERT_EMAIL`** — captured in ENV, not yet wired to SMTP/SES fallback.
 
+**SBOM components array empty** — `sbom.cyclonedx.json` committed to repo has `"components": []`. Root cause: `scripts/sbom-generate.mjs` calls `@cyclonedx/cyclonedx-npm` which fails silently with pnpm v10 (`pnpm ls --all` unsupported) and falls back to a minimal stub. The CI workflow (`sbom.yml`) correctly uses `pnpm dlx @cyclonedx/cdxgen@latest -t pnpm` which populates the full component list. Fix requires two steps: (1) update `sbom-generate.mjs` to call `cdxgen` locally (matching CI); (2) add `sbom.cyclonedx.json` to `.gitignore` — it is a CI-generated artifact and should not be committed (the committed copy is always the empty fallback, which is misleading). Deferred to a dedicated SBOM PR.
+
 ---
 
 ## Closed by SM-*
