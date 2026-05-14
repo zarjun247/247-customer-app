@@ -139,7 +139,7 @@ apply and verification paths now consistently use the SM-K runner ledger.
 ### Closed by SM-N
 
 - CSRF client wiring (P0): Client now sends `x-csrf-token` header on every tRPC call via `httpBatchLink.headers`. Cookie name: `__Host-csrf`. CSRF enforcement can now be promoted from `log_only` to `enforce` in production.
-- Emergency stop middleware applied to `/api/trpc`: `createEmergencyStopMiddleware` inserted before tRPC mount; `readFlag()` blocks customer mutations when active; fails open if DB unreachable.
+- Emergency stop middleware applied to `/api/trpc`: `createEmergencyStopMiddleware` inserted before tRPC mount; `readFlag()` blocks customer mutations when active; fails open if DB unreachable. Fail-open posture affirmed by [ADR-0010](docs/adr/0010-emergency-stop-fail-open-affirmed.md) (SM-Ω Phase 1 cleanup) — see ADR for rationale and Phase 2 upgrade path.
 
 ### Closed by SM-E (this PR)
 
