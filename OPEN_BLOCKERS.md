@@ -64,7 +64,7 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 
 **Rate limit store** — in-memory; not shared across nodes. Set `API_RATE_LIMIT_BACKEND=redis` before multi-node production.
 
-**Capability grants** — ~~`capability_grants` empty at first boot~~ — by design (SM-Ω Phase 1): `CAPABILITY_ROLE_DEFAULTS` in `capabilityGrantService.ts` (sealed) provides comprehensive role-based defaults. The system is fully operational without seeding any DB grants; `capabilityProcedure` already consults defaults before the DB. Explicit grants via `security.grantCapability` are only needed for per-user overrides beyond role defaults.
+**Capability grants** — ~~`capability_grants` empty at first boot~~ — by design (SM-Ω Phase 1): `CAPABILITY_ROLE_DEFAULTS` in `capabilityGrantService.ts` (sealed) provides comprehensive role-based defaults. The system is fully operational without seeding any DB grants; `capabilityProcedure` already consults defaults before the DB. Explicit grants via `security.grantCapability` are only needed for per-user overrides beyond role defaults. Documented in [ADR-0012](docs/adr/0012-capability-grants-role-default-mode.md).
 
 **Intelligence — stockoutForecast** — requires `numericStoreId` for accurate live stock data; defaults to 0 otherwise.
 
@@ -134,7 +134,7 @@ apply and verification paths now consistently use the SM-K runner ledger.
 - PII write paths fully wired: `prescriptions.patientPhone` and `pharmacistNote` encrypt on write, decrypt on read; `getUserByPhone` uses HMAC-SHA256 `phoneHash` index for correctness under AES-GCM.
 - Column widths fixed: `users.phone` and `prescriptions.patientPhone` widened to VARCHAR(500) via migrations 0075/0076.
 - PII backfill script added: `scripts/pii-backfill.ts` handles users + prescriptions in batches.
-- Capability grants: documented as by-design; `CAPABILITY_ROLE_DEFAULTS` provides full boot-time coverage.
+- Capability grants: documented as by-design in [ADR-0012](docs/adr/0012-capability-grants-role-default-mode.md); `CAPABILITY_ROLE_DEFAULTS` provides full boot-time coverage.
 
 ### Closed by SM-N
 
