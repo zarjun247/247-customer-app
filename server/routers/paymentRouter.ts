@@ -432,6 +432,7 @@ export const paymentRouter = router({
 
   // ─── SLA Board ──────────────────────────────────────────────────────────────
 
+  /** Returns open SLA events and a breach-count summary for the requesting store's manager dashboard. */
   slaBoard: protectedProcedure
     .input(z.object({ days: z.number().int().min(1).max(90).default(7) }))
     .query(async ({ ctx, input }) => {
@@ -444,6 +445,7 @@ export const paymentRouter = router({
       return { summary, openEvents };
     }),
 
+  /** Manually triggers SLA breach detection and returns the number of newly-breached events. Manager/admin only. */
   detectBreaches: protectedProcedure.mutation(async ({ ctx }) => {
     assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
     const count = await detectSlaBreaches();
@@ -452,6 +454,7 @@ export const paymentRouter = router({
 
   // ─── Expiry Dashboard ───────────────────────────────────────────────────────
 
+  /** Returns product expiry zone data (red/amber/green) for the requesting store's inventory dashboard. */
   expiryZones: protectedProcedure.query(async ({ ctx }) => {
     assertRole(ctx.user.role, MANAGER_ROLES, "Store manager");
     const storeId = getStoreId(ctx.user);

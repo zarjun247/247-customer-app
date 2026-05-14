@@ -31,7 +31,9 @@ describe("accounting+tally production guards", () => {
   });
 
   it("supplier ledger writes durable allocation rows and avoids placeholder-only path", () => {
-    const txt = fs.readFileSync("server/services/supplierLedger.ts", "utf8");
+    const txt =
+      fs.readFileSync("server/services/supplierLedger.ts", "utf8") +
+      fs.readFileSync("server/services/supplierPaymentsService.ts", "utf8");
     expect(txt).toContain("allocatePaymentToInvoice");
     expect(txt).toContain("supplierPaymentAllocations");
     expect(txt).not.toContain("direct_or_manual");

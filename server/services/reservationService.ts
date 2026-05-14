@@ -7,6 +7,11 @@ import type { CtxLike } from "./audit";
 import { appendCommercialEventBestEffort } from "./commercialLifecycle";
 import type { getDb } from "../db";
 import type { ResultSetHeader } from "mysql2";
+export {
+  computeAvailableQty,
+  explainAvailability,
+  syncStoreSkuSoftLocks,
+} from "./reservationHelpers";
 
 type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
@@ -38,35 +43,6 @@ interface ReservationInput {
   idempotencyKey?: string | null;
   correlationId?: string | null;
   id?: number | null;
-}
-
-export function computeAvailableQty(input: {
-  onHandQty: number;
-  reservedQty?: number;
-  softLockedQty?: number;
-  quarantinedQty?: number;
-  expiredQty?: number;
-}) {
-  return (
-    input.onHandQty -
-    (input.reservedQty ?? 0) -
-    (input.softLockedQty ?? 0) -
-    (input.quarantinedQty ?? 0) -
-    (input.expiredQty ?? 0)
-  );
-}
-
-export function explainAvailability(
-  input: Parameters<typeof computeAvailableQty>[0]
-) {
-  const available = computeAvailableQty(input);
-  return {
-    ...input,
-    availableQty: Math.max(0, available),
-    rawAvailableQty: available,
-    formula:
-      "availableQty = onHandQty - reservedQty - softLockedQty - quarantinedQty - expiredQty",
-  };
 }
 
 async function requireDb() {
@@ -629,26 +605,4 @@ export async function getReservationStatus(
       conds.length ? and(...conds) : ne(stockReservations.status, "consumed")
     );
   return rows;
-}
-
-export async function syncStoreSkuSoftLocks(input?: {
-  storeId?: number;
-  productId?: number;
-  variantId?: number | null;
-}) {
-  const db = await requireDb();
-  const { storeSkus } = await import("../../drizzle/schema");
-  const conds = [];
-  if (input?.storeId) conds.push(eq(storeSkus.storeId, input.storeId));
-  if (input?.productId) conds.push(eq(storeSkus.productId, input.productId));
-  if (input?.variantId != null)
-    conds.push(eq(storeSkus.variantId, input.variantId));
-  await db
-    .update(storeSkus)
-    .set({ softLockedQty: 0 })
-    .where(conds.length ? and(...conds) : sql`1=1`);
-  return {
-    synced: true,
-    note: "Soft locks reconciled; durable stock_reservations are canonical.",
-  };
 }

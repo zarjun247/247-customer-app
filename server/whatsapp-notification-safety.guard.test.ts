@@ -81,7 +81,11 @@ describe("WhatsApp notification safety", () => {
   });
 
   it("keeps regulated refill/order paths non-autonomous in router source", () => {
-    const src = fs.readFileSync("server/routers/whatsappRouter.ts", "utf8");
+    const src =
+      fs.readFileSync("server/routers/whatsappRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/whatsappFlowHandlers.ts", "utf8") +
+      fs.readFileSync("server/routers/customerWhatsappRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/whatsappHelpers.ts", "utf8");
     expect(src).toContain(
       "I cannot auto-confirm this refill/order on WhatsApp"
     );
@@ -91,15 +95,18 @@ describe("WhatsApp notification safety", () => {
 
   it("prevents unlinked WhatsApp identity from accessing private order/prescription data", () => {
     expect(normalizeWhatsAppPhone("99999 99999")).toBe("+919999999999");
-    const fullRouterSrc = fs.readFileSync(
-      "server/routers/whatsappRouter.ts",
+    const fullRouterSrc =
+      fs.readFileSync("server/routers/whatsappRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/customerWhatsappRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/whatsappHelpers.ts", "utf8");
+    const customerWhatsappSrc = fs.readFileSync(
+      "server/routers/customerWhatsappRouter.ts",
       "utf8"
     );
-    const shallowRouterSrc = fs.readFileSync("server/routers.ts", "utf8");
     expect(fullRouterSrc).toContain("!userId || order.userId !== userId");
     expect(fullRouterSrc).toContain("pending_link");
-    expect(shallowRouterSrc).toContain("!linkedUser");
-    expect(shallowRouterSrc).toContain("order.userId !== linkedUser.id");
+    expect(customerWhatsappSrc).toContain("!linkedUser");
+    expect(customerWhatsappSrc).toContain("order.userId !== linkedUser.id");
   });
 
   it("supports sensitivity-only notification preference updates and idempotent defaults", () => {

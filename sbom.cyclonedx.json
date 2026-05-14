@@ -1,0 +1,21 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:d4a445a4-c6bb-4a8e-bc1f-46774677aa4f",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-12T11:22:26.058Z",
+    "tools": [
+      {
+        "name": "sbom-generate.mjs",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "247-customer-app",
+      "version": "1.0.0"
+    }
+  },
+  "components": []
+}

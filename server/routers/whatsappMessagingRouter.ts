@@ -12,17 +12,15 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, like, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import {
-  whatsappLinks,
   whatsappMessages,
   whatsappCarts,
   whatsappCartLines,
   staffHandoffs,
-  whatsappSessions,
-  orders,
   products,
   storeSkus,
   users,
 } from "../../drizzle/schema";
+import { adminRouter } from "./whatsappAdminExtension";
 import {
   getWhatsappSession,
   upsertWhatsappSession,
@@ -586,84 +584,6 @@ const cartRouter = router({
       });
 
       return { ok: true, orderId, total };
-    }),
-});
-
-// ─── Admin procedures ─────────────────────────────────────────────────────────
-
-const adminRouter = router({
-  recentOrders: protectedProcedure
-    .input(
-      z.object({
-        limit: z.number().int().min(1).max(100).default(20),
-      })
-    )
-    .query(async ({ input }) => {
-      const db = await getDbSafe();
-      return db
-        .select({
-          id: orders.id,
-          userId: orders.userId,
-          status: orders.status,
-          total: orders.total,
-          source: orders.source,
-          createdAt: orders.createdAt,
-          customerName: users.name,
-          customerPhone: users.phone,
-        })
-        .from(orders)
-        .leftJoin(users, eq(orders.userId, users.id))
-        .where(eq(orders.source, "whatsapp"))
-        .orderBy(desc(orders.createdAt))
-        .limit(input.limit);
-    }),
-
-  stats: protectedProcedure.query(async () => {
-    const db = await getDbSafe();
-    const [linkedCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(whatsappLinks)
-      .where(eq(whatsappLinks.isActive, true));
-    const [openHandoffs] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(staffHandoffs)
-      .where(eq(staffHandoffs.status, "open"));
-    const [waOrders] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orders)
-      .where(eq(orders.source, "whatsapp"));
-    const [msgCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(whatsappMessages);
-    return {
-      linkedCustomers: linkedCount.count,
-      openHandoffs: openHandoffs.count,
-      totalWaOrders: waOrders.count,
-      totalMessages: msgCount.count,
-    };
-  }),
-
-  sessions: protectedProcedure
-    .input(
-      z.object({
-        limit: z.number().int().min(1).max(100).default(50),
-      })
-    )
-    .query(async ({ input }) => {
-      const db = await getDbSafe();
-      return db
-        .select({
-          id: whatsappSessions.id,
-          phone: whatsappSessions.phone,
-          userId: whatsappSessions.userId,
-          currentFlow: whatsappSessions.currentFlow,
-          lastMessageAt: whatsappSessions.lastMessageAt,
-          customerName: users.name,
-        })
-        .from(whatsappSessions)
-        .leftJoin(users, eq(whatsappSessions.userId, users.id))
-        .orderBy(desc(whatsappSessions.lastMessageAt))
-        .limit(input.limit);
     }),
 });
 

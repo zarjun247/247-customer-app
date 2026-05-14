@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./db", () => ({ getDb: vi.fn() }));
 vi.mock("./services/jobQueue", () => ({
-  getQueueStats: vi.fn(async () => ({
+  getQueueStats: vi.fn(() => ({
     queuedCount: 0,
     runningCount: 0,
     retryCount: 0,
@@ -68,7 +68,7 @@ describe("healthcheck service", () => {
   });
 
   it("worker health check is read-only and returns counts only", async () => {
-    vi.mocked(jobQueue.getQueueStats).mockResolvedValueOnce({
+    vi.mocked(jobQueue.getQueueStats).mockReturnValueOnce({
       queuedCount: 1,
       runningCount: 0,
       retryCount: 0,

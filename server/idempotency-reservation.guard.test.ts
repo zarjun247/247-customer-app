@@ -24,7 +24,9 @@ describe("idempotency/reservation guards", () => {
   });
   it("payment verify + delivery + stock audit duplicate status guards exist", () => {
     const pay = fs.readFileSync("server/routers/paymentRouter.ts", "utf8");
-    const del = fs.readFileSync("server/routers/deliveryRouter.ts", "utf8");
+    const del =
+      fs.readFileSync("server/routers/deliveryRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/deliveryTaskRouter.ts", "utf8");
     const inv =
       fs.readFileSync("server/routers/inventoryRouter.ts", "utf8") +
       fs.readFileSync("server/routers/inventoryOpsRouter.ts", "utf8");

@@ -12,17 +12,7 @@
  *  rider.locationHeartbeat       — rider app: push GPS ping
  *  rider.manualLocation          — admin: set rider location manually
  *
- *  task.assign                   — assign rider to order → creates delivery_task
- *  task.confirmPickup            — rider confirms pickup from store
- *  task.outForDelivery           — rider marks out for delivery
- *  task.deliverWithOtp           — verify OTP → mark delivered
- *  task.deliverWithPhoto         — photo POD → mark delivered
- *  task.recordFailed             — record failed attempt with reason
- *  task.recordReturned           — mark parcel returned to store
- *  task.collectCod               — record COD cash collected
- *  task.reconcileCod             — admin: mark COD reconciled
- *  task.list                     — list tasks (by store/rider/status)
- *  task.get                      — get single task with full detail
+ *  task.*                        — see deliveryTaskRouter.ts
  *
  *  sla.list                      — list SLA events
  *  sla.checkBreaches             — system: scan for breached SLAs
@@ -34,118 +24,29 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import type { ResultSetHeader } from "mysql2";
-import type { AccessUser } from "../_core/rbac";
-import type { CtxLike } from "../services/audit";
 import {
-  orders,
   riders,
-  deliveryTasks,
   riderLocations,
   routingDecisions,
-  slaEvents as _slaEvents,
-  orderTimestamps as _orderTimestamps,
   storeCapabilities,
-  deliveryEvents,
 } from "../../drizzle/schema";
-import {
-  eq,
-  and,
-  desc,
-  gte,
-  lte as _lte,
-  sql,
-  inArray as _inArray,
-  isNull as _isNull,
-} from "drizzle-orm";
-import { resolveNode, recordOrderTimestamp } from "../routingEngine";
+import { eq, and, desc } from "drizzle-orm";
+import { resolveNode } from "../routingEngine";
 import { TRPCError } from "@trpc/server";
-import { requireStoreAccess, requireStaffStore } from "../_core/rbac";
-import { logAudit } from "../services/audit";
+import { requireStoreAccess } from "../_core/rbac";
 import { deliveryRouterExtension } from "./deliverySlaRouter";
-
-// ─── Role helpers ─────────────────────────────────────────────────────────────
-const DELIVERY_ROLES = ["delivery_operator", "store_manager", "admin"] as const;
-const MANAGER_ROLES = ["store_manager", "admin"] as const;
-
-function assertRole(role: string, allowed: readonly string[], label: string) {
-  if (!allowed.includes(role))
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: `${label} access required`,
-    });
-}
-
-function getStoreId(user: AccessUser): number {
-  return requireStaffStore(user);
-}
-
-async function assertRegulatedDeliveryAllowed(orderId: number, ctx: CtxLike) {
-  const db = await getDb();
-  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-  const { orderItems, products, prescriptions } = await import(
-    "../../drizzle/schema"
-  );
-  const [order] = await db
-    .select()
-    .from(orders)
-    .where(eq(orders.id, orderId))
-    .limit(1);
-  if (!order) throw new TRPCError({ code: "NOT_FOUND" });
-  const lines = await db
-    .select({
-      schedule: products.schedule,
-      requiresPrescription: products.requiresPrescription,
-    })
-    .from(orderItems)
-    .leftJoin(products, eq(orderItems.productId, products.id))
-    .where(eq(orderItems.orderId, orderId));
-  const regulated = lines.some(
-    l =>
-      ["H", "H1", "X"].includes(String(l.schedule ?? "")) ||
-      Boolean(l.requiresPrescription)
-  );
-  if (!regulated) return;
-  const [rx] = order.prescriptionId
-    ? await db
-        .select({ status: prescriptions.status })
-        .from(prescriptions)
-        .where(eq(prescriptions.id, order.prescriptionId))
-        .limit(1)
-    : [null];
-  const rxOk = !!rx && ["approved", "on_file"].includes(String(rx.status));
-  if (
-    !rxOk ||
-    !["picking", "packed", "out_for_delivery"].includes(String(order.status))
-  ) {
-    await logAudit(
-      {
-        action: "delivery.regulated_release_blocked",
-        entityType: "order",
-        entityId: orderId,
-        afterJson: { rxOk, status: order.status },
-      },
-      ctx
-    );
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message:
-        "Regulated delivery requires approved prescription and pharmacist clearance",
-    });
-  }
-  await logAudit(
-    {
-      action: "delivery.regulated_release_allowed",
-      entityType: "order",
-      entityId: orderId,
-      afterJson: { rxOk, status: order.status },
-    },
-    ctx
-  );
-}
+import { deliveryTaskRouter } from "./deliveryTaskRouter";
+import {
+  assertRole,
+  getStoreId,
+  DELIVERY_ROLES,
+  MANAGER_ROLES,
+} from "./deliveryHelpers";
 
 // ─── Routing sub-router ───────────────────────────────────────────────────────
 
 const routingRouter = router({
+  /** Runs the 12-step routing engine to find the best fulfilling store node for a building or pincode. */
   resolveNode: protectedProcedure
     .input(
       z.object({
@@ -179,6 +80,7 @@ const routingRouter = router({
       return result;
     }),
 
+  /** Lists routing decisions, optionally filtered by order or building. Manager/admin only. */
   decisions: protectedProcedure
     .input(
       z.object({
@@ -204,6 +106,7 @@ const routingRouter = router({
         .limit(input.limit);
     }),
 
+  /** Fetches the capability record (licence, cold-chain, controlled-drug flags) for a store. Manager/admin only. */
   getStoreCapabilities: protectedProcedure
     .input(z.object({ storeId: z.number().int() }))
     .query(async ({ ctx, input }) => {
@@ -218,6 +121,7 @@ const routingRouter = router({
       return cap ?? null;
     }),
 
+  /** Creates or updates the capability record for a store (licence, pharmacist, cold-chain, rider capacity). Manager/admin only. */
   upsertStoreCapabilities: protectedProcedure
     .input(
       z.object({
@@ -267,6 +171,7 @@ const routingRouter = router({
 // ─── Rider sub-router ─────────────────────────────────────────────────────────
 
 const riderRouter = router({
+  /** Lists riders for a store, optionally filtered by availability status or active flag. */
   list: protectedProcedure
     .input(
       z.object({
@@ -292,6 +197,7 @@ const riderRouter = router({
         .orderBy(riders.name);
     }),
 
+  /** Creates a new rider profile and associates it with the requesting store. Manager/admin only. */
   create: protectedProcedure
     .input(
       z.object({
@@ -313,6 +219,7 @@ const riderRouter = router({
       return { id: riderHeader.insertId, ok: true };
     }),
 
+  /** Updates a rider's name, phone, availability status, or active flag. Manager/admin only. */
   update: protectedProcedure
     .input(
       z.object({
@@ -339,6 +246,7 @@ const riderRouter = router({
       return { ok: true };
     }),
 
+  /** Records a GPS ping from the rider app, updating current position and appending to location history. */
   locationHeartbeat: protectedProcedure
     .input(
       z.object({
@@ -374,6 +282,7 @@ const riderRouter = router({
       return { ok: true };
     }),
 
+  /** Returns the recent GPS ping history for a rider, newest first. Delivery operators and above. */
   locationHistory: protectedProcedure
     .input(
       z.object({
@@ -394,661 +303,14 @@ const riderRouter = router({
     }),
 });
 
-// ─── Task sub-router ──────────────────────────────────────────────────────────
-
-const taskRouter = router({
-  assign: protectedProcedure
-    .input(
-      z.object({
-        orderId: z.number().int(),
-        riderId: z.number().int(),
-        isCod: z.boolean().default(false),
-        codAmount: z.string().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, DELIVERY_ROLES, "Delivery operator");
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const storeId = getStoreId(ctx.user);
-      requireStoreAccess(ctx.user, storeId);
-
-      // Create delivery task
-      const taskInsert = await db.insert(deliveryTasks).values({
-        orderId: input.orderId,
-        riderId: input.riderId,
-        storeId,
-        status: "assigned",
-        isCod: input.isCod,
-        codAmount: input.codAmount ?? null,
-      });
-      const [taskHeader] = taskInsert as unknown as [ResultSetHeader];
-      const taskId = taskHeader.insertId;
-
-      // Update order status + riderId
-      await db
-        .update(orders)
-        .set({
-          status: "assigned_to_rider",
-          riderId: input.riderId,
-          statusChangedBy: ctx.user.id,
-          statusChangedAt: new Date(),
-        })
-        .where(eq(orders.id, input.orderId));
-
-      // Update rider status
-      await db
-        .update(riders)
-        .set({ status: "on_delivery" })
-        .where(eq(riders.id, input.riderId));
-
-      // Record delivery event
-      await db.insert(deliveryEvents).values({
-        orderId: input.orderId,
-        riderId: input.riderId,
-        eventType: "assigned",
-        note: `Assigned by ${ctx.user.id}`,
-      });
-
-      // Record order timestamp
-      await recordOrderTimestamp(
-        input.orderId,
-        "rider_assigned",
-        ctx.user.id,
-        "admin"
-      );
-
-      return { taskId, ok: true };
-    }),
-
-  confirmPickup: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      requireStoreAccess(ctx.user, task.storeId);
-      if (task.status === "delivered") return { ok: true, idempotent: true };
-      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          status: "pickup_confirmed",
-          pickupConfirmedAt: new Date(),
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      await db.insert(deliveryEvents).values({
-        orderId: task.orderId,
-        riderId: task.riderId,
-        eventType: "picked_up",
-        lat: input.lat ? String(input.lat) : null,
-        lng: input.lng ? String(input.lng) : null,
-      });
-
-      await recordOrderTimestamp(
-        task.orderId,
-        "pickup_confirmed",
-        task.riderId,
-        "rider"
-      );
-      return { ok: true };
-    }),
-
-  outForDelivery: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      requireStoreAccess(ctx.user, task.storeId);
-      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
-      if (task.status === "delivered") return { ok: true, idempotent: true };
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          status: "out_for_delivery",
-          outForDeliveryAt: new Date(),
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      await db
-        .update(orders)
-        .set({
-          status: "out_for_delivery",
-          statusChangedAt: new Date(),
-        })
-        .where(eq(orders.id, task.orderId));
-
-      await db.insert(deliveryEvents).values({
-        orderId: task.orderId,
-        riderId: task.riderId,
-        eventType: "arrived",
-        lat: input.lat ? String(input.lat) : null,
-        lng: input.lng ? String(input.lng) : null,
-      });
-
-      await recordOrderTimestamp(
-        task.orderId,
-        "out_for_delivery",
-        task.riderId,
-        "rider"
-      );
-      return { ok: true };
-    }),
-
-  deliverWithOtp: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        otp: z.string().length(6),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-        note: z.string().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      requireStoreAccess(ctx.user, task.storeId);
-      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
-
-      // Verify OTP against delivery_otps table
-      const { deliveryOtps } = await import("../../drizzle/schema");
-      const [otpRow] = await db
-        .select()
-        .from(deliveryOtps)
-        .where(
-          and(
-            eq(deliveryOtps.orderId, task.orderId),
-            eq(deliveryOtps.isUsed, false)
-          )
-        )
-        .limit(1);
-
-      if (!otpRow)
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No active OTP found for this order",
-        });
-      if (otpRow.otp !== input.otp)
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid OTP" });
-      if (new Date(otpRow.expiresAt) < new Date())
-        throw new TRPCError({ code: "BAD_REQUEST", message: "OTP expired" });
-
-      const now = new Date();
-
-      // Mark OTP used
-      await db
-        .update(deliveryOtps)
-        .set({ isUsed: true, usedAt: now })
-        .where(eq(deliveryOtps.id, otpRow.id));
-
-      // Mark task delivered
-      await db
-        .update(deliveryTasks)
-        .set({
-          status: "delivered",
-          deliveredAt: now,
-          podType: "otp",
-          podOtp: input.otp,
-          podOtpVerifiedAt: now,
-          podNote: input.note ?? null,
-          deliveryLat: input.lat ? String(input.lat) : null,
-          deliveryLng: input.lng ? String(input.lng) : null,
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      // Mark order delivered
-      await db
-        .update(orders)
-        .set({
-          status: "delivered",
-          deliveredAt: now,
-          statusChangedAt: now,
-          statusChangedBy: ctx.user.id,
-        })
-        .where(eq(orders.id, task.orderId));
-
-      // Mark rider available
-      await db
-        .update(riders)
-        .set({ status: "available" })
-        .where(eq(riders.id, task.riderId));
-
-      // Close SLA event
-      const { closeSlaEvent } = await import("../payment");
-      await closeSlaEvent(task.orderId);
-
-      await db.insert(deliveryEvents).values({
-        orderId: task.orderId,
-        riderId: task.riderId,
-        eventType: "otp_verified",
-        lat: input.lat ? String(input.lat) : null,
-        lng: input.lng ? String(input.lng) : null,
-        note: "OTP verified — delivered",
-      });
-
-      await recordOrderTimestamp(
-        task.orderId,
-        "delivered",
-        task.riderId,
-        "rider"
-      );
-      return { ok: true };
-    }),
-
-  deliverWithPhoto: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        photoUrl: z.string().url(),
-        photoKey: z.string().optional(),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-        note: z.string().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      requireStoreAccess(ctx.user, task.storeId);
-      await assertRegulatedDeliveryAllowed(task.orderId, ctx);
-
-      const now = new Date();
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          status: "delivered",
-          deliveredAt: now,
-          podType: "photo",
-          podPhotoUrl: input.photoUrl,
-          podPhotoKey: input.photoKey ?? null,
-          podNote: input.note ?? null,
-          deliveryLat: input.lat ? String(input.lat) : null,
-          deliveryLng: input.lng ? String(input.lng) : null,
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      await db
-        .update(orders)
-        .set({
-          status: "delivered",
-          deliveredAt: now,
-          statusChangedAt: now,
-          statusChangedBy: ctx.user.id,
-        })
-        .where(eq(orders.id, task.orderId));
-
-      await db
-        .update(riders)
-        .set({ status: "available" })
-        .where(eq(riders.id, task.riderId));
-
-      const { closeSlaEvent } = await import("../payment");
-      await closeSlaEvent(task.orderId);
-
-      await db.insert(deliveryEvents).values({
-        orderId: task.orderId,
-        riderId: task.riderId,
-        eventType: "delivered",
-        lat: input.lat ? String(input.lat) : null,
-        lng: input.lng ? String(input.lng) : null,
-        note: "Photo POD",
-      });
-
-      await recordOrderTimestamp(
-        task.orderId,
-        "delivered",
-        task.riderId,
-        "rider"
-      );
-      return { ok: true };
-    }),
-
-  recordFailed: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        failedReason: z.enum([
-          "customer_unavailable",
-          "wrong_address",
-          "customer_refused",
-          "payment_issue",
-          "damaged_package",
-          "other",
-        ]),
-        failedNote: z.string().min(5).max(500).optional(),
-        lat: z.number().optional(),
-        lng: z.number().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      requireStoreAccess(ctx.user, task.storeId);
-
-      const now = new Date();
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          status: "failed_attempt",
-          failedAt: now,
-          failedReason: input.failedReason,
-          failedNote: input.failedNote ?? null,
-          failedLat: input.lat ? String(input.lat) : null,
-          failedLng: input.lng ? String(input.lng) : null,
-          attemptCount: sql`${deliveryTasks.attemptCount} + 1`,
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      await db
-        .update(orders)
-        .set({
-          status: "delivery_exception",
-          statusChangedAt: now,
-          statusChangedBy: ctx.user.id,
-          statusReason: input.failedReason,
-        })
-        .where(eq(orders.id, task.orderId));
-
-      await db.insert(deliveryEvents).values({
-        orderId: task.orderId,
-        riderId: task.riderId,
-        eventType: "failed_attempt",
-        lat: input.lat ? String(input.lat) : null,
-        lng: input.lng ? String(input.lng) : null,
-        note: `${input.failedReason}: ${input.failedNote ?? ""}`,
-      });
-
-      await recordOrderTimestamp(
-        task.orderId,
-        "failed_attempt",
-        task.riderId,
-        "rider",
-        input.failedNote
-      );
-      return { ok: true };
-    }),
-
-  recordReturned: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        note: z.string().optional(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      if (!task) throw new TRPCError({ code: "NOT_FOUND" });
-      requireStoreAccess(ctx.user, task.storeId);
-
-      const now = new Date();
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          status: "returned",
-          returnedAt: now,
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      await db
-        .update(orders)
-        .set({
-          status: "returned",
-          statusChangedAt: now,
-          statusChangedBy: ctx.user.id,
-        })
-        .where(eq(orders.id, task.orderId));
-
-      await db
-        .update(riders)
-        .set({ status: "available" })
-        .where(eq(riders.id, task.riderId));
-
-      await db.insert(deliveryEvents).values({
-        orderId: task.orderId,
-        riderId: task.riderId,
-        eventType: "returned",
-        note: input.note ?? "Returned to store",
-      });
-
-      await recordOrderTimestamp(
-        task.orderId,
-        "returned",
-        task.riderId,
-        "rider",
-        input.note
-      );
-      return { ok: true };
-    }),
-
-  collectCod: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-        collectedAmount: z.string(),
-      })
-    )
-    .mutation(async ({ ctx: _ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          codCollectedAt: new Date(),
-          codCollectedAmount: input.collectedAmount,
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      return { ok: true };
-    }),
-
-  reconcileCod: protectedProcedure
-    .input(
-      z.object({
-        taskId: z.number().int(),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, MANAGER_ROLES, "Manager");
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      await db
-        .update(deliveryTasks)
-        .set({
-          codReconciled: true,
-          codReconciledAt: new Date(),
-          codReconciledBy: ctx.user.id,
-        })
-        .where(eq(deliveryTasks.id, input.taskId));
-
-      return { ok: true };
-    }),
-
-  list: protectedProcedure
-    .input(
-      z.object({
-        storeId: z.number().int().optional(),
-        riderId: z.number().int().optional(),
-        status: z
-          .enum([
-            "assigned",
-            "pickup_confirmed",
-            "out_for_delivery",
-            "delivered",
-            "failed_attempt",
-            "returned",
-            "cancelled",
-          ])
-          .optional(),
-        codPending: z.boolean().optional(),
-        limit: z.number().int().min(1).max(100).default(50),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, DELIVERY_ROLES, "Delivery operator");
-      const db = await getDb();
-      if (!db) return [];
-
-      const conditions = [];
-      const storeId = input.storeId ?? getStoreId(ctx.user);
-      requireStoreAccess(ctx.user, storeId);
-      conditions.push(eq(deliveryTasks.storeId, storeId));
-      if (input.riderId)
-        conditions.push(eq(deliveryTasks.riderId, input.riderId));
-      if (input.status) conditions.push(eq(deliveryTasks.status, input.status));
-      if (input.codPending) {
-        conditions.push(eq(deliveryTasks.isCod, true));
-        conditions.push(eq(deliveryTasks.codReconciled, false));
-      }
-
-      return db
-        .select()
-        .from(deliveryTasks)
-        .where(and(...conditions))
-        .orderBy(desc(deliveryTasks.assignedAt))
-        .limit(input.limit);
-    }),
-
-  get: protectedProcedure
-    .input(z.object({ taskId: z.number().int() }))
-    .query(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, DELIVERY_ROLES, "Delivery operator");
-      const db = await getDb();
-      if (!db) return null;
-      const [task] = await db
-        .select()
-        .from(deliveryTasks)
-        .where(eq(deliveryTasks.id, input.taskId))
-        .limit(1);
-      return task ?? null;
-    }),
-
-  stats: protectedProcedure
-    .input(z.object({ days: z.number().int().min(1).max(90).default(7) }))
-    .query(async ({ ctx, input }) => {
-      assertRole(ctx.user.role, DELIVERY_ROLES, "Delivery operator");
-      const db = await getDb();
-      if (!db) return null;
-      const storeId = getStoreId(ctx.user);
-      requireStoreAccess(ctx.user, storeId);
-      const since = new Date(Date.now() - input.days * 86400000);
-
-      const [total] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(deliveryTasks)
-        .where(
-          and(
-            eq(deliveryTasks.storeId, storeId),
-            gte(deliveryTasks.assignedAt, since)
-          )
-        );
-      const [delivered] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(deliveryTasks)
-        .where(
-          and(
-            eq(deliveryTasks.storeId, storeId),
-            eq(deliveryTasks.status, "delivered"),
-            gte(deliveryTasks.assignedAt, since)
-          )
-        );
-      const [failed] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(deliveryTasks)
-        .where(
-          and(
-            eq(deliveryTasks.storeId, storeId),
-            eq(deliveryTasks.status, "failed_attempt"),
-            gte(deliveryTasks.assignedAt, since)
-          )
-        );
-      const [codPending] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(deliveryTasks)
-        .where(
-          and(
-            eq(deliveryTasks.storeId, storeId),
-            eq(deliveryTasks.isCod, true),
-            eq(deliveryTasks.codReconciled, false)
-          )
-        );
-
-      return {
-        total: Number(total?.count ?? 0),
-        delivered: Number(delivered?.count ?? 0),
-        failed: Number(failed?.count ?? 0),
-        codPending: Number(codPending?.count ?? 0),
-      };
-    }),
-});
-
 // ─── Combined delivery router ─────────────────────────────────────────────────
 
 export const deliveryRouter = router({
+  /** Sub-router for store routing engine (resolveNode, routing decisions, store capabilities). */
   routing: routingRouter,
+  /** Sub-router for rider management (list, create, update, GPS heartbeat, location history). */
   rider: riderRouter,
-  task: taskRouter,
+  /** Sub-router for delivery task lifecycle (assign, accept, complete, etc.). */
+  task: deliveryTaskRouter,
   ...deliveryRouterExtension,
 });

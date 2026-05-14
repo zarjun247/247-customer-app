@@ -26,7 +26,9 @@ const barcodeService = readFileSync(
   "server/services/barcodeService.ts",
   "utf8"
 );
-const salesRouter = readFileSync("server/routers/salesRouter.ts", "utf8");
+const salesRouter =
+  readFileSync("server/routers/salesRouter.ts", "utf8") +
+  readFileSync("server/routers/salesOpsExtension.ts", "utf8");
 const dbHelpers = readFileSync("server/db.ts", "utf8");
 const schema = normalizeCode(
   readdirSync("drizzle/schema")

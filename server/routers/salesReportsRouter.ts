@@ -13,42 +13,7 @@ import { logAudit } from "../services/audit";
 import { reverseStockForSaleReturn } from "../services/stockInvariant";
 import { generateReturnNoteNumber } from "../services/invoiceNumbering";
 import { requireStoreAccessForEntity } from "../_core/storeAccessHelpers";
-
-async function getDbSafe() {
-  const { getDb } = await import("../db");
-  const db = await getDb();
-  if (!db)
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "DB unavailable",
-    });
-  return db;
-}
-
-function requireSales(role: string | null | undefined) {
-  const allowed = [
-    "admin",
-    "super_admin",
-    "store_manager",
-    "pharmacist",
-    "salesman",
-    "cashier",
-  ];
-  if (!role || !allowed.includes(role))
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Sales access required",
-    });
-}
-
-function requireManager(role: string | null | undefined) {
-  const allowed = ["admin", "super_admin", "store_manager"];
-  if (!role || !allowed.includes(role))
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Manager role required",
-    });
-}
+import { getDbSafe, requireSales, requireManager } from "./salesUtils";
 
 export const salesRouterExtension = {
   // ─── List Sales ──────────────────────────────────────────────────────────────

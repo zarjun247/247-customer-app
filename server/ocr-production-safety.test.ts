@@ -95,10 +95,9 @@ describe("OCR production safety guards", () => {
   });
 
   it("OCR router no longer contains local parser success fallback or stock mutation", () => {
-    const router = fs.readFileSync(
-      "server/routers/ocrIngestionRouter.ts",
-      "utf8"
-    );
+    const router =
+      fs.readFileSync("server/routers/ocrIngestionRouter.ts", "utf8") +
+      fs.readFileSync("server/routers/ocrIngestionExtension.ts", "utf8");
 
     expect(router).not.toContain("mockOcrParse");
     expect(router).not.toContain("Mock Pharma Distributor");

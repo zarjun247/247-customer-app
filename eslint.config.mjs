@@ -83,6 +83,7 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/require-await": "off",
+      "max-lines": "off",
     },
   },
   // Test files: recommended without full type checking (test files excluded from tsconfig.json)
@@ -91,6 +92,13 @@ export default tseslint.config(
     extends: tseslint.configs.recommended,
     rules: {
       ...sharedRules,
+    },
+  },
+  // Test utilities: fixture files are naturally large; exempt from max-lines
+  {
+    files: ["server/testUtils/**/*.ts"],
+    rules: {
+      "max-lines": "off",
     },
   }
 );
