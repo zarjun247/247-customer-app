@@ -68,7 +68,7 @@ These items appeared with conflicting or ambiguous states across old status docu
 | Supplier invoice hard uniqueness migration | The business-reviewed duplicate report and remediation plan required before `ALTER TABLE ... ADD UNIQUE` are referenced in OPEN_BLOCKERS.md but no evidence of the review is attached. | OPEN_BLOCKERS.md |
 | Worker queue `storeId` | Multiple docs reference adding `storeId` to worker job rows as a P1 item for second-store rollout. No migration or PR is open for this. | MULTI_STORE_READINESS_STATUS.md |
 | Provider dead-letter `storeId` | Same as worker queue — referenced as P1 but not yet scheduled. | STORE_ISOLATION_GUARANTEES.md |
-| `.nvmrc` / runtime version file | PRODUCTION_DEPENDENCY_POLICY.md recommends a `.nvmrc` or equivalent. One does not appear to exist yet. | PRODUCTION_DEPENDENCY_POLICY.md |
+| `.nvmrc` / runtime version file | **Closed (2026-05-18):** `.nvmrc` exists and contains `24` (Node 24 LTS). Added in SM-Ω Phase 1. No action needed. | PRODUCTION_DEPENDENCY_POLICY.md |
 
 ---
 
