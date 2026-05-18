@@ -31,10 +31,12 @@ See [AGENT_INSTRUCTIONS.md](./AGENT_INSTRUCTIONS.md).
 
 ```bash
 pnpm install
-cp .env.example .env          # fill in required secrets
-pnpm run db:migrate
+cp .env.example .env          # fill in required secrets and DATABASE_URL
+pnpm run db:bootstrap         # fresh database: create tables via migrations
 pnpm run dev
 ```
+
+> **Existing database:** use `pnpm run db:push` to apply any new migrations.
 
 ## CI gates (must pass before merge)
 
