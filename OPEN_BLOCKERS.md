@@ -40,7 +40,7 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 
 ### Infrastructure / wiring follow-ups
 
-**Outbox dispatcher** — `startOutboxDispatcher()` not called at boot. Side-effect handlers not registered. Three procedures migrated (`sale.confirm`, `purchase.commitInvoice`, `payment.verifyPayment`); 97 direct DB writes across routers still bypass `executeCommand` (SM-LM Phase 4.2 deferred — requires per-procedure domain analysis, idempotency key design, command naming, and outbox wiring; estimated 3–5 engineering days). Multi-node requires `SELECT ... FOR UPDATE SKIP LOCKED`.
+**Outbox dispatcher** — `startOutboxDispatcher()` is wired at boot (called in `server/_core/index.ts` when `OUTBOX_DISPATCH_ENABLED=true`). Side-effect handlers not yet registered. Three procedures migrated (`sale.confirm`, `purchase.commitInvoice`, `payment.verifyPayment`); 97 direct DB writes across routers still bypass `executeCommand` (SM-LM Phase 4.2 deferred — requires per-procedure domain analysis, idempotency key design, command naming, and outbox wiring; estimated 3–5 engineering days). Multi-node requires `SELECT ... FOR UPDATE SKIP LOCKED`.
 
 **stockReservations drop deferred** — table is still actively written by `reservationService.ts` and read by `inventoryRouter.ts`, `healthcheck.ts`, and stock availability queries in `db.ts`/`db-extended.ts`. Full migration to `reservation_ledger` required before drop. Deferred to post-launch architecture cleanup.
 
@@ -50,7 +50,7 @@ _No open P0 code blockers. All closed by SM-N (see closed section)._
 
 **Coverage measurement** — `@vitest/coverage-v8` installed (SM-Ω Phase 1). Real floor measured 2026-05-14: statements 37.25%, branches 69.45%, functions 46.94%, lines 37.25%. Thresholds anchored 1% below measured in `vitest.config.ts` (statements 36%, branches 68%, functions 45%, lines 36%) as a regression gate. Gap-fill (Phase 8) and Stryker mutation testing (Phase 9) remain deferred.
 
-**Reservation expiry worker** — `startReservationExpiryWorker()` not wired at boot. `cleanupExpiredLocks()` not scheduled. Old `stockReservations` table coexists with new `reservations`/`reservation_lines` — write paths need incremental migration.
+**Reservation expiry worker** — `startReservationExpiryWorker()` is wired at boot (called in `server/_core/index.ts` when `RESERVATION_EXPIRY_WORKER_ENABLED=true`). `cleanupExpiredLocks()` is scheduled via `startStockLockCleanup()` (also wired at boot when `STOCK_LOCK_CLEANUP_ENABLED=true`). Old `stockReservations` table coexists with new `reservations`/`reservation_lines` — write paths need incremental migration.
 
 **PII encryption write paths** — fully wired (SM-Ω Phase 1). `users.phone`/`email` encrypted on all write paths (SM-N + SM-Ω); `prescriptions.patientPhone` and `pharmacistNote` encrypted on all write paths and decrypted on all read paths. `users.phoneHash` (HMAC-SHA256) added for deterministic lookup when encryption is active; `getUserByPhone` uses hash lookup. Column widths widened: `users.phone VARCHAR(500)` (migration 0075), `prescriptions.patientPhone VARCHAR(500)` (migration 0076). Existing plaintext rows: run `pnpm tsx scripts/pii-backfill.ts --apply` in a maintenance window with `PII_ENCRYPTION_MASTER_KEY` set.
 
