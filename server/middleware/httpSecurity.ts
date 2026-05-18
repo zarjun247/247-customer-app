@@ -1,6 +1,7 @@
 import type { Application, RequestHandler } from "express";
 import express from "express";
 import helmet from "helmet";
+import * as cookieLib from "cookie";
 import { isSafeRequestId } from "../services/observability";
 import {
   requestIdMiddleware,
@@ -195,6 +196,15 @@ export function applyHttpSecurity(
   app.use(["/api/storage", "/api/uploads"], uploadJsonParser());
   app.use(normalJsonParser());
   app.use(normalUrlencodedParser());
+
+  // Populate req.cookies so csrf-csrf can read the __Host-csrf cookie.
+  // cookie-parser is not installed; use the bundled `cookie` package inline.
+  app.use((req, _res, next) => {
+    if (!req.cookies) {
+      req.cookies = cookieLib.parse(req.headers.cookie ?? "");
+    }
+    next();
+  });
 
   // CSRF protection — wired in SM-E. Runs after body parsers so token can appear in body.
   // Exempt: provider webhooks (use HMAC signature), worker trigger, health, metrics.
