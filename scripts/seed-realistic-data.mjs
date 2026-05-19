@@ -92,7 +92,7 @@ function generateStaff(count = 20) {
   const roles = [
     "pharmacist",
     "store_manager",
-    "counter_staff",
+    "cashier",
     "admin",
     "ops_admin",
   ];
@@ -220,21 +220,119 @@ async function main() {
     process.exit(0);
   }
 
-  // TBD: wire actual DB inserts via drizzle-orm
-  // Pattern:
-  //   const { getDb } = await import("../server/db.js");
-  //   const db = await getDb();
-  //   await db.delete(users).where(like(users.email, "%@test.example"));
-  //   await db.insert(users).values(customers.map(mapToUserRow));
-  //   ... etc for each entity
-  console.log(
-    "[seed-realistic] DB write TBD — wire drizzle-orm inserts in a follow-up PR."
-  );
-  console.log(
-    "[seed-realistic] (DATABASE_URL is set but insert logic is not yet implemented)"
-  );
-  console.log("[seed-realistic] Done (dry plan only).");
-  process.exit(0);
+  const mysql = (await import("mysql2/promise")).default;
+  const conn = await mysql.createConnection(DB_URL);
+
+  try {
+    console.log("[seed-realistic] Connected to DB. Starting seed...");
+
+    // ── Stores ────────────────────────────────────────────────────────────────
+    console.log("[seed-realistic] Seeding stores...");
+    for (const s of stores) {
+      await conn.execute(
+        `INSERT INTO stores (id, name, address, phone, type, isActive, slaMins, priority, isPrimary, createdAt)
+         VALUES (?, ?, ?, ?, 'in_building', 1, 20, 10, ?, NOW())
+         ON DUPLICATE KEY UPDATE name=VALUES(name), address=VALUES(address)`,
+        [s.id, s.name, s.address, s.phone, s.id === 1 ? 1 : 0]
+      );
+    }
+    console.log(`  inserted/updated ${stores.length} stores`);
+
+    // ── Suppliers ────────────────────────────────────────────────────────────
+    console.log("[seed-realistic] Seeding suppliers...");
+    for (const sup of suppliers) {
+      await conn.execute(
+        `INSERT INTO suppliers (id, supplierName, gstin, phone, email, isActive, createdAt)
+         VALUES (?, ?, ?, ?, ?, 1, NOW())
+         ON DUPLICATE KEY UPDATE supplierName=VALUES(supplierName)`,
+        [sup.id, sup.name, sup.gstin, sup.phone, sup.contact]
+      );
+    }
+    console.log(`  inserted/updated ${suppliers.length} suppliers`);
+
+    // ── Users (customers + staff) ─────────────────────────────────────────────
+    console.log("[seed-realistic] Seeding users...");
+    const allUsers = [...customers, ...staff];
+    for (const u of allUsers) {
+      await conn.execute(
+        `INSERT INTO users (name, email, phone, role, staffStoreId, onboardingComplete, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE name=VALUES(name), role=VALUES(role)`,
+        [
+          u.name,
+          u.email,
+          u.phone,
+          u.role,
+          u.storeId ?? null,
+          u.role === "customer" ? 0 : 1,
+        ]
+      );
+    }
+    console.log(`  inserted/updated ${allUsers.length} users`);
+
+    // ── Products ──────────────────────────────────────────────────────────────
+    console.log("[seed-realistic] Seeding products...");
+    const scheduleMap = { "": "OTC", H: "H", H1: "H1", OTC: "OTC" };
+    for (const p of products) {
+      const schedule = scheduleMap[p.scheduleCode] ?? "OTC";
+      await conn.execute(
+        `INSERT INTO products (id, name, genericName, category, schedule, requiresPrescription, gstRate, createdAt, updatedAt)
+         VALUES (?, ?, ?, 'medicine', ?, ?, 12.00, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE name=VALUES(name), schedule=VALUES(schedule)`,
+        [p.id, p.name, p.genericName, schedule, schedule !== "OTC" ? 1 : 0]
+      );
+    }
+    console.log(`  inserted/updated ${products.length} products`);
+
+    // ── Store SKUs + Batches ───────────────────────────────────────────────────
+    console.log("[seed-realistic] Seeding store_skus and batches...");
+    let skuCount = 0;
+    let batchCount = 0;
+    for (const p of products) {
+      const storeId = p.storeId;
+      const mrp = parseFloat(p.mrp);
+      const selling = +(mrp * 0.9).toFixed(2);
+      await conn.execute(
+        `INSERT INTO store_skus (storeId, productId, mrp, sellingPrice, isActive, stockQty, softLockedQty, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, 1, ?, 0, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE mrp=VALUES(mrp), sellingPrice=VALUES(sellingPrice), stockQty=VALUES(stockQty)`,
+        [storeId, p.id, mrp, selling, p.currentStock]
+      );
+      skuCount++;
+
+      const expiryDate = new Date(Date.now() + 365 * 86400000 * 2);
+      await conn.execute(
+        `INSERT INTO batches (storeId, productId, batchNumber, batchNo, expiryDate, quantity, qtyOnHand, qtyReserved, qtyQuarantined, qtyExpired, mrp, purchaseRate, saleRate, status, storageCondition, coldChainFlag, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'active', 'room_temp', 0, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE qtyOnHand=VALUES(qtyOnHand)`,
+        [
+          storeId,
+          p.id,
+          `BATCH-${pad(p.id, 6)}`,
+          `BATCH-${pad(p.id, 6)}`,
+          expiryDate,
+          p.currentStock,
+          p.currentStock,
+          mrp,
+          +(mrp * 0.7).toFixed(2),
+          selling,
+        ]
+      );
+      batchCount++;
+    }
+    console.log(`  inserted/updated ${skuCount} SKUs, ${batchCount} batches`);
+
+    console.log("[seed-realistic] Seed complete.");
+    console.log(`  stores: ${stores.length}`);
+    console.log(`  suppliers: ${suppliers.length}`);
+    console.log(`  customers: ${customers.length}`);
+    console.log(`  staff: ${staff.length}`);
+    console.log(`  products: ${products.length}`);
+    console.log(`  store_skus: ${skuCount}`);
+    console.log(`  batches: ${batchCount}`);
+  } finally {
+    await conn.end();
+  }
 }
 
 main().catch(err => {
