@@ -1,0 +1,11 @@
+{
+  "id": "sla-breach-board",
+  "title": "SLA Breach Board",
+  "status": "partially_backed_by_observability_endpoints",
+  "endpoint": "/metrics",
+  "metrics": [
+    { "name": "api_latency_seconds", "query": "api_latency_seconds" }
+  ],
+  "blockedMetrics": ["sla_breach_total", "provider_latency_seconds_dashboard_rollup"],
+  "note": "Only API latency is currently backed. SLA breach counters and dashboard-ready provider latency rollups remain blocked until runtime flows emit them."
+}

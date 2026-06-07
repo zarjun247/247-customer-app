@@ -1,0 +1,12 @@
+{
+  "id": "provider-health-board",
+  "title": "Provider Health Board",
+  "status": "backed_by_observability_endpoints",
+  "endpoint": "/api/observability/provider-events",
+  "metrics": [
+    { "name": "provider_webhook_events_total", "query": "provider_webhook_events_total" },
+    { "name": "provider_webhook_failed_total", "query": "provider_webhook_failed_total" },
+    { "name": "provider_retry_scheduled_total", "query": "provider_retry_scheduled_total" }
+  ],
+  "note": "Provider visibility is derived from provider_webhook_events, not synthetic heartbeat data."
+}
