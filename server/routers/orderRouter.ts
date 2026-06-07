@@ -1,4 +1,6 @@
 import { z } from "zod";
+import pino from "pino";
+const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 import { ONBOARDING_REQUIRED_MSG } from "@shared/const";
 import {
   router,
@@ -182,7 +184,12 @@ export const orderRouter = router({
           storeName: store?.name ?? "24/7 Pharmacy",
           totalAmount: fromPaise(total),
           itemCount: cartData.length,
-        }).catch(() => {});
+        }).catch((err: unknown) => {
+          logger.warn(
+            { err, orderId },
+            "alertNewOrder: non-blocking notification failed"
+          );
+        });
         console.log(
           `[Notification] ${notifPayload.title}: ${notifPayload.content}`
         );
@@ -204,12 +211,29 @@ export const orderRouter = router({
 
         return { orderId, status: initialStatus, promisedSlaMins: slaMins };
       } catch (error) {
-        if (orderId)
+        if (orderId) {
+          // Cancel the ghost order record so it does not persist in a
+          // "created" limbo state. Reservation release runs first so stock
+          // is freed before the order status is written.
           await releaseReservationOnOrderCancel({
             orderId,
             ctx,
             releaseReason: "checkout_failed",
+          }).catch((err: unknown) => {
+            logger.warn(
+              { err, orderId },
+              "checkout_failed: reservation release error (non-fatal)"
+            );
           });
+          await updateOrderStatus(orderId, "cancelled").catch(
+            (err: unknown) => {
+              logger.warn(
+                { err, orderId },
+                "checkout_failed: could not mark ghost order as cancelled"
+              );
+            }
+          );
+        }
         await releaseSoftLock(lockItems);
         await releaseCartLock(ctx.user.id);
         throw error;

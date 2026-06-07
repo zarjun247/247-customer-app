@@ -534,20 +534,18 @@ async function applyReservationTerminalAtomic(
   return { status, releaseReason, won: result.won };
 }
 
-export function releaseReservationAtomic(input: ReservationInput) {
-  return applyReservationTerminalAtomic(
+export const releaseReservationAtomic = (input: ReservationInput) =>
+  applyReservationTerminalAtomic(
     input,
     "released",
     input.releaseReason ?? "manual_release"
   );
-}
-export function consumeReservationAtomic(input: ReservationInput) {
-  return applyReservationTerminalAtomic(
+export const consumeReservationAtomic = (input: ReservationInput) =>
+  applyReservationTerminalAtomic(
     input,
     "consumed",
     input.releaseReason ?? "reservation_consumed"
   );
-}
 
 function updateReservationStatus(
   input: ReservationInput,

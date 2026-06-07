@@ -26,7 +26,15 @@ let cacheExpiresAt = 0;
 
 /**
  * Reads the current emergency stop flag from the DB, with a 5-second TTL cache.
- * Fails open: returns `{ active: false }` if the DB is unreachable.
+ *
+ * INTENTIONAL FAIL-OPEN POSTURE (see docs/adr/0010-emergency-stop.md):
+ * When the DB is unreachable this function returns `{ active: false }` (fail-open)
+ * rather than blocking all requests (fail-closed). Rationale: a DB outage is itself
+ * a service-degraded state; blocking all traffic on top of a DB outage would make
+ * recovery harder and would prevent health-check and read-only endpoints from
+ * functioning. Customer mutations independently fail with a 500 if any DB call
+ * fails, providing implicit fail-closed behaviour for writes. Staff can activate
+ * the flag via the admin panel once the DB recovers.
  *
  * @returns Current flag state; never throws
  */

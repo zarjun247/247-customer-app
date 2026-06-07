@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { getDb } from "../db";
 import {
   whatsappCarts,
@@ -232,7 +233,9 @@ export async function handleRxUploadFlow(opts: {
 }): Promise<FlowResult> {
   const { phone, userId, messageType, imageUrl, documentUrl } = opts;
   if (messageType === "image" && imageUrl) {
-    const key = `whatsapp-rx/${phone}-${Date.now()}.jpg`;
+    // Use a random UUID key — never embed the phone number (PII) or a
+    // predictable timestamp in the storage path.
+    const key = `whatsapp-rx/${randomUUID()}.jpg`;
     const rxId = await createWhatsappPrescription(phone, imageUrl, key);
     const response = rxId
       ? `📋 Prescription received! (Ref: RX-${rxId})\nOur pharmacist will review it shortly.\n\nReply *hi* for main menu.`
@@ -254,7 +257,7 @@ export async function handleRxUploadFlow(opts: {
         sourceType: "whatsapp",
         supplierHint: `WhatsApp upload from ${phone}`,
         fileUrl: documentUrl,
-        fileKey: `whatsapp-bill/${phone}-${Date.now()}.pdf`,
+        fileKey: `whatsapp-bill/${randomUUID()}.pdf`,
         createdBy: userId ?? 0,
       });
       const [ingestionHeader] = ingestionInsert as unknown as [ResultSetHeader];

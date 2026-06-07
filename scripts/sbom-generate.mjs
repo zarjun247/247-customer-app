@@ -70,34 +70,65 @@ if (format === "cyclonedx") {
 
   if (result.error || result.status !== 0 || !fs.existsSync(outputPath)) {
     // cyclonedx-npm may not work with pnpm v10 (pnpm ls --all is unsupported).
-    // Fall back to a minimal CycloneDX 1.4 document from package.json so the gate
-    // passes locally. The CI workflow (.github/workflows/sbom.yml) runs on Ubuntu
-    // with npm available and will generate the complete component list.
-    console.log(
-      "[sbom-generate] cyclonedx-npm could not produce output; generating minimal CycloneDX fallback."
+    // Fall back to a CycloneDX 1.4 document populated from `pnpm list --json`
+    // so the SBOM is never empty. The CI workflow (.github/workflows/sbom.yml)
+    // runs on Ubuntu with npm and will generate the full transitive component list.
+    console.warn(
+      "[sbom-generate] cyclonedx-npm could not produce output; generating pnpm-list-based CycloneDX fallback."
     );
     const pkgJson = JSON.parse(
       fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf-8")
     );
-    const minimal = {
+    // Collect direct dependencies from `pnpm list --json --depth=0`
+    const pnpmList = spawnSync("pnpm", ["list", "--json", "--depth=0"], {
+      cwd: REPO_ROOT,
+      stdio: "pipe",
+      encoding: "utf-8",
+    });
+    let components = [];
+    try {
+      const listed = JSON.parse(pnpmList.stdout ?? "[]");
+      const deps = Object.assign(
+        {},
+        listed[0]?.dependencies ?? {},
+        listed[0]?.devDependencies ?? {}
+      );
+      components = Object.entries(deps).map(([name, info]) => ({
+        type: "library",
+        name,
+        version: info.version ?? "unknown",
+        purl: `pkg:npm/${name}@${info.version ?? "unknown"}`,
+      }));
+    } catch {
+      console.warn(
+        "[sbom-generate] pnpm list parse failed; components will be empty."
+      );
+    }
+    const fallback = {
       bomFormat: "CycloneDX",
       specVersion: "1.4",
       serialNumber: `urn:uuid:${crypto.randomUUID()}`,
       version: 1,
       metadata: {
         timestamp: new Date().toISOString(),
-        tools: [{ name: "sbom-generate.mjs", version: "1.0.0" }],
+        tools: [
+          {
+            name: "sbom-generate.mjs",
+            version: "1.0.0",
+            note: "pnpm-list-fallback",
+          },
+        ],
         component: {
           type: "application",
           name: pkgJson.name,
           version: pkgJson.version ?? "0.0.0",
         },
       },
-      components: [],
+      components,
     };
-    fs.writeFileSync(outputPath, JSON.stringify(minimal, null, 2), "utf-8");
-    console.log(
-      "[sbom-generate] Minimal CycloneDX fallback written (full SBOM requires CI with npm)."
+    fs.writeFileSync(outputPath, JSON.stringify(fallback, null, 2), "utf-8");
+    console.warn(
+      `[sbom-generate] pnpm-list fallback written with ${components.length} direct dependencies (full transitive SBOM requires CI with npm).`
     );
   }
 
