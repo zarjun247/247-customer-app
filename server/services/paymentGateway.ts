@@ -157,22 +157,41 @@ export async function verifyGatewayPaymentSignature(input: {
       };
 }
 
+/**
+ * verifyGatewayWebhookSignature — validates Razorpay HMAC-SHA256 webhook signature.
+ *
+ * P0-6 fix: PAYMENT_WEBHOOK_ENABLED now defaults to true when PAYMENT_PROVIDER_ENABLED
+ * is set in production, ensuring webhooks are active without explicit opt-in.
+ * RAZORPAY_WEBHOOK_SECRET is required in production (enforced by assertProductionEnvSafe).
+ * Signature validation always runs when the secret is present; no bypass path exists.
+ */
 export function verifyGatewayWebhookSignature(
   rawBody: string,
   signature?: string | null
 ) {
-  const enabled = isProviderEnabled("PAYMENT_WEBHOOK_ENABLED", false);
+  // P0-6: Default to enabled when payment provider is enabled in production.
+  const paymentProviderEnabled = isProviderEnabled(
+    "PAYMENT_PROVIDER_ENABLED",
+    false
+  );
+  const webhookDefaultEnabled = runtimeIsProduction() && paymentProviderEnabled;
+  const enabled = isProviderEnabled(
+    "PAYMENT_WEBHOOK_ENABLED",
+    webhookDefaultEnabled
+  );
   if (!enabled)
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message: "Webhook disabled",
     });
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  // In production, missing secret is a hard failure (also enforced at startup by assertProductionEnvSafe).
   if (!secret && runtimeIsProduction())
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: "Webhook secret missing",
+      message: "Webhook secret missing in production",
     });
+  // In non-production without a secret, return false (reject) rather than bypass.
   if (!secret || !signature) return false;
   const digest = crypto
     .createHmac("sha256", secret)

@@ -75,7 +75,12 @@ describe("mega stock reservation truth hardening", () => {
     ]) {
       expect(schema).toContain(field);
     }
-    expect(reservationService).toContain("db.insert(stockReservations)");
+    // Accepts both the legacy direct-db path and the P0-3 atomic transaction path.
+    // tx.insert is the stronger guarantee (SELECT FOR UPDATE + INSERT in one transaction).
+    expect(
+      reservationService.includes("db.insert(stockReservations)") ||
+        reservationService.includes("tx.insert(stockReservations)")
+    ).toBe(true);
     expect(reservationService).toContain(
       "eq(stockReservations.status, ACTIVE_RESERVATION_STATUS)"
     );

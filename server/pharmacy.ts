@@ -339,14 +339,27 @@ export async function manualReviewRx(
 export async function clearRxGate(orderId: number, pharmacistId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-
   const order = await db
     .select()
     .from(orders)
     .where(eq(orders.id, orderId))
     .limit(1);
   if (!order.length) throw new Error("Order not found");
-
+  // P1 prior-approval enforcement: prescription must be approved before dispensing.
+  // A pharmacist cannot clear the Rx gate on a pending or rejected prescription.
+  if (order[0].prescriptionId) {
+    const [rx] = await db
+      .select({ status: prescriptions.status })
+      .from(prescriptions)
+      .where(eq(prescriptions.id, order[0].prescriptionId))
+      .limit(1);
+    if (!rx) throw new Error("Prescription not found for this order");
+    if (rx.status !== "approved") {
+      throw new Error(
+        `Cannot dispense: prescription status is '${rx.status}'. Pharmacist must approve the prescription before clearing the Rx gate.`
+      );
+    }
+  }
   await db
     .update(orders)
     .set({

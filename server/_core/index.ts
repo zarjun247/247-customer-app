@@ -1,5 +1,10 @@
 import "dotenv/config";
 import { initializeTelemetry } from "./telemetry";
+import {
+  initErrorMonitoring,
+  registerProcessErrorHandlers,
+  captureException,
+} from "./errorMonitoring";
 import { assertIndiaRegionStorage } from "../services/regionAssertion";
 import {
   startRetentionWorker,
@@ -64,6 +69,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Initialize error monitoring before anything else so unhandled errors are captured.
+  initErrorMonitoring();
+  registerProcessErrorHandlers();
+
   // DPDP region assertion: opt-in via DPDP_REGION_REQUIRED env var.
   // Throws at boot if DPDP_REGION_REQUIRED is set and storage is not in the required region.
   await assertIndiaRegionStorage().catch((err: unknown) => {
@@ -174,4 +183,8 @@ async function startServer() {
   process.on("SIGINT", shutdown);
 }
 
-startServer().catch(console.error);
+startServer().catch(err => {
+  captureException(err, { context: "startServer" });
+  console.error("[Server] Fatal startup error:", err);
+  process.exit(1);
+});

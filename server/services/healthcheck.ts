@@ -6,7 +6,10 @@ import { stockReservations, storeSkus } from "../../drizzle/schema";
 import { getQueueStats } from "./jobQueue";
 import { safeMetadata } from "./observability";
 import { readFlag } from "./emergencyStopService";
-import { isOutboxDispatcherRunning } from "./outboxDispatcher";
+import {
+  isOutboxDispatcherRunning,
+  getOutboxDispatcherHealth,
+} from "./outboxDispatcher";
 import { isReservationExpiryWorkerRunning } from "./reservationExpiryWorker";
 import { isRetentionWorkerRunning } from "./retentionWorker";
 import { isDsrSlaMonitorRunning } from "./dsrSlaMonitor";
@@ -306,6 +309,7 @@ export async function getHealthReport(): Promise<HealthReport> {
 export function checkWorkers(): HealthComponent & {
   workerStatus: WorkerStatus;
 } {
+  const outboxHealth = getOutboxDispatcherHealth();
   const workerStatus: WorkerStatus = {
     outboxDispatcher: isOutboxDispatcherRunning(),
     reservationExpiryWorker: isReservationExpiryWorkerRunning(),
@@ -329,15 +333,24 @@ export function checkWorkers(): HealthComponent & {
     expectedDsr && !workerStatus.dsrSlaMonitor,
   ].filter(Boolean);
 
+  // Outbox dispatcher is degraded if it has consecutive failures (even if running)
+  const outboxDegraded =
+    workerStatus.outboxDispatcher && outboxHealth.consecutiveFailures >= 5;
+
   const status: HealthStatus =
-    expectedRunning.length > 0 ? "degraded" : "healthy";
+    expectedRunning.length > 0 || outboxDegraded ? "degraded" : "healthy";
   return {
     status,
     message:
-      status === "degraded"
+      expectedRunning.length > 0
         ? "one_or_more_expected_workers_not_running"
-        : undefined,
-    details: { ...(workerStatus as Record<string, unknown>) },
+        : outboxDegraded
+          ? "outbox_dispatcher_consecutive_failures"
+          : undefined,
+    details: {
+      ...(workerStatus as Record<string, unknown>),
+      outboxDispatcherHealth: outboxHealth,
+    },
     workerStatus,
   };
 }

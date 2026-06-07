@@ -106,8 +106,15 @@ export const ENV = {
     process.env.BACKUP_DRILL_MIN_INTERVAL_HOURS ?? "168"
   ),
   // MP5: outbox dispatcher optional vars. Never add to assertProductionEnvSafe().
+  // P0-4 fix: Outbox dispatcher must be active in production by default.
+  // Previously defaulted to false (opt-in), meaning production deployments
+  // without explicit OUTBOX_DISPATCH_ENABLED=true would silently not process
+  // the outbox. Now defaults to true in production; set OUTBOX_DISPATCH_ENABLED=false
+  // to explicitly disable (e.g. during maintenance or in test environments).
   outboxDispatchEnabled:
-    (process.env.OUTBOX_DISPATCH_ENABLED ?? "").toLowerCase() === "true",
+    process.env.OUTBOX_DISPATCH_ENABLED != null
+      ? process.env.OUTBOX_DISPATCH_ENABLED.toLowerCase() === "true"
+      : process.env.NODE_ENV === "production",
   outboxPollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? "5000"),
   outboxBatchSize: Number(process.env.OUTBOX_BATCH_SIZE ?? "20"),
   outboxMaxAttempts: Number(process.env.OUTBOX_MAX_ATTEMPTS ?? "5"),

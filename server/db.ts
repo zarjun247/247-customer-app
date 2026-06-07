@@ -136,6 +136,16 @@ export async function getUserByPhone(phone: string) {
  * Upsert a user identified by phone number.
  * Creates the user if they don't exist; updates lastSignedIn if they do.
  * openId is left null for phone-only users.
+ *
+ * P0-2 fix: Uses INSERT ... ON DUPLICATE KEY UPDATE to make registration
+ * atomic. The prior SELECT-then-INSERT pattern had a TOCTOU race where two
+ * concurrent registrations for the same phone could both see no existing user
+ * and both attempt INSERT, causing a duplicate-user or unique-constraint error.
+ *
+ * The phoneHash column has a UNIQUE index (migration 0045). MySQL's
+ * ON DUPLICATE KEY UPDATE atomically handles the race: only one INSERT wins;
+ * the other becomes an UPDATE. We then SELECT the canonical row to return
+ * the correct id in both the insert and update cases.
  */
 export async function upsertUserByPhone(
   phone: string,
@@ -148,27 +158,37 @@ export async function upsertUserByPhone(
   if (!db) throw new Error("Database unavailable");
   const encryptedPhone = await encryptUserPhone(phone);
   const phoneHash = computePhoneHash(phone);
-  const existing = await getUserByPhone(phone);
-  if (existing) {
-    await db
-      .update(users)
-      .set({
-        lastSignedIn: new Date(),
-        ...(extra?.name ? { name: extra.name } : {}),
-        ...(phoneHash && !existing.phoneHash ? { phoneHash } : {}),
-      })
-      .where(eq(users.id, existing.id));
-    return { id: existing.id };
-  }
-  const [header] = (await db.insert(users).values({
-    openId: null, // nullable after migration
+  const now = new Date();
+  const insertValues: InsertUser = {
+    openId: null,
     phone: encryptedPhone ?? phone,
-    ...(phoneHash ? { phoneHash } : {}),
     name: extra?.name ?? null,
     loginMethod: extra?.loginMethod ?? "phone",
-    lastSignedIn: new Date(),
-  })) as unknown as [ResultSetHeader];
-  return { id: header.insertId };
+    lastSignedIn: now,
+    ...(phoneHash ? { phoneHash } : {}),
+  };
+  // ON DUPLICATE KEY UPDATE on the phoneHash unique index:
+  // - If no row exists: INSERT succeeds.
+  // - If row exists: UPDATE fires, preserving the existing row id.
+  const updateSet: InsertUser = {
+    lastSignedIn: now,
+    ...(extra?.name ? { name: extra.name } : {}),
+    // Backfill phoneHash if it was missing on the existing row.
+    ...(phoneHash
+      ? {
+          phoneHash:
+            sql`COALESCE(${users.phoneHash}, ${phoneHash})` as unknown as string,
+        }
+      : {}),
+  };
+  await db
+    .insert(users)
+    .values(insertValues)
+    .onDuplicateKeyUpdate({ set: updateSet });
+  // Fetch the canonical row to return the correct id (works for both insert and update).
+  const row = await getUserByPhone(phone);
+  if (!row) throw new Error("upsertUserByPhone: row not found after upsert");
+  return { id: row.id };
 }
 
 export async function getUserByOpenId(openId: string) {
@@ -219,28 +239,43 @@ export async function createOtp(phone: string, code: string, expiresAt: Date) {
   await db.insert(otpCodes).values({ phone, code, expiresAt });
 }
 
+/**
+ * verifyOtp — atomic OTP consumption.
+ *
+ * Wraps SELECT + UPDATE in a single DB transaction with SELECT ... FOR UPDATE
+ * to prevent replay attacks. Concurrent verification attempts for the same OTP
+ * row will serialize at the row lock; only the first transaction to acquire the
+ * lock and find isUsed=false will succeed. All subsequent attempts see isUsed=true
+ * and return false, eliminating the TOCTOU race in the prior implementation.
+ */
 export async function verifyOtp(phone: string, code: string) {
   const db = await getDb();
   if (!db) return false;
   const now = new Date();
-  const result = await db
-    .select()
-    .from(otpCodes)
-    .where(
-      and(
-        eq(otpCodes.phone, phone),
-        eq(otpCodes.code, code),
-        eq(otpCodes.isUsed, false),
-        gt(otpCodes.expiresAt, now)
+  return db.transaction(async tx => {
+    // SELECT ... FOR UPDATE acquires a row-level exclusive lock, serializing
+    // concurrent verification attempts for the same OTP row.
+    const result = await tx
+      .select()
+      .from(otpCodes)
+      .where(
+        and(
+          eq(otpCodes.phone, phone),
+          eq(otpCodes.code, code),
+          eq(otpCodes.isUsed, false),
+          gt(otpCodes.expiresAt, now)
+        )
       )
-    )
-    .limit(1);
-  if (result.length === 0) return false;
-  await db
-    .update(otpCodes)
-    .set({ isUsed: true })
-    .where(eq(otpCodes.id, result[0].id));
-  return true;
+      .limit(1)
+      .for("update");
+    if (result.length === 0) return false;
+    // Mark consumed atomically within the same transaction.
+    await tx
+      .update(otpCodes)
+      .set({ isUsed: true })
+      .where(eq(otpCodes.id, result[0].id));
+    return true;
+  });
 }
 
 // ─── Buildings & Stores ───────────────────────────────────────────────────────

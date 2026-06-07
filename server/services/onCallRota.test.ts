@@ -1,6 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("fs");
+// Hoist pino mock so it applies before module-level logger instantiation.
+const { pinoMock } = vi.hoisted(() => ({
+  pinoMock: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}));
+vi.mock("pino", () => ({ default: pinoMock }));
+// Mock global fetch so no real network calls are made in any test.
+vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true } as Response));
 vi.mock("../_core/env", () => ({
   ENV: {
     onCallPagerDutyIntegrationKey: "",

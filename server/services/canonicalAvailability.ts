@@ -32,6 +32,25 @@ export type CanonicalAvailability = {
 
 const ACTIVE_RESERVATION_STATES = ["active", "pending_confirmation"] as const;
 
+/**
+ * getCanonicalAvailability — authoritative availability for batch-tracked stock.
+ *
+ * P0-5 architecture note: The system uses two complementary reservation paths:
+ *
+ * 1. `reservations` + `reservation_lines` (this function): The canonical source
+ *    for batch-tracked stock. Used by the reservation ledger (reservationLedger.ts)
+ *    and the reservation router. Tracks FEFO batch allocation per reservation.
+ *    This is the path for products with explicit batch management (expiry tracking).
+ *
+ * 2. `stockReservations` (canonicalAvailabilitySql in db.ts): Used for simple
+ *    catalog availability queries on non-batch-tracked SKUs. This is the path
+ *    for products without explicit batch management.
+ *
+ * These are intentionally separate and non-overlapping: batch-tracked products
+ * (those with batchId) go through the reservation ledger; non-batch products
+ * go through stockReservations. The P0-3 fix ensures the non-batch path is
+ * also atomic via SELECT ... FOR UPDATE on the storeSkus row.
+ */
 export async function getCanonicalAvailability(
   productId: number,
   storeId: number,

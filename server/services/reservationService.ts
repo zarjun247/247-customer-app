@@ -323,33 +323,63 @@ export async function reserveBatchAtomic(input: ReservationInput) {
   };
 }
 
+/** P0-3: Atomic availability check + reservation via SELECT FOR UPDATE transaction. */
 export async function reserveStockForOrder(input: ReservationInput) {
   if (input.batchId) return reserveBatchAtomic(input);
   const db = await requireDb();
-  const { stockReservations } = await import("../../drizzle/schema");
-  await assertAvailableForReservation({
-    storeId: input.storeId!,
-    productId: input.productId!,
-    variantId: input.variantId ?? null,
-    qty: input.qty!,
-  });
+  const { stockReservations, storeSkus } = await import("../../drizzle/schema");
+  const qty = input.qty!;
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 15 * 60 * 1000);
-  type StockReservationInsert = typeof stockReservations.$inferInsert;
-  const insertRes = await db.insert(stockReservations).values({
-    batchId: null,
-    orderId: input.orderId ?? null,
-    cartId: input.cartId != null ? Number(input.cartId) : null,
-    productId: input.productId!,
-    variantId: input.variantId ?? null,
-    skuId: input.skuId ?? null,
-    storeId: input.storeId!,
-    qty: input.qty!,
-    qtyReserved: input.qty!,
-    status: ACTIVE_RESERVATION_STATUS,
-    expiresAt,
-  } as unknown as StockReservationInsert);
-  const [insertHeader] = insertRes as unknown as [ResultSetHeader];
-  const reservationId = insertHeader.insertId;
+  const result = await db.transaction(async (tx: DbTx) => {
+    // SELECT FOR UPDATE on storeSkus serializes concurrent reservations for the same SKU.
+    const skuConds = [
+      eq(storeSkus.storeId, input.storeId!),
+      eq(storeSkus.productId, input.productId!),
+    ];
+    if (input.variantId != null)
+      skuConds.push(eq(storeSkus.variantId, input.variantId));
+    const [sku] = await tx
+      .select()
+      .from(storeSkus)
+      .where(and(...skuConds))
+      .limit(1)
+      .for("update");
+    if (!sku)
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "SKU not found for reservation",
+      });
+    const { getCanonicalAvailability } = await import(
+      "./canonicalAvailability"
+    );
+    const availability = await getCanonicalAvailability(
+      input.productId!,
+      input.storeId!,
+      input.variantId ?? null
+    );
+    if (availability.totalSellable < qty)
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Insufficient available stock after reservations",
+      });
+    type StockReservationInsert = typeof stockReservations.$inferInsert;
+    const insertRes = await tx.insert(stockReservations).values({
+      batchId: null,
+      orderId: input.orderId ?? null,
+      cartId: input.cartId != null ? Number(input.cartId) : null,
+      productId: input.productId!,
+      variantId: input.variantId ?? null,
+      skuId: input.skuId ?? null,
+      storeId: input.storeId!,
+      qty,
+      qtyReserved: qty,
+      status: ACTIVE_RESERVATION_STATUS,
+      expiresAt,
+    } as unknown as StockReservationInsert);
+    const [insertHeader] = insertRes as unknown as [ResultSetHeader];
+    return { reservationId: insertHeader.insertId };
+  });
+  const reservationId = result.reservationId;
   await logAudit(
     {
       action: "reservation.created",
@@ -519,59 +549,52 @@ export function consumeReservationAtomic(input: ReservationInput) {
   );
 }
 
-async function updateReservationStatus(
+function updateReservationStatus(
   input: ReservationInput,
   status: ReservationReleaseStatus,
   defaultReason: string
 ) {
   return applyReservationTerminalAtomic(input, status, defaultReason);
 }
-
-export async function claimReservationTerminalState(input: {
+export const claimReservationTerminalState = (input: {
   terminalStatus: ReservationReleaseStatus;
   releaseReason?: string;
-}) {
-  return updateReservationStatus(
+}) =>
+  updateReservationStatus(
     input,
     input.terminalStatus,
     input.releaseReason ?? input.terminalStatus
   );
-}
-export function releaseReservation(input: ReservationInput) {
-  return updateReservationStatus(
+export const releaseReservation = (input: ReservationInput) =>
+  updateReservationStatus(
     input,
     "released",
     input.releaseReason ?? "manual_release"
   );
-}
-export function expireReservation(input: ReservationInput) {
-  return updateReservationStatus(
+export const expireReservation = (input: ReservationInput) =>
+  updateReservationStatus(
     input,
     "expired",
     input.releaseReason ?? "reservation_expired"
   );
-}
-export function releaseReservationOnPaymentFailure(input: ReservationInput) {
-  return updateReservationStatus(
+export const releaseReservationOnPaymentFailure = (input: ReservationInput) =>
+  updateReservationStatus(
     input,
     "released",
     input.releaseReason ?? "payment_failed"
   );
-}
-export function releaseReservationOnRxReject(input: ReservationInput) {
-  return updateReservationStatus(
+export const releaseReservationOnRxReject = (input: ReservationInput) =>
+  updateReservationStatus(
     input,
     "released",
     input.releaseReason ?? "rx_rejected"
   );
-}
-export function releaseReservationOnOrderCancel(input: ReservationInput) {
-  return updateReservationStatus(
+export const releaseReservationOnOrderCancel = (input: ReservationInput) =>
+  updateReservationStatus(
     input,
     "cancelled",
     input.releaseReason ?? "order_cancelled"
   );
-}
 
 export async function expireStaleReservations(now = new Date()) {
   const db = await requireDb();

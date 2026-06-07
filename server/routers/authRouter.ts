@@ -99,18 +99,24 @@ export const authRouter = router({
         });
 
       const { sdk } = await import("../_core/sdk");
+      // P1 session security: 30-day TTL (down from 1 year). Configurable via SESSION_TTL_DAYS (max 90).
+      const sessionTtlDays = Math.min(
+        Number(process.env.SESSION_TTL_DAYS ?? "30"),
+        90
+      );
+      const sessionTtlMs = sessionTtlDays * 24 * 60 * 60 * 1000;
       const sessionToken = await sdk.signSession(
         {
           openId: `phone:${input.phone}`,
           appId: ENV.appId,
           name: user.name ?? "",
         },
-        { expiresInMs: 1000 * 60 * 60 * 24 * 365 }
+        { expiresInMs: sessionTtlMs }
       );
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(COOKIE_NAME, sessionToken, {
         ...cookieOptions,
-        maxAge: 1000 * 60 * 60 * 24 * 365,
+        maxAge: sessionTtlMs,
       });
 
       return {

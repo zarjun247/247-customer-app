@@ -45,26 +45,82 @@ export function getRegisteredKinds(): string[] {
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
 let isPolling = false;
 
+// ─── Health state ─────────────────────────────────────────────────────────────
+let _lastPollAt: Date | null = null;
+let _lastPollSucceeded: boolean | null = null;
+let _lastPollError: string | null = null;
+let _consecutiveFailures = 0;
+let _totalPolls = 0;
+let _startedAt: Date | null = null;
+
+export type OutboxDispatcherHealth = {
+  running: boolean;
+  startedAt: Date | null;
+  lastPollAt: Date | null;
+  lastPollSucceeded: boolean | null;
+  lastPollError: string | null;
+  consecutiveFailures: number;
+  totalPolls: number;
+};
+
+export function getOutboxDispatcherHealth(): OutboxDispatcherHealth {
+  return {
+    running: pollingTimer !== null,
+    startedAt: _startedAt,
+    lastPollAt: _lastPollAt,
+    lastPollSucceeded: _lastPollSucceeded,
+    lastPollError: _lastPollError,
+    consecutiveFailures: _consecutiveFailures,
+    totalPolls: _totalPolls,
+  };
+}
+
 /**
- * Starts the outbox polling loop. Requires `OUTBOX_DISPATCH_ENABLED=true`.
- * Interval controlled by `OUTBOX_POLL_INTERVAL_MS` (default 5000 ms).
+ * Starts the outbox polling loop.
+ * P0-4 fix: The OUTBOX_DISPATCH_ENABLED guard has been moved to env.ts which
+ * now defaults to true in production. The caller (index.ts) is responsible for
+ * checking ENV.outboxDispatchEnabled before calling this function.
+ * Interval controlled by OUTBOX_POLL_INTERVAL_MS (default 5000 ms).
  */
 export function startOutboxDispatcher(): void {
-  const enabled =
-    (process.env.OUTBOX_DISPATCH_ENABLED ?? "").toLowerCase() === "true";
-  if (!enabled) {
-    logger.info(
-      "Outbox dispatcher disabled by OUTBOX_DISPATCH_ENABLED env flag"
-    );
-    return;
-  }
   if (pollingTimer) {
     logger.warn("Outbox dispatcher already running");
     return;
   }
   const intervalMs = Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? "5000");
+  _startedAt = new Date();
   pollingTimer = setInterval(() => {
-    void pollOnce();
+    void pollOnce()
+      .then(result => {
+        _lastPollAt = new Date();
+        _totalPolls++;
+        if (result.failed > 0) {
+          _consecutiveFailures++;
+          _lastPollSucceeded = false;
+          _lastPollError = `${result.failed} outbox rows failed in last poll`;
+          if (_consecutiveFailures >= 5) {
+            logger.error(
+              { consecutiveFailures: _consecutiveFailures, ...result },
+              "Outbox dispatcher: repeated consecutive failures — check dead-letter queue"
+            );
+          }
+        } else {
+          _consecutiveFailures = 0;
+          _lastPollSucceeded = true;
+          _lastPollError = null;
+        }
+      })
+      .catch((err: unknown) => {
+        _lastPollAt = new Date();
+        _totalPolls++;
+        _consecutiveFailures++;
+        _lastPollSucceeded = false;
+        _lastPollError = err instanceof Error ? err.message : String(err);
+        logger.error(
+          { err, consecutiveFailures: _consecutiveFailures },
+          "Outbox dispatcher poll error"
+        );
+      });
   }, intervalMs);
   logger.info({ intervalMs }, "Outbox dispatcher started");
 }
