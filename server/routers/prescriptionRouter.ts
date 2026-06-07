@@ -75,7 +75,10 @@ export const prescriptionRouter = router({
             code: "BAD_REQUEST",
             message: "Invalid file signature",
           });
-        const key = `prescriptions/${ctx.user.id}/${Date.now()}.${rule.ext}`;
+        // Use a cryptographically random UUID for the storage key to prevent
+        // enumerable/predictable keys that could allow unauthorized access.
+        const { randomUUID } = await import("node:crypto");
+        const key = `prescriptions/${ctx.user.id}/${randomUUID()}.${rule.ext}`;
         const { url } = await storagePut(key, buffer, input.mimeType);
         const rxId = await createPrescription(
           ctx.user.id,

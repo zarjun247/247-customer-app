@@ -44,7 +44,12 @@ function runtimeIsProduction() {
   return process.env.NODE_ENV === "production";
 }
 
+/**
+ * Payment demo mode is ONLY allowed in non-production environments.
+ * In production this always returns false — missing Razorpay keys block checkout.
+ */
 function isExplicitPaymentDemoMode() {
+  if (process.env.NODE_ENV === "production") return false;
   const demoFlag = String(
     process.env.PAYMENT_DEMO_MODE ?? process.env.LOCAL_DEMO_MODE ?? ""
   ).toLowerCase();
@@ -75,7 +80,18 @@ export async function createGatewayOrder(input: {
   const order = await getOrderById(input.orderId);
   if (!order || order.userId !== input.userId)
     throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
-  const amountPaise = Math.round(Number(order.total ?? 0) * 100);
+  // Convert order total (stored as decimal string, e.g. "149.50") to integer paise.
+  // Parse rupees and paise separately to avoid float rounding errors.
+  const totalStr = String(order.total ?? "0");
+  const [rupeesPart, paisePart = "00"] = totalStr.split(".");
+  const amountPaise =
+    parseInt(rupeesPart, 10) * 100 +
+    parseInt(paisePart.padEnd(2, "0").slice(0, 2), 10);
+  if (!Number.isInteger(amountPaise) || amountPaise <= 0)
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Invalid order total: ${totalStr}`,
+    });
   const receipt = `ORD-${String(input.orderId).padStart(6, "0")}`;
   const gatewayOrder = await paymentConnector.createOrder({
     amount: amountPaise,
@@ -106,12 +122,22 @@ export async function verifyGatewayPaymentSignature(input: {
 }): Promise<PaymentVerificationResult> {
   const secret = process.env.RAZORPAY_KEY_SECRET;
   if (!secret) {
-    if (isExplicitPaymentDemoMode() && !runtimeIsProduction()) {
+    // Production: fail closed — never skip verification.
+    if (runtimeIsProduction()) {
+      return {
+        verified: false,
+        status: "provider_unconfigured",
+        message:
+          "Razorpay key secret missing — payment verification blocked in production",
+      };
+    }
+    // Non-production with explicit demo mode: skip verification (local dev / test only).
+    if (isExplicitPaymentDemoMode()) {
       return {
         verified: false,
         status: "demo_skipped",
         message:
-          "Razorpay payment verification skipped in explicit demo/test mode",
+          "Razorpay payment verification skipped in explicit demo/test mode (non-production only)",
       };
     }
     return {

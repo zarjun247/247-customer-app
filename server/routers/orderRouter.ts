@@ -76,11 +76,25 @@ export const orderRouter = router({
         }
       }
 
-      const subtotal = cartData.reduce(
-        (s, i) => s + parseFloat(String(i.sellingPrice)) * i.quantity,
+      // Use integer paise arithmetic to avoid float rounding errors.
+      // sellingPrice is stored as a decimal string (e.g. "149.50").
+      function toPaise(decimalStr: string | number | null | undefined): number {
+        const s = String(decimalStr ?? "0");
+        const [r, p = "00"] = s.split(".");
+        return (
+          parseInt(r, 10) * 100 + parseInt(p.padEnd(2, "0").slice(0, 2), 10)
+        );
+      }
+      function fromPaise(paise: number): string {
+        return (Math.floor(paise / 100) + (paise % 100) / 100).toFixed(2);
+      }
+      const subtotalPaise = cartData.reduce(
+        (s, i) => s + toPaise(i.sellingPrice) * i.quantity,
         0
       );
-      const total = subtotal;
+      const totalPaise = subtotalPaise;
+      const subtotal = subtotalPaise;
+      const total = totalPaise;
 
       const needsRx = cartData.some(i => i.requiresPrescription);
       if (needsRx) {
@@ -117,8 +131,8 @@ export const orderRouter = router({
           userId: ctx.user.id,
           storeId: user.assignedStoreId,
           prescriptionId: input.prescriptionId,
-          subtotal: subtotal.toFixed(2),
-          total: total.toFixed(2),
+          subtotal: fromPaise(subtotal),
+          total: fromPaise(total),
           promisedSlaMins: slaMins,
           deliveryAddress: user.flatNumber
             ? `Flat ${user.flatNumber}`
@@ -131,10 +145,8 @@ export const orderRouter = router({
             variantId: i.variantId ?? undefined,
             storeSkuId: i.skuId,
             quantity: i.quantity,
-            unitPrice: String(i.sellingPrice),
-            lineTotal: (
-              parseFloat(String(i.sellingPrice)) * i.quantity
-            ).toFixed(2),
+            unitPrice: fromPaise(toPaise(i.sellingPrice)),
+            lineTotal: fromPaise(toPaise(i.sellingPrice) * i.quantity),
           })),
         });
 
@@ -162,13 +174,13 @@ export const orderRouter = router({
           orderId,
           customerName: user.name ?? "Customer",
           itemCount: cartData.length,
-          totalAmount: total.toFixed(2),
+          totalAmount: fromPaise(total),
           storeName: store?.name ?? "24/7 Pharmacy",
         });
         alertNewOrder({
           orderId,
           storeName: store?.name ?? "24/7 Pharmacy",
-          totalAmount: total.toFixed(2),
+          totalAmount: fromPaise(total),
           itemCount: cartData.length,
         }).catch(() => {});
         console.log(

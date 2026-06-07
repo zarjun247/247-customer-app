@@ -10,6 +10,7 @@
  */
 
 import { getDb } from "./db";
+import { randomInt } from "node:crypto";
 import { encryptPharmacistNote } from "./services/prescriptionPiiService";
 import {
   prescriptions,
@@ -503,7 +504,7 @@ export async function assignRider(
     .set({ status: "on_delivery" })
     .where(eq(riders.id, riderId));
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = randomInt(100000, 1000000).toString();
   const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
   await db.insert(deliveryOtps).values({ orderId, otp, expiresAt });
 

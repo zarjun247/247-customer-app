@@ -21,6 +21,10 @@ import {
   startStockLockCleanup,
   stopStockLockCleanup,
 } from "../services/stockLockService";
+import {
+  startRefillReminderWorker,
+  stopRefillReminderWorker,
+} from "../services/refillReminderWorker";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -153,6 +157,8 @@ async function startServer() {
     if (ENV.outboxDispatchEnabled) startOutboxDispatcher();
     if (ENV.reservationExpiryWorkerEnabled) startReservationExpiryWorker();
     if (ENV.stockLockCleanupEnabled) startStockLockCleanup();
+    if ((process.env.REFILL_REMINDER_WORKER_ENABLED ?? "true") !== "false")
+      startRefillReminderWorker();
   });
 
   function shutdown() {
@@ -161,6 +167,7 @@ async function startServer() {
     stopOutboxDispatcher();
     stopReservationExpiryWorker();
     stopStockLockCleanup();
+    stopRefillReminderWorker();
     void sdk.shutdown().finally(() => process.exit(0));
   }
   process.on("SIGTERM", shutdown);

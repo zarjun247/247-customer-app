@@ -52,7 +52,9 @@ export const authRouter = router({
         count: (slot?.count ?? 0) + 1,
         ts: slot?.ts ?? now,
       });
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      // CSPRNG OTP — never Math.random()
+      const { randomInt } = await import("node:crypto");
+      const code = randomInt(100000, 1000000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
       await createOtp(input.phone, code, expiresAt);
       console.info("auth.otp_requested");

@@ -196,13 +196,13 @@ export function assertWhatsappWebhookGuard(
   ctx: { req?: { header?: (name: string) => string | undefined } },
   payload?: string
 ) {
-  if (process.env.NODE_ENV !== "production") {
-    if (
-      !isTruthyEnv(process.env.WHATSAPP_DEMO_WEBHOOK_OPEN) &&
-      isTruthyEnv(process.env.WHATSAPP_PROVIDER_ENABLED)
-    ) {
-      // Local/demo calls are intentionally open only outside production; production always verifies below.
-    }
+  const isProduction = process.env.NODE_ENV === "production";
+  const providerEnabled = isTruthyEnv(process.env.WHATSAPP_PROVIDER_ENABLED);
+  const demoOpen = isTruthyEnv(process.env.WHATSAPP_DEMO_WEBHOOK_OPEN);
+
+  // In non-production with WHATSAPP_DEMO_WEBHOOK_OPEN=true: bypass verification for local testing.
+  // In all other cases (including production): always verify.
+  if (!isProduction && demoOpen && !providerEnabled) {
     return;
   }
 

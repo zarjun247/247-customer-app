@@ -61,6 +61,8 @@ export function assertProductionEnvSafe(): void {
 
   // MP7: PII_ENCRYPTION_MASTER_KEY is the ONLY required-in-production env var added across all 8 MPs.
   requireProductionEnv("PII_ENCRYPTION_MASTER_KEY", missing);
+  // Security hardening: CSRF_SECRET required in production for CSRF token signing.
+  requireProductionEnv("CSRF_SECRET", missing);
 
   assertPaymentWebhookRoutePosture(missing);
   if (missing.length)
@@ -180,8 +182,10 @@ export const ENV = {
     (process.env.DSR_SLA_MONITOR_ENABLED ?? "false").toLowerCase() === "true",
   // BREACH_NOTIFY_RECIPIENT_EMAIL: email to notify on breach dispatch (default empty = log only)
   breachNotifyRecipientEmail: process.env.BREACH_NOTIFY_RECIPIENT_EMAIL ?? "",
-  // CSRF_ENFORCEMENT: "off" | "log_only" | "enforce" (default "log_only" until client wiring is complete)
-  csrfEnforcement: (process.env.CSRF_ENFORCEMENT ?? "log_only") as
+  // CSRF_ENFORCEMENT: "off" | "log_only" | "enforce"
+  // Production default: "enforce" — fail closed. Non-production default: "log_only".
+  csrfEnforcement: (process.env.CSRF_ENFORCEMENT ??
+    (process.env.NODE_ENV === "production" ? "enforce" : "log_only")) as
     | "off"
     | "log_only"
     | "enforce",
