@@ -30,6 +30,7 @@
     "restore:drill": "node scripts/restore-drill-runner.mjs",
     "verify:ai-eval-chain": "node scripts/verify-ai-eval-chain.mjs",
     "sbom:generate": "node scripts/sbom-generate.mjs",
+    "sbom:guard": "node scripts/sbom-ci-guard.mjs",
     "backup-drill": "node scripts/backup-drill-runner.mjs",
     "incident-rehearsal": "node scripts/incident-rehearsal.mjs",
     "emergency-stop": "node scripts/emergency-stop.mjs",

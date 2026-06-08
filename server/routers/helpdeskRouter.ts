@@ -19,6 +19,8 @@ import { getDb } from "../db";
 import { helpdeskTickets } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import pino from "pino";
+const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 export const helpdeskRouter = router({
   /**
@@ -70,7 +72,12 @@ export const helpdeskRouter = router({
       await notifyOwner({
         title: `New support ticket #${ticketId}`,
         content: `Category: ${input.category} | Priority: ${input.priority}\nSubject: ${input.subject}\nFrom user #${ctx.user.id}`,
-      }).catch(() => {}); // non-blocking
+      }).catch((err: unknown) => {
+        logger.warn(
+          { err, ticketId },
+          "notifyOwner: new ticket notification failed (non-fatal)"
+        );
+      });
 
       return { ticketId };
     }),

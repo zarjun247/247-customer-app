@@ -183,7 +183,8 @@ export function uploadJsonParser(): RequestHandler {
 
 export function applyHttpSecurity(
   app: MiddlewareRegistrar,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  envConfig?: { csrfEnforcement: "off" | "log_only" | "enforce" }
 ) {
   app.use(requestIdMiddleware());
   app.use(securityHeadersMiddleware());
@@ -208,11 +209,16 @@ export function applyHttpSecurity(
 
   // CSRF protection — wired in SM-E. Runs after body parsers so token can appear in body.
   // Exempt: provider webhooks (use HMAC signature), worker trigger, health, metrics.
-  // Default is "log_only" until generateCsrfToken endpoint + client header injection land.
-  const csrfMode = (env.CSRF_ENFORCEMENT ?? "log_only") as
-    | "off"
-    | "log_only"
-    | "enforce";
+  // Production default: "enforce" (fail-closed). Non-production default: "log_only".
+  // Uses the typed csrfEnforcement from ENV (env.ts) so the production default is
+  // always "enforce" without relying on a local ?? fallback that could shadow it.
+  const csrfMode: "off" | "log_only" | "enforce" =
+    envConfig?.csrfEnforcement ??
+    ((env.CSRF_ENFORCEMENT ??
+      (env.NODE_ENV === "production" ? "enforce" : "log_only")) as
+      | "off"
+      | "log_only"
+      | "enforce");
   if (csrfMode === "enforce") {
     app.use(csrfMiddleware);
     app.use(handleCsrfError);

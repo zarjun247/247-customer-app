@@ -17,6 +17,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { storagePut } from "../storage";
+import { randomUUID } from "crypto";
 import { runOcrPipeline } from "../ingestion";
 import { getOcrProviderReadiness } from "../services/ocrProductionSafety";
 
@@ -70,7 +71,14 @@ export const ingestionRouter = router({
 
       // Decode base64 and upload to storage
       const buffer = Buffer.from(input.base64Data, "base64");
-      const fileKey = `ingestion/${ctx.user.id}/${Date.now()}-${input.filename}`;
+      // Use a random UUID key — never embed user-controlled filenames or timestamps
+      // in storage paths (path traversal / enumeration risk).
+      const ext =
+        input.filename
+          .split(".")
+          .pop()
+          ?.replace(/[^a-zA-Z0-9]/g, "") ?? "bin";
+      const fileKey = `ingestion/${ctx.user.id}/${randomUUID()}.${ext}`;
       const { key: storedFileKey, url: fileUrl } = await storagePut(
         fileKey,
         buffer,

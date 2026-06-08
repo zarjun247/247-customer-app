@@ -4,6 +4,7 @@
 
 import { ENV } from "./_core/env";
 import { makeCircuitBreaker } from "./_core/circuitBreaker";
+import { assertSafeStorageKey } from "./_core/storageAccess";
 
 const _storagePresign = makeCircuitBreaker(
   "storage.presign",
@@ -71,6 +72,9 @@ export async function storagePut(
 ): Promise<{ key: string; url: string }> {
   const { forgeUrl, forgeKey } = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
+
+  // Validate key before any network call — rejects traversal, bad prefixes, PII patterns.
+  assertSafeStorageKey(key);
 
   // 1. Get presigned PUT URL from Forge
   const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");

@@ -4,6 +4,8 @@
  * Works alongside connectors.ts (Razorpay SDK) and routers.ts (tRPC procedures).
  */
 import type { ResultSetHeader } from "mysql2";
+import pino from "pino";
+const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 import { getDb } from "./db";
 
 type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -215,7 +217,12 @@ export async function detectSlaBreaches(): Promise<number> {
       await sendOpsAlert(
         `SLA Breach: Order #${event.orderId}`,
         `Order #${event.orderId} (Store #${event.storeId}) exceeded SLA of ${event.promisedSlaMins} min. Deadline was ${event.slaDeadline.toISOString()}.`
-      ).catch(() => {});
+      ).catch((err: unknown) => {
+        logger.warn(
+          { err, orderId: event.orderId },
+          "SLA breach ops alert failed (non-fatal)"
+        );
+      });
       await db
         .update(slaEvents)
         .set({ breachAlertSent: true })

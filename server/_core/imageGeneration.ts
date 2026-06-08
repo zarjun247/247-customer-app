@@ -17,6 +17,7 @@
  */
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
+import { randomUUID } from "crypto";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -80,9 +81,9 @@ export async function generateImage(
   const base64Data = result.image.b64Json;
   const buffer = Buffer.from(base64Data, "base64");
 
-  // Save to S3
+  // Save to S3 — use a random UUID key to prevent enumeration.
   const { url } = await storagePut(
-    `generated/${Date.now()}.png`,
+    `generated/${randomUUID()}.png`,
     buffer,
     result.image.mimeType
   );

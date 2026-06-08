@@ -21,7 +21,8 @@ describe("http security middleware guards", () => {
       "utf8"
     );
 
-    expect(entrypoint).toContain("applyHttpSecurity(app)");
+    // applyHttpSecurity is called with app plus optional env/config args
+    expect(entrypoint).toContain("applyHttpSecurity(app");
     expect(middleware).toContain("helmet(");
     expect(middleware).toContain("contentSecurityPolicy: false");
     expect(middleware).toContain("crossOriginEmbedderPolicy: false");

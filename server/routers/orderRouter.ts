@@ -39,6 +39,7 @@ import {
 } from "../services/reservationService";
 import { storagePut } from "../storage";
 import { tplOrderReceived, alertNewOrder } from "../notifications";
+import { getPaymentByOrderId } from "../payment";
 
 export const orderRouter = router({
   /** Converts the current cart into a placed order, reserving stock and sending notifications; requires completed onboarding. */
@@ -348,6 +349,21 @@ export const orderRouter = router({
         });
       }
       requireOrderOwnershipOrStaff(ctx.user.id, order.userId, userRole);
+
+      // Phase 7: Block cancellation of paid orders without a prior refund.
+      // Staff must issue a refund via refundPayment before cancelling.
+      if (input.status === "cancelled") {
+        const payment = await getPaymentByOrderId(input.orderId);
+        if (payment && payment.status === "paid" && !payment.refundId) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Cannot cancel a paid order without first issuing a refund. " +
+              "Use the refundPayment procedure to refund the payment, then cancel.",
+          });
+        }
+      }
+
       const before = { status: order.status };
       await updateOrderStatus(input.orderId, input.status, {
         reason: input.reason,

@@ -517,7 +517,9 @@ export async function generateAndStoreInvoice(
   ].join("\n");
 
   const buffer = Buffer.from(lines, "utf-8");
-  const key = `invoices/order-${orderId}-${Date.now()}.txt`;
+  // Use a random UUID suffix — orderId alone is enumerable; timestamp adds no security.
+  const { randomUUID } = await import("crypto");
+  const key = `invoices/order-${orderId}-${randomUUID()}.txt`;
   try {
     const { url } = await storeFn(key, buffer, "text/plain");
     await updateOrderInvoice(orderId, url, key);

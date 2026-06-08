@@ -43,6 +43,7 @@ import { processQueue } from "../worker";
 import { ENV } from "./env";
 import { redactSensitive } from "./redact";
 import { applyHttpSecurity } from "../middleware/httpSecurity";
+import { getProductionRateLimitPosture } from "../services/rateLimitService";
 import { registerPaymentWebhookRoutes } from "../paymentWebhookRoutes";
 import { registerHealthRoutes } from "../routers/healthRouter";
 import { initObservability } from "./observability";
@@ -81,6 +82,16 @@ async function startServer() {
     if (process.env.DPDP_REGION_REQUIRED) process.exit(1);
   });
 
+  // Rate limit posture check — warn if memory backend in production.
+  const rlPosture = getProductionRateLimitPosture();
+  if (!rlPosture.productionReady) {
+    console.warn(
+      `[startup] WARN: Rate limiting is not horizontally durable. ` +
+        `Set API_RATE_LIMIT_BACKEND=redis or database for multi-instance production. ` +
+        `Current: ${rlPosture.backend}`
+    );
+  }
+
   // OTel SDK must start before Express/HTTP prototypes are first accessed.
   // shimmer patches exported prototype methods (not the require cache), so
   // calling start() here — before express() and createServer() — is sufficient
@@ -93,7 +104,7 @@ async function startServer() {
   const server = createServer(app);
   initObservability(app);
   registerObservabilityRoutes(app);
-  applyHttpSecurity(app);
+  applyHttpSecurity(app, process.env, { csrfEnforcement: ENV.csrfEnforcement });
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerPaymentWebhookRoutes(app);

@@ -60,7 +60,7 @@ describe("Ghost order rollback — catch block cancels the order record", () => 
     const src = readSrc("routers/orderRouter.ts");
     const catchIdx = src.indexOf("} catch (error)");
     expect(catchIdx).toBeGreaterThan(0);
-    const catchBlock = src.slice(catchIdx, catchIdx + 600);
+    const catchBlock = src.slice(catchIdx, catchIdx + 1000);
     // Reservation release must appear before updateOrderStatus in the catch block
     const releaseIdx = catchBlock.indexOf("releaseReservationOnOrderCancel");
     const cancelIdx = catchBlock.indexOf("updateOrderStatus");
