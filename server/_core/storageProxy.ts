@@ -18,7 +18,13 @@ export function registerStorageProxy(app: Express) {
         return void res.status(400).send("Invalid storage key");
       }
 
-      const user = await sdk.authenticateRequest(req);
+      let user: Awaited<ReturnType<typeof sdk.authenticateRequest>> | null =
+        null;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch {
+        user = null;
+      }
       if (!canAccessStorageKey(user, key))
         return void res.status(403).send("Forbidden");
 
