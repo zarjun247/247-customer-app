@@ -15,13 +15,11 @@
  * For production, call processQueue() from a scheduled endpoint or
  * a Manus scheduled task that POSTs to /api/worker/run.
  *
- * Sentry integration stub:
- *   import * as Sentry from "@sentry/node";
- *   Sentry.captureException(err); // TODO: replace console.error below
+ * Sentry integration: add `import * as Sentry from "@sentry/node"`
+ *   and call Sentry.captureException(err) alongside console.error if needed.
  *
- * PagerDuty integration stub:
- *   POST https://events.pagerduty.com/v2/enqueue with routing_key + payload
- *   TODO: call alertOps() below when job fails after max retries
+ * Ops alerting: permanent job failures call sendOpsAlert() from notifications.ts.
+ *   Extend notifyOwner() in connectors.ts for PagerDuty/Opsgenie/Slack.
  */
 
 import { getDb } from "./db";
@@ -29,6 +27,11 @@ import { ocrJobs } from "../drizzle/schema";
 import { eq, and, lte } from "drizzle-orm";
 import { runOcrPipeline } from "./ingestion";
 import { metrics } from "./_core/observability";
+import { sendOpsAlert } from "./notifications";
+import {
+  recordWorkerSuccess,
+  recordWorkerFailure,
+} from "./services/workerHealthRegistry";
 
 const MAX_ATTEMPTS = 3;
 
@@ -81,8 +84,6 @@ export async function processQueue(): Promise<number> {
         `[Worker] OCR job #${job.id} failed (attempt ${job.attempts + 1}/${MAX_ATTEMPTS}): ${errorMessage}`
       );
 
-      // TODO: Sentry.captureException(err);
-
       if (job.attempts + 1 >= MAX_ATTEMPTS) {
         // Mark as permanently failed
         await db
@@ -90,7 +91,13 @@ export async function processQueue(): Promise<number> {
           .set({ status: "failed", errorMessage })
           .where(eq(ocrJobs.id, job.id));
 
-        // TODO: alertOps(`OCR job #${job.id} failed after ${MAX_ATTEMPTS} attempts`, errorMessage);
+        // Fire ops alert — non-blocking, failure is logged but not re-thrown
+        sendOpsAlert(
+          `OCR job #${job.id} permanently failed`,
+          `After ${MAX_ATTEMPTS} attempts: ${errorMessage}`
+        ).catch(alertErr =>
+          console.error("[Worker] sendOpsAlert failed:", alertErr)
+        );
         console.error(
           `[Worker] OCR job #${job.id} permanently failed after ${MAX_ATTEMPTS} attempts`
         );
@@ -149,9 +156,12 @@ export function startWorker(intervalMs = 30_000): void {
   );
 
   _workerTimer = setInterval(() => {
-    processQueue().catch(err =>
-      console.error("[Worker] Queue pass failed:", err)
-    );
+    processQueue()
+      .then(() => recordWorkerSuccess("queueWorker"))
+      .catch(err => {
+        console.error("[Worker] Queue pass failed:", err);
+        recordWorkerFailure("queueWorker", err);
+      });
   }, intervalMs);
 }
 
@@ -166,20 +176,7 @@ export function stopWorker(): void {
   }
 }
 
-// ─── Ops Alert Stub ───────────────────────────────────────────────────────────
-
-/**
- * Sends an ops alert when a critical worker failure occurs.
- * TODO: Replace with PagerDuty / Opsgenie / Slack webhook.
- *
- * Required env vars (when implemented):
- *   PAGERDUTY_ROUTING_KEY — PagerDuty Events API v2 routing key
- *   SLACK_OPS_WEBHOOK_URL — Slack incoming webhook URL for ops channel
- */
-function _alertOps(title: string, detail: string): void {
-  console.error(`[OPS ALERT] ${title}: ${detail}`);
-  // TODO: await fetch(process.env.SLACK_OPS_WEBHOOK_URL!, {
-  //   method: "POST",
-  //   body: JSON.stringify({ text: `*${title}*\n${detail}` }),
-  // });
-}
+// ─── Ops Alert ───────────────────────────────────────────────────────────────
+// Ops alerting is handled by sendOpsAlert() from notifications.ts which routes
+// to notifyOwner() → WhatsApp/SMS/email depending on configured connectors.
+// For PagerDuty/Opsgenie integration, extend notifyOwner() in connectors.ts.

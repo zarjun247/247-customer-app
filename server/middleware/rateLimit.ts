@@ -21,7 +21,7 @@ export interface AbuseRateLimitOptions {
 
 export function expressAbuseRateLimit(options: AbuseRateLimitOptions) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decision = checkAbuse({
+    void checkAbuse({
       actor: {
         ip: req.ip,
         userId: (req as Request & { user?: { id?: number | string } }).user?.id,
@@ -37,25 +37,28 @@ export function expressAbuseRateLimit(options: AbuseRateLimitOptions) {
       reason: options.reason,
       policy: options.policy,
       store: options.store,
-    });
-    if (decision.decision === "allow") return next();
-    res.setHeader(
-      "Retry-After",
-      Math.ceil(decision.rateLimit.retryAfterMs / 1000).toString()
-    );
-    logSuspiciousActivity(
-      createSuspiciousActivityEvent({
-        actor: {
-          ip: req.ip,
-          route: options.route ?? req.path,
-          action: options.action,
-        },
-        reason: options.reason,
+    })
+      .then(decision => {
+        if (decision.decision === "allow") return next();
+        res.setHeader(
+          "Retry-After",
+          Math.ceil(decision.rateLimit.retryAfterMs / 1000).toString()
+        );
+        logSuspiciousActivity(
+          createSuspiciousActivityEvent({
+            actor: {
+              ip: req.ip,
+              route: options.route ?? req.path,
+              action: options.action,
+            },
+            reason: options.reason,
+          })
+        );
+        res
+          .status(429)
+          .json({ error: "Too many requests", reason: options.reason });
       })
-    );
-    res
-      .status(429)
-      .json({ error: "Too many requests", reason: options.reason });
+      .catch(() => next());
   };
 }
 

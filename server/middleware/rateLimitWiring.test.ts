@@ -40,14 +40,18 @@ describe("checkProcedureRateLimit", () => {
     store = new MemoryRateLimitStore();
   });
 
-  it("returns limited=false for an unconfigured procedure", () => {
-    const result = checkProcedureRateLimit("some.unknown", mockCtx(), store);
+  it("returns limited=false for an unconfigured procedure", async () => {
+    const result = await checkProcedureRateLimit(
+      "some.unknown",
+      mockCtx(),
+      store
+    );
     expect(result.limited).toBe(false);
   });
 
-  it("returns limited=false on first call within limit", () => {
+  it("returns limited=false on first call within limit", async () => {
     const config = new Map([["test.proc", { windowMs: 60_000, max: 5 }]]);
-    const result = checkProcedureRateLimit(
+    const result = await checkProcedureRateLimit(
       "test.proc",
       mockCtx(),
       store,
@@ -56,29 +60,34 @@ describe("checkProcedureRateLimit", () => {
     expect(result.limited).toBe(false);
   });
 
-  it("returns limited=true after exceeding max", () => {
+  it("returns limited=true after exceeding max", async () => {
     const config = new Map([["test.proc", { windowMs: 60_000, max: 2 }]]);
     const ctx = mockCtx("5.5.5.5");
-    checkProcedureRateLimit("test.proc", ctx, store, config);
-    checkProcedureRateLimit("test.proc", ctx, store, config);
-    const result = checkProcedureRateLimit("test.proc", ctx, store, config); // 3rd call exceeds max=2
+    await checkProcedureRateLimit("test.proc", ctx, store, config);
+    await checkProcedureRateLimit("test.proc", ctx, store, config);
+    const result = await checkProcedureRateLimit(
+      "test.proc",
+      ctx,
+      store,
+      config
+    ); // 3rd call exceeds max=2
     expect(result.limited).toBe(true);
     expect(result.retryAfterMs).toBeGreaterThan(0);
   });
 
-  it("different IPs get independent buckets", () => {
+  it("different IPs get independent buckets", async () => {
     const config = new Map([["test.proc", { windowMs: 60_000, max: 1 }]]);
     const ctx1 = mockCtx("1.1.1.1");
     const ctx2 = mockCtx("2.2.2.2");
-    checkProcedureRateLimit("test.proc", ctx1, store, config);
-    checkProcedureRateLimit("test.proc", ctx1, store, config); // 2nd for ctx1 → over limit
-    const resultCtx1 = checkProcedureRateLimit(
+    await checkProcedureRateLimit("test.proc", ctx1, store, config);
+    await checkProcedureRateLimit("test.proc", ctx1, store, config); // 2nd for ctx1 → over limit
+    const resultCtx1 = await checkProcedureRateLimit(
       "test.proc",
       ctx1,
       store,
       config
     );
-    const resultCtx2 = checkProcedureRateLimit(
+    const resultCtx2 = await checkProcedureRateLimit(
       "test.proc",
       ctx2,
       store,
@@ -88,19 +97,19 @@ describe("checkProcedureRateLimit", () => {
     expect(resultCtx2.limited).toBe(false);
   });
 
-  it("authenticated users get user-scoped buckets separate from anon", () => {
+  it("authenticated users get user-scoped buckets separate from anon", async () => {
     const config = new Map([["test.proc", { windowMs: 60_000, max: 1 }]]);
     const anonCtx = mockCtx("3.3.3.3", null);
     const authCtx = mockCtx("3.3.3.3", 99);
-    checkProcedureRateLimit("test.proc", anonCtx, store, config);
-    checkProcedureRateLimit("test.proc", anonCtx, store, config); // over for anon
-    const anonResult = checkProcedureRateLimit(
+    await checkProcedureRateLimit("test.proc", anonCtx, store, config);
+    await checkProcedureRateLimit("test.proc", anonCtx, store, config); // over for anon
+    const anonResult = await checkProcedureRateLimit(
       "test.proc",
       anonCtx,
       store,
       config
     );
-    const authResult = checkProcedureRateLimit(
+    const authResult = await checkProcedureRateLimit(
       "test.proc",
       authCtx,
       store,
@@ -114,21 +123,23 @@ describe("checkProcedureRateLimit", () => {
 // ─── throwIfRateLimited ───────────────────────────────────────────────────────
 
 describe("throwIfRateLimited", () => {
-  it("does not throw for unconfigured procedure", () => {
+  it("does not throw for unconfigured procedure", async () => {
     const store = new MemoryRateLimitStore();
-    expect(() => throwIfRateLimited("no.such", mockCtx(), store)).not.toThrow();
+    await expect(
+      throwIfRateLimited("no.such", mockCtx(), store)
+    ).resolves.toBeUndefined();
   });
 
-  it("throws TRPCError with TOO_MANY_REQUESTS when limited", () => {
+  it("throws TRPCError with TOO_MANY_REQUESTS when limited", async () => {
     const store = new MemoryRateLimitStore();
     const config = new Map([["otp.send", { windowMs: 60_000, max: 1 }]]);
     const ctx = mockCtx("4.4.4.4");
     // Exhaust the limit
-    checkProcedureRateLimit("otp.send", ctx, store, config);
-    checkProcedureRateLimit("otp.send", ctx, store, config);
-    expect(() => throwIfRateLimited("otp.send", ctx, store, config)).toThrow(
-      TRPCError
-    );
+    await checkProcedureRateLimit("otp.send", ctx, store, config);
+    await checkProcedureRateLimit("otp.send", ctx, store, config);
+    await expect(
+      throwIfRateLimited("otp.send", ctx, store, config)
+    ).rejects.toThrow(TRPCError);
   });
 });
 
@@ -157,7 +168,7 @@ function makeResMock() {
 }
 
 describe("createExpressRateLimitMiddleware", () => {
-  it("calls next() when under limit", () => {
+  it("calls next() when under limit", async () => {
     const store = new MemoryRateLimitStore();
     const mw = createExpressRateLimitMiddleware(
       "/api/test",
@@ -169,13 +180,16 @@ describe("createExpressRateLimitMiddleware", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = makeResMock() as any;
     let nextCalled = false;
-    mw(req, res, () => {
-      nextCalled = true;
+    await new Promise<void>(resolve => {
+      mw(req, res, () => {
+        nextCalled = true;
+        resolve();
+      });
     });
     expect(nextCalled).toBe(true);
   });
 
-  it("responds 429 and does NOT call next() when over limit", () => {
+  it("responds 429 and does NOT call next() when over limit", async () => {
     const store = new MemoryRateLimitStore();
     const mw = createExpressRateLimitMiddleware(
       "/api/test",
@@ -188,17 +202,26 @@ describe("createExpressRateLimitMiddleware", () => {
     const res1 = makeResMock() as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res2 = makeResMock() as any;
-    mw(req, res1, () => {});
-    mw(req, res1, () => {}); // exhaust
+    await new Promise<void>(resolve => mw(req, res1, () => resolve()));
+    // exhaust: 2nd call hits the limit so next() may not be called — use timeout fallback
+    await new Promise<void>(resolve => {
+      mw(req, res1, () => resolve());
+      setTimeout(resolve, 100);
+    });
     let nextCalled = false;
-    mw(req, res2, () => {
-      nextCalled = true;
-    }); // should be blocked
+    await new Promise<void>(resolve => {
+      mw(req, res2, () => {
+        nextCalled = true;
+        resolve();
+      });
+      // Also resolve if blocked (next won't be called, so we need a timeout)
+      setTimeout(resolve, 100);
+    });
     expect(nextCalled).toBe(false);
     expect(res2.data.status).toBe(429);
   });
 
-  it("sets Retry-After header on 429", () => {
+  it("sets Retry-After header on 429", async () => {
     const store = new MemoryRateLimitStore();
     const mw = createExpressRateLimitMiddleware(
       "/api/test",
@@ -209,11 +232,18 @@ describe("createExpressRateLimitMiddleware", () => {
     const req = { ip: "9.9.9.9", socket: {} } as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = makeResMock() as any;
-    mw(req, res, () => {});
-    mw(req, res, () => {}); // exhaust (blockMs kicks in)
+    await new Promise<void>(resolve => mw(req, res, () => resolve()));
+    // exhaust: 2nd call hits the limit so next() may not be called — use timeout fallback
+    await new Promise<void>(resolve => {
+      mw(req, res, () => resolve());
+      setTimeout(resolve, 100);
+    }); // exhaust (blockMs kicks in)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res3 = makeResMock() as any;
-    mw(req, res3, () => {});
+    await new Promise<void>(resolve => {
+      mw(req, res3, () => resolve());
+      setTimeout(resolve, 100);
+    });
     expect(res3.data.headers["Retry-After"]).toBeTruthy();
   });
 });

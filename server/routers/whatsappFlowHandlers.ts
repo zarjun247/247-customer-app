@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db";
+import { redactSensitive } from "../_core/redact";
 import {
   whatsappCarts,
   whatsappCartLines,
@@ -245,7 +246,7 @@ export async function handleRxUploadFlow(opts: {
       action: "whatsapp.rx.uploaded",
       entityType: "prescription",
       entityId: rxId ?? undefined,
-      payload: JSON.stringify({ phone }),
+      payload: JSON.stringify({ phone: redactSensitive(phone) }), // PII-safe
     });
     return { response, nextFlow: "menu", nextState: {} };
   }
@@ -267,7 +268,7 @@ export async function handleRxUploadFlow(opts: {
         action: "whatsapp.supplier_bill.uploaded",
         entityType: "ingestion_job",
         entityId: jobId,
-        payload: JSON.stringify({ phone }),
+        payload: JSON.stringify({ phone: redactSensitive(phone) }), // PII-safe
       });
       return {
         response: `📄 Supplier bill received! (Job #${jobId})\nOur team will process and import it.\n\nReply *hi* for main menu.`,
@@ -468,7 +469,7 @@ export async function handleConfirmOrderFlow(opts: {
       action: "whatsapp.regulated_escalated",
       entityType: "whatsapp_cart",
       entityId: cart.id,
-      payload: JSON.stringify({ phone, handoffId }),
+      payload: JSON.stringify({ phone: redactSensitive(phone), handoffId }), // PII-safe
     });
     return {
       response:
@@ -509,7 +510,7 @@ export async function handleConfirmOrderFlow(opts: {
     action: "whatsapp.order.created",
     entityType: "order",
     entityId: orderId,
-    payload: JSON.stringify({ phone, cartId: cart.id }),
+    payload: JSON.stringify({ phone: redactSensitive(phone), cartId: cart.id }), // PII-safe
   });
   return {
     response: `✓ *Order #${orderId} placed!*\nTotal: ₹${subtotal}\nEstimated delivery: ~45 mins\n\nReply *status ${orderId}* to track, or *hi* for main menu.`,

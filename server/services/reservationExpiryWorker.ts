@@ -6,6 +6,10 @@ import { ENV } from "../_core/env";
 import { expire } from "./reservationLedger";
 import type { CommandContext } from "./executeCommand";
 import { readFlag } from "./emergencyStopService";
+import {
+  recordWorkerSuccess,
+  recordWorkerFailure,
+} from "./workerHealthRegistry";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
@@ -27,7 +31,9 @@ export function startReservationExpiryWorker(): void {
   if (pollingTimer) return;
   const intervalMs = ENV.reservationExpirySweepIntervalMs;
   pollingTimer = setInterval(() => {
-    void sweepOnce();
+    void sweepOnce()
+      .then(() => recordWorkerSuccess("reservationExpiryWorker"))
+      .catch(err => recordWorkerFailure("reservationExpiryWorker", err));
   }, intervalMs);
   logger.info({ intervalMs }, "Reservation expiry worker started");
 }

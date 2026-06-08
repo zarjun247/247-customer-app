@@ -4,6 +4,10 @@ import pino from "pino";
 import { getDb } from "../db";
 import { stockLockKeys } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
+import {
+  recordWorkerSuccess,
+  recordWorkerFailure,
+} from "./workerHealthRegistry";
 
 const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
@@ -132,9 +136,12 @@ export function startStockLockCleanup(): void {
   if (stockLockTimer) return;
   const intervalMs = ENV.stockLockCleanupIntervalMs;
   stockLockTimer = setInterval(() => {
-    cleanupExpiredLocks().catch((err: unknown) =>
-      logger.error({ err }, "stockLockCleanup tick failed")
-    );
+    cleanupExpiredLocks()
+      .then(() => recordWorkerSuccess("stockLockCleanup"))
+      .catch((err: unknown) => {
+        logger.error({ err }, "stockLockCleanup tick failed");
+        recordWorkerFailure("stockLockCleanup", err);
+      });
   }, intervalMs);
   logger.info({ intervalMs }, "stockLockCleanup started");
 }

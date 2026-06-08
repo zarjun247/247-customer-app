@@ -12,10 +12,8 @@ export {
   explainAvailability,
   syncStoreSkuSoftLocks,
 } from "./reservationHelpers";
-
 type DbInstance = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type DbTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
-
 const ACTIVE_RESERVATION_STATUS = "active" as const;
 const _TERMINAL_RESERVATION_STATUSES = [
   "released",
@@ -24,9 +22,7 @@ const _TERMINAL_RESERVATION_STATUSES = [
   "cancelled",
 ] as const;
 type ReservationReleaseStatus = (typeof _TERMINAL_RESERVATION_STATUSES)[number];
-
 type ReservationCtx = CtxLike & { requestId?: string | null };
-
 interface ReservationInput {
   qty?: number | null;
   expiresAt?: Date | null;
@@ -44,7 +40,6 @@ interface ReservationInput {
   correlationId?: string | null;
   id?: number | null;
 }
-
 async function requireDb() {
   const { getDb } = await import("../db");
   const db = await getDb();
@@ -55,14 +50,12 @@ async function requireDb() {
     });
   return db;
 }
-
 function variantFilter(
   variantIdCol: AnyMySqlColumn,
   variantId?: number | null
 ): SQL<unknown> {
   return variantId == null ? sql`1=1` : eq(variantIdCol, variantId);
 }
-
 export async function getCanonicalStockAggregate(
   storeId: number,
   productId: number,
@@ -117,7 +110,6 @@ export async function getCanonicalStockAggregate(
         )
       )
     );
-
   return {
     onHandQty: Number(batchAgg?.onHand ?? sku?.stockQty ?? 0),
     reservedQty: Number(batchAgg?.batchReserved ?? 0),
@@ -126,7 +118,6 @@ export async function getCanonicalStockAggregate(
     expiredQty: Number(batchAgg?.expired ?? 0),
   };
 }
-
 export async function syncStoreSkuAggregate(input: {
   storeId: number;
   productId: number;
@@ -157,7 +148,6 @@ export async function syncStoreSkuAggregate(input: {
     .where(eq(storeSkus.id, sku.id));
   return { synced: true, skuId: sku.id, aggregate };
 }
-
 export async function getCanonicalAvailability(
   storeId: number,
   productId: number,
@@ -178,7 +168,6 @@ export async function getCanonicalAvailability(
     formula: "availableQty = totalSellable from canonical ledger (FEFO)",
   };
 }
-
 export async function assertAvailableForReservation(input: {
   storeId: number;
   productId: number;
@@ -197,7 +186,6 @@ export async function assertAvailableForReservation(input: {
     });
   return c;
 }
-
 export async function reserveBatchAtomic(input: ReservationInput) {
   const db = await requireDb();
   const { batchLedger, stockReservations, stockMovements } = await import(
@@ -322,7 +310,6 @@ export async function reserveBatchAtomic(input: ReservationInput) {
     qty,
   };
 }
-
 /** P0-3: Atomic availability check + reservation via SELECT FOR UPDATE transaction. */
 export async function reserveStockForOrder(input: ReservationInput) {
   if (input.batchId) return reserveBatchAtomic(input);
@@ -396,7 +383,6 @@ export async function reserveStockForOrder(input: ReservationInput) {
     ...input,
   };
 }
-
 async function applyReservationTerminalAtomic(
   input: ReservationInput,
   status: ReservationReleaseStatus,
@@ -533,7 +519,6 @@ async function applyReservationTerminalAtomic(
   });
   return { status, releaseReason, won: result.won };
 }
-
 export const releaseReservationAtomic = (input: ReservationInput) =>
   applyReservationTerminalAtomic(
     input,
@@ -546,7 +531,6 @@ export const consumeReservationAtomic = (input: ReservationInput) =>
     "consumed",
     input.releaseReason ?? "reservation_consumed"
   );
-
 function updateReservationStatus(
   input: ReservationInput,
   status: ReservationReleaseStatus,
@@ -593,7 +577,6 @@ export const releaseReservationOnOrderCancel = (input: ReservationInput) =>
     "cancelled",
     input.releaseReason ?? "order_cancelled"
   );
-
 export async function expireStaleReservations(now = new Date()) {
   const db = await requireDb();
   const { stockReservations } = await import("../../drizzle/schema");
@@ -608,7 +591,6 @@ export async function expireStaleReservations(now = new Date()) {
     );
   return { status: "expired" };
 }
-
 export async function getReservationStatus(
   input: Pick<ReservationInput, "id" | "orderId" | "cartId">
 ) {

@@ -1,4 +1,4 @@
-# Backup Runbook
+# Backup & Restore Runbook
 
 Backup and restore SOPs for 247 Pharmacy OS. Every procedure includes exact commands, expected output, and escalation triggers.
 
@@ -136,8 +136,8 @@ If new migrations need to be applied:
 ### Step 7 — Run verification checklist
 
 ```bash
-node scripts/restore-verify.mjs
-# Expected: exit 0 with "restore verification passed" message
+RESTORE_DATABASE_URL="mysql://..." RESTORE_BACKUP_FILE="backup-<date>.sql" node scripts/restore-verify.mjs
+# Expected: exit 0 with read-only verification plan
 
 node scripts/deployment-readiness-check.mjs
 # Expected: all checks pass

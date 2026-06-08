@@ -3,9 +3,11 @@ import { TRPCError } from "@trpc/server";
 import {
   MemoryRateLimitStore,
   buildRateLimitKey,
+  getProductionRateLimitPosture,
   type RateLimitPolicy,
   type RateLimitStore,
 } from "../services/rateLimitService";
+import { dbRateLimitStore } from "../services/dbRateLimitStore";
 
 // Per-procedure rate-limit config. Keys match tRPC path (e.g. "auth.sendOtp").
 // windowMs: sliding window in milliseconds; max: requests allowed per window.
@@ -21,7 +23,18 @@ export const PROCEDURE_RATE_LIMITS: ReadonlyMap<string, RateLimitPolicy> =
     ["catalog.list", { windowMs: 60_000, max: 120 }],
   ]);
 
-export const defaultRateLimitStore = new MemoryRateLimitStore();
+/**
+ * Resolve the active rate limit store based on API_RATE_LIMIT_BACKEND.
+ * - "database" → DatabaseRateLimitStore (horizontally durable, no Redis needed)
+ * - anything else → MemoryRateLimitStore (single-instance only)
+ */
+function resolveRateLimitStore(): RateLimitStore {
+  const posture = getProductionRateLimitPosture();
+  if (posture.backend === "database") return dbRateLimitStore;
+  return new MemoryRateLimitStore();
+}
+
+export const defaultRateLimitStore: RateLimitStore = resolveRateLimitStore();
 
 // ─── tRPC middleware factory ───────────────────────────────────────────────────
 
@@ -34,13 +47,13 @@ export type RateLimitMiddlewareContext = {
   } | null;
 };
 
-export function checkProcedureRateLimit(
+export async function checkProcedureRateLimit(
   path: string,
   ctx: RateLimitMiddlewareContext,
   store: RateLimitStore = defaultRateLimitStore,
   config: ReadonlyMap<string, RateLimitPolicy> = PROCEDURE_RATE_LIMITS,
   now?: number
-): { limited: boolean; retryAfterMs: number } {
+): Promise<{ limited: boolean; retryAfterMs: number }> {
   const policy = config.get(path);
   if (!policy) return { limited: false, retryAfterMs: 0 };
 
@@ -52,7 +65,7 @@ export function checkProcedureRateLimit(
     userId: userId ?? "anon",
   });
 
-  const result = store.hit(key, policy, now);
+  const result = await store.hit(key, policy, now);
   return { limited: result.limited, retryAfterMs: result.retryAfterMs };
 }
 
@@ -72,19 +85,22 @@ export function createExpressRateLimitMiddleware(
   return (req, res, next) => {
     const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
     const key = buildRateLimitKey({ route: routePrefix, ip });
-    const result = store.hit(key, policy);
-    if (result.limited) {
-      res.setHeader(
-        "Retry-After",
-        String(Math.ceil(result.retryAfterMs / 1000))
-      );
-      res.status(429).json({
-        error: "Too many requests",
-        retryAfterMs: result.retryAfterMs,
-      });
-      return;
-    }
-    next();
+    void Promise.resolve(store.hit(key, policy))
+      .then(result => {
+        if (result.limited) {
+          res.setHeader(
+            "Retry-After",
+            String(Math.ceil(result.retryAfterMs / 1000))
+          );
+          res.status(429).json({
+            error: "Too many requests",
+            retryAfterMs: result.retryAfterMs,
+          });
+          return;
+        }
+        next();
+      })
+      .catch(() => next());
   };
 }
 
@@ -112,13 +128,13 @@ export function rateLimitWebhookRoutes(
 
 // ─── Error thrower for tRPC context ──────────────────────────────────────────
 
-export function throwIfRateLimited(
+export async function throwIfRateLimited(
   path: string,
   ctx: RateLimitMiddlewareContext,
   store?: RateLimitStore,
   config?: ReadonlyMap<string, RateLimitPolicy>
-): void {
-  const { limited, retryAfterMs } = checkProcedureRateLimit(
+): Promise<void> {
+  const { limited, retryAfterMs } = await checkProcedureRateLimit(
     path,
     ctx,
     store,

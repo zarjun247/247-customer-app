@@ -163,12 +163,14 @@ export function buildActorKey(actor: AbuseActor, reason: AbuseReason): string {
   });
 }
 
-export function checkAbuse(input: AbuseCheckInput): AbuseCheckResult {
+export async function checkAbuse(
+  input: AbuseCheckInput
+): Promise<AbuseCheckResult> {
   const store = input.store ?? defaultRateLimitStore;
   const key = buildActorKey(input.actor, input.reason);
   const policy = input.policy ??
     ABUSE_POLICIES.suspiciousVelocity ?? { windowMs: 60_000, max: 60 };
-  const rateLimit = store.hit(key, policy, input.now);
+  const rateLimit = await store.hit(key, policy, input.now);
   const decision: AbuseDecision = rateLimit.allowed
     ? "allow"
     : input.reason === "provider_signature_failure" ||
@@ -283,11 +285,11 @@ export function checkWebhookSignatureFailure(
   });
 }
 
-export function checkWebhookReplay(
+export async function checkWebhookReplay(
   provider: string,
   eventId: string,
   now = Date.now()
-): AbuseCheckResult {
+): Promise<AbuseCheckResult> {
   for (const [key, seenAt] of Array.from(recentWebhookEvents.entries())) {
     if (now - seenAt > WEBHOOK_REPLAY_TTL_MS) recentWebhookEvents.delete(key);
   }
@@ -300,7 +302,7 @@ export function checkWebhookReplay(
   const replay = recentWebhookEvents.has(firstSeenKey);
   recentWebhookEvents.set(firstSeenKey, now);
   const store = defaultRateLimitStore;
-  const result = checkAbuse({
+  const result = await checkAbuse({
     actor,
     reason: "webhook_replay",
     policy: ABUSE_POLICIES.webhookReplay,

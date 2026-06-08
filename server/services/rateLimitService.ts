@@ -26,7 +26,11 @@ interface Bucket {
 }
 
 export interface RateLimitStore {
-  hit(key: string, policy: RateLimitPolicy, now?: number): RateLimitHit;
+  hit(
+    key: string,
+    policy: RateLimitPolicy,
+    now?: number
+  ): RateLimitHit | Promise<RateLimitHit>;
   reset(key?: string): void;
   size(): number;
 }

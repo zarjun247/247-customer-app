@@ -17,6 +17,7 @@ import crypto from "crypto";
 import { notifyOwner } from "./_core/notification";
 import type { NotificationPayload } from "./notifications";
 import { makeCircuitBreaker } from "./_core/circuitBreaker";
+import { redactSensitive } from "./_core/redact";
 
 // ─── SMS / WhatsApp Connector ─────────────────────────────────────────────────
 
@@ -263,7 +264,9 @@ export const smsConnector: SmsConnector = {
       >("SMS", ["SMS_PROVIDER_API_KEY"]);
 
       if (result.status === "skipped_demo") {
-        console.log(`[SMS DEMO SKIPPED] To: ${phone} | Message: ${message}`);
+        console.log(
+          `[SMS DEMO SKIPPED] To: ${redactSensitive(phone)} | Message: [redacted]`
+        ); // PII-safe
       }
 
       return result;
@@ -302,7 +305,7 @@ export const smsConnector: SmsConnector = {
 
       if (result.status === "skipped_demo") {
         console.log(
-          `[WhatsApp DEMO SKIPPED] To: ${phone} | Template: ${templateName} | Vars: ${variables.join(", ")}`
+          `[WhatsApp DEMO SKIPPED] To: ${redactSensitive(phone)} | Template: ${templateName} | Vars: [redacted]` // PII-safe
         );
       }
 
@@ -360,7 +363,7 @@ export async function sendCustomerNotification(
   if (!sent) {
     await notifyOwner({
       title: `[FALLBACK] Customer notification failed`,
-      content: `Phone: ${phone} | ${payload.title}`,
+      content: `Phone: ${redactSensitive(phone)} | ${payload.title}`, // PII-safe
     });
   }
 }

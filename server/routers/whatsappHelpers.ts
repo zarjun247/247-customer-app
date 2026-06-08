@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
+import { redactSensitive } from "../_core/redact";
 import {
   whatsappLinks,
   whatsappMessages,
@@ -276,7 +277,10 @@ export async function createRegulatedIntentHandoff(input: {
     action: "whatsapp.regulated_intent.escalated",
     entityType: "staff_handoff",
     entityId: handoffId,
-    payload: JSON.stringify({ phone: input.phone, unlinked: !input.userId }),
+    payload: JSON.stringify({
+      phone: redactSensitive(input.phone),
+      unlinked: !input.userId,
+    }), // PII-safe
   });
   return handoffId;
 }

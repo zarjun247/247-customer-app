@@ -22,6 +22,8 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  /** Token version for session revocation (migration 0077). */
+  tokenVersion?: number;
 };
 
 /** Raw API response shape — includes `platforms` not present in the typed interface */
@@ -196,6 +198,9 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      // tv = tokenVersion claim for session revocation (migration 0077)
+      // Default is 0 to match the DB column DEFAULT 0 for pre-migration rows.
+      tv: payload.tokenVersion ?? 0,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -204,7 +209,12 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<{
+    openId: string;
+    appId: string;
+    name: string;
+    tokenVersion: number;
+  } | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -215,7 +225,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, tv } = payload as Record<string, unknown>;
 
       if (!isNonEmptyString(openId) || !isNonEmptyString(appId)) {
         console.warn("[Auth] Session payload missing required fields");
@@ -226,6 +236,7 @@ class SDKServer {
         openId,
         appId,
         name: typeof name === "string" ? name : "",
+        tokenVersion: typeof tv === "number" ? tv : 0,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -276,6 +287,13 @@ class SDKServer {
       const phone = sessionUserId.slice(6);
       const phoneUser = await db.getUserByPhone(phone);
       if (!phoneUser) throw ForbiddenError("Phone user not found");
+      // Token version check: reject tokens issued before last revocation
+      const { isTokenVersionValid } = await import(
+        "../services/sessionRevocationService"
+      );
+      if (!isTokenVersionValid(phoneUser, session.tokenVersion)) {
+        throw ForbiddenError("Session has been revoked");
+      }
       return phoneUser;
     }
 
@@ -302,6 +320,14 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    // Token version check: reject tokens issued before last revocation
+    const { isTokenVersionValid } = await import(
+      "../services/sessionRevocationService"
+    );
+    if (!isTokenVersionValid(user, session.tokenVersion)) {
+      throw ForbiddenError("Session has been revoked");
     }
 
     // Update lastSignedIn — openId is guaranteed non-null for OAuth users

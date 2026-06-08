@@ -14,6 +14,22 @@ import {
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
+// ─── Rate Limit Buckets (migration 0078) ────────────────────────────────────
+export const rateLimitBuckets = mysqlTable(
+  "rate_limit_buckets",
+  {
+    bucketKey: varchar("bucket_key", { length: 255 }).primaryKey(),
+    count: int("count").notNull().default(1),
+    resetAt: bigint("reset_at", { mode: "number" }).notNull(),
+    blockedUntil: bigint("blocked_until", { mode: "number" }),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  t => ({
+    resetAtIdx: index("rate_limit_buckets_reset_at_idx").on(t.resetAt),
+  })
+);
+export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
+
 // ─── PART 12: system_events — event bus persistence ──────────────────────────
 export const systemEvents = mysqlTable("system_events", {
   id: int("id").autoincrement().primaryKey(),

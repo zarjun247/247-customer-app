@@ -3,9 +3,19 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { router, publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { createOtp, verifyOtp, upsertUserByPhone, getUserByPhone } from "../db";
+import {
+  createOtp,
+  verifyOtp,
+  upsertUserByPhone,
+  getUserByPhone,
+  writeAuditLog,
+} from "../db";
 import { ENV } from "../_core/env";
 import { redactSensitive } from "../_core/redact";
+import { revokeUserSessions } from "../services/sessionRevocationService";
+import pino from "pino";
+
+const logger = pino({ name: "auth" });
 
 const otpRateLimit = new Map<string, { count: number; ts: number }>();
 const otpVerifyFailures = new Map<string, { count: number; ts: number }>();
@@ -28,12 +38,42 @@ export function assertOtpLimiterMode() {
 export const authRouter = router({
   /** Returns the current user's session profile, or null if unauthenticated. */
   me: publicProcedure.query(opts => opts.ctx.user),
-  /** Terminates the current session and clears the auth cookie. */
-  logout: publicProcedure.mutation(({ ctx }) => {
+
+  /** Terminates the current session, revokes the token version, and clears the auth cookie. */
+  logout: publicProcedure.mutation(async ({ ctx }) => {
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+
+    // Revoke all tokens for this user by incrementing tokenVersion.
+    // This ensures the JWT is invalid even if it is replayed before cookie expiry.
+    if (ctx.user?.id) {
+      try {
+        await revokeUserSessions(ctx.user.id, {
+          reason: "logout",
+          actorId: ctx.user.id,
+        });
+      } catch (err) {
+        logger.warn({ err, userId: ctx.user.id }, "auth.logout.revoke_failed");
+      }
+    }
+
+    // Audit: record logout event
+    if (ctx.user?.id) {
+      try {
+        await writeAuditLog({
+          actor: { id: ctx.user.id, type: "user" },
+          action: "auth.logout",
+          entityType: "user",
+          entityId: ctx.user.id,
+        });
+      } catch (err) {
+        logger.warn({ err, userId: ctx.user.id }, "auth.logout.audit_failed");
+      }
+    }
+
     return { success: true } as const;
   }),
+
   /** Sends a one-time password to the given phone number. Rate-limited per phone (5 requests per 15 min). */
   sendOtp: publicProcedure
     .input(z.object({ phone: z.string().min(10).max(15) }))
@@ -42,7 +82,10 @@ export const authRouter = router({
       const now = Date.now();
       const slot = otpRateLimit.get(input.phone);
       if (slot && now - slot.ts < 15 * 60 * 1000 && slot.count >= 5) {
-        console.warn("auth.otp_rate_limited", redactSensitive(input.phone));
+        logger.warn(
+          { phone: redactSensitive(input.phone) },
+          "auth.otp_rate_limited"
+        );
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",
           message: "Too many OTP requests",
@@ -57,9 +100,26 @@ export const authRouter = router({
       const code = randomInt(100000, 1000000).toString();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
       await createOtp(input.phone, code, expiresAt);
-      console.info("auth.otp_requested");
+      logger.info(
+        { phone: redactSensitive(input.phone) },
+        "auth.otp_requested"
+      );
+      // Audit: record OTP send (non-blocking; failure must not block the user)
+      try {
+        const existingUser = await getUserByPhone(input.phone);
+        await writeAuditLog({
+          actor: { id: existingUser?.id ?? null, type: "user" },
+          action: "auth.otp_sent",
+          entityType: "user",
+          entityId: existingUser?.id ?? undefined,
+          after: { phone: redactSensitive(input.phone) },
+        });
+      } catch (err) {
+        logger.warn({ err }, "auth.otp_sent.audit_failed");
+      }
       return { success: true, devCode: !ENV.isProduction ? code : undefined };
     }),
+
   /** Verifies a one-time password and issues an authenticated session cookie on success. */
   verifyOtp: publicProcedure
     .input(z.object({ phone: z.string(), code: z.string() }))
@@ -72,7 +132,10 @@ export const authRouter = router({
         now - failSlot.ts < 15 * 60 * 1000 &&
         failSlot.count >= 8
       ) {
-        console.warn("auth.otp_rate_limited", redactSensitive(input.phone));
+        logger.warn(
+          { phone: redactSensitive(input.phone) },
+          "auth.otp_rate_limited"
+        );
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",
           message: "Too many OTP verification attempts",
@@ -84,11 +147,26 @@ export const authRouter = router({
           count: (failSlot?.count ?? 0) + 1,
           ts: failSlot?.ts ?? now,
         });
-        console.warn("auth.otp_failed", redactSensitive(input.phone));
+        logger.warn({ phone: redactSensitive(input.phone) }, "auth.otp_failed");
+        // Audit: record OTP verification failure (non-blocking)
+        try {
+          const failedUser = await getUserByPhone(input.phone);
+          await writeAuditLog({
+            actor: { id: failedUser?.id ?? null, type: "user" },
+            action: "auth.otp_failed",
+            entityType: "user",
+            entityId: failedUser?.id ?? undefined,
+            after: {
+              phone: redactSensitive(input.phone),
+              attemptCount: (failSlot?.count ?? 0) + 1,
+            },
+          });
+        } catch (err) {
+          logger.warn({ err }, "auth.otp_failed.audit_failed");
+        }
         return { valid: false as const };
       }
       otpVerifyFailures.delete(input.phone);
-      console.info("auth.otp_verified");
 
       await upsertUserByPhone(input.phone, { loginMethod: "phone" });
       const user = await getUserByPhone(input.phone);
@@ -97,6 +175,21 @@ export const authRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to create user",
         });
+
+      // Audit: record successful login
+      try {
+        await writeAuditLog({
+          actor: { id: user.id, type: "user" },
+          action: "auth.login",
+          entityType: "user",
+          entityId: user.id,
+          after: { method: "phone_otp" },
+        });
+      } catch (err) {
+        logger.warn({ err, userId: user.id }, "auth.login.audit_failed");
+      }
+
+      logger.info({ userId: user.id }, "auth.otp_verified");
 
       const { sdk } = await import("../_core/sdk");
       // P1 session security: 30-day TTL (down from 1 year). Configurable via SESSION_TTL_DAYS (max 90).
@@ -110,6 +203,8 @@ export const authRouter = router({
           openId: `phone:${input.phone}`,
           appId: ENV.appId,
           name: user.name ?? "",
+          // Embed current tokenVersion so revocation check works on every request
+          tokenVersion: user.tokenVersion ?? 1,
         },
         { expiresInMs: sessionTtlMs }
       );

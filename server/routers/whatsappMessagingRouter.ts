@@ -6,6 +6,7 @@
  */
 import type { ResultSetHeader } from "mysql2";
 import crypto from "node:crypto";
+import { redactSensitive } from "../_core/redact";
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -158,7 +159,10 @@ async function _createRegulatedIntentHandoff(input: {
     action: "whatsapp.regulated_intent.escalated",
     entityType: "staff_handoff",
     entityId: handoffId,
-    payload: JSON.stringify({ phone: input.phone, unlinked: !input.userId }),
+    payload: JSON.stringify({
+      phone: redactSensitive(input.phone),
+      unlinked: !input.userId,
+    }), // PII-safe
   });
   return handoffId;
 }
@@ -580,7 +584,10 @@ const cartRouter = router({
         action: "whatsapp.cart.confirmed",
         entityType: "order",
         entityId: orderId,
-        payload: JSON.stringify({ phone: input.phone, cartId: cart.id }),
+        payload: JSON.stringify({
+          phone: redactSensitive(input.phone),
+          cartId: cart.id,
+        }), // PII-safe
       });
 
       return { ok: true, orderId, total };

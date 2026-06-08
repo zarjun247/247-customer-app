@@ -4,6 +4,10 @@ import { getDb } from "../db";
 import { dsrRequests, dsrSlaMonitorLog } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { readFlag } from "./emergencyStopService";
+import {
+  recordWorkerSuccess,
+  recordWorkerFailure,
+} from "./workerHealthRegistry";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -84,9 +88,12 @@ export function startDsrSlaMonitor(): ReturnType<typeof setInterval> | null {
     logger.error({ err: String(err) }, "dsrSlaMonitor: initial tick failed")
   );
   dsrSlaTimer = setInterval(() => {
-    runDsrSlaMonitorTick().catch(err =>
-      logger.error({ err: String(err) }, "dsrSlaMonitor: tick failed")
-    );
+    runDsrSlaMonitorTick()
+      .then(() => recordWorkerSuccess("dsrSlaMonitor"))
+      .catch(err => {
+        logger.error({ err: String(err) }, "dsrSlaMonitor: tick failed");
+        recordWorkerFailure("dsrSlaMonitor", err);
+      });
   }, intervalMs);
   return dsrSlaTimer;
 }

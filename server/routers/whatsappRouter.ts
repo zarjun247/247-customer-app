@@ -24,6 +24,7 @@
 
 import type { ResultSetHeader } from "mysql2";
 import { z } from "zod";
+import { redactSensitive } from "../_core/redact";
 import { router, publicProcedure } from "../_core/trpc";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
@@ -241,7 +242,7 @@ const webhookRouter = router({
             action: "whatsapp.handoff.created",
             entityType: "staff_handoff",
             entityId: handoffId,
-            payload: JSON.stringify({ phone: input.phone }),
+            payload: JSON.stringify({ phone: redactSensitive(input.phone) }), // PII-safe
           });
         } else {
           response =

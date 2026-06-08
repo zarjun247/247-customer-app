@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { router, publicProcedure } from "../_core/trpc";
+import { redactSensitive } from "../_core/redact";
 import { assertOtpLimiterMode } from "./authRouter";
 import {
   assertWhatsappWebhookGuard,
@@ -42,7 +44,7 @@ export const customerWhatsappRouter = router({
           actor: { id: null, type: "whatsapp" },
           action: "whatsapp.regulated_intent.escalated",
           entityType: "whatsapp_session",
-          payload: JSON.stringify({ phone }),
+          payload: JSON.stringify({ phone: redactSensitive(phone) }), // PII-safe
         });
         return {
           response:
@@ -122,7 +124,7 @@ export const customerWhatsappRouter = router({
       } else if (input.message === "3" || flow === "rx_upload") {
         if (input.messageType === "image" && input.imageUrl) {
           try {
-            const key = `whatsapp-rx/${phone}-${Date.now()}.jpg`;
+            const key = `whatsapp-rx/${randomUUID()}.jpg`;
             await createWhatsappPrescription(phone, input.imageUrl, key);
           } catch (e) {
             console.error("[WhatsApp] Failed to persist Rx:", e);

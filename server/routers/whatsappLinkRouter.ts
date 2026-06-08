@@ -4,6 +4,7 @@ import { and, desc, eq, like } from "drizzle-orm";
 import { whatsappLinks, users } from "../../drizzle/schema";
 import { upsertWhatsappSession, writeAuditLog } from "../db";
 import { getDbSafe } from "./whatsappHelpers";
+import { redactSensitive } from "../_core/redact";
 
 export const linkRouter = router({
   create: protectedProcedure
@@ -54,7 +55,7 @@ export const linkRouter = router({
         action: "whatsapp.link.create",
         entityType: "whatsapp_link",
         payload: JSON.stringify({
-          phone: input.phone,
+          phone: redactSensitive(input.phone), // PII-safe
           userId: input.userId,
           method: input.method,
         }),
@@ -74,7 +75,7 @@ export const linkRouter = router({
         actor: { id: ctx.user.id, type: "user" },
         action: "whatsapp.link.remove",
         entityType: "whatsapp_link",
-        payload: JSON.stringify({ phone: input.phone }),
+        payload: JSON.stringify({ phone: redactSensitive(input.phone) }), // PII-safe
       });
       return { ok: true };
     }),

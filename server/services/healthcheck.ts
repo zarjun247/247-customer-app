@@ -14,6 +14,10 @@ import { isReservationExpiryWorkerRunning } from "./reservationExpiryWorker";
 import { isRetentionWorkerRunning } from "./retentionWorker";
 import { isDsrSlaMonitorRunning } from "./dsrSlaMonitor";
 import { isStockLockCleanupRunning } from "./stockLockService";
+import {
+  getWorkerHealthSnapshot,
+  hasWorkerHealthAlerts,
+} from "./workerHealthRegistry";
 import { ENV } from "../_core/env";
 
 export type HealthStatus =
@@ -336,9 +340,13 @@ export function checkWorkers(): HealthComponent & {
   // Outbox dispatcher is degraded if it has consecutive failures (even if running)
   const outboxDegraded =
     workerStatus.outboxDispatcher && outboxHealth.consecutiveFailures >= 5;
+  // Registry alerts: any worker with >= 3 consecutive failures
+  const registryAlerts = hasWorkerHealthAlerts();
 
   const status: HealthStatus =
-    expectedRunning.length > 0 || outboxDegraded ? "degraded" : "healthy";
+    expectedRunning.length > 0 || outboxDegraded || registryAlerts
+      ? "degraded"
+      : "healthy";
   return {
     status,
     message:
@@ -350,6 +358,7 @@ export function checkWorkers(): HealthComponent & {
     details: {
       ...(workerStatus as Record<string, unknown>),
       outboxDispatcherHealth: outboxHealth,
+      workerHealthRegistry: getWorkerHealthSnapshot(),
     },
     workerStatus,
   };

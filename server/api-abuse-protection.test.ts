@@ -20,30 +20,32 @@ import {
 describe("api abuse protection service", () => {
   beforeEach(() => resetAbuseProtectionForTests());
 
-  it("throttles OTP send by phone/IP actor key", () => {
+  it("throttles OTP send by phone/IP actor key", async () => {
     const store = new MemoryRateLimitStore();
     const actor = {
       phone: "+919876543210",
       ip: "203.0.113.9",
       route: "auth.sendOtp",
     };
-    const decisions = Array.from({ length: 6 }, (_, i) =>
-      checkOtpSend(actor, store, i)
+    const decisions = await Promise.all(
+      Array.from({ length: 6 }, (_, i) => checkOtpSend(actor, store, i))
     );
     expect(decisions.slice(0, 5).every(d => d.decision === "allow")).toBe(true);
     expect(decisions[5].decision).toBe("throttle");
     expect(decisions[5].reason).toBe("otp_spam");
   });
 
-  it("throttles repeated failed OTP verification without logging OTP material", () => {
+  it("throttles repeated failed OTP verification without logging OTP material", async () => {
     const store = new MemoryRateLimitStore();
     const actor = {
       phone: "+919876543210",
       ip: "203.0.113.9",
       route: "auth.verifyOtp",
     };
-    const decisions = Array.from({ length: 9 }, (_, i) =>
-      checkOtpVerifyFailure(actor, store, i)
+    const decisions = await Promise.all(
+      Array.from({ length: 9 }, (_, i) =>
+        checkOtpVerifyFailure(actor, store, i)
+      )
     );
     expect(decisions[8].decision).toBe("throttle");
     const event = createSuspiciousActivityEvent({
@@ -55,15 +57,16 @@ describe("api abuse protection service", () => {
     expect(JSON.stringify(event)).not.toContain("secret");
   });
 
-  it("rejects/throttles repeated upload abuse attempts with safe details", () => {
+  it("rejects/throttles repeated upload abuse attempts with safe details", async () => {
     const store = new MemoryRateLimitStore();
     const actor = {
       userId: 42,
       ip: "203.0.113.10",
       route: "prescription.upload",
     };
-    let last = checkUploadAttempt(actor, store, 1);
-    for (let i = 2; i <= 21; i += 1) last = checkUploadAttempt(actor, store, i);
+    let last = await checkUploadAttempt(actor, store, 1);
+    for (let i = 2; i <= 21; i += 1)
+      last = await checkUploadAttempt(actor, store, i);
     expect(last.decision).toBe("throttle");
     const safe = sanitizeAbuseDetails({
       imageBase64: "data:image/png;base64,AAAA",
@@ -73,12 +76,14 @@ describe("api abuse protection service", () => {
     expect(safe.prescriptionPayload).toBe("[REDACTED]");
   });
 
-  it("has conservative cart and checkout spam guards", () => {
+  it("has conservative cart and checkout spam guards", async () => {
     const store = new MemoryRateLimitStore();
     const actor = { userId: 7, ip: "198.51.100.2", route: "cart.upsert" };
     for (let i = 0; i < 120; i += 1)
-      expect(checkCartUpsert(actor, store, i).decision).toBe("allow");
-    expect(checkCartUpsert(actor, store, 121).decision).toBe("throttle");
+      expect((await checkCartUpsert(actor, store, i)).decision).toBe("allow");
+    expect((await checkCartUpsert(actor, store, 121)).decision).toBe(
+      "throttle"
+    );
 
     const checkoutStore = new MemoryRateLimitStore();
     const checkoutActor = {
@@ -88,14 +93,14 @@ describe("api abuse protection service", () => {
     };
     for (let i = 0; i < 12; i += 1)
       expect(
-        checkCheckoutAttempt(checkoutActor, checkoutStore, i).decision
+        (await checkCheckoutAttempt(checkoutActor, checkoutStore, i)).decision
       ).toBe("allow");
     expect(
-      checkCheckoutAttempt(checkoutActor, checkoutStore, 13).decision
+      (await checkCheckoutAttempt(checkoutActor, checkoutStore, 13)).decision
     ).toBe("throttle");
   });
 
-  it("has an admin brute-force guard", () => {
+  it("has an admin brute-force guard", async () => {
     const store = new MemoryRateLimitStore();
     const actor = {
       phone: "+919999999999",
@@ -103,29 +108,33 @@ describe("api abuse protection service", () => {
       route: "admin.login",
     };
     for (let i = 0; i < 6; i += 1)
-      expect(checkAdminBruteforce(actor, store, i).decision).toBe("allow");
-    expect(checkAdminBruteforce(actor, store, 7).decision).toBe("throttle");
+      expect((await checkAdminBruteforce(actor, store, i)).decision).toBe(
+        "allow"
+      );
+    expect((await checkAdminBruteforce(actor, store, 7)).decision).toBe(
+      "throttle"
+    );
   });
 
-  it("counts malformed provider signatures as suspicious without crashing", () => {
+  it("counts malformed provider signatures as suspicious without crashing", async () => {
     const store = new MemoryRateLimitStore();
     const actor = { ip: "192.0.2.55", route: "webhook.whatsapp" };
     for (let i = 0; i < 25; i += 1)
-      expect(checkWebhookSignatureFailure(actor, store, i).decision).toBe(
-        "allow"
-      );
-    expect(checkWebhookSignatureFailure(actor, store, 26).decision).toBe(
-      "suspicious"
-    );
+      expect(
+        (await checkWebhookSignatureFailure(actor, store, i)).decision
+      ).toBe("allow");
+    expect(
+      (await checkWebhookSignatureFailure(actor, store, 26)).decision
+    ).toBe("suspicious");
   });
 
-  it("detects webhook replay in static in-memory guard and documents durable P1 elsewhere", () => {
-    expect(checkWebhookReplay("razorpay", "evt_123", 1000).decision).toBe(
-      "allow"
-    );
-    expect(checkWebhookReplay("razorpay", "evt_123", 1001).decision).toBe(
-      "suspicious"
-    );
+  it("detects webhook replay in static in-memory guard and documents durable P1 elsewhere", async () => {
+    expect(
+      (await checkWebhookReplay("razorpay", "evt_123", 1000)).decision
+    ).toBe("allow");
+    expect(
+      (await checkWebhookReplay("razorpay", "evt_123", 1001)).decision
+    ).toBe("suspicious");
   });
 
   it("redacts suspicious activity phone/token/signature/prescription payload", () => {

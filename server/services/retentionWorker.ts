@@ -8,6 +8,10 @@ import { logAudit } from "./audit";
 import { ENV } from "../_core/env";
 import { readFlag } from "./emergencyStopService";
 import { emitSloEvent } from "./sloService";
+import {
+  recordWorkerSuccess,
+  recordWorkerFailure,
+} from "./workerHealthRegistry";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -237,9 +241,12 @@ export function startRetentionWorker(): ReturnType<typeof setInterval> | null {
     logger.error({ err: String(err) }, "retentionWorker: initial tick failed")
   );
   retentionTimer = setInterval(() => {
-    runRetentionTick().catch(err =>
-      logger.error({ err: String(err) }, "retentionWorker: tick failed")
-    );
+    runRetentionTick()
+      .then(() => recordWorkerSuccess("retentionWorker"))
+      .catch(err => {
+        logger.error({ err: String(err) }, "retentionWorker: tick failed");
+        recordWorkerFailure("retentionWorker", err);
+      });
   }, intervalMs);
   return retentionTimer;
 }

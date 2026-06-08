@@ -16,7 +16,8 @@ describe("public/high-risk route inspection guard", () => {
   it("inspects existing auth/OTP routes and preserves no-OTP logging posture", () => {
     expect(authRouter).toContain("sendOtp");
     expect(authRouter).toContain("verifyOtp");
-    expect(authRouter).toContain('console.info("auth.otp_requested")');
+    // Phase 9: migrated from console.info to structured pino logger
+    expect(authRouter).toContain('"auth.otp_requested"');
     expect(authRouter).not.toMatch(
       /console\.(log|info|warn|error)\([^\n]*(devCode|code)[^\n]*\)/
     );

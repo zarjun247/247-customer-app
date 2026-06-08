@@ -53,6 +53,9 @@ export const users = mysqlTable("users", {
   staffStoreId: int("staffStoreId"), // which store this staff member operates at
   // SM-B migration 0061: key version for field-level PII encryption
   encryptionKeyVersion: smallint("encryption_key_version").notNull().default(1),
+  // Migration 0077: token version for session revocation.
+  // Increment on logout, password reset, or suspension to invalidate all prior JWTs.
+  tokenVersion: int("tokenVersion").notNull().default(1),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

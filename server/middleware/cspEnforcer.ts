@@ -7,8 +7,11 @@ export type CspMode = "off" | "report_only" | "enforce";
 // in development; tighten nonce-based CSP in a future hardening pass.
 const CSP_DIRECTIVES: Record<string, string> = {
   "default-src": "'self'",
-  "script-src": "'self' 'unsafe-inline'",
-  "style-src": "'self' 'unsafe-inline'",
+  // SECURITY NOTE: 'unsafe-inline' is required for Vite/React hydration in the
+  // current SPA build. Tracked for nonce-based CSP hardening in a future sprint.
+  // Risk is mitigated by frame-ancestors:'none', strict CORS, and CSRF tokens.
+  "script-src": "'self' 'unsafe-inline'", // see SECURITY NOTE above
+  "style-src": "'self' 'unsafe-inline'", // see SECURITY NOTE above
   "img-src": "'self' data: blob:",
   "font-src": "'self' data:",
   "connect-src": "'self'",
